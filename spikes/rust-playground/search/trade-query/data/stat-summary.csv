@@ -1,0 +1,15 @@
+category,label,entries,distinct_texts,hash0,hash1,hash2,hash3plus,multiline,with_options,local_suffix,id_kinds
+pseudo,Pseudo,298,298,111,166,21,0,0,88,0,lake:53 pseudo:245
+explicit,Explicit,7896,7660,2282,5419,190,5,286,0,20,indexable:459 pseudo:28 stat:7409
+implicit,Implicit,1834,1814,280,1494,60,0,17,0,17,pseudo:16 stat:1818
+imbued,Imbued,162,162,162,0,0,0,0,0,0,pseudo:162
+fractured,Fractured,1833,1818,516,1197,116,4,28,0,20,stat:1833
+enchant,Enchant,2037,1998,778,1247,12,0,7,0,8,delirium:21 stat:2016
+scourge,Scourge,409,408,88,311,10,0,3,0,9,stat:409
+crafted,Crafted,288,287,17,246,25,0,1,0,19,stat:288
+mercenary,Mercenary,534,533,534,0,0,0,0,0,0,skill:268 support:266
+veiled,Veiled,20,20,20,0,0,0,0,0,0,mod:20
+delve,Delve,81,80,81,0,0,0,2,0,0,delve:81
+ultimatum,Ultimatum,63,57,63,0,0,0,0,0,0,umod:63
+sanctum,Sanctum,240,240,128,112,0,0,0,0,0,sanctum:183 stat:57
+crucible,Crucible,2492,2418,2492,0,0,0,1682,0,0,mod:2492

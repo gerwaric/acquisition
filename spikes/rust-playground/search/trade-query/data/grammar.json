@@ -1,0 +1,1850 @@
+{
+ "_generated": "by scripts/extract-grammar.py from the files in MANIFEST.md — do not edit",
+ "captured": "2026-09-12",
+ "sources": {
+  "filters": "data/filters-2026-09-12.json",
+  "stats": "data/stats-2026-09-12.json",
+  "items": "data/items-2026-09-12.json",
+  "trade_bundle": "raw/Trade - Path of Exile_files/trade.d17c272e9c6a43635ff3d9779e4f14924da8fcf5.js",
+  "main_bundle": "raw/Trade - Path of Exile_files/main.a1ed07be8ff39876254ffefe1642d35d8b074db1.js"
+ },
+ "request": {
+  "source": "PoE/Trade/Service.performSearch; PoE/Trade/App.query(); addSearch",
+  "search_url_expression": "\"search\"+(\"pc\"!==t?\"/\"+t:\"\"",
+  "search_url": "POST /api/trade/search[/<realm>]/<league>  (pc by omission)",
+  "body": "{query, sort}",
+  "default_sort": {
+   "price": "asc"
+  },
+  "persisted_state_source": "{state:{id:null,tab:\"search\",name:null,type:null,disc:null,term:null,realm:null,league:null,status:\"any\",filters:{},stats:[{type:\"and\",filters:[]}],exchange:{want:{},have:{},fulfillable:!0}}",
+  "query_assembly_source": "query:function(){var t={};if(this.state.status&&(t.status={option:this.state.status}),\"exchange\"==this.state.tab)t.have=l.keys(this.state.exchange.have),t.want=l.keys(this.state.exchange.want),null!==this.state.exchange.stock&&(t.stock=this.state.exchange.stock),this.state.exchange.fulfillable||(t.fulfillable=this.state.exchange.fulfillable),null!==this.state.exchange.collapse&&(t.collapse=this.state.exchange.collapse),null!==this.state.exchange.account&&(t.account=this.state.exchange.account);else{l.isEmpty(this.state.term)?(l.isEmpty(this.state.name)||(t.name=this.state.name,l.isEmpty(this.state.disc)||(t.name={option:t.name,discriminator:this.state.disc})),l.isEmpty(this.state.type)||(t.type=this.state.type,l.isEmpty(this.state.disc)||(t.type={option:t.type,discriminator:this.state.disc}))):t.term=this.state.term,l.isEmpty(this.state.stats)||(t.stats=this.state.stats);var e={};for(var n in this.state.filters){var i=this.state.filters[n];l.isEmpty(i.filters)||(e[n]=i)}l.isEmpty(e)||(t.filters=e)}return t}",
+  "limits": {
+   "resultLimit": 100,
+   "liveResultTotalLimit": 500
+  }
+ },
+ "query_shape": {
+  "source": "read from query_assembly_source above",
+  "status": "{option: <status id>}",
+  "term": "free text; when set, name and type are not sent",
+  "name": "string, or {option: <name>, discriminator: <disc>}",
+  "type": "string, or {option: <type>, discriminator: <disc>}",
+  "stats": "[{type: <stat group type>, filters: [{id, value: {min?, max?, weight?, option?}, disabled}], value: {min?, max?}?, disabled?}]",
+  "filters": "{<group id>: {filters: {<filter id>: {min?, max?} | {option} | {r?, g?, b?, w?, min?, max?} | <input>}, disabled?}} — a group is sent only when it has filters"
+ },
+ "filter_groups": [
+  {
+   "id": "status_filters",
+   "title": null,
+   "filters": [
+    {
+     "id": "status",
+     "text": null,
+     "shape": [
+      "option"
+     ],
+     "options": [
+      "available",
+      "securable",
+      "onlineleague",
+      "online",
+      "any"
+     ],
+     "option_texts": {
+      "available": "Instant Buyout and In Person",
+      "securable": "Instant Buyout",
+      "onlineleague": "In Person (Online in League)",
+      "online": "In Person (Online)",
+      "any": "Any"
+     }
+    }
+   ]
+  },
+  {
+   "id": "type_filters",
+   "title": "Type Filters",
+   "filters": [
+    {
+     "id": "category",
+     "text": "Item Category",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "weapon",
+      "weapon.one",
+      "weapon.onemelee",
+      "weapon.twomelee",
+      "weapon.bow",
+      "weapon.claw",
+      "weapon.dagger",
+      "weapon.basedagger",
+      "weapon.runedagger",
+      "weapon.oneaxe",
+      "weapon.onesword",
+      "weapon.basesword",
+      "weapon.rapier",
+      "weapon.onemace",
+      "weapon.basemace",
+      "weapon.sceptre",
+      "weapon.staff",
+      "weapon.basestaff",
+      "weapon.warstaff",
+      "weapon.twoaxe",
+      "weapon.twomace",
+      "weapon.twosword",
+      "weapon.wand",
+      "weapon.rod",
+      "armour",
+      "armour.chest",
+      "armour.boots",
+      "armour.gloves",
+      "armour.helmet",
+      "armour.shield",
+      "armour.quiver",
+      "accessory",
+      "accessory.amulet",
+      "accessory.belt",
+      "accessory.ring",
+      "accessory.trinket",
+      "gem",
+      "gem.activegem",
+      "gem.supportgem",
+      "gem.supportgemplus",
+      "jewel",
+      "jewel.base",
+      "jewel.abyss",
+      "jewel.cluster",
+      "flask",
+      "map",
+      "map.fragment",
+      "map.breachstone",
+      "map.invitation",
+      "map.scarab",
+      "leaguestone",
+      "memoryline",
+      "card",
+      "monster.beast",
+      "monster.yellowbeast",
+      "monster.redbeast",
+      "heistequipment",
+      "heistequipment.heistweapon",
+      "heistequipment.heisttool",
+      "heistequipment.heistutility",
+      "heistequipment.heistreward",
+      "heistmission",
+      "heistmission.contract",
+      "heistmission.blueprint",
+      "logbook",
+      "sanctum.research",
+      "sanctum.relic",
+      "tincture",
+      "corpse",
+      "idol",
+      "graft",
+      "wombgift",
+      "enshrouded",
+      "chart",
+      "currency",
+      "currency.piece",
+      "currency.resonator",
+      "currency.fossil",
+      "currency.incubator",
+      "currency.heistobjective",
+      "currency.omen",
+      "currency.tattoo"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "weapon": "Any Weapon",
+      "weapon.one": "One-Handed Weapon",
+      "weapon.onemelee": "One-Handed Melee Weapon",
+      "weapon.twomelee": "Two-Handed Melee Weapon",
+      "weapon.bow": "Bow",
+      "weapon.claw": "Claw",
+      "weapon.dagger": "Any Dagger",
+      "weapon.basedagger": "Base Dagger",
+      "weapon.runedagger": "Rune Dagger",
+      "weapon.oneaxe": "One-Handed Axe",
+      "weapon.onesword": "Any One-Handed Sword",
+      "weapon.basesword": "Base One-Handed Sword",
+      "weapon.rapier": "Rapier",
+      "weapon.onemace": "Any One-Handed Mace",
+      "weapon.basemace": "Base One-Handed Mace",
+      "weapon.sceptre": "Sceptre",
+      "weapon.staff": "Any Staff",
+      "weapon.basestaff": "Base Staff",
+      "weapon.warstaff": "Warstaff",
+      "weapon.twoaxe": "Two-Handed Axe",
+      "weapon.twomace": "Two-Handed Mace",
+      "weapon.twosword": "Two-Handed Sword",
+      "weapon.wand": "Wand",
+      "weapon.rod": "Fishing Rod",
+      "armour": "Any Armour",
+      "armour.chest": "Body Armour",
+      "armour.boots": "Boots",
+      "armour.gloves": "Gloves",
+      "armour.helmet": "Helmet",
+      "armour.shield": "Shield",
+      "armour.quiver": "Quiver",
+      "accessory": "Any Accessory",
+      "accessory.amulet": "Amulet",
+      "accessory.belt": "Belt",
+      "accessory.ring": "Ring",
+      "accessory.trinket": "Trinket",
+      "gem": "Any Gem",
+      "gem.activegem": "Skill Gem",
+      "gem.supportgem": "Support Gem",
+      "gem.supportgemplus": "Awakened Support Gem",
+      "jewel": "Any Jewel",
+      "jewel.base": "Base Jewel",
+      "jewel.abyss": "Abyss Jewel",
+      "jewel.cluster": "Cluster Jewel",
+      "flask": "Flask",
+      "map": "Map",
+      "map.fragment": "Map Fragment",
+      "map.breachstone": "Breachstone",
+      "map.invitation": "Maven's Invitation",
+      "map.scarab": "Scarab",
+      "leaguestone": "Leaguestone",
+      "memoryline": "Memory Line",
+      "card": "Divination Card",
+      "monster.beast": "Captured Beast",
+      "monster.yellowbeast": "Yellow Beast",
+      "monster.redbeast": "Red Beast",
+      "heistequipment": "Any Heist Equipment",
+      "heistequipment.heistweapon": "Heist Gear",
+      "heistequipment.heisttool": "Heist Tool",
+      "heistequipment.heistutility": "Heist Cloak",
+      "heistequipment.heistreward": "Heist Brooch",
+      "heistmission": "Any Heist Mission",
+      "heistmission.contract": "Heist Contract",
+      "heistmission.blueprint": "Heist Blueprint",
+      "logbook": "Any Expedition Logbook",
+      "sanctum.research": "Sanctum Research",
+      "sanctum.relic": "Sanctum Relic",
+      "tincture": "Any Tincture",
+      "corpse": "Any Corpse",
+      "idol": "Any Idol",
+      "graft": "Any Graft",
+      "wombgift": "Any Wombgift",
+      "enshrouded": "Any Enshrouded Item",
+      "chart": "Any Chart",
+      "currency": "Any Currency",
+      "currency.piece": "Unique Fragment",
+      "currency.resonator": "Resonator",
+      "currency.fossil": "Fossil",
+      "currency.incubator": "Incubator",
+      "currency.heistobjective": "Heist Target",
+      "currency.omen": "Omen",
+      "currency.tattoo": "Tattoo"
+     }
+    },
+    {
+     "id": "rarity",
+     "text": "Item Rarity",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "normal",
+      "magic",
+      "rare",
+      "unique",
+      "uniquefoil",
+      "nonunique"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "normal": "Normal",
+      "magic": "Magic",
+      "rare": "Rare",
+      "unique": "Unique",
+      "uniquefoil": "Unique (Foil)",
+      "nonunique": "Any Non-Unique"
+     }
+    }
+   ]
+  },
+  {
+   "id": "weapon_filters",
+   "title": "Weapon Filters",
+   "filters": [
+    {
+     "id": "damage",
+     "text": "Damage",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "aps",
+     "text": "Attacks per Second",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "crit",
+     "text": "Critical Chance",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "dps",
+     "text": "Damage per Second",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "pdps",
+     "text": "Physical DPS",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "edps",
+     "text": "Elemental DPS",
+     "shape": [
+      "minMax"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "armour_filters",
+   "title": "Armour Filters",
+   "filters": [
+    {
+     "id": "ar",
+     "text": "Armour",
+     "shape": [
+      "minMax"
+     ],
+     "tip": "Includes base value, local modifiers, and maximum quality"
+    },
+    {
+     "id": "ev",
+     "text": "Evasion",
+     "shape": [
+      "minMax"
+     ],
+     "tip": "Includes base value, local modifiers, and maximum quality"
+    },
+    {
+     "id": "es",
+     "text": "Energy Shield",
+     "shape": [
+      "minMax"
+     ],
+     "tip": "Includes base value, local modifiers, and maximum quality"
+    },
+    {
+     "id": "ward",
+     "text": "Ward",
+     "shape": [
+      "minMax"
+     ],
+     "tip": "Includes base value, local modifiers, and maximum quality"
+    },
+    {
+     "id": "block",
+     "text": "Block",
+     "shape": [
+      "minMax"
+     ],
+     "tip": "Includes base value and local modifiers"
+    },
+    {
+     "id": "base_defence_percentile",
+     "text": "Base Percentile",
+     "shape": [
+      "minMax"
+     ],
+     "tip": "The percentile of all base defence rolls, averaged (0-100%)"
+    }
+   ]
+  },
+  {
+   "id": "socket_filters",
+   "title": "Socket Filters",
+   "filters": [
+    {
+     "id": "sockets",
+     "text": "Sockets",
+     "shape": [
+      "minMax",
+      "sockets"
+     ]
+    },
+    {
+     "id": "links",
+     "text": "Link Groups",
+     "shape": [
+      "minMax",
+      "sockets"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "req_filters",
+   "title": "Requirements",
+   "filters": [
+    {
+     "id": "lvl",
+     "text": "Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "str",
+     "text": "Strength",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "dex",
+     "text": "Dexterity",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "int",
+     "text": "Intelligence",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "class",
+     "text": "Character Class",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "scion",
+      "marauder",
+      "ranger",
+      "witch",
+      "duelist",
+      "templar",
+      "shadow"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "scion": "Scion",
+      "marauder": "Marauder",
+      "ranger": "Ranger",
+      "witch": "Witch",
+      "duelist": "Duelist",
+      "templar": "Templar",
+      "shadow": "Shadow"
+     }
+    }
+   ]
+  },
+  {
+   "id": "map_filters",
+   "title": "Map/Chart Filters",
+   "filters": [
+    {
+     "id": "map_tier",
+     "text": "Map Tier",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "map_packsize",
+     "text": "Increased Packsize",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "map_iiq",
+     "text": "Increased Item Quantity",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "map_iir",
+     "text": "Increased Item Rarity",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "map_gold",
+     "text": "Chart Gold",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "chart_sulphur",
+     "text": "Chart Sulphur",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "chart_shape",
+     "text": "Chart Shape",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "1": "End",
+      "2": "Corner",
+      "3": "Straight",
+      "4": "Junction",
+      "5": "Crossing"
+     }
+    },
+    {
+     "id": "area_level",
+     "text": "Area Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "map_series",
+     "text": "Map Series",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "current",
+      "keepers",
+      "mercenary",
+      "settlers",
+      "necropolis",
+      "azmeri",
+      "ancestor",
+      "crucible",
+      "sanctum",
+      "lake",
+      "sentinel",
+      "archnemesis",
+      "scourge",
+      "expedition",
+      "ritual",
+      "heist",
+      "harvest",
+      "delirium",
+      "metamorph",
+      "blight",
+      "legion",
+      "synthesis",
+      "betrayal",
+      "warfortheatlas",
+      "atlasofworlds",
+      "theawakening",
+      "original"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "current": "Current",
+      "keepers": "Keepers",
+      "mercenary": "Mercenaries",
+      "settlers": "Settlers",
+      "necropolis": "Necropolis",
+      "azmeri": "Affliction",
+      "ancestor": "Ancestor",
+      "crucible": "Crucible",
+      "sanctum": "Sanctum",
+      "lake": "Kalandra",
+      "sentinel": "Sentinel",
+      "archnemesis": "Archnemesis",
+      "scourge": "Scourge",
+      "expedition": "Expedition",
+      "ritual": "Ritual",
+      "heist": "Heist",
+      "harvest": "Harvest",
+      "delirium": "Delirium",
+      "metamorph": "Metamorph",
+      "blight": "Blight",
+      "legion": "Legion",
+      "synthesis": "Synthesis",
+      "betrayal": "Betrayal",
+      "warfortheatlas": "War for the Atlas",
+      "atlasofworlds": "Atlas of Worlds",
+      "theawakening": "The Awakening",
+      "original": "Legacy"
+     }
+    },
+    {
+     "id": "map_blighted",
+     "text": "Blighted Map",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "map_uberblighted",
+     "text": "Blight-ravaged Map",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "map_completion_reward",
+     "text": "Map Completion Reward",
+     "shape": [
+      "option"
+     ],
+     "option_raw": {
+      "knownItem": {
+       "uniques": true
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "heist_filters",
+   "title": "Heist Filters",
+   "filters": [
+    {
+     "id": "heist_wings",
+     "text": "Wings Revealed",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_max_wings",
+     "text": "Total Wings",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_escape_routes",
+     "text": "Escape Routes Revealed",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_max_escape_routes",
+     "text": "Total Escape Routes",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_reward_rooms",
+     "text": "Reward Rooms Revealed",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_max_reward_rooms",
+     "text": "Total Reward Rooms",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_objective_value",
+     "text": "Contract Objective Value",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "moderate",
+      "high",
+      "precious",
+      "priceless"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "moderate": "Moderate Value",
+      "high": "High Value",
+      "precious": "Precious",
+      "priceless": "Priceless"
+     }
+    },
+    {
+     "id": "heist_lockpicking",
+     "text": "Lockpicking Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_brute_force",
+     "text": "Brute Force Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_perception",
+     "text": "Perception Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_demolition",
+     "text": "Demolition Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_counter_thaumaturgy",
+     "text": "Counter-Thaum. Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_trap_disarmament",
+     "text": "Trap Disarmament Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_agility",
+     "text": "Agility Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_deception",
+     "text": "Deception Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "heist_engineering",
+     "text": "Engineering Level",
+     "shape": [
+      "minMax"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "sanctum_filters",
+   "title": "Sanctum Filters",
+   "filters": [
+    {
+     "id": "sanctum_resolve",
+     "text": "Resolve",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "sanctum_max_resolve",
+     "text": "Maximum Resolve",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "sanctum_inspiration",
+     "text": "Inspiration",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "sanctum_gold",
+     "text": "Aureus",
+     "shape": [
+      "minMax"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "ultimatum_filters",
+   "title": "Ultimatum Filters",
+   "filters": [
+    {
+     "id": "ultimatum_challenge",
+     "text": "Challenge Type",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "Exterminate",
+      "Survival",
+      "Defense",
+      "Conquer"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "Exterminate": "Defeat Waves of Enemies",
+      "Survival": "Survive",
+      "Defense": "Protect the Altar",
+      "Conquer": "Stand in the Stone Circles"
+     }
+    },
+    {
+     "id": "ultimatum_reward",
+     "text": "Reward Type",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "DoubleCurrency",
+      "DoubleDivCards",
+      "MirrorRare",
+      "ExchangeUnique"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "DoubleCurrency": "Currency",
+      "DoubleDivCards": "Divination Cards",
+      "MirrorRare": "Mirrored Rare Item",
+      "ExchangeUnique": "Unique Item"
+     }
+    },
+    {
+     "id": "ultimatum_input",
+     "text": "Required Item",
+     "shape": [
+      "option"
+     ],
+     "option_raw": {
+      "knownItem": {
+       "uniques": true,
+       "cards": true,
+       "currency": true
+      }
+     }
+    },
+    {
+     "id": "ultimatum_output",
+     "text": "Reward Unique",
+     "shape": [
+      "option"
+     ],
+     "option_raw": {
+      "knownItem": {
+       "uniques": true
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "misc_filters",
+   "title": "Miscellaneous",
+   "filters": [
+    {
+     "id": "quality",
+     "text": "Quality",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "ilvl",
+     "text": "Item Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "gem_level",
+     "text": "Gem Level",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "gem_level_progress",
+     "text": "Gem Experience %",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "gem_transfigured",
+     "text": "Transfigured Gem",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "gem_vaal",
+     "text": "Vaal Gem",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "fractured_item",
+     "text": "Fractured Item",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "gem_imbued",
+     "text": "Imbued Gem",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "synthesised_item",
+     "text": "Synthesised Item",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "searing_item",
+     "text": "Searing Exarch Item",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "tangled_item",
+     "text": "Eater of Worlds Item",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "identified",
+     "text": "Identified",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "corrupted",
+     "text": "Corrupted",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "mirrored",
+     "text": "Mirrored",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "split",
+     "text": "Split",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "crafted",
+     "text": "Crafted",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "veiled",
+     "text": "Veiled",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "foreseeing",
+     "text": "Foreseeing",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "vestigial",
+     "text": "Vestigial",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "memory_level",
+     "text": "Memory Strands",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "intangibility",
+     "text": "Intangibility",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "stored_experience",
+     "text": "Stored Experience",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "stack_size",
+     "text": "Stack Size",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "alternate_art",
+     "text": "Alternate Art",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "foil_variation",
+     "text": "Foil Variation",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "none",
+      "0",
+      "voidborn",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "celestial",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "none": "None",
+      "0": "Rainbow (Default)",
+      "voidborn": "Any Voidborn Variant",
+      "1": "Amethyst",
+      "2": "Verdant",
+      "3": "Ruby",
+      "4": "Cobalt",
+      "5": "Sunset",
+      "6": "Aureate",
+      "celestial": "Any Celestial Variant",
+      "7": "Celestial Quartz",
+      "8": "Celestial Ruby",
+      "9": "Celestial Emerald",
+      "10": "Celestial Aureate",
+      "11": "Celestial Pearl",
+      "12": "Celestial Amethyst"
+     }
+    },
+    {
+     "id": "corpse_type",
+     "text": "Corpse Type",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "eldritch",
+      "demon",
+      "construct",
+      "undead",
+      "beast",
+      "humanoid"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "eldritch": "Eldritch",
+      "demon": "Demon",
+      "construct": "Construct",
+      "undead": "Undead",
+      "beast": "Beast",
+      "humanoid": "Humanoid"
+     }
+    },
+    {
+     "id": "scourge_tier",
+     "text": "Scourge Tier",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "crucible_item",
+     "text": "Crucible Item",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    },
+    {
+     "id": "mutated",
+     "text": "Foulborn",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true",
+      "false"
+     ],
+     "option_texts": {
+      "None": "Any",
+      "true": "Yes",
+      "false": "No"
+     }
+    }
+   ]
+  },
+  {
+   "id": "trade_filters",
+   "title": "Trade Filters",
+   "filters": [
+    {
+     "id": "account",
+     "text": "Seller Account",
+     "shape": [
+      "input"
+     ],
+     "input": {
+      "placeholder": "Enter account name..."
+     }
+    },
+    {
+     "id": "collapse",
+     "text": "Collapse Listings by Account",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "true"
+     ],
+     "option_texts": {
+      "None": "No",
+      "true": "Yes"
+     }
+    },
+    {
+     "id": "indexed",
+     "text": "Listed",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      null,
+      "1hour",
+      "3hours",
+      "12hours",
+      "1day",
+      "3days",
+      "1week",
+      "2weeks",
+      "1month",
+      "2months"
+     ],
+     "option_texts": {
+      "None": "Any Time",
+      "1hour": "Up to an Hour Ago",
+      "3hours": "Up to 3 Hours Ago",
+      "12hours": "Up to 12 Hours Ago",
+      "1day": "Up to a Day Ago",
+      "3days": "Up to 3 Days Ago",
+      "1week": "Up to a Week Ago",
+      "2weeks": "Up to 2 Weeks Ago",
+      "1month": "Up to 1 Month Ago",
+      "2months": "Up to 2 Months Ago"
+     }
+    },
+    {
+     "id": "sale_type",
+     "text": "Sale Type",
+     "shape": [
+      "option"
+     ],
+     "options": [
+      "any",
+      null,
+      "priced_with_info",
+      "unpriced"
+     ],
+     "option_texts": {
+      "any": "Any",
+      "None": "Buyout or Fixed Price",
+      "priced_with_info": "Price with Note",
+      "unpriced": "No Listed Price"
+     }
+    },
+    {
+     "id": "fee",
+     "text": "Gold Fee",
+     "shape": [
+      "minMax"
+     ]
+    },
+    {
+     "id": "price",
+     "text": "Buyout Price",
+     "shape": [
+      "minMax",
+      "option"
+     ],
+     "options": [
+      null,
+      "chaos_divine",
+      "chaos",
+      "exalted",
+      "divine",
+      "mirror",
+      "blessed",
+      "chrome",
+      "gcp",
+      "jewellers",
+      "scour",
+      "regret",
+      "fusing",
+      "chance",
+      "alt",
+      "alch",
+      "regal",
+      "vaal"
+     ],
+     "option_texts": {
+      "None": "Chaos Orb Equivalent",
+      "chaos_divine": "Chaos or Divine Orbs",
+      "chaos": "Chaos Orb",
+      "exalted": "Exalted Orb",
+      "divine": "Divine Orb",
+      "mirror": "Mirror of Kalandra",
+      "blessed": "Blessed Orb",
+      "chrome": "Chromatic Orb",
+      "gcp": "Gemcutter's Prism",
+      "jewellers": "Jeweller's Orb",
+      "scour": "Orb of Scouring",
+      "regret": "Orb of Regret",
+      "fusing": "Orb of Fusing",
+      "chance": "Orb of Chance",
+      "alt": "Orb of Alteration",
+      "alch": "Orb of Alchemy",
+      "regal": "Regal Orb",
+      "vaal": "Vaal Orb"
+     }
+    }
+   ]
+  }
+ ],
+ "stat_groups": [
+  {
+   "type": "and",
+   "title": "And",
+   "tip": null,
+   "group_value": null,
+   "weight": false,
+   "mutable": true
+  },
+  {
+   "type": "not",
+   "title": "Not",
+   "tip": null,
+   "group_value": null,
+   "weight": false,
+   "mutable": true
+  },
+  {
+   "type": "if",
+   "title": "If",
+   "tip": "Match items that meet each stat's `min` and `max` requirements if the stat is present.",
+   "group_value": null,
+   "weight": false,
+   "mutable": true
+  },
+  {
+   "type": "count",
+   "title": "Count",
+   "tip": "Count each stat that meets the `min` and `max` (if provided, otherwise existence) requirements.\nUse the group's `min` and `max` to filter items based on the count of matching stats.",
+   "group_value": "min_max",
+   "weight": false,
+   "mutable": true
+  },
+  {
+   "type": "weight",
+   "title": "Weighted Sum",
+   "tip": "Check each stat meets the `min` and `max` (if provided, otherwise existence) requirements before multiplying the stat value by the `weight` and finally summing them together.\nUse the group's `min` and `max` to filter items based on the total summed value.",
+   "group_value": "min_max",
+   "weight": true,
+   "mutable": true
+  },
+  {
+   "type": "weight2",
+   "title": "Weighted Sum v2",
+   "tip": "Each stat value that meets the `min` and `max` (if provided, otherwise existence) requirements will be multiplied by the `weight` before being summed together.\nUse the group's `min` and `max` to filter items based on the total summed value.",
+   "group_value": "min_max",
+   "weight": true,
+   "mutable": true
+  },
+  {
+   "type": "crucible",
+   "title": "Crucible Passive Tree Path",
+   "tip": "Filter by the mods that you want to be able to allocate at once.\nUse a lower `min` value for partial matches.",
+   "group_value": "min_only",
+   "weight": false,
+   "mutable": false
+  },
+  {
+   "type": "mercenary",
+   "title": "Mercenary Skill Group",
+   "tip": "Filter by a skill and supports that a Mercenary Warrant should have.\nUse a lower `min` value for partial matches.",
+   "group_value": "min_only",
+   "weight": false,
+   "mutable": false
+  }
+ ],
+ "stat_categories": [
+  {
+   "id": "pseudo",
+   "label": "Pseudo",
+   "entries": 298
+  },
+  {
+   "id": "explicit",
+   "label": "Explicit",
+   "entries": 7896
+  },
+  {
+   "id": "implicit",
+   "label": "Implicit",
+   "entries": 1834
+  },
+  {
+   "id": "imbued",
+   "label": "Imbued",
+   "entries": 162
+  },
+  {
+   "id": "fractured",
+   "label": "Fractured",
+   "entries": 1833
+  },
+  {
+   "id": "enchant",
+   "label": "Enchant",
+   "entries": 2037
+  },
+  {
+   "id": "scourge",
+   "label": "Scourge",
+   "entries": 409
+  },
+  {
+   "id": "crafted",
+   "label": "Crafted",
+   "entries": 288
+  },
+  {
+   "id": "mercenary",
+   "label": "Mercenary",
+   "entries": 534
+  },
+  {
+   "id": "veiled",
+   "label": "Veiled",
+   "entries": 20
+  },
+  {
+   "id": "delve",
+   "label": "Delve",
+   "entries": 81
+  },
+  {
+   "id": "ultimatum",
+   "label": "Ultimatum",
+   "entries": 63
+  },
+  {
+   "id": "sanctum",
+   "label": "Sanctum",
+   "entries": 240
+  },
+  {
+   "id": "crucible",
+   "label": "Crucible",
+   "entries": 2492
+  }
+ ],
+ "item_categories": [
+  {
+   "id": "accessory",
+   "label": "Accessories",
+   "entries": 433
+  },
+  {
+   "id": "armour",
+   "label": "Armour",
+   "entries": 1045
+  },
+  {
+   "id": "card",
+   "label": "Cards",
+   "entries": 467
+  },
+  {
+   "id": "currency",
+   "label": "Currency",
+   "entries": 795
+  },
+  {
+   "id": "flask",
+   "label": "Flasks",
+   "entries": 88
+  },
+  {
+   "id": "gem",
+   "label": "Gems",
+   "entries": 873
+  },
+  {
+   "id": "jewel",
+   "label": "Jewels",
+   "entries": 207
+  },
+  {
+   "id": "map",
+   "label": "Maps",
+   "entries": 688
+  },
+  {
+   "id": "weapon",
+   "label": "Weapons",
+   "entries": 717
+  },
+  {
+   "id": "leaguestone",
+   "label": "Leaguestones",
+   "entries": 16
+  },
+  {
+   "id": "monster",
+   "label": "Itemised Monsters",
+   "entries": 361
+  },
+  {
+   "id": "heistequipment",
+   "label": "Heist Equipment",
+   "entries": 56
+  },
+  {
+   "id": "heistmission",
+   "label": "Heist Mission",
+   "entries": 28
+  },
+  {
+   "id": "logbook",
+   "label": "Expedition Logbooks",
+   "entries": 1
+  },
+  {
+   "id": "sanctum",
+   "label": "Sanctum",
+   "entries": 22
+  },
+  {
+   "id": "tincture",
+   "label": "Tincture",
+   "entries": 15
+  },
+  {
+   "id": "corpse",
+   "label": "Itemised Corpse",
+   "entries": 102
+  },
+  {
+   "id": "idol",
+   "label": "Idol",
+   "entries": 45
+  },
+  {
+   "id": "graft",
+   "label": "Graft",
+   "entries": 17
+  },
+  {
+   "id": "wombgift",
+   "label": "Wombgift",
+   "entries": 5
+  },
+  {
+   "id": "enshrouded",
+   "label": "Enshrouded Item",
+   "entries": 5
+  },
+  {
+   "id": "chart",
+   "label": "Chart",
+   "entries": 19
+  }
+ ],
+ "property_type_to_field": {
+  "source": "PoE/Item/Popup typeToField (main bundle)",
+  "table": {
+   "1": "map_tier",
+   "2": "map_iiq",
+   "3": "map_iir",
+   "4": "map_packsize",
+   "5": "gem_level",
+   "6": "quality",
+   "9": "pdamage",
+   "10": "edamage",
+   "11": "cdamage",
+   "12": "crit",
+   "13": "aps",
+   "15": "block",
+   "16": "ar",
+   "17": "ev",
+   "18": "es",
+   "20": "gem_level_progress",
+   "25": "spirit",
+   "30": "monster_level",
+   "31": "stored_experience",
+   "32": "stack_size",
+   "33": "durability",
+   "34": "area_level",
+   "35": "heist_wings",
+   "36": "heist_escape_routes",
+   "37": "heist_reward_rooms",
+   "38": "heist_lockpicking",
+   "39": "heist_brute_force",
+   "40": "heist_perception",
+   "41": "heist_demolition",
+   "42": "heist_counter_thaumaturgy",
+   "43": "heist_trap_disarmament",
+   "44": "heist_agility",
+   "45": "heist_deception",
+   "46": "heist_engineering",
+   "47": "heist_objective_value",
+   "54": "ward",
+   "55": "adaptation",
+   "58": "sentinel_durability",
+   "59": "sentinel_duration",
+   "60": "sentinel_empowerment_limit",
+   "61": "sentinel_empowerment",
+   "62": "lvl",
+   "63": "str",
+   "64": "dex",
+   "65": "int",
+   "66": "map_bonus",
+   "68": "sanctum_resolve",
+   "69": "sanctum_inspiration",
+   "70": "sanctum_gold",
+   "78": "ilvl",
+   "80": "stat.pseudo.pseudo_map_conversion_shaper_map",
+   "81": "stat.pseudo.pseudo_map_conversion_elder_map",
+   "82": "stat.pseudo.pseudo_map_conversion_conqueror_map",
+   "83": "stat.pseudo.pseudo_map_conversion_unique_map",
+   "84": "stat.pseudo.pseudo_map_conversion_scarab",
+   "85": "stat.pseudo.pseudo_map_conversion_maven_invitation",
+   "86": "stat.pseudo.pseudo_map_conversion_memory_line",
+   "88": "stat.pseudo.pseudo_map_more_map_drops",
+   "89": "stat.pseudo.pseudo_map_more_scarab_drops",
+   "90": "stat.pseudo.pseudo_map_more_currency_drops",
+   "91": "stat.pseudo.pseudo_map_more_card_drops",
+   "97": "reload_time",
+   "98": "map_revives",
+   "99": "memory_level",
+   "100": "map_gold",
+   "101": "map_experience",
+   "102": "map_magic_monsters",
+   "103": "map_rare_monsters",
+   "106": "stat.pseudo.pseudo_ritual_unique_monsters",
+   "107": "stat.pseudo.pseudo_ritual_other_monsters"
+  }
+ },
+ "renderer_mod_arrays_in_order": {
+  "source": "PoE/Item/Popup processContext (main bundle)",
+  "arrays": [
+   "utilityMods",
+   "enchantMods",
+   "runeMods",
+   "scourgeMods",
+   "implicitMods",
+   "fracturedMods",
+   "mutatedMods",
+   "explicitMods",
+   "bondedMods",
+   "craftedMods",
+   "desecratedMods",
+   "pseudoMods",
+   "cosmeticMods",
+   "crucibleMods"
+  ]
+ },
+ "hash_category_to_css_class": {
+  "source": "PoE/Trade/Component/Item render (trade bundle)",
+  "map": {
+   "implicit": ".implicitMod",
+   "enchant": ".enchantMod",
+   "monster": ".explicitMod",
+   "explicit": ".explicitMod, .mutatedMod",
+   "fractured": ".fracturedMod",
+   "crafted": ".craftedMod",
+   "veiled": ".veiledMod",
+   "pseudo": ".pseudoMod",
+   "delve": ".explicitMod",
+   "scourge": ".scourgeMod",
+   "sanctum": ".explicitMod",
+   "rune": ".runeMod",
+   "desecrated": ".desecratedMod",
+   "skill": ".property.skill",
+   "imbued": ".imbuedMod"
+  }
+ },
+ "search_by_me_categories": [
+  "implicit",
+  "enchant",
+  "scourge",
+  "monster",
+  "fractured",
+  "explicit",
+  "crafted",
+  "veiled",
+  "pseudo",
+  "delve",
+  "ultimatum",
+  "sanctum",
+  "rune",
+  "desecrated",
+  "imbued"
+ ]
+}

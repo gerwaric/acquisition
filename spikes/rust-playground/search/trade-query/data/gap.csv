@@ -1,0 +1,94 @@
+group,filter,text,shape,gap,via
+status_filters,status,,option,none,"market state (listing, seller, price, indexing)"
+type_filters,category,Item Category,option,open,83 option ids; the private-API item carries no class field — taxonomy source unknown
+type_filters,rarity,Item Rarity,option,local:field,frameType
+weapon_filters,damage,Damage,minMax,local:derived,computation not in the capture
+weapon_filters,aps,Attacks per Second,minMax,local:property 13,the site renders this property type under this field
+weapon_filters,crit,Critical Chance,minMax,local:property 12,the site renders this property type under this field
+weapon_filters,dps,Damage per Second,minMax,local:derived,computation not in the capture
+weapon_filters,pdps,Physical DPS,minMax,local:derived,computation not in the capture
+weapon_filters,edps,Elemental DPS,minMax,local:derived,computation not in the capture
+armour_filters,ar,Armour,minMax,local:property 16,the site renders this property type under this field
+armour_filters,ev,Evasion,minMax,local:property 17,the site renders this property type under this field
+armour_filters,es,Energy Shield,minMax,local:property 18,the site renders this property type under this field
+armour_filters,ward,Ward,minMax,local:property 54,the site renders this property type under this field
+armour_filters,block,Block,minMax,local:property 15,the site renders this property type under this field
+armour_filters,base_defence_percentile,Base Percentile,minMax,open,no property or field mapping in the capture
+socket_filters,sockets,Sockets,minMax+sockets,local:derived,computation not in the capture
+socket_filters,links,Link Groups,minMax+sockets,local:derived,computation not in the capture
+req_filters,lvl,Level,minMax,local:property 62,the site renders this property type under this field
+req_filters,str,Strength,minMax,local:property 63,the site renders this property type under this field
+req_filters,dex,Dexterity,minMax,local:property 64,the site renders this property type under this field
+req_filters,int,Intelligence,minMax,local:property 65,the site renders this property type under this field
+req_filters,class,Character Class,option,open,no property or field mapping in the capture
+map_filters,map_tier,Map Tier,minMax,local:property 1,the site renders this property type under this field
+map_filters,map_packsize,Increased Packsize,minMax,local:property 4,the site renders this property type under this field
+map_filters,map_iiq,Increased Item Quantity,minMax,local:property 2,the site renders this property type under this field
+map_filters,map_iir,Increased Item Rarity,minMax,local:property 3,the site renders this property type under this field
+map_filters,map_gold,Chart Gold,minMax,local:property 100,the site renders this property type under this field
+map_filters,chart_sulphur,Chart Sulphur,minMax,open,no property or field mapping in the capture
+map_filters,chart_shape,Chart Shape,option,open,no property or field mapping in the capture
+map_filters,area_level,Area Level,minMax,local:property 34,the site renders this property type under this field
+map_filters,map_series,Map Series,option,open,no property or field mapping in the capture
+map_filters,map_blighted,Blighted Map,option,open,no property or field mapping in the capture
+map_filters,map_uberblighted,Blight-ravaged Map,option,open,no property or field mapping in the capture
+map_filters,map_completion_reward,Map Completion Reward,option,open,no property or field mapping in the capture
+heist_filters,heist_wings,Wings Revealed,minMax,local:property 35,the site renders this property type under this field
+heist_filters,heist_max_wings,Total Wings,minMax,open,no property or field mapping in the capture
+heist_filters,heist_escape_routes,Escape Routes Revealed,minMax,local:property 36,the site renders this property type under this field
+heist_filters,heist_max_escape_routes,Total Escape Routes,minMax,open,no property or field mapping in the capture
+heist_filters,heist_reward_rooms,Reward Rooms Revealed,minMax,local:property 37,the site renders this property type under this field
+heist_filters,heist_max_reward_rooms,Total Reward Rooms,minMax,open,no property or field mapping in the capture
+heist_filters,heist_objective_value,Contract Objective Value,option,local:property 47,the site renders this property type under this field
+heist_filters,heist_lockpicking,Lockpicking Level,minMax,local:property 38,the site renders this property type under this field
+heist_filters,heist_brute_force,Brute Force Level,minMax,local:property 39,the site renders this property type under this field
+heist_filters,heist_perception,Perception Level,minMax,local:property 40,the site renders this property type under this field
+heist_filters,heist_demolition,Demolition Level,minMax,local:property 41,the site renders this property type under this field
+heist_filters,heist_counter_thaumaturgy,Counter-Thaum. Level,minMax,local:property 42,the site renders this property type under this field
+heist_filters,heist_trap_disarmament,Trap Disarmament Level,minMax,local:property 43,the site renders this property type under this field
+heist_filters,heist_agility,Agility Level,minMax,local:property 44,the site renders this property type under this field
+heist_filters,heist_deception,Deception Level,minMax,local:property 45,the site renders this property type under this field
+heist_filters,heist_engineering,Engineering Level,minMax,local:property 46,the site renders this property type under this field
+sanctum_filters,sanctum_resolve,Resolve,minMax,local:property 68,the site renders this property type under this field
+sanctum_filters,sanctum_max_resolve,Maximum Resolve,minMax,open,no property or field mapping in the capture
+sanctum_filters,sanctum_inspiration,Inspiration,minMax,local:property 69,the site renders this property type under this field
+sanctum_filters,sanctum_gold,Aureus,minMax,local:property 70,the site renders this property type under this field
+ultimatum_filters,ultimatum_challenge,Challenge Type,option,open,no property or field mapping in the capture
+ultimatum_filters,ultimatum_reward,Reward Type,option,open,no property or field mapping in the capture
+ultimatum_filters,ultimatum_input,Required Item,option,open,no property or field mapping in the capture
+ultimatum_filters,ultimatum_output,Reward Unique,option,open,no property or field mapping in the capture
+misc_filters,quality,Quality,minMax,local:property 6,the site renders this property type under this field
+misc_filters,ilvl,Item Level,minMax,local:property 78,the site renders this property type under this field
+misc_filters,gem_level,Gem Level,minMax,local:property 5,the site renders this property type under this field
+misc_filters,gem_level_progress,Gem Experience %,minMax,local:property 20,the site renders this property type under this field
+misc_filters,gem_transfigured,Transfigured Gem,option,open,no property or field mapping in the capture
+misc_filters,gem_vaal,Vaal Gem,option,local:field,typeLine (Vaal prefix)?
+misc_filters,fractured_item,Fractured Item,option,local:field,fractured
+misc_filters,gem_imbued,Imbued Gem,option,open,no property or field mapping in the capture
+misc_filters,synthesised_item,Synthesised Item,option,local:field,synthesised
+misc_filters,searing_item,Searing Exarch Item,option,local:field,searing
+misc_filters,tangled_item,Eater of Worlds Item,option,local:field,tangled
+misc_filters,identified,Identified,option,local:field,identified
+misc_filters,corrupted,Corrupted,option,local:field,corrupted
+misc_filters,mirrored,Mirrored,option,local:field,duplicated
+misc_filters,split,Split,option,local:field,split
+misc_filters,crafted,Crafted,option,local:field,craftedMods (non-empty)
+misc_filters,veiled,Veiled,option,local:field,veiled
+misc_filters,foreseeing,Foreseeing,option,open,no property or field mapping in the capture
+misc_filters,vestigial,Vestigial,option,open,no property or field mapping in the capture
+misc_filters,memory_level,Memory Strands,minMax,local:property 99,the site renders this property type under this field
+misc_filters,intangibility,Intangibility,minMax,open,no property or field mapping in the capture
+misc_filters,stored_experience,Stored Experience,minMax,local:property 31,the site renders this property type under this field
+misc_filters,stack_size,Stack Size,minMax,local:property 32,the site renders this property type under this field
+misc_filters,alternate_art,Alternate Art,option,open,no property or field mapping in the capture
+misc_filters,foil_variation,Foil Variation,option,local:field,foilVariation
+misc_filters,corpse_type,Corpse Type,option,open,no property or field mapping in the capture
+misc_filters,scourge_tier,Scourge Tier,minMax,open,no property or field mapping in the capture
+misc_filters,crucible_item,Crucible Item,option,open,no property or field mapping in the capture
+misc_filters,mutated,Foulborn,option,open,no property or field mapping in the capture
+trade_filters,account,Seller Account,input,none,"market state (listing, seller, price, indexing)"
+trade_filters,collapse,Collapse Listings by Account,option,none,"market state (listing, seller, price, indexing)"
+trade_filters,indexed,Listed,option,none,"market state (listing, seller, price, indexing)"
+trade_filters,sale_type,Sale Type,option,none,"market state (listing, seller, price, indexing)"
+trade_filters,fee,Gold Fee,minMax,none,"market state (listing, seller, price, indexing)"
+trade_filters,price,Buyout Price,minMax+option,none,"market state (listing, seller, price, indexing)"

@@ -1,0 +1,384 @@
+category,text,ids,id_kinds
+explicit,#% chance to Avoid being Chilled during Effect,stat_1619168299 stat_1053326368,stat
+explicit,#% chance to Avoid being Frozen during Effect,stat_2872815301 stat_475518267,stat
+explicit,#% chance to Impale Enemies on Hit with Attacks,stat_3739863694 stat_725880290,stat
+explicit,#% chance to Intimidate Enemies for 4 seconds on Hit,stat_2089652545 stat_78985352,stat
+explicit,#% chance to gain Onslaught for 4 seconds on Kill,stat_3023957681 stat_665823128,stat
+explicit,#% chance to gain a Flask Charge when you deal a Critical Strike,stat_3738001379 stat_2858921304,stat
+explicit,#% increased Cooldown Recovery Rate,stat_1004011302 stat_239144,stat
+explicit,#% increased Damage with Hits and Ailments against Blinded Enemies,stat_3503466234 stat_3565956680,stat
+explicit,#% increased Mana Reservation Efficiency of Curse Aura Skills,stat_443165947 stat_714566414,stat
+explicit,#% increased Mana Reservation Efficiency of Skills,stat_4237190083 stat_1269219558,stat
+explicit,#% increased Mana Reservation Efficiency of Skills per 250 total Attributes,stat_1212083058 stat_2676451350,stat
+explicit,#% increased Maximum total Energy Shield Recovery per second from Leech while affected by Zealotry,stat_2731416566 stat_3848992177,stat
+explicit,#% increased Maximum total Life Recovery per second from Leech,stat_4118987751 stat_2916634441,stat
+explicit,#% increased Movement Speed if you haven't been Hit Recently,stat_1177358866 stat_308396001,stat
+explicit,#% increased Quantity of Gold Dropped by Slain Enemies,stat_253956903 stat_3664950032,stat
+explicit,#% increased Rarity of Items found during Effect,stat_1740200922 stat_3251705960,stat
+explicit,#% increased Reservation Efficiency of Skills,stat_2587176568 stat_4202507508,stat
+explicit,#% increased effect,stat_2448920197 stat_3529940209,stat
+explicit,#% increased time before Lockdown,stat_2435922859 stat_4004160031,stat
+explicit,#% more Flask Charges gained from Kills,stat_3790386828 stat_624257168,stat
+explicit,#% more Monster Life,stat_95249895 stat_2710898947,stat
+explicit,#% of Fire Damage from Hits taken as Physical Damage,stat_3205239847 stat_1029319062,stat
+explicit,+# to Level of all Kinetic Fusillade Gems,indexable_skill_277 indexable_skill_282,indexable
+explicit,+# to Level of all Raise Spectre Gems,stat_3235814433 indexable_skill_29,indexable stat
+explicit,+# to Level of all Raise Zombie Gems,stat_2739830820 indexable_skill_16,indexable stat
+explicit,+# to Strength and Intelligence,stat_1535626285 stat_2543977012,stat
+explicit,+# to maximum Fortification,stat_2094299742 stat_335507772,stat
+explicit,+#% Chance to Block Attack Damage per Endurance Charge,stat_3039589351 stat_2355741828,stat
+explicit,+#% chance to Suppress Spell Damage,stat_3680664274 stat_492027537,stat
+explicit,1 Added Passive Skill is Evil Eye,stat_4291066912 stat_156080652,stat
+explicit,Anger has #% increased Mana Reservation Efficiency,stat_2549369799 stat_2963485753,stat
+explicit,Arctic Armour has #% increased Mana Reservation Efficiency,stat_2351239732 stat_2605040931,stat
+explicit,Area becomes fatal after some time,stat_2378288719 stat_660313500,stat
+explicit,Area contains an additional Shrine,stat_1468737867 stat_28550326,stat
+explicit,Area has patches of Burning Ground,stat_133340941 stat_3665534869,stat
+explicit,Area has patches of Chilled Ground,stat_349586058 stat_389725673,stat
+explicit,Area is inhabited by Lunaris fanatics,stat_3134632618 stat_3408601861,stat
+explicit,Area is inhabited by Solaris fanatics,stat_2457517302 stat_1934713036,stat
+explicit,Chaos Damage taken does not bypass Energy Shield,stat_1119465199 stat_1865744989,stat
+explicit,Curse Enemies with Flammability on Hit,stat_338121249 stat_654274615,stat
+explicit,Curse Enemies with Temporal Chains on Hit,stat_3433724931 stat_4139135963,stat
+explicit,Determination has #% increased Mana Reservation Efficiency,stat_325889252 stat_2721871046,stat
+explicit,Discipline has #% increased Mana Reservation Efficiency,stat_2081344089 stat_1692887998,stat
+explicit,Grace has #% increased Mana Reservation Efficiency,stat_900639351 stat_1803598623,stat
+explicit,Grants Level # Anger Skill,stat_484879947 stat_449494711,stat
+explicit,Grants Level # Determination Skill,stat_4265392510 stat_3231614028,stat
+explicit,Grants Level # Discipline Skill,stat_2341269061 stat_2578176147,stat
+explicit,Grants Level # Grace Skill,stat_2867050084 stat_3914774028,stat
+explicit,Grants Level # Haste Skill,stat_1188846263 stat_2923442950,stat
+explicit,Grants Level # Hatred Skill,stat_2429546158 stat_178394804,stat
+explicit,Grants Level # Purity of Fire Skill,stat_3970432307 stat_3716281760,stat
+explicit,Grants Level # Purity of Ice Skill,stat_4193390599 stat_151975117,stat
+explicit,Grants Level # Purity of Lightning Skill,stat_3822878124 stat_1141249906,stat
+explicit,Grants Level # Wrath Skill,stat_2265307453 stat_1568319697,stat
+explicit,Hatred has #% increased Mana Reservation Efficiency,stat_2156140483 stat_1920370417,stat
+explicit,Herald of Agony has #% increased Mana Reservation Efficiency,stat_1133703802 stat_1284151528,stat
+explicit,Herald of Ash has #% increased Mana Reservation Efficiency,stat_2500442851 stat_3819451758,stat
+explicit,Herald of Ice has #% increased Mana Reservation Efficiency,stat_3395872960 stat_3059700363,stat
+explicit,Herald of Purity has #% increased Mana Reservation Efficiency,stat_2189040439 stat_1542765265,stat
+explicit,Herald of Thunder has #% increased Mana Reservation Efficiency,stat_3817220109 stat_3959101898,stat
+explicit,Hits have #% increased Critical Strike Chance against you,stat_4270096386 stat_165218607,stat
+explicit,Lose # Life per second,stat_771127912 stat_1559341337,stat
+explicit,Malevolence has #% increased Mana Reservation Efficiency,stat_3383226338 stat_3266567165,stat
+explicit,Monsters Poison on Hit,stat_3350803563 stat_394639761,stat
+explicit,Monsters in your Maps deal #% more Damage,stat_3516276449 stat_2937898686,stat
+explicit,Monsters in your Maps have #% more Life,stat_4190580879 stat_2804300445,stat
+explicit,Nearby Enemies are Chilled,stat_2159555743 stat_2480873346,stat
+explicit,Players have #% increased Movement Speed,stat_3463633447 stat_1416455556,stat
+explicit,Pride has #% increased Mana Reservation Efficiency,stat_3993865658 stat_3484910620,stat
+explicit,Purity of Fire has #% increased Mana Reservation Efficiency,stat_3003688066 stat_1135152940,stat
+explicit,Purity of Ice has #% increased Mana Reservation Efficiency,stat_139925400 stat_2665518524,stat
+explicit,Purity of Lightning has #% increased Mana Reservation Efficiency,stat_3411256933 stat_1450978702,stat
+explicit,Recover #% of Mana on Kill,stat_1030153674 stat_1604736568,stat
+explicit,Regenerate # Energy Shield per second,stat_2561836520 stat_1330109706,stat
+explicit,Shock Enemies as though dealing #% more Damage,stat_2206792089 stat_451866048,stat
+explicit,Skills Socketed in your Boots are Supported by level # Fresh Meat,stat_4089743927|3|150 stat_4089743927|3|149,stat
+explicit,Skills Socketed in your Gloves are Supported by level # Fresh Meat,stat_4089743927|2|149 stat_4089743927|2|150,stat
+explicit,Skills Socketed in your Helmet are Supported by level # Fresh Meat,stat_4089743927|1|149 stat_4089743927|1|150,stat
+explicit,Skills granted by your Passive Tree are Supported by level # Fresh Meat,stat_4089743927|4|150 stat_4089743927|4|149,stat
+explicit,Skills used by this Graft deal #% more Damage,stat_1662209485 stat_4064732043,stat
+explicit,Socketed Gems are Supported by Level # Added Chaos Damage,stat_411460446 indexable_support_128,indexable stat
+explicit,Socketed Gems are Supported by Level # Added Cold Damage,stat_4020144606 indexable_support_127,indexable stat
+explicit,Socketed Gems are Supported by Level # Added Fire Damage,stat_2572192375 indexable_support_126,indexable stat
+explicit,Socketed Gems are Supported by Level # Added Lightning Damage,stat_1647529598 indexable_support_125,indexable stat
+explicit,Socketed Gems are Supported by Level # Advanced Traps,stat_3839163699 indexable_support_6,indexable stat
+explicit,Socketed Gems are Supported by Level # Ancestral Call,stat_696805682 indexable_support_14,indexable stat
+explicit,Socketed Gems are Supported by Level # Arcane Surge,stat_2287264161 indexable_support_123,indexable stat
+explicit,Socketed Gems are Supported by Level # Archmage,indexable_support_122 stat_3652278215,indexable stat
+explicit,Socketed Gems are Supported by Level # Arrogance,indexable_support_116 stat_3922006600,indexable stat
+explicit,Socketed Gems are Supported by Level # Arrow Nova,stat_1331336999 indexable_support_121,indexable stat
+explicit,Socketed Gems are Supported by Level # Ballista Totem,stat_3030692053 indexable_support_27,indexable stat
+explicit,Socketed Gems are Supported by Level # Barrage,indexable_support_120 stat_3827538724,indexable stat
+explicit,Socketed Gems are Supported by Level # Behead,indexable_support_140 stat_1019145105,indexable stat
+explicit,Socketed Gems are Supported by Level # Blasphemy,stat_539747809 indexable_support_119,indexable stat
+explicit,Socketed Gems are Supported by Level # Blastchain Mine,stat_1710508327 indexable_support_23,indexable stat
+explicit,Socketed Gems are Supported by Level # Bloodlust,indexable_support_117 stat_804508379,indexable stat
+explicit,Socketed Gems are Supported by Level # Bonechill,stat_1859244771 indexable_support_115,indexable stat
+explicit,Socketed Gems are Supported by Level # Brutality,stat_715256302 indexable_support_114,indexable stat
+explicit,Socketed Gems are Supported by Level # Burning Damage,stat_2680613507 indexable_support_68,indexable stat
+explicit,Socketed Gems are Supported by Level # Cast when Damage Taken,stat_3036440332 indexable_support_112,indexable stat
+explicit,Socketed Gems are Supported by Level # Chain,indexable_support_107 stat_2643665787,indexable stat
+explicit,Socketed Gems are Supported by Level # Chance to Poison,stat_228165595 indexable_support_54,indexable stat
+explicit,Socketed Gems are Supported by Level # Charged Mines,indexable_support_103 stat_1365328494,indexable stat
+explicit,Socketed Gems are Supported by Level # Charged Traps,indexable_support_78 stat_479453859,indexable stat
+explicit,Socketed Gems are Supported by Level # Close Combat,indexable_support_102 stat_694651314,indexable stat
+explicit,Socketed Gems are Supported by Level # Cold Penetration,stat_1991958615 indexable_support_100,indexable stat
+explicit,Socketed Gems are Supported by Level # Cold to Fire,stat_550444281 indexable_support_99,indexable stat
+explicit,Socketed Gems are Supported by Level # Combustion,indexable_support_105 stat_1828254451 stat_961135393,indexable stat
+explicit,Socketed Gems are Supported by Level # Concentrated Effect,stat_2388360415 indexable_support_98,indexable stat
+explicit,Socketed Gems are Supported by Level # Controlled Blaze,indexable_support_162 stat_124226929,indexable stat
+explicit,Socketed Gems are Supported by Level # Controlled Destruction,stat_3718597497 indexable_support_97,indexable stat
+explicit,Socketed Gems are Supported by Level # Corrupting Cry,indexable_support_155 stat_3486166615,indexable stat
+explicit,Socketed Gems are Supported by Level # Critical Strike Affliction,stat_2228279620 indexable_support_31,indexable stat
+explicit,Socketed Gems are Supported by Level # Cruelty,indexable_support_136 stat_1679136,indexable stat
+explicit,Socketed Gems are Supported by Level # Culling Strike,indexable_support_96 stat_1135493957,indexable stat
+explicit,Socketed Gems are Supported by Level # Cursed Ground,indexable_support_145 stat_3998071134,indexable stat
+explicit,Socketed Gems are Supported by Level # Deadly Ailments,indexable_support_94 stat_103909236,indexable stat
+explicit,Socketed Gems are Supported by Level # Decay,indexable_support_92 stat_388696990,indexable stat
+explicit,Socketed Gems are Supported by Level # Devour,indexable_support_152 stat_2820883532,indexable stat
+explicit,Socketed Gems are Supported by Level # Efficacy,stat_3924539382 indexable_support_91,indexable stat
+explicit,Socketed Gems are Supported by Level # Elemental Focus,stat_1169422227 indexable_support_90,indexable stat
+explicit,Socketed Gems are Supported by Level # Elemental Proliferation,stat_2929101122 indexable_support_89,indexable stat
+explicit,Socketed Gems are Supported by Level # Endurance Charge on Melee Stun,stat_3375208082 indexable_support_88,indexable stat
+explicit,Socketed Gems are Supported by Level # Energy Leech,indexable_support_87 stat_799443127,indexable stat
+explicit,Socketed Gems are Supported by Level # Eternal Blessing,indexable_support_143 stat_3062849155,indexable stat
+explicit,Socketed Gems are Supported by Level # Excommunicate,indexable_support_169 stat_1385879224,indexable stat
+explicit,Socketed Gems are Supported by Level # Exemplar,indexable_support_171 stat_3370631451,indexable stat
+explicit,Socketed Gems are Supported by Level # Expert Retaliation,indexable_support_164 stat_3570337997,indexable stat
+explicit,Socketed Gems are Supported by Level # Faster Attacks,stat_928701213 indexable_support_86,indexable stat
+explicit,Socketed Gems are Supported by Level # Faster Casting,stat_2169938251 indexable_support_85,indexable stat
+explicit,Socketed Gems are Supported by Level # Feeding Frenzy,stat_2269282877 indexable_support_83,indexable stat
+explicit,Socketed Gems are Supported by Level # Fire Penetration,stat_3265951306 stat_1979658770 indexable_support_82,indexable stat
+explicit,Socketed Gems are Supported by Level # Fist of War,indexable_support_129 stat_2419657101,indexable stat
+explicit,Socketed Gems are Supported by Level # Flamewood,stat_285773939 indexable_support_154,indexable stat
+explicit,Socketed Gems are Supported by Level # Focused Ballista,indexable_support_138 stat_921536976,indexable stat
+explicit,Socketed Gems are Supported by Level # Focused Channelling,stat_1948535732 indexable_support_165,indexable stat
+explicit,Socketed Gems are Supported by Level # Fortify,stat_107118693 indexable_support_79,indexable stat
+explicit,Socketed Gems are Supported by Level # Fresh Meat,indexable_support_153 stat_3713917371,indexable stat
+explicit,Socketed Gems are Supported by Level # Frigid Bond,stat_3031999964 indexable_support_159,indexable stat
+explicit,Socketed Gems are Supported by Level # Generosity,stat_2593773031 indexable_support_77,indexable stat
+explicit,Socketed Gems are Supported by Level # Greater Multiple Projectiles,indexable_support_1 stat_359450079,indexable stat
+explicit,Socketed Gems are Supported by Level # Greater Volley,stat_2223565123 indexable_support_75,indexable stat
+explicit,Socketed Gems are Supported by Level # Guardian's Blessing,indexable_support_157 stat_3434296257,indexable stat
+explicit,Socketed Gems are Supported by Level # Hex Bloom,indexable_support_146 stat_3199084318,indexable stat
+explicit,Socketed Gems are Supported by Level # Hextouch,indexable_support_95 stat_2697741965,indexable stat
+explicit,Socketed Gems are Supported by Level # High-Impact Mine,indexable_support_22 stat_2116100988,indexable stat
+explicit,Socketed Gems are Supported by Level # Hypothermia,stat_13669281 indexable_support_74,indexable stat
+explicit,Socketed Gems are Supported by Level # Ice Bite,stat_1384629003 indexable_support_73,indexable stat
+explicit,Socketed Gems are Supported by Level # Ignite Proliferation,stat_3593797653 indexable_support_72,indexable stat
+explicit,Socketed Gems are Supported by Level # Immolate,stat_2420410470 indexable_support_71,indexable stat
+explicit,Socketed Gems are Supported by Level # Impale,indexable_support_70 stat_1900098804,indexable stat
+explicit,Socketed Gems are Supported by Level # Impending Doom,stat_3227145554 indexable_support_133,indexable stat
+explicit,Socketed Gems are Supported by Level # Increased Area of Effect,stat_3720936304 indexable_support_69,indexable stat
+explicit,Socketed Gems are Supported by Level # Increased Critical Strikes,stat_2259700079 indexable_support_66,indexable stat
+explicit,Socketed Gems are Supported by Level # Infernal Legion,stat_2201102274 indexable_support_61,indexable stat
+explicit,Socketed Gems are Supported by Level # Infused Channelling,indexable_support_13 stat_4048257027,indexable stat
+explicit,Socketed Gems are Supported by Level # Innervate,stat_1106668565 indexable_support_60,indexable stat
+explicit,Socketed Gems are Supported by Level # Inspiration,stat_749770518 indexable_support_24 stat_1866911844,indexable stat
+explicit,Socketed Gems are Supported by Level # Intensify,stat_28821524 stat_1792524915 indexable_support_16 stat_1876637240,indexable stat
+explicit,Socketed Gems are Supported by Level # Iron Grip,stat_251446805 indexable_support_59,indexable stat
+explicit,Socketed Gems are Supported by Level # Iron Will,stat_906997920 indexable_support_58,indexable stat
+explicit,Socketed Gems are Supported by Level # Item Rarity,stat_3587013273 indexable_support_57,indexable stat
+explicit,Socketed Gems are Supported by Level # Knockback,stat_4066711249 indexable_support_56,indexable stat
+explicit,Socketed Gems are Supported by Level # Less Duration,stat_2487643588 indexable_support_25,indexable stat
+explicit,Socketed Gems are Supported by Level # Lifetap,stat_1079239905 indexable_support_137,indexable stat
+explicit,Socketed Gems are Supported by Level # Lightning Penetration,stat_3354027870 indexable_support_51,indexable stat
+explicit,Socketed Gems are Supported by Level # Living Lightning,indexable_support_168 stat_4096329121,indexable stat
+explicit,Socketed Gems are Supported by Level # Maim,stat_3826977109 indexable_support_50,indexable stat
+explicit,Socketed Gems are Supported by Level # Mana Leech,stat_2608615082 indexable_support_49,indexable stat
+explicit,Socketed Gems are Supported by Level # Manaforged Arrows,stat_4022502578 indexable_support_147,indexable stat
+explicit,Socketed Gems are Supported by Level # Mark On Hit,indexable_support_141 stat_3485498591,indexable stat
+explicit,Socketed Gems are Supported by Level # Meat Shield,stat_858460086 indexable_support_48,indexable stat
+explicit,Socketed Gems are Supported by Level # Melee Physical Damage,stat_2985291457 indexable_support_46,indexable stat
+explicit,Socketed Gems are Supported by Level # Minefield,indexable_support_44 stat_2805586447,indexable stat
+explicit,Socketed Gems are Supported by Level # Minion Damage,stat_808939569 indexable_support_64,indexable stat
+explicit,Socketed Gems are Supported by Level # Minion Life,stat_1337327984 indexable_support_63,indexable stat
+explicit,Socketed Gems are Supported by Level # Minion Speed,stat_995332031 indexable_support_62,indexable stat
+explicit,Socketed Gems are Supported by Level # Mirage Archer,indexable_support_43 stat_3239503729,indexable stat
+explicit,Socketed Gems are Supported by Level # Momentum,stat_3237923082 indexable_support_37,indexable stat
+explicit,Socketed Gems are Supported by Level # More Duration,stat_407317553 indexable_support_65,indexable stat
+explicit,Socketed Gems are Supported by Level # Multiple Projectiles,stat_584144941 indexable_support_55,indexable stat
+explicit,Socketed Gems are Supported by Level # Multiple Totems,stat_807186595 indexable_support_40,indexable stat
+explicit,Socketed Gems are Supported by Level # Multiple Traps,indexable_support_39 stat_3016436615,indexable stat
+explicit,Socketed Gems are Supported by Level # Nightblade,indexable_support_38 stat_2861649515,indexable stat
+explicit,Socketed Gems are Supported by Level # Overcharge,indexable_support_144 stat_3462081007,indexable stat
+explicit,Socketed Gems are Supported by Level # Pierce,stat_254728692 indexable_support_33,indexable stat
+explicit,Socketed Gems are Supported by Level # Pinpoint,indexable_support_132 stat_1609369521,indexable stat
+explicit,Socketed Gems are Supported by Level # Point Blank,indexable_support_32 stat_3754129682,indexable stat
+explicit,Socketed Gems are Supported by Level # Predator,indexable_support_93 stat_4082662318,indexable stat
+explicit,Socketed Gems are Supported by Level # Prismatic Burst,indexable_support_148 stat_2910545715,indexable stat
+explicit,Socketed Gems are Supported by Level # Pulverise,stat_282757414 indexable_support_29,indexable stat
+explicit,Socketed Gems are Supported by Level # Rage,stat_369650395 indexable_support_28,indexable stat
+explicit,Socketed Gems are Supported by Level # Returning Projectiles,stat_1549219417 indexable_support_149 stat_52197415,indexable stat
+explicit,Socketed Gems are Supported by Level # Rupture,indexable_support_142 stat_970734352,indexable stat
+explicit,Socketed Gems are Supported by Level # Ruthless,stat_3796013729 indexable_support_21,indexable stat
+explicit,Socketed Gems are Supported by Level # Sacred Wisps,indexable_support_163 stat_3304737450,indexable stat
+explicit,Socketed Gems are Supported by Level # Sacrifice,indexable_support_158 stat_2302807931,indexable stat
+explicit,Socketed Gems are Supported by Level # Sadism,stat_794471597 indexable_support_161,indexable stat
+explicit,Socketed Gems are Supported by Level # Second Wind,indexable_support_20 stat_402499111,indexable stat
+explicit,Socketed Gems are Supported by Level # Shockwave,indexable_support_19 stat_1344789934,indexable stat
+explicit,Socketed Gems are Supported by Level # Slower Projectiles,stat_1390285657 indexable_support_18,indexable stat
+explicit,Socketed Gems are Supported by Level # Spell Cascade,stat_503990161 indexable_support_17,indexable stat
+explicit,Socketed Gems are Supported by Level # Spell Echo,stat_438778966 stat_913919528 indexable_support_42,indexable stat
+explicit,Socketed Gems are Supported by Level # Spell Totem,stat_2962840349 indexable_support_15,indexable stat
+explicit,Socketed Gems are Supported by Level # Spellblade,indexable_support_151 stat_633235561,indexable stat
+explicit,Socketed Gems are Supported by Level # Summon Phantasm,indexable_support_10 stat_2169409479 stat_3155072742,indexable stat
+explicit,Socketed Gems are Supported by Level # Swift Affliction,indexable_support_26 stat_1636220212,indexable stat
+explicit,Socketed Gems are Supported by Level # Swift Assembly,indexable_support_9 stat_4021476585,indexable stat
+explicit,Socketed Gems are Supported by Level # Swiftbrand,indexable_support_130 stat_2127532091,indexable stat
+explicit,Socketed Gems are Supported by Level # Trap,stat_1122134690 indexable_support_8,indexable stat
+explicit,Socketed Gems are Supported by Level # Trauma,indexable_support_150 stat_1715139253,indexable stat
+explicit,Socketed Gems are Supported by Level # Trinity,indexable_support_134 stat_3111091501,indexable stat
+explicit,Socketed Gems are Supported by Level # Unbound Ailments,stat_3699494172 indexable_support_5,indexable stat
+explicit,Socketed Gems are Supported by Level # Unleash,stat_3356013982 indexable_support_4,indexable stat
+explicit,Socketed Gems are Supported by Level # Urgent Orders,indexable_support_131 stat_1485525812,indexable stat
+explicit,Socketed Gems are Supported by Level # Vicious Projectiles,stat_2513293614 indexable_support_35,indexable stat
+explicit,Socketed Gems are Supported by Level # Vile Toxins,stat_1002855537 indexable_support_3,indexable stat
+explicit,Socketed Gems are Supported by Level # Void Manipulation,indexable_support_2 stat_1866583932,indexable stat
+explicit,Socketed Gems are Supported by Level # Volatility,indexable_support_156 stat_4184135167,indexable stat
+explicit,Socketed Gems are Supported by Level # Volley,stat_2696557965 indexable_support_36,indexable stat
+explicit,Socketed Gems are Supported by Level # Withering Touch,indexable_support_104 stat_3287477747,indexable stat
+explicit,"Tormented Spirits in your Maps can Possess Players for 20 seconds
+Tormented Spirits in your Maps cannot Possess Monsters",stat_1582162479 stat_3249943883,stat
+explicit,Trigger Level # Assassin's Mark when you Hit a Rare or Unique Enemy and have no Mark,stat_3924520095 stat_3382957283,stat
+explicit,Trigger Level # Poacher's Mark when you Hit a Rare or Unique Enemy and have no Mark,stat_3904501306 stat_364728407 stat_2659463225,stat
+explicit,Wrath has #% increased Mana Reservation Efficiency,stat_3444518809 stat_1761642973,stat
+explicit,Your Cold Damage can Ignite,stat_3573591118 stat_1888494262,stat
+explicit,Zealotry has #% increased Mana Reservation Efficiency,stat_168308685 stat_4216444167,stat
+implicit,#% chance to Intimidate Enemies for 4 seconds on Hit,stat_78985352 stat_2089652545,stat
+implicit,#% increased Mana Reservation Efficiency of Skills,stat_4237190083 stat_1269219558,stat
+implicit,#% increased Reservation Efficiency of Skills,stat_2587176568 stat_4202507508,stat
+implicit,#% of Attack Damage Leeched as Life,stat_141810208 stat_1828023575,stat
+implicit,#% of Chaos Damage Leeched as Life,stat_2238792070 stat_744082851,stat
+implicit,#% of Cold Damage Leeched as Life,stat_3999401129 stat_2459451600,stat
+implicit,#% of Fire Damage Leeched as Life,stat_3848282610 stat_1743742391,stat
+implicit,#% of Lightning Damage Leeched as Life,stat_80079005 stat_2696663331,stat
+implicit,#% of Physical Damage Leeched as Life,stat_2508100173 stat_3764265320,stat
+implicit,+# to maximum Fortification,stat_335507772 stat_2094299742,stat
+implicit,+#% chance to Suppress Spell Damage,stat_3680664274 stat_492027537,stat
+implicit,Determination has #% increased Mana Reservation Efficiency,stat_325889252 stat_2721871046,stat
+implicit,Discipline has #% increased Mana Reservation Efficiency,stat_2081344089 stat_1692887998,stat
+implicit,Grace has #% increased Mana Reservation Efficiency,stat_900639351 stat_1803598623,stat
+implicit,Prevent +#% of Reflected Damage,stat_1571797746 stat_2510655429,stat
+implicit,Projectiles Pierce # additional Targets,stat_2067062068 stat_2902845638,stat
+implicit,Purity of Fire has #% increased Mana Reservation Efficiency,stat_3003688066 stat_1135152940,stat
+implicit,Purity of Ice has #% increased Mana Reservation Efficiency,stat_139925400 stat_2665518524,stat
+implicit,Purity of Lightning has #% increased Mana Reservation Efficiency,stat_3411256933 stat_1450978702,stat
+implicit,Vitality has #% increased Mana Reservation Efficiency,stat_3972739758 stat_1233806203,stat
+fractured,#% chance to Impale Enemies on Hit with Attacks,stat_3739863694 stat_725880290,stat
+fractured,#% chance to Intimidate Enemies for 4 seconds on Hit,stat_78985352 stat_2089652545,stat
+fractured,#% chance to gain Onslaught for 4 seconds on Kill,stat_3023957681 stat_665823128,stat
+fractured,#% increased Mana Reservation Efficiency of Skills,stat_4237190083 stat_1269219558,stat
+fractured,#% increased Movement Speed if you haven't been Hit Recently,stat_1177358866 stat_308396001,stat
+fractured,+#% chance to Suppress Spell Damage,stat_3680664274 stat_492027537,stat
+fractured,1 Added Passive Skill is Evil Eye,stat_4291066912 stat_156080652,stat
+fractured,Arctic Armour has #% increased Mana Reservation Efficiency,stat_2351239732 stat_2605040931,stat
+fractured,Grants Level # Anger Skill,stat_449494711 stat_484879947,stat
+fractured,Grants Level # Determination Skill,stat_3231614028 stat_4265392510,stat
+fractured,Grants Level # Discipline Skill,stat_2578176147 stat_2341269061,stat
+fractured,Grants Level # Grace Skill,stat_3914774028 stat_2867050084,stat
+fractured,Grants Level # Haste Skill,stat_2923442950 stat_1188846263,stat
+fractured,Grants Level # Hatred Skill,stat_178394804 stat_2429546158,stat
+fractured,Grants Level # Wrath Skill,stat_1568319697 stat_2265307453,stat
+enchant,#% increased Mana Reservation Efficiency of Skills Supported by Spellslinger,stat_3305838454 stat_1341061286,stat
+enchant,#% increased Quantity of Gold Dropped by Slain Enemies,stat_253956903 stat_3664950032,stat
+enchant,#% increased Rallying Cry Buff Effect,stat_865263728 stat_945725535 stat_4147277532,stat
+enchant,Added Small Passive Skills grant: 2% increased Effect of your Curses,stat_3948993189|55 stat_3948993189|25,stat
+enchant,Anger has #% increased Mana Reservation Efficiency,stat_2549369799 stat_2963485753,stat
+enchant,Arctic Armour has #% increased Mana Reservation Efficiency,stat_2351239732 stat_2605040931,stat
+enchant,Area contains # additional Clusters of Mysterious Barrels,stat_1207515735 stat_1080470148 stat_4019701925 stat_1669553893,stat
+enchant,Clarity has #% increased Mana Reservation Efficiency,stat_453778214 stat_2668611054,stat
+enchant,Determination has #% increased Mana Reservation Efficiency,stat_325889252 stat_2721871046,stat
+enchant,Discipline has #% increased Mana Reservation Efficiency,stat_2081344089 stat_1692887998,stat
+enchant,Flesh and Stone has #% increased Mana Reservation Efficiency,stat_1740848995 stat_3563089138,stat
+enchant,Grace has #% increased Mana Reservation Efficiency,stat_900639351 stat_1803598623,stat
+enchant,Haste has #% increased Mana Reservation Efficiency,stat_939320550 stat_804667127,stat
+enchant,Hatred has #% increased Mana Reservation Efficiency,stat_2156140483 stat_1920370417,stat
+enchant,Herald of Agony has #% increased Mana Reservation Efficiency,stat_1133703802 stat_1284151528,stat
+enchant,Herald of Ash has #% increased Mana Reservation Efficiency,stat_2500442851 stat_3819451758,stat
+enchant,Herald of Ice has #% increased Mana Reservation Efficiency,stat_3395872960 stat_3059700363,stat
+enchant,Herald of Purity has #% increased Mana Reservation Efficiency,stat_2189040439 stat_1542765265,stat
+enchant,Herald of Thunder has #% increased Mana Reservation Efficiency,stat_3817220109 stat_3959101898,stat
+enchant,Malevolence has #% increased Mana Reservation Efficiency,stat_3383226338 stat_3266567165,stat
+enchant,Petrified Blood has #% increased Mana Reservation Efficiency,stat_1779904215 stat_1829483269,stat
+enchant,Precision has #% increased Mana Reservation Efficiency,stat_3859865977 stat_658622139,stat
+enchant,Pride has #% increased Mana Reservation Efficiency,stat_3993865658 stat_3484910620,stat
+enchant,Purity of Elements has #% increased Mana Reservation Efficiency,stat_3303293173 stat_491551762,stat
+enchant,Purity of Fire has #% increased Mana Reservation Efficiency,stat_3003688066 stat_1135152940,stat
+enchant,Purity of Ice has #% increased Mana Reservation Efficiency,stat_139925400 stat_2665518524,stat
+enchant,Purity of Lightning has #% increased Mana Reservation Efficiency,stat_3411256933 stat_1450978702,stat
+enchant,Pyroclast Mine has #% increased Throwing Speed,stat_2432759583 stat_2005440071,stat
+enchant,Summon Skitterbots has #% increased Mana Reservation Efficiency,stat_1695754537 stat_3818053347,stat
+enchant,Tectonic Slam has +#% fissure branching chance,stat_1522229796 stat_2462686988,stat
+enchant,Vitality has #% increased Mana Reservation Efficiency,stat_3972739758 stat_1233806203,stat
+enchant,Wrath has #% increased Mana Reservation Efficiency,stat_3444518809 stat_1761642973,stat
+enchant,Your Maps contain # additional Clusters of Mysterious Barrels,stat_1207515735 stat_1080470148 stat_4019701925 stat_1669553893,stat
+enchant,Zealotry has #% increased Mana Reservation Efficiency,stat_168308685 stat_4216444167,stat
+scourge,#% increased Mana Reservation Efficiency of Skills,stat_4237190083 stat_1269219558,stat
+crafted,+#% chance to Suppress Spell Damage,stat_3680664274 stat_492027537,stat
+mercenary,Gilded Extra Targets (Tier 3),support_58471 support_37259,support
+delve,More Gem modifiers,delve_more_gem_level delve_more_gem,delve
+ultimatum,Raging Dead,umod_62391 umod_28673,umod
+ultimatum,Raging Dead II,umod_26465 umod_38306,umod
+ultimatum,Raging Dead III,umod_6748 umod_49977,umod
+ultimatum,Raging Dead IV,umod_39655 umod_24954,umod
+ultimatum,Stormcaller Runes,umod_11866 umod_19821,umod
+ultimatum,Stormcaller Runes II,umod_40295 umod_13955,umod
+crucible,"25% reduced Trap Spread
+Traps from Skills are thrown randomly around targeted location (Tier 1)",mod_27039 mod_65092,mod
+crucible,"Adds 1 to 5 Chaos Damage
+15% chance to Poison on Hit (Tier 1)",mod_17840 mod_34553,mod
+crucible,Projectiles Pierce an additional Target (Tier 1),mod_24366 mod_47557,mod
+crucible,Socketed Gems are Supported by Level 10 Advanced Traps (Tier 1),mod_24860 mod_47622,mod
+crucible,Socketed Gems are Supported by Level 10 Ancestral Call (Tier 1),mod_4505 mod_54847,mod
+crucible,Socketed Gems are Supported by Level 10 Arcane Surge (Tier 1),mod_51860 mod_7059,mod
+crucible,Socketed Gems are Supported by Level 10 Arrow Nova (Tier 1),mod_42041 mod_14595,mod
+crucible,Socketed Gems are Supported by Level 10 Behead (Tier 1),mod_59639 mod_54648,mod
+crucible,Socketed Gems are Supported by Level 10 Chain (Tier 1),mod_16157 mod_62681,mod
+crucible,Socketed Gems are Supported by Level 10 Chance To Bleed (Tier 1),mod_49653 mod_38664,mod
+crucible,Socketed Gems are Supported by Level 10 Chance to Poison (Tier 1),mod_26244 mod_44530,mod
+crucible,Socketed Gems are Supported by Level 10 Combustion (Tier 1),mod_62296 mod_5018,mod
+crucible,Socketed Gems are Supported by Level 10 Culling Strike (Tier 1),mod_38566 mod_22375,mod
+crucible,Socketed Gems are Supported by Level 10 Elemental Army Support (Tier 1),mod_29608 mod_26088,mod
+crucible,Socketed Gems are Supported by Level 10 Elemental Proliferation (Tier 1),mod_26551 mod_55379,mod
+crucible,Socketed Gems are Supported by Level 10 Energy Leech (Tier 1),mod_47374 mod_21019,mod
+crucible,Socketed Gems are Supported by Level 10 Faster Casting (Tier 1),mod_40805 mod_26522,mod
+crucible,Socketed Gems are Supported by Level 10 Feeding Frenzy (Tier 1),mod_56354 mod_41860,mod
+crucible,Socketed Gems are Supported by Level 10 Fortify (Tier 1),mod_20818 mod_18070,mod
+crucible,Socketed Gems are Supported by Level 10 Ignite Proliferation (Tier 1),mod_18624 mod_16669,mod
+crucible,Socketed Gems are Supported by Level 10 Impale (Tier 1),mod_55393 mod_57406,mod
+crucible,Socketed Gems are Supported by Level 10 Increased Area of Effect (Tier 1),mod_4568 mod_25007,mod
+crucible,Socketed Gems are Supported by Level 10 Intensify (Tier 1),mod_36288 mod_28083,mod
+crucible,Socketed Gems are Supported by Level 10 Iron Grip (Tier 1),mod_10869 mod_24540,mod
+crucible,Socketed Gems are Supported by Level 10 Iron Will (Tier 1),mod_14505 mod_32183,mod
+crucible,Socketed Gems are Supported by Level 10 Item Rarity (Tier 1),mod_60863 mod_13231,mod
+crucible,Socketed Gems are Supported by Level 10 Knockback (Tier 1),mod_56855 mod_61653,mod
+crucible,Socketed Gems are Supported by Level 10 Less Duration (Tier 1),mod_10402 mod_50107,mod
+crucible,Socketed Gems are Supported by Level 10 Lifetap (Tier 1),mod_48478 mod_51911,mod
+crucible,Socketed Gems are Supported by Level 10 Maim (Tier 1),mod_40150 mod_19671,mod
+crucible,Socketed Gems are Supported by Level 10 Mana Leech (Tier 1),mod_32875 mod_28586,mod
+crucible,Socketed Gems are Supported by Level 10 Minion Life (Tier 1),mod_59753 mod_16548,mod
+crucible,Socketed Gems are Supported by Level 10 Minion Speed (Tier 1),mod_21302 mod_17987,mod
+crucible,Socketed Gems are Supported by Level 10 Momentum (Tier 1),mod_17523 mod_4006,mod
+crucible,Socketed Gems are Supported by Level 10 Multiple Projectiles (Tier 1),mod_44253 mod_39526,mod
+crucible,Socketed Gems are Supported by Level 10 Overcharge (Tier 1),mod_9520 mod_50319,mod
+crucible,Socketed Gems are Supported by Level 10 Physical To Lightning (Tier 1),mod_11880 mod_36228,mod
+crucible,Socketed Gems are Supported by Level 10 Pinpoint (Tier 1),mod_33576 mod_4687,mod
+crucible,Socketed Gems are Supported by Level 10 Point Blank (Tier 1),mod_26574 mod_3749,mod
+crucible,Socketed Gems are Supported by Level 10 Predator (Tier 1),mod_20961 mod_50055,mod
+crucible,Socketed Gems are Supported by Level 10 Rage (Tier 1),mod_59412 mod_2830,mod
+crucible,Socketed Gems are Supported by Level 10 Shockwave (Tier 1),mod_62098 mod_52004,mod
+crucible,Socketed Gems are Supported by Level 10 Slower Projectiles (Tier 1),mod_30297 mod_15933,mod
+crucible,Socketed Gems are Supported by Level 10 Spell Cascade (Tier 1),mod_21714 mod_53361,mod
+crucible,Socketed Gems are Supported by Level 10 Swift Assembly (Tier 1),mod_48196 mod_62518,mod
+crucible,Socketed Gems are Supported by Level 10 Swiftbrand (Tier 1),mod_21043 mod_7315,mod
+crucible,Socketed Gems are Supported by Level 10 Volley (Tier 1),mod_59155 mod_52621,mod
+crucible,Socketed Gems are Supported by Level 10 Withering Touch (Tier 1),mod_7023 mod_42834,mod
+crucible,Socketed Gems are Supported by Level 15 Decay (Tier 1),mod_40092 mod_38869,mod
+crucible,Socketed Gems are Supported by Level 15 Impending Doom (Tier 1),mod_62692 mod_57446,mod
+crucible,Socketed Gems are Supported by Level 15 Infernal Legion (Tier 1),mod_55874 mod_49150,mod
+crucible,Socketed Gems are Supported by Level 15 Life Gain On Hit (Tier 1),mod_37236 mod_50613,mod
+crucible,Socketed Gems are Supported by Level 15 Summon Phantasm (Tier 1),mod_42627 mod_7156,mod
+crucible,Socketed Gems are Supported by Level 25 Arrogance (Tier 1),mod_12962 mod_27356,mod
+crucible,Socketed Gems are Supported by Level 25 Blasphemy (Tier 1),mod_58553 mod_52066,mod
+crucible,Socketed Gems are Supported by Level 25 Cursed Ground (Tier 1),mod_16150 mod_65411,mod
+crucible,Socketed Gems are Supported by Level 25 Divine Blessing (Tier 1),mod_24083 mod_26284,mod
+crucible,Socketed Gems are Supported by Level 25 Eternal Blessing (Tier 1),mod_63804 mod_25227,mod
+crucible,Socketed Gems are Supported by Level 25 Generosity (Tier 1),mod_23311 mod_44326,mod
+crucible,Socketed Gems are Supported by Level 25 Hex Bloom (Tier 1),mod_27843 mod_19653,mod
+crucible,Socketed Gems are Supported by Level 25 Second Wind (Tier 1),mod_43937 mod_36845,mod
+crucible,Socketed Gems are Supported by Level 25 Urgent Orders (Tier 1),mod_31465 mod_24639,mod
+crucible,Socketed Gems are Supported by Level 3 Empower (Tier 1),mod_7514 mod_48569,mod
+crucible,Socketed Gems are Supported by Level 3 Enhance (Tier 1),mod_26703 mod_40943,mod
+crucible,Socketed Gems are Supported by Level 3 Enlighten (Tier 1),mod_1950 mod_18839,mod
+crucible,Socketed Gems are supported by Level 10 Blind (Tier 1),mod_35486 mod_5927,mod
+crucible,Socketed Gems are supported by Level 10 Chance to Flee (Tier 1),mod_18820 mod_24552,mod
+crucible,Socketed Gems are supported by Level 10 Faster Projectiles (Tier 1),mod_3110 mod_62468,mod
+crucible,Socketed Gems are supported by Level 10 Fork (Tier 1),mod_36837 mod_61066,mod
+crucible,Socketed Gems are supported by Level 10 Life Leech (Tier 1),mod_29206 mod_8862,mod
+crucible,Socketed Gems are supported by Level 10 Melee Splash (Tier 1),mod_45258 mod_50080,mod
+crucible,Socketed Gems are supported by Level 10 Pierce (Tier 1),mod_64810 mod_12911,mod
+crucible,Socketed Gems are supported by Level 10 Stun (Tier 1),mod_53398 mod_7170,mod
+crucible,Socketed Gems are supported by Level 15 Additional Accuracy (Tier 1),mod_11814 mod_53347,mod

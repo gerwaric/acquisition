@@ -41,6 +41,8 @@ Then, only when the work touches it:
   a fetch by tooling needs the permission its row records.
 - Before touching pricing: `PRICING-SLICE.md` (the closed record; its
   findings table is the review checklist for a pricing change).
+- Before touching item search: `search/README.md` — the slice's working
+  directory (one track per subdirectory; its rules in force are there).
 - Before touching an area, its decisions and what it has parked: `decisions/daemon.md` (daemon,
   jobs, protocol, accounts), `decisions/network.md` (limiter, gate, rails,
   OAuth traffic), `decisions/store.md` (ingest, facts, realm, characters),
