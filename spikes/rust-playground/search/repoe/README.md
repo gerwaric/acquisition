@@ -40,7 +40,7 @@ What does the game's own data give a stash search that the item JSON does not �
 
 The capture lists 229 ids twice with a second text (a renamed line keeps its old text: `Area contains # additional …` beside `Your Maps contain …`, one id); the export joined the older text for 263 rows. A fact for trade-query's F4.
 
-**F2 — The hash experiment** (`hash-recipe.md`; `hash-check.csv`, `stat-hashes.csv`). The recipe: MurmurHash2 (seed `0x02312233`) over the little-endian `Stats.dat` hashes of a mod's stats, a `minimum`/`maximum` pair as eight bytes. The export lacks the column (`stats.py` never reads it; 19 string hashes × 3 variants reproduce none of 6,678 single-stat numbers). The join of Path of Building's per-mod numbers to the export's text join, under the owner's rule:
+**F2 — The hash experiment** (`hash-recipe.md`; `hash-check.csv`, `stat-hashes.csv`). The recipe: MurmurHash2 (seed `0x02312233`) over the little-endian `Stats.dat` hashes of a mod's stats, a `minimum`/`maximum` pair as eight bytes. The export lacks the column (`stats.py` never reads it; 19 string hashes × 3 variants reproduce none of 6,678 single-stat numbers, `scripts/hash-hypothesis.py`). The join of Path of Building's per-mod numbers to the export's text join, under the owner's rule:
 
 | Class | Rows | Distinct numbers |
 | --- | ---: | ---: |
