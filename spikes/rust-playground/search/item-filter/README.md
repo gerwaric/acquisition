@@ -21,7 +21,7 @@ being one more source for the taxonomy (repoe F3).
 
 | Source | Access | Supplied by |
 | --- | --- | --- |
-| GGG's item-filter documentation, `pathofexile.com/item-filter/about` (the syntax, every condition and action) | `browser` — the owner saves a dated copy under `raw/`; the extraction is what is committed (`SURFACES.md`) | the owner |
+| GGG's item-filter documentation, `pathofexile.com/item-filter/about` (the syntax, every condition and action) | `browser` — saved by the owner 2026-09-13, `raw/` (`MANIFEST.md`); the extraction is what is committed (`SURFACES.md`) | landed |
 | One or two widely used filters as worked examples of the grammar in practice (NeverSink's, at a pinned release) | `clone` or a saved copy under `raw/`, cited by release | the owner |
 | `../cpp-search/data/filters.toml`, `../trade-query/data/grammar.json` | this directory | the sibling tracks |
 

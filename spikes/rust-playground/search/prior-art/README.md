@@ -16,15 +16,17 @@ how is that dataset generated and from what (the trade endpoint, the
 game data, both); and what does it do when the game renames a line or
 a patch adds a stat. The answer is evidence for the one undecided
 design question — a line's identity — and for repoe Q8's update
-posture, from a working system rather than an argument. Everything
-below about its layout is memory and is verified at the read.
+posture, from a working system rather than an argument. The layout
+below was verified on the owner's clone (`MANIFEST.md`): one stats
+entry is `{ref, better, matchers[{string, value?}], trade.ids{category:
+[ids]}}` — several ids per entry, by category, as a normal case.
 
 ## Inputs
 
 | Source | Access | Supplied by |
 | --- | --- | --- |
-| `github.com/SnosMe/awakened-poe-trade` at a pinned commit: the stats dataset (`renderer/public/data/en/*.ndjson`, to verify), the item-text parser, the trade-query builder | `clone` — the owner clones beside this repository; tooling reads the checkout, cited by commit (`SURFACES.md`) | the owner |
-| The dataset generator, if it lives in a sibling repository | the same, if the owner clones it | the owner |
+| `github.com/SnosMe/awakened-poe-trade` at `ce551eb7` (`MANIFEST.md`): `renderer/public/data/en/stats.ndjson` and `items.ndjson`, the item-text parser, the trade-query builder | `clone` — cloned by the owner 2026-09-13 beside this repository; tooling reads the checkout, cited by commit (`SURFACES.md`) | landed |
+| The dataset generator — not in the clone, a sibling project | the same, if the read needs it and the owner clones it | the owner |
 | `../repoe/data/trade-stat-map.csv`, `../trade-query/data/stats-2026-09-12.json` | this directory | the sibling tracks |
 
 ## Outputs planned
