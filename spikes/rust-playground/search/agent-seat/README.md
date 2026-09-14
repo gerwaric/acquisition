@@ -19,7 +19,9 @@ experience, checked against how the existing MCP tools shape output
 | Source | Access | Supplied by |
 | --- | --- | --- |
 | `MCP-REFERENCE.md`, `CLI-REFERENCE.md`, `decisions/frontends.md` (C53) | the repo | — |
-| The trade grammar and the C++ catalogue, once they exist | this directory | the other tracks |
+| A read-only copy of the owner's spike store (22,721 items), under `raw/`, never committed | `sqlite3 .backup`; `MANIFEST.md` | the owner (approved 2026-09-13) |
+| `../owner-seat/data/questions.md` — the seven human questions the agent's twelve include | this directory | the owner-seat track |
+| `BRIEF.md` — the run's procedure, setup and protocol | this directory | deleted at the close |
 
 ## Outputs planned
 
