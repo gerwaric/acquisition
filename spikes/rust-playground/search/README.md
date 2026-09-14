@@ -71,7 +71,7 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 | [`store-as-built/`](store-as-built/README.md) | What does the store's read surface give a search consumer today, and where would the first store change fall? | first pass complete — 2026-09-13 | 11318 |
 | [`engine-bench/`](engine-bench/README.md) | Is SQLite over a derived search schema instant at a few hundred thousand items? Measured. | first pass complete — 2026-09-13 | 13056 |
 | [`owner-seat/`](owner-seat/README.md) | What does the owner actually ask of the stash, in their words, and what answer shape does each want? | first pass complete — 2026-09-13 | 9168 |
-| [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | not started | 1139 |
+| [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | first pass complete — 2026-09-14 | 12317 |
 
 Standing rulings and parked items the design will revisit, so it knows
 what it overrides: C48 (raw SQL is not a surface), C34 (derivations),

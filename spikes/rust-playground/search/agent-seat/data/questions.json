@@ -1,0 +1,914 @@
+{
+ "source": "written by hand during the run of search/agent-seat/BRIEF.md on 2026-09-14; call numbers refer to data/calls.csv (raw/calls/NNN.out holds each call's stdout); costs are sums over that file by question and surface",
+ "corpus": {
+  "items": 22721,
+  "tabs": 3444,
+  "characters": 65,
+  "note": "the spike's store alone; a search row is the whole GGG body under `json` plus the store's columns"
+ },
+ "questions": [
+  {
+   "id": "Q1",
+   "source": "owner",
+   "question": "Do I have a rare that I can use to flech out the resistances or attribute requirements for a build I'm testing?",
+   "wanted_query": "rarity=Rare AND base='Titan Gauntlets' AND mod ~ /Resistance|Strength|Dexterity|Intelligence/ -> id, name, tab, the matching lines (the owner: a base is usually in mind)",
+   "expected_shape": "a short list of candidates for one slot, each with its resist and attribute lines",
+   "phase1": {
+    "cli": {
+     "what_happened": "`items search \"Titan Gauntlets\" --json` returned 20 whole bodies (53.6 KB) with no rarity or mod filter; sent to a file, then jq projected the 12 rares and their resist/attribute lines. The text view (call 71, 1.2 KB) lists 20 lines of id-prefix, location id, name and base: no rarity, no mods, nothing to decide with.",
+     "cost": {
+      "calls": [
+       19,
+       20,
+       71
+      ],
+      "bytes": 108512,
+      "bytes_into_context": 1244,
+      "wall_ms": 137
+     }
+    },
+    "mcp": {
+     "what_happened": "`search_items {text:'Titan Gauntlets'}` put 20 whole bodies (31.8 KB, compact) into context; the 12 rares and their lines were read by eye from that. Without a base in mind there is no route: rarity and mods are not filters.",
+     "cost": {
+      "calls": [
+       50
+      ],
+      "bytes": 31844,
+      "bytes_into_context": 31844,
+      "wall_ms": 23
+     }
+    },
+    "workaround": {
+     "what_happened": "jq over the saved 019 (call 31): rarity==Rare, explicitMods matched by regex.",
+     "cost": {
+      "calls": [
+       31
+      ],
+      "bytes": 1726,
+      "bytes_into_context": 1726,
+      "wall_ms": 5
+     }
+    },
+    "temptation": "SELECT name, tab, mods FROM items WHERE rarity='Rare' AND base_type='Titan Gauntlets' AND mods LIKE '%Resistance%'",
+    "one_change": "a rarity filter and a mod-text filter on the search, and a projection (which fields to return) so the answer is the lines, not the bodies",
+    "answer": "Yes: 12 rare Titan Gauntlets; e.g. Brood Paw (+26% cold, +27% chaos, +16% fire and lightning) in Dump Tab, Soul Grasp (+53 dex, +48 str, +18% lightning), Bramble Vise (+50 str, +16% fire, +10% lightning and chaos)."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": true,
+     "what": "rarity and base as columns, the lines through json_each over explicitMods with json_extract of each object's description, the tab name by a three-column join to tabs. 12 rows.",
+     "hard": "the line is an object in this store (description + flags) but a bare string in enchantMods: any json_extract over an array must branch on json_each's type column",
+     "cost": {
+      "calls": [
+       79
+      ],
+      "bytes": 1054,
+      "wall_ms": 7,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": true,
+     "what": "the same over lines with tab_name on the row; the first run silently dropped every attribute line because the template folds the sign into the number ('# to Strength', not '+# to Strength'); checked and retried. 12 rows (one, Sorrow Paw, is the C++ store's).",
+     "could_not": null,
+     "cost": {
+      "calls": [
+       80,
+       109
+      ],
+      "bytes": 2228,
+      "wall_ms": 54,
+      "errors": 0
+     }
+    }
+   }
+  },
+  {
+   "id": "Q2",
+   "source": "owner",
+   "question": "Do I have a legacy version of a specific unique item?",
+   "wanted_query": "name='Ashes of the Stars' AND mod ~ /Reservation Efficiency/ -> id, tab name (the legacy tell is user-supplied: 10-20% Reservation Efficiency, 3.23.0)",
+   "expected_shape": "one item or 'no', and where it is",
+   "phase1": {
+    "cli": {
+     "what_happened": "`items search \"Ashes of the Stars\" --json`: 10 whole bodies (20.5 KB) to a file; jq listed each one's mods (call 32) and joined the four legacy ones to tab names through the saved tabs output (call 70). The row carries a tab id, never its name.",
+     "cost": {
+      "calls": [
+       21
+      ],
+      "bytes": 20512,
+      "bytes_into_context": 0,
+      "wall_ms": 22
+     }
+    },
+    "mcp": {
+     "what_happened": "`search_items {text:'Ashes of the Stars'}`: 10 bodies (13.9 KB) into context; the four with the legacy line were picked by eye. Naming their tabs would have cost `tabs` (745.7 KB into context, no limit parameter): not taken.",
+     "cost": {
+      "calls": [
+       51
+      ],
+      "bytes": 13866,
+      "bytes_into_context": 13866,
+      "wall_ms": 21
+     }
+    },
+    "workaround": {
+     "what_happened": "jq over 021 for the mods; jq join to 008 for the tab names.",
+     "cost": {
+      "calls": [
+       32,
+       70
+      ],
+      "bytes": 3168,
+      "bytes_into_context": 3168,
+      "wall_ms": 18
+     }
+    },
+    "temptation": "SELECT i.name, t.name FROM items i JOIN tabs t ON ... WHERE i.name='Ashes of the Stars' AND i.json LIKE '%Reservation Efficiency%'",
+    "one_change": "a mod-text predicate beside the name, and the location's name on the row",
+    "answer": "Yes, four: 20% increased Reservation Efficiency of Skills, all Standard stash — '3.18 Poison Seismic Sab', 'Build Gear 2', 'Special Gear' (two)."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": true,
+     "what": "name equality plus a LIKE over the whole body; tab names joined. 4 rows, 0 ms.",
+     "hard": "a LIKE over the body also matches flavour text and descriptions; exact needs json_each",
+     "cost": {
+      "calls": [
+       81
+      ],
+      "bytes": 149,
+      "wall_ms": 0,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": true,
+     "what": "name equality plus a line LIKE; tab_name on the row; the value (20) comes back as a number. 4 rows.",
+     "could_not": null,
+     "cost": {
+      "calls": [
+       82
+      ],
+      "bytes": 369,
+      "wall_ms": 11,
+      "errors": 0
+     }
+    }
+   }
+  },
+  {
+   "id": "Q3",
+   "source": "owner",
+   "question": "I just read about a new interaction someone found and I want gear to test it out.",
+   "wanted_query": "links>=6 -> id, name, base, colours, location (chosen instance: the interaction needs a six-linked item; sockets is an array of {group, sColour})",
+   "expected_shape": "a list defined by whatever the interaction needs: a mod, a base, socket colours, a unique",
+   "phase1": {
+    "cli": {
+     "what_happened": "No surface: the dump: call 7 (`items search \"\" --limit 100000 --json` to a file: 22,721 rows, 63,534,917 B, 2,335 ms), made once and reused; jq grouped sockets by group per item (call 35, 966 ms).",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "mcp": {
+     "what_happened": "No route at all. The only whole-corpus pull, `search_items {text:'', limit:100000}`, is 38.8 MB into context (call 54, measured to a file, 5.6 s): not taken.",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "workaround": {
+     "what_happened": "jq over the dump.",
+     "cost": {
+      "calls": [
+       35
+      ],
+      "bytes": 1869,
+      "bytes_into_context": 1869,
+      "wall_ms": 789
+     }
+    },
+    "temptation": "SELECT ... FROM items, json_each(json->'sockets') GROUP BY item HAVING max(count per group) >= 6",
+    "one_change": "a links (and colours) derivation with a numeric predicate; more generally a structural predicate over the body's arrays",
+    "answer": "187 six-linked items; e.g. Skin of the Loyal (BRBGBG), Tabula Rasa (WWWWWW), Shavronne's Wrappings (GGRBBB) on characters, Rage Curtain (WWWWWW)."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": true,
+     "what": "json_each over sockets grouped by item and group, HAVING count >= 6: 187, 53 ms.",
+     "hard": "a grouping over an array of objects: fine in SQL, but every consumer would rewrite it",
+     "cost": {
+      "calls": [
+       83
+      ],
+      "bytes": 14,
+      "wall_ms": 53,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": false,
+     "what": "no sockets in the projection; the guessed column `links` does not exist (an error, not a silent miss).",
+     "could_not": "links and socket colours",
+     "cost": {
+      "calls": [
+       84
+      ],
+      "bytes": 29,
+      "wall_ms": 0,
+      "errors": 1
+     }
+    }
+   }
+  },
+  {
+   "id": "Q4",
+   "source": "owner",
+   "question": "Where is that staff from Cruicible league someone tried to pay me real money for?",
+   "wanted_query": "base ~ /Staff/ AND has(crucibleMods) -> id, name, base, tab name (league of origin is not a field; crucibleMods is the tell)",
+   "expected_shape": "one item and its tab",
+   "phase1": {
+    "cli": {
+     "what_happened": "`items search Staff --json --limit 1000`: 81 whole bodies (325.9 KB) to a file; jq kept the 7 with crucibleMods (call 33); a first tab-name join failed on an id cut to 8 chars (tab ids are 10; call 64), the retry named the tabs (call 65).",
+     "cost": {
+      "calls": [
+       22
+      ],
+      "bytes": 325852,
+      "bytes_into_context": 0,
+      "wall_ms": 33
+     }
+    },
+    "mcp": {
+     "what_happened": "`search_items {text:'Staff', limit:1000}`: 178.3 KB (call 52, measured to a file). The default call (53) returns 50 of the 81 and nothing says 31 were cut: no total, no truncation flag.",
+     "cost": {
+      "calls": [
+       52,
+       53
+      ],
+      "bytes": 292498,
+      "bytes_into_context": 0,
+      "wall_ms": 75
+     }
+    },
+    "workaround": {
+     "what_happened": "jq over 022; jq join to 008.",
+     "cost": {
+      "calls": [
+       33,
+       64,
+       65
+      ],
+      "bytes": 2131,
+      "bytes_into_context": 2131,
+      "wall_ms": 44
+     }
+    },
+    "temptation": "SELECT name, base_type, tab FROM items WHERE base_type LIKE '%Staff%' AND json->'crucibleMods' IS NOT NULL",
+    "one_change": "a predicate on the presence of a body array (or a 'crucible' facet), the tab name on the row, and a total count with every truncated answer",
+    "answer": "Seven candidates, six in 'Crucible - Duds (Remove-only)' and one in 'Crucible - Challenges (Remove-only)': The Annihilating Light (two), The Geomantic Gyre, three rare or normal Highborn Staves, one normal Quarterstaff. Which one drew the offer the store cannot say."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": true,
+     "what": "type_line LIKE plus json_extract(crucibleMods) IS NOT NULL, tab names joined: 7 rows.",
+     "hard": "none",
+     "cost": {
+      "calls": [
+       85
+      ],
+      "bytes": 482,
+      "wall_ms": 8,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": true,
+     "what": "lines.arr = 'crucibleMods' with DISTINCT: the same 7 rows.",
+     "could_not": null,
+     "cost": {
+      "calls": [
+       86
+      ],
+      "bytes": 487,
+      "wall_ms": 4,
+      "errors": 0
+     }
+    }
+   }
+  },
+  {
+   "id": "Q5",
+   "source": "owner",
+   "question": "I want to practice leveling, so I need to find my leveling gear.",
+   "wanted_query": "tab.name ~ /level/i -> items in those tabs; or requirements.Level <= 30 AND rarity=Unique -> name, base, level, tab",
+   "expected_shape": "a set of items across tabs, by level bracket",
+   "phase1": {
+    "cli": {
+     "what_happened": "`tabs --json` (1.0 MB to a file) then jq on names found two leveling tabs (call 37); the items in them needed the dump (call 66: 46 items). The level bracket over uniques also needed the dump (call 38: 728 uniques at requirement level <= 30). There is no items-in-tab verb.",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "mcp": {
+     "what_happened": "`tabs {}` is 745.7 KB into context with no limit parameter (call 12, measured to a file). The tab names would be found by eye; then nothing: search_items has no tab filter and no level filter.",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "workaround": {
+     "what_happened": "jq over 008 for names; jq over the dump for the items.",
+     "cost": {
+      "calls": [
+       37,
+       38,
+       66
+      ],
+      "bytes": 2910,
+      "bytes_into_context": 2910,
+      "wall_ms": 1540
+     }
+    },
+    "temptation": "SELECT ... FROM items WHERE tab IN (SELECT id FROM tabs WHERE name LIKE '%Level%') ; SELECT ... WHERE req_level <= 30 AND rarity='Unique'",
+    "one_change": "a location filter on the search (tab id or tab name), and a requirement-level range predicate",
+    "answer": "Two tabs: 'AFK & Leveling Gear (Remove-only)' (34 items) and 'AFK Leveling (Remove-only)' (12): leveled gems, Lochtonial Caress, Honourhome, magic weapons. Beyond them, 728 uniques with requirement level <= 30."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": false,
+     "what": "two calls: tabs by name with live item counts (4 tabs; the LIKE also catches 'Gems (Leveled)'), and uniques at requirement level <= 30 through json_each over requirements, json_extract of values[0][0] CAST to INT: 728.",
+     "hard": "the requirement level is a string inside a nested array of a display object; the CAST works only because the first value is a bare number",
+     "cost": {
+      "calls": [
+       87,
+       88
+      ],
+      "bytes": 151,
+      "wall_ms": 33,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": true,
+     "what": "one call: tab_name LIKE grouped, and req_level <= 30 as a column (3,141 over the bigger corpus; its tab list adds 'Leveling (Remove-only)' and 'High Level Bases' from the C++ store).",
+     "could_not": null,
+     "cost": {
+      "calls": [
+       89
+      ],
+      "bytes": 211,
+      "wall_ms": 5,
+      "errors": 0
+     }
+    }
+   }
+  },
+  {
+   "id": "Q6",
+   "source": "owner",
+   "question": "What is that legacy explode chest I have worth?",
+   "wanted_query": "mod ~ /Explode/ AND class=body armour -> id, name, location; then the price is the trade site's, outside the store",
+   "expected_shape": "a price, after finding the item and knowing it is the legacy version",
+   "phase1": {
+    "cli": {
+     "what_happened": "Finding it: no surface; the dump and jq over every mod array (call 36: 32 items with an explode line, one rare body armour). The price half: `price show item/<id> --json` (call 62, 2.2 KB) reports the listing state only: relation none, no row, the game states nothing. The character's name needed a join to the characters output (call 63).",
+     "cost": {
+      "calls": [
+       62
+      ],
+      "bytes": 2158,
+      "bytes_into_context": 2158,
+      "wall_ms": 312
+     }
+    },
+    "mcp": {
+     "what_happened": "No route to find it (mods are not searched: 'Explode' matched nothing, call 56); no price tool on the MCP (parked, decisions/frontends.md).",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "workaround": {
+     "what_happened": "jq over the dump; jq join to 009.",
+     "cost": {
+      "calls": [
+       36,
+       63
+      ],
+      "bytes": 3898,
+      "bytes_into_context": 3898,
+      "wall_ms": 906
+     }
+    },
+    "temptation": "SELECT name, location FROM items WHERE json LIKE '%Explode%' AND rarity='Rare' AND base_type IN (body armours)",
+    "one_change": "a mod-text predicate with a class predicate; the worth is a trade query built from the item (trade-query F9), not a search question",
+    "answer": "Rage Curtain, Vaal Regalia (six white sockets, crusader+hunter), 'Enemies you Kill Explode, dealing 3% of their Life as Physical Damage', worn by VVickedWitch (Occultist 99, Standard). Not listed; worth is outside the store."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": true,
+     "what": "rarity plus a body LIKE 'Kill Explode', the wearer named through a join to characters: Rage Curtain on VVickedWitch, and a second, Rapture Wrap, in a tab.",
+     "hard": "class (body armour) is not a field; the base name or inventoryId stands in",
+     "cost": {
+      "calls": [
+       90
+      ],
+      "bytes": 125,
+      "wall_ms": 11,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": true,
+     "what": "the same over lines, but tab_name for a character location is the character's id, not its name (the DDL promises a name): the answer names a hex string.",
+     "could_not": "the character's name",
+     "cost": {
+      "calls": [
+       91
+      ],
+      "bytes": 322,
+      "wall_ms": 8,
+      "errors": 0
+     }
+    }
+   }
+  },
+  {
+   "id": "Q7",
+   "source": "owner",
+   "question": "Do I have any gear with the modifier GGG just anounced is going away except on Standard?",
+   "wanted_query": "mod_template = '#% increased Rarity of Items found' (chosen: present on stash and character items) across every mod array, every tab, every character -> count, then items grouped by location with names",
+   "expected_shape": "a list across all tabs and characters, item and tab, to decide keep or sell",
+   "phase1": {
+    "cli": {
+     "what_happened": "No surface: the dump; jq ranked templates to choose one (call 39, 1.5 s), then swept every array and grouped by location with names joined from the tabs and characters outputs (call 67, 963 ms).",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "mcp": {
+     "what_happened": "The nearest call, `search_items {text:'Rarity'}` (call 55), returned three Item Rarity Support gems: the word matched a gem's name, not the mod. No route to the sweep.",
+     "cost": {
+      "calls": [
+       55
+      ],
+      "bytes": 5105,
+      "bytes_into_context": 0,
+      "wall_ms": 20
+     }
+    },
+    "workaround": {
+     "what_happened": "jq over the dump with two --slurpfile joins.",
+     "cost": {
+      "calls": [
+       39,
+       67
+      ],
+      "bytes": 1635,
+      "bytes_into_context": 1635,
+      "wall_ms": 2473
+     }
+    },
+    "temptation": "SELECT location, count(*) FROM items, json_each(...) WHERE template='#% increased Rarity of Items found' GROUP BY location",
+    "one_change": "a mod-by-template predicate over every array, with grouping by location and the location's name; the answer counted before it is listed",
+    "answer": "473 items over 139 locations; most in 'Breach Rings (Remove-only)' (26), '~price 40 chaos (F) (Remove-only)' (26), 'Rings (Breach)' (18), 'Lab Enchants #1 (Remove-only)' (17)."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": false,
+     "what": "two calls: grouped by location name (tabs and characters joined) and the total. A body LIKE counts 497 over 157 locations against jq's 473 over the six mod arrays: the LIKE also reaches utilityMods and flavour text; the exact form is a UNION of json_each over every array.",
+     "hard": "'every array' is a UNION ALL per array name, and the list of array names is not in the schema",
+     "cost": {
+      "calls": [
+       92,
+       93
+      ],
+      "bytes": 183,
+      "wall_ms": 53,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": true,
+     "what": "one template equality on the indexed lines(line, value): 688 over 247 locations on the bigger corpus, 2 ms; grouping by tab_name is one GROUP BY. Character locations group under their ids.",
+     "could_not": null,
+     "cost": {
+      "calls": [
+       94,
+       95
+      ],
+      "bytes": 146,
+      "wall_ms": 3,
+      "errors": 0
+     }
+    }
+   }
+  },
+  {
+   "id": "A1",
+   "source": "agent",
+   "question": "Facets before rows: how many items per tab, per league, per rarity?",
+   "wanted_query": "GROUP BY tab | league | rarity -> counts, no rows",
+   "expected_shape": "three small tables of counts",
+   "phase1": {
+    "cli": {
+     "what_happened": "Per tab: `tabs --json` gives item_count per tab (1.0 MB, 3,347 rows, Standard only; the text view lists all 3,349 lines, not 'ten listed, more counted'). Per league and per rarity: no surface; the dump and jq (calls 16, 17, 69, ~0.8 s each). The leagues themselves are not enumerable from the store (store status says leagues: 0); they were read off the characters' league column.",
+     "cost": {
+      "calls": [
+       8,
+       9,
+       72,
+       73
+      ],
+      "bytes": 1392520,
+      "bytes_into_context": 0,
+      "wall_ms": 111
+     }
+    },
+    "mcp": {
+     "what_happened": "`tabs {}`: 745.7 KB into context, no limit (call 12). Per league: only as a filter, `search_items {text:'', league:'Allflame', limit:100000}` returns the 1,312 rows themselves (1.9 MB, call 57) and the count is the array's length. Per rarity: nothing.",
+     "cost": {
+      "calls": [
+       12,
+       13,
+       57
+      ],
+      "bytes": 2709478,
+      "bytes_into_context": 0,
+      "wall_ms": 435
+     }
+    },
+    "workaround": {
+     "what_happened": "jq group_by over the dump; one wrong-name retry (location_kind is 'stash', not 'tab': call 18 then 30).",
+     "cost": {
+      "calls": [
+       16,
+       17,
+       18,
+       30,
+       69
+      ],
+      "bytes": 10318,
+      "bytes_into_context": 632,
+      "wall_ms": 3975
+     }
+    },
+    "temptation": "SELECT league, rarity, count(*) FROM items GROUP BY 1, 2",
+    "one_change": "a count-only mode on the search (facets by tab, league, rarity, class) that returns no rows, and a league list",
+    "answer": "Standard 21,409 / Allflame 1,312 (poe2 realm: 98). Rarity: Rare 5,785, Normal 3,139, Unique 3,077, Magic 2,423, null 8,297 (gems, currency, cards). Stash 21,332 / character 1,389."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": true,
+     "what": "GROUP BY league, rarity: 10 rows, 11 ms; per tab a join and GROUP BY, 18 ms.",
+     "hard": "none",
+     "cost": {
+      "calls": [
+       96,
+       97
+      ],
+      "bytes": 296,
+      "wall_ms": 29,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": true,
+     "what": "the same; five leagues here (the C++ store adds Hardcore, Solo Self-Found, Mirage).",
+     "could_not": null,
+     "cost": {
+      "calls": [
+       98,
+       99
+      ],
+      "bytes": 530,
+      "wall_ms": 15,
+      "errors": 0
+     }
+    }
+   }
+  },
+  {
+   "id": "A2",
+   "source": "agent",
+   "question": "Refine the previous answer without restating it: of the Q1 rares, only those with 60 or more total resistance.",
+   "wanted_query": "previous_query AND sum(resist values) >= 60",
+   "expected_shape": "a shorter list, the same shape",
+   "phase1": {
+    "cli": {
+     "what_happened": "No query handle exists; the refinement ran as jq over the saved file (call 68, no surface call): two of the twelve.",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "mcp": {
+     "what_happened": "No handle and no file: the refinement is either the same 31.8 KB call again or a filter over the rows already in context (done by eye from call 50).",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "workaround": {
+     "what_happened": "jq over 019 summing resist lines (an 'and' line doubled, 'all Elemental' tripled).",
+     "cost": {
+      "calls": [
+       68
+      ],
+      "bytes": 97,
+      "bytes_into_context": 97,
+      "wall_ms": 4
+     }
+    },
+    "temptation": "the same SELECT with one more predicate",
+    "one_change": "a composable query (the refinement is the previous query plus one predicate), or a result handle to filter",
+    "answer": "Brood Paw (85) and Morbid Touch (64)."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": true,
+     "what": "the Q1 query with a HAVING over a sum: the number is cut out of the description with substr and instr and multiplied by the line's coverage. 2 rows.",
+     "hard": "a number inside display text: substr/instr/CAST per line, and a per-line rule for 'and' and 'all Elemental'",
+     "cost": {
+      "calls": [
+       100
+      ],
+      "bytes": 38,
+      "wall_ms": 19,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": true,
+     "what": "sum(l.value) with the same coverage rule; the first run returned nothing (the sign in the template), the retry 2 rows.",
+     "could_not": null,
+     "cost": {
+      "calls": [
+       101,
+       110
+      ],
+      "bytes": 51,
+      "wall_ms": 6,
+      "errors": 0
+     }
+    }
+   }
+  },
+  {
+   "id": "A3",
+   "source": "agent",
+   "question": "Explain why an item matched or did not.",
+   "wanted_query": "search 'Explode' -> why no rows; search 'Kaom' -> which field matched",
+   "expected_shape": "a per-row matched-on field; an empty answer that names the scope",
+   "phase1": {
+    "cli": {
+     "what_happened": "`items search Explode --json` returned [] (call 58): mods are not searched, which the agent knows only from the verb's description. A match carries no matched-field; the row's name, type_line and base_type let the agent explain by eye.",
+     "cost": {
+      "calls": [
+       58
+      ],
+      "bytes": 3,
+      "bytes_into_context": 3,
+      "wall_ms": 22
+     }
+    },
+    "mcp": {
+     "what_happened": "Same: [] (call 56). The tool description names the three fields, so the agent can explain the non-match itself; nothing in the answer does.",
+     "cost": {
+      "calls": [
+       56
+      ],
+      "bytes": 2,
+      "bytes_into_context": 2,
+      "wall_ms": 19
+     }
+    },
+    "workaround": {
+     "what_happened": "none",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "temptation": "SELECT id, CASE WHEN name LIKE ... THEN 'name' WHEN ... END AS matched_on",
+    "one_change": "a matched_on field per row and an empty answer that says what was searched ('no name, type line or base type contains it; mods are not searched')",
+    "answer": "'Explode' matches nothing because only name, type line and base type are searched."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": true,
+     "what": "one call answers both: the word is in no name, type line or base type (0) and in 271 bodies; 'Kaom' matched on name.",
+     "hard": "none",
+     "cost": {
+      "calls": [
+       102
+      ],
+      "bytes": 46,
+      "wall_ms": 37,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": true,
+     "what": "0 in names, 58 items with an explode line.",
+     "could_not": null,
+     "cost": {
+      "calls": [
+       103
+      ],
+      "bytes": 23,
+      "wall_ms": 19,
+      "errors": 0
+     }
+    }
+   }
+  },
+  {
+   "id": "A4",
+   "source": "agent",
+   "question": "Find one item again by id.",
+   "wanted_query": "id = <64 hex> -> the item",
+   "expected_shape": "one item, exact",
+   "phase1": {
+    "cli": {
+     "what_happened": "`items show <id> --json`: one call, 3.6 KB (call 59). The text view (call 61, 2.9 KB) is the whole body pretty-printed under one location line. The text search view prints 10-char id prefixes (call 71) that `show` refuses (call 74: 'no item 1d57e63d'), so the text view's ids are not handles.",
+     "cost": {
+      "calls": [
+       59,
+       61,
+       74
+      ],
+      "bytes": 6467,
+      "bytes_into_context": 2900,
+      "wall_ms": 14
+     }
+    },
+    "mcp": {
+     "what_happened": "`get_item {id}`: one call, 2.2 KB (call 60). Exact.",
+     "cost": {
+      "calls": [
+       60
+      ],
+      "bytes": 2155,
+      "bytes_into_context": 0,
+      "wall_ms": 2
+     }
+    },
+    "workaround": {
+     "what_happened": "none",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "temptation": "SELECT * FROM items WHERE id = ?",
+    "one_change": "nothing for the JSON seat; for the text seat, either full ids or prefix lookup",
+    "answer": "One call on either seat."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": true,
+     "what": "id equality, and a prefix LIKE for free (1 hit).",
+     "hard": "none",
+     "cost": {
+      "calls": [
+       104
+      ],
+      "bytes": 79,
+      "wall_ms": 1,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": true,
+     "what": "gid equality; rid 1000.",
+     "could_not": null,
+     "cost": {
+      "calls": [
+       105
+      ],
+      "bytes": 124,
+      "wall_ms": 3,
+      "errors": 0
+     }
+    }
+   }
+  },
+  {
+   "id": "A5",
+   "source": "agent",
+   "question": "One whole-corpus mod query with a value: +# to maximum Life at 90 or more.",
+   "wanted_query": "mod_template='+# to maximum Life' AND value >= 90 across every array -> count, then rows sorted by value",
+   "expected_shape": "a count and a sorted list",
+   "phase1": {
+    "cli": {
+     "what_happened": "No surface: the dump and a jq capture over every mod array (call 34, 966 ms).",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "mcp": {
+     "what_happened": "No route: the word 'Life' as a substring would match names, and the whole corpus is 38.8 MB into context.",
+     "cost": {
+      "calls": [],
+      "bytes": 0,
+      "bytes_into_context": 0,
+      "wall_ms": 0
+     }
+    },
+    "workaround": {
+     "what_happened": "jq over the dump.",
+     "cost": {
+      "calls": [
+       34
+      ],
+      "bytes": 1758,
+      "bytes_into_context": 1758,
+      "wall_ms": 966
+     }
+    },
+    "temptation": "SELECT ... WHERE template='+# to maximum Life' AND value >= 90 ORDER BY value DESC",
+    "one_change": "a numeric predicate on a mod value, which needs the number parsed out of the display text once, at ingest",
+    "answer": "353 items; the top is Kaom's Heart at +1000 (two, one in Allflame) against +500 on five others, then The Bringer of Rain (286, 276), a rare Two-Stone Ring at 248."
+   },
+   "phase2": {
+    "store_copy": {
+     "one_call": true,
+     "what": "a CTE UNION ALL of json_each over five arrays, each branching on the entry's type, the number cut out with substr/instr, CAST, max per item: 353 items, top 1000, 196 ms. Matches jq exactly.",
+     "hard": "the number in the text; the array list; string-or-object entries. The query is 9 lines for one predicate.",
+     "cost": {
+      "calls": [
+       106
+      ],
+      "bytes": 19,
+      "wall_ms": 196,
+      "errors": 0
+     }
+    },
+    "seat_projection": {
+     "one_call": true,
+     "what": "line = '# to maximum Life' AND n0 >= 90 on the indexed lines: 2 ms after the template retry (477 on the bigger corpus; 364 over Standard+Allflame). The first run returned 0, silently.",
+     "could_not": null,
+     "cost": {
+      "calls": [
+       107,
+       111,
+       112
+      ],
+      "bytes": 55,
+      "wall_ms": 7,
+      "errors": 0
+     }
+    }
+   }
+  }
+ ],
+ "phase2_notes": {
+  "ddl_reads": {
+   "store": "call 75, 3,879 B",
+   "projection": "call 76, 3,432 B",
+   "template_check": "call 108, after three silent misses"
+  },
+  "mistakes": [
+   "phase 1: location_kind guessed as 'tab' (it is 'stash'): one empty answer, one retry",
+   "phase 1: a tab id cut to 8 chars (they are 10): one empty join, one retry",
+   "phase 2, projection: the template's sign convention (the DDL says 'every number run becomes #'; the sign is in the run): three silent misses (Q1's attribute lines, A2 → 0 rows, A5 → 0 rows), one check, three retries",
+   "phase 2, projection: a guessed `links` column for Q3: an error (the honest kind)",
+   "phase 2, store: the DDL comment says location_id is 'tab/substash id, or character name'; the rows hold character ids. Not tripped, because phase one had shown the rows; an agent starting from the DDL would join on characters.name and get nothing"
+  ],
+  "projection_could_not": [
+   "sockets, links, colours (Q3)",
+   "the character's name for a character location (Q6, Q7: tab_name holds the id)",
+   "which store a row came from (the projection merges two; a per-store filter needs a column)",
+   "first_seen, x, y and the raw body (not asked by the twelve; an explain that quotes the original line needs the body or the verbatim line — lines.line is the template)"
+  ],
+  "corpus_difference": "the projection is both stores (36,139 items, five leagues); the copy is the spike's (22,721, two leagues). Counts differ where noted; the shapes of the answers do not."
+ }
+}
