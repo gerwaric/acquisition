@@ -69,6 +69,8 @@ range — `git log` — and nothing restates it.
   `.claude/skills/mock-session/SKILL.md`
 - Session close (route what you learned; run before your last commit):
   `.claude/skills/session-close/SKILL.md`
+- Research track (a subagent under a committed brief, then review and
+  commit): `.claude/skills/research-track/SKILL.md`
 
 A procedure becomes a skill after it has run twice and repeated a trap,
 not before.

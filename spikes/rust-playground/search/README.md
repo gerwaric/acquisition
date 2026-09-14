@@ -53,6 +53,7 @@ deleting one; nothing else encodes it. (Set 2026-09-12.)
 - Write a track README last, from the script outputs, and its headline block last of all; the budget gets tight on a rich track, so per-item detail goes to `data/`.
 - engine-bench: a throwaway Rust crate is never a workspace member, or the quality gate builds and lints it; copy the facts database with sqlite's `.backup`, never `cp`, because it is under WAL.
 - agent-seat is written after item-facts, repoe and owner-seat, so its example queries use real field names and are checked against a human's questions.
+- A track run as a subagent (the research-track skill) never touches this index; the reviewer sets its row. And `git add search` while another subagent is still writing sweeps its files into the commit — add the track's directory, never the parent.
 - Files from the game and from Path of Building end lines with CRLF — the `Mod*.lua` tables, the clipboard text in a `fetch`'s `extended.text`: strip `\r` before matching a line end (bit the mod-table parser and the `Item Class:` check in one session).
 
 At the close this directory is expected to shrink to a closed record in
