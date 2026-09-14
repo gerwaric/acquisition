@@ -18,51 +18,33 @@ here anticipates it.
 
 ## What exists
 
-- `crates/acquisition-protocol` — the daemon's contract as a frontend sees
-  it: the wire (`protocol.rs`: `Request`/`Response`, the bootstrap plane,
-  `ErrorKind`, `Quote`, the frame bound), the job model (`job.rs`), the
-  realm vocabulary (`realm.rs`), the status documents (`status.rs`), the
-  provider names and `ACQ_PROVIDER` (`provider.rs`, C88), the daemon artifact as
-  `hello` carries it (`artifact.rs`) and the shared-contract revision
-  the handshake compares (`build.rs`, C84). serde only — never tokio or the
-  store; `tools/docs-check.sh` refuses more. One fixture per wire variant
-  (`tests/wire.rs`, C85). Rulings: `decisions/daemon.md`.
-- `crates/acquisition-daemon` — the daemon as its own artifact, the
-  `acqd` binary (`main.rs`; C1): the header-driven rate limiter and its
-  choke point (`ratelimit.rs`: the spec is its test tables; `gate.rs`),
-  the mock provider (`mockggg.rs`), the live-test rails (`rails.rs`),
-  its own executable identified and hashed at startup (`artifact.rs`,
-  C84) and the daemon (`daemon.rs`: queue, dispatcher, Unix-socket
-  server, idle watchdog). The only GGG sender; no package but this one
-  names it. Rulings: `decisions/daemon.md`, `decisions/network.md`.
-- `crates/acquisition-client` — the protocol client every frontend
-  shares (`client.rs`: connect, the three policy doors of C10, the
-  handshake that judges a daemon's contract, artifact, provider and
-  world, typed connect errors), the `acqd` locator (`locator.rs`: beside
-  the calling executable, nowhere else, C82) and the artifact comparison
-  against that sibling (`artifact.rs`, C84). Links protocol, the store
-  and tokio, never the daemon. Rulings: `decisions/daemon.md`.
-- `crates/acquisition-store` — the shared store: SQLite, one facts file per
-  account under one directory per provider, the uuid-named annotations
-  file (intent — buyouts, the sync policy — the only irreplaceable local
-  state), `daemon.db` (the persisted queue), the rails state, and the
-  world (`world.rs`, C83: root, locks, socket and log paths). The daemon
-  writes facts through `Store::record` and never reads; every frontend
-  reads the files directly, through neutral snapshots. As built:
-  `src/lib.rs`, `annotations.rs`, `snapshot.rs`, `world.rs`. Rulings:
-  `decisions/store.md`, `decisions/daemon.md`.
-- `crates/acquisition-plan` — the planner (the stored policy plus a
-  snapshot compiled into a `RefreshPlan`, offline, linked by frontends
-  only, never the daemon) and pricing (`currency.rs`, `price.rs`,
-  `game_side.rs`, `listing.rs`, `shop.rs`). As built: `src/lib.rs`.
-  Rulings: `decisions/plans.md`, `decisions/pricing.md`.
-- `crates/acquisition-cli` — the `acq` binary: clap and rendering, one
-  module per surface (`store_cmd.rs`, `plan_cmd.rs`, `price_cmd.rs`,
-  `shop_cmd.rs`, `reference_cmd.rs`, `dash.rs`). Every verb's help is
-  `CLI-REFERENCE.md`, generated. Rulings: `decisions/frontends.md`.
-- `crates/acquisition-mcp` — the `acq-mcp` binary: an MCP server over
-  stdio (`rmcp`), the fourth thin client, sharing semantics with the CLI
-  through `acquisition-plan`. Its tools are `MCP-REFERENCE.md`, generated.
+One entry per crate: purpose and implementation entry point. Module
+inventories and mechanisms live in the linked source documentation.
+
+- `crates/acquisition-protocol` — the daemon contract shared by frontends.
+  [Implementation](crates/acquisition-protocol/src/lib.rs);
+  rulings: `decisions/daemon.md`.
+- `crates/acquisition-daemon` — `acqd`, the only GGG sender: daemon,
+  limiter, gate and providers.
+  [Implementation](crates/acquisition-daemon/src/lib.rs);
+  rulings: `decisions/daemon.md`, `decisions/network.md`.
+- `crates/acquisition-client` — shared IPC client, daemon discovery and
+  connection policies. [Implementation](crates/acquisition-client/src/lib.rs);
+  rulings: `decisions/daemon.md`.
+- `crates/acquisition-store` — shared facts, intent and world storage,
+  with neutral read snapshots. [Implementation](crates/acquisition-store/src/lib.rs)
+  and [world](crates/acquisition-store/src/world.rs);
+  rulings: `decisions/store.md`, `decisions/daemon.md`.
+- `crates/acquisition-plan` — offline refresh planning and pricing.
+  [Implementation](crates/acquisition-plan/src/lib.rs);
+  rulings: `decisions/plans.md`, `decisions/pricing.md`.
+- `crates/acquisition-cli` — `acq`, clap and rendering.
+  [Entry point](crates/acquisition-cli/src/main.rs); generated help:
+  `CLI-REFERENCE.md`; rulings: `decisions/frontends.md`.
+- `crates/acquisition-mcp` — `acq-mcp`, the stdio MCP frontend sharing
+  semantics with the CLI through `acquisition-plan`.
+  [Implementation](crates/acquisition-mcp/src/main.rs); generated tools:
+  `MCP-REFERENCE.md`; rulings: `decisions/frontends.md`.
 
 The documents are indexed in `AGENTS.md` ("Read before changing
 anything"); the rulings are `CONTEXT.md` and `decisions/`.
