@@ -56,49 +56,49 @@ implements — is its `--help` (`CLI-REFERENCE.md` holds every one); the
 line here shows the shape.
 
 ```sh
-cargo build --workspace && alias acq=./target/debug/acq   # acq and the daemon acqd beside it (C82); cargo test rewrites acq and acq-mcp, not acqd: build again before a run
-acq <verb> --help                             # the reference for every verb
+cargo build --workspace && alias acq=./target/debug/acq   # build acq and its sibling acqd; rebuild before a run (AGENTS.md, "Quality gate")
+acq <verb> --help   # every verb's reference
 
-# a session — the mock provider's login page accepts any username (scripted login: the mock-session skill)
-acq auth [--no-browser]                       # OAuth login; completes once its own profile job lands the account uuid (C50)
-acq auth status | check | logout              # local belief; a forced token round-trip; drop the session
-acq accounts                                  # accounts this machine has logged into, from the store's index (no daemon)
+# a session — scripted mock login: the mock-session skill
+acq auth [--no-browser]   # OAuth login
+acq auth status | check | logout   # local session; token check; logout
+acq accounts   # logged-in accounts (no daemon)
 
-# jobs against the API — the daemon lazy-spawns; a route's first use queues a visible `probe` (C20)
-acq profile | leagues                         # GET /profile; GET /account/leagues
-acq characters [--realm R]                    # the character list; pc is omitted on the wire (C58)
-acq character <name> [--realm R]              # one character: equipment + inventory
-acq stashes [--league L] [--realm R]          # the tab list; the stash endpoints are PoE1 only (C59)
-acq stash <id> [--sub <id>] [--deep]          # one tab; --deep follows a map/unique tab's substashes as child jobs
-acq refresh --tabs a,b,c | --all [--deep]     # the ad-hoc kind: list, then one `stash` child per tab (C76: one door, as direction)
-acq submit <kind> [--params JSON] [--detach]  # any kind by hand; sleep, fetch and whoami are mock-only
-acq demo                                      # a burst of fetch jobs against the mock's 5-per-10 s policy: watch the ETAs
-acq jobs [--watch] | status <id> | result <id>   # the live queue, or with no daemon the one on disk (C45); one job; a finished job's payload, across restarts (C27)
-acq cancel <id> | set-priority <id> <n>       # cascades to waiting descendants; higher runs sooner
-acq dash                                      # live TUI: limiter state, jobs, sends, errors; a rails halt in red
+# jobs against the API — daemon lazy-spawns; first route use probes (C20)
+acq profile | leagues   # profile; account leagues
+acq characters [--realm R]   # character list
+acq character <name> [--realm R]   # equipment and inventory
+acq stashes [--league L] [--realm R]   # tab list (PoE1 only)
+acq stash <id> [--sub <id>] [--deep]   # one tab, optionally with substashes
+acq refresh --tabs a,b,c | --all [--deep]   # ad-hoc refresh of selected tabs
+acq submit <kind> [--params JSON] [--detach]   # submit a job by kind
+acq demo   # mock burst with limiter ETAs
+acq jobs [--watch] | status <id> | result <id>   # queue; one job; finished payload
+acq cancel <id> | set-priority <id> <n>   # cancel a subtree; change priority
+acq dash   # live TUI dashboard
 
-# intent, plans, apply — a plan is a binding envelope (C38); compiling and reading are offline
-acq policy [show]                             # the per-account sync policy and its revision
-acq policy set '<json>'|-|@FILE [--if-revision N]   # strict parse first; v3: {"version":3,"realms":{"pc":{"leagues":{…}}}}
-acq refresh --plan [--realm R] [--league L] [--expand] [--json]   # policy + facts → the action set; sends nothing; a running daemon adds its quote
-acq refresh --apply[=plan.json] [--max-requests N]   # exactly the plan's actions, as one `apply` parent (C43, C44)
+# intent, plans, apply — binding plans (C38); compilation and reads are offline
+acq policy [show]   # sync policy and revision
+acq policy set '<json>'|-|@FILE [--if-revision N]   # validated v3: {"version":3,"realms":{"pc":{"leagues":{…}}}}
+acq refresh --plan [--realm R] [--league L] [--expand] [--json]   # compile offline; a running daemon adds its quote
+acq refresh --apply[=plan.json] [--max-requests N]   # execute the plan's actions
 
-# pricing and the shop — intent edited offline (C64); nothing here contacts the daemon
-acq reference currency [WORD] [--expand]      # the currency table this build ships, by version (C68)
-acq price status | list | show <target>       # the listing state (C69) under C53's views; status is the default
-acq price set <target> <type> [<amount> <currency>] [--if-revision N]   # one row by hand; prints what it replaced and the undo
-acq price clear <target> [--if-revision N]    # remove the row; prints the `set` that puts it back
-acq shop render [--size N] [--template FILE] [--page N] [--expand]   # the forum pages to paste (C74); every omission counted (C72)
+# pricing and the shop — offline, no daemon (C64)
+acq reference currency [WORD] [--expand]   # versioned currency table
+acq price status | list | show <target>   # listing state; status is the default
+acq price set <target> <type> [<amount> <currency>] [--if-revision N]   # set a price, with undo
+acq price clear <target> [--if-revision N]   # remove a price, with undo
+acq shop render [--size N] [--template FILE] [--page N] [--expand]   # forum pages to paste, omissions counted
 
 # the store — no daemon, no network
-acq tabs [--league L] [--realm R]             # the tab tree with live item counts
-acq store characters [--realm R] [--league L] # characters by id: address, league, ages, live items
-acq items search <text> [--removed] | show <id>   # substring search over name/type/base; one item verbatim
-acq store status | events [--hours N] | refused [id]   # row counts; what recent ingests concluded; bodies refused as malformed
-acq store import <snapshot.json> | rebuild    # replay a retired-pull snapshot (no GGG traffic); re-extract derived columns
+acq tabs [--league L] [--realm R]   # tab tree and live item counts
+acq store characters [--realm R] [--league L]   # character locations, ages and live items
+acq items search <text> [--removed] | show <id>   # substring search; one item verbatim
+acq store status | events [--hours N] | refused [id]   # counts; ingest events; malformed bodies
+acq store import <snapshot.json> | rebuild   # replay a retired-pull snapshot; re-extract columns
 
-acq daemon status | stop | reset-tripwire     # debugging only (C3): paths, policies learned, the rails state; a halt's reset
-acq version [--json]                          # this build: version, the shared-contract revision, the sibling acqd a job command would start (C84)
+acq daemon status | stop | reset-tripwire   # debugging: inspect, stop, reset rails
+acq version [--json]   # build identity and sibling acqd
 ```
 
 Every command takes `--json`, and it is total: a failure is `{"error":…}`
@@ -123,25 +123,34 @@ either mode and never spawns or replaces one in real mode (C13, C14).
 
 | Knob | Default | Effect | Read in |
 | --- | --- | --- | --- |
-| `ACQ_PROVIDER=mock` | `ggg` | the in-process mock (C88); the harnesses and the mock-session skill set it. A real-mode daemon spawns only with a terminal on stderr; a leftover `ACQ_GGG` is refused at start | `acquisition-protocol/src/provider.rs` |
-| `ACQ_ACCOUNT=<sel>` | the sole account | env form of `--account`; exact match, never a prefix (C51) | `main.rs` |
-| `ACQ_STORE_DIR=<dir>` | the platform data dir | the world (C83): `<dir>/<provider>/<account>.db`, `accounts.json`, `daemon.db`, `rails.json`; one daemon per world, and its socket derives from it into the per-user runtime directory (`acq daemon status` prints it) — parallel mock daemons are parallel worlds; two real-mode daemons for one OS user are refused (C31) | `world.rs` |
-| `ACQ_LOG_DIR=<dir>` | the platform log dir | the daemon log and the default journal, one subdirectory per world and provider; bounded (rotated at daemon start past a cap, `daemon.rs`) | `world.rs` |
-| `ACQ_NO_KEYRING=1` | off | sessions in memory only, never plaintext on disk | `auth.rs` |
-| `ACQ_KEYRING_ROUNDTRIP=1` | off | `cargo test` only: the daemon crate's keyring round trip runs against the OS keyring (skipped otherwise, so the gate never touches a developer's keychain); CI sets it against an unlocked gnome-keyring | `auth.rs` (tests) |
-| `ACQ_CODESIGN_IDENTITY=<sha1\|name>` | unset | macOS, the developer's shell profile: `tools/sign-acqd.sh` signs the debug `acqd` with this identity (`security find-identity -v -p codesigning`) so a rebuilt daemon is no stranger to the keychain; the drivers and the live-run skill run it after the build | `tools/sign-acqd.sh` |
-| `ACQ_NO_SPAWN=1` | off | the CLI never starts or replaces a daemon — for cron, ssh and headless shells, which spawn without a keychain (macOS) or a session bus (Linux, the Secret Service) and so without a session | `client.rs` |
-| `ACQ_IDLE_SHUTDOWN=<s>` | 60 | idle exit with no connections and no live jobs; a daemon holding limiter history inside a window stays up to 300 s (C3) | `daemon.rs` |
-| `ACQ_JOB_RETENTION_DAYS`, `ACQ_FAILED_JOB_RETENTION_DAYS` | 7, 30 | how long finished job rows stay in `daemon.db` for `acq result`; a misread value logs `JOBS CONFIG` and keeps the default | `daemon.rs` |
-| `ACQ_TRIPWIRE=1` | off | rail 1: the first landed 429, or any 401/403/503, halts every later send until `acq daemon reset-tripwire`; persisted per provider in the world (`LIVE-TESTING.md`, "Rails") | `rails.rs` |
-| `ACQ_MAX_SENDS=<n>` | off | rail 5: halt after `n` real sends this daemon lifetime; not persisted | `rails.rs` |
-| `ACQ_JOURNAL=<path>` | `<log dir>/sends.jsonl`, bounded; `0` disables | rail 4: one JSON line per actual send, never a token or body — the contract surface (`TESTING-NOTES.md`; the line format is `rails.rs`); a driver points it into the run directory | `rails.rs` |
-| `ACQ_MOCK_DEGRADED_HEAD=1` | off | the mock reproduces the Dec-2023 HEAD regression (N20) | `mockggg.rs` |
+| `ACQ_PROVIDER=mock` | `ggg` | select the mock (C88); real spawning requires a terminal; retired `ACQ_GGG` is refused | [provider.rs][provider] |
+| `ACQ_ACCOUNT=<sel>` | the sole account | env form of `--account`, exact match (C51) | [main.rs][cli] |
+| `ACQ_STORE_DIR=<dir>` | the platform data dir | store root and daemon world (C83, C31) | [world.rs][world] |
+| `ACQ_LOG_DIR=<dir>` | the platform log dir | bounded daemon log and default journal, by world and provider | [world.rs][world] |
+| `ACQ_NO_KEYRING=1` | off | sessions in memory only, never plaintext on disk | [auth.rs][auth] |
+| `ACQ_KEYRING_ROUNDTRIP=1` | off | opt into the test against the OS keyring (CI uses gnome-keyring) | [auth.rs][auth] (tests) |
+| `ACQ_CODESIGN_IDENTITY=<sha1\|name>` | unset | macOS shell-profile identity for signing the debug daemon after building | [sign-acqd.sh](tools/sign-acqd.sh) |
+| `ACQ_NO_SPAWN=1` | off | never start or replace a daemon; for cron, ssh and headless shells | [client.rs][client]; keyring context: [auth.rs][auth] |
+| `ACQ_IDLE_SHUTDOWN=<s>` | 60 | idle exit, held while limiter history is live (C3) | [daemon.rs][daemon] |
+| `ACQ_JOB_RETENTION_DAYS`, `ACQ_FAILED_JOB_RETENTION_DAYS` | 7, 30 | finished-job retention for `acq result`; invalid values keep defaults (`JOBS CONFIG`) | [daemon.rs][daemon] |
+| `ACQ_TRIPWIRE=1` | off | rail 1: halt on 429/401/403/503 until reset, persisted | [rails.rs][rails] |
+| `ACQ_MAX_SENDS=<n>` | off | rail 5: halt after `n` real sends this lifetime, not persisted | [rails.rs][rails] |
+| `ACQ_JOURNAL=<path>` | `<log dir>/sends.jsonl`, bounded; `0` disables | rail 4: one JSON line per send, never a token or body | [rails.rs][rails] |
+| `ACQ_MOCK_DEGRADED_HEAD=1` | off | reproduce the Dec-2023 HEAD regression (N20) | [mockggg.rs][mock] |
 
-The rails are read at daemon start: set them on the command that spawns
-it (what it spawns is the `acqd` beside it, C82), or `acq daemon stop` first. A misread value (`ACQ_TRIPWIRE=maybe`) is
-logged as a `RAILS CONFIG` error and the rail stays off. `acq daemon
-status` prints the world, the paths and the rails state.
+[provider]: crates/acquisition-protocol/src/provider.rs
+[cli]: crates/acquisition-cli/src/main.rs
+[world]: crates/acquisition-store/src/world.rs
+[auth]: crates/acquisition-daemon/src/auth.rs
+[client]: crates/acquisition-client/src/client.rs
+[daemon]: crates/acquisition-daemon/src/daemon.rs
+[rails]: crates/acquisition-daemon/src/rails.rs
+[mock]: crates/acquisition-daemon/src/mockggg.rs
+
+Rail semantics: `LIVE-TESTING.md`, "Rails"; journal contract:
+`TESTING-NOTES.md`. Rails are read at daemon start: set them on the
+spawning command, or stop the daemon first. `acq daemon status` prints
+the world, paths and rails state; read-site docs explain invalid values.
 
 ## Known gaps
 
