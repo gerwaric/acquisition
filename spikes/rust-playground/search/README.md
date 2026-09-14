@@ -79,8 +79,9 @@ C12 (two surfaces), C79 (governed surfaces; `SURFACES.md`), and in
 `decisions/store.md` "Parked": search-at-scale (FTS, a search crate) and
 the user-scoped annotations home whose trigger lists saved searches.
 
-The synthesis runs in stages after the tracks close (the plan of
-2026-09-13): its briefs and drafts are numbered notes —
+The synthesis runs in stages after the tracks close (the plan and the
+owner's decisions: `brainstorming-notes/23-search-synthesis-plan.md`):
+its briefs and drafts are numbered notes —
 `brainstorming-notes/21-search-digest-brief.md`,
 `brainstorming-notes/22-search-framing.md` — each edited by the owner
 before it runs; the digest itself will be `DIGEST.md` here and, once accepted,
