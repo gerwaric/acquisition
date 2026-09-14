@@ -1,10 +1,10 @@
 # owner-seat — what the owner actually asks of the stash
 
-Status: first pass complete — 2026-09-13. The owner answered five prompts in conversation; seven questions and four answers are verbatim in `data/questions.md`, the agent's reading columns accepted uncorrected.
+Status: first pass complete — 2026-09-13. The owner answered five prompts in conversation and two refinements; seven questions and six answers are verbatim in `data/questions.md`, the agent's reading columns accepted uncorrected; the one open question, legacy, is ruled.
 
 Headline:
 - Seven questions, three kinds: find one remembered item (by name, by league of origin, by an unusual mod — Q2, Q4, Q6), which items carry mod X (Q1, Q3, Q7) and a set by level (Q5). None filters on defence or damage numbers: "well-crafted endgame gear is already on bases with the right armour or evasion" (F1).
-- The mod is asked for by identity, not by total: "a crafting base with a specific fractured modifier, or a key build-enabling modifier, or a stat that is needed to complete a defensive layer" — the line-identity question, stated from the seat (F1).
+- The mod is asked for by identity, not by total: "a crafting base with a specific fractured modifier, or a key build-enabling modifier, or a stat that is needed to complete a defensive layer" — the line-identity question, stated from the seat — and a mod question comes with a base in mind, by name or by the base's attributes (F1).
 - Pricing and organising are not the owner's questions: pricing is other users' (buyouts survive upgrades; no direct forum updates, "because of the use of POESESSID"), and the app cannot act on the stash. Counts by kind are "useful, or at least interesting" (F2).
 - What the trade site does better, and where both fail: yes/no/any flags; a stat autocomplete that is instant, categorised by mod kind and sensibly ordered ("The c++ mod search box is terrible by comparison on both fronts"); boolean logic — the site only over stats, never "(Armour > 1000) OR (Required Level < 80)" (F3).
 - Wanted: a trade search run against the stash, "fantastic", by copy/paste or a browser add-on; pricing through Awakened PoE Trade from within the app, asked for by newer players. Neither is core (F4).
@@ -37,7 +37,7 @@ invented.
 
 ## Findings
 
-**F1 — The questions** (`data/questions.md`, the table). Three kinds. *Find one item I remember* (Q2 a legacy unique, Q4 "that staff from Cruicible league", Q6 "that legacy explode chest"): by name, by league of origin — which no item field carries (item-facts F2) — or by an unusual mod; the answer is one item and its tab. *Which items carry mod X* (Q1 resist or attribute lines for a build, Q3 gear for a new interaction, Q7 "the modifier GGG just anounced is going away"): the mod by identity — fractured, build-enabling, a defensive-layer stat — sometimes as a total; the answer is a list with the lines visible and the tab. *A set by level* (Q5 leveling gear). None filters on armour, evasion or damage numbers; for other players "the modifiers on their weapong" and damage mods by mechanism — hit, spell, over time, ailment — matter. Legacy-ness (Q2, Q6) is a mod value outside the current range, which needs unique data the repoe extract leaves out.
+**F1 — The questions** (`data/questions.md`, the table). Three kinds. *Find one item I remember* (Q2 a legacy unique, Q4 "that staff from Cruicible league", Q6 "that legacy explode chest"): by name, by league of origin — which no item field carries (item-facts F2) — or by an unusual mod; the answer is one item and its tab. *Which items carry mod X* (Q1 resist or attribute lines for a build, Q3 gear for a new interaction, Q7 "the modifier GGG just anounced is going away"): the mod by identity — fractured, build-enabling, a defensive-layer stat — sometimes as a total; the answer is a list with the lines visible and the tab. *A set by level* (Q5 leveling gear). None filters on armour, evasion or damage numbers; for other players "the modifiers on their weapong" and damage mods by mechanism — hit, spell, over time, ailment — matter. A mod question carries a base: "either something specific like Titan Gauntlet or Spiked Gloves, or I do care about the base and it's attributes" — by name, or by the base's kind and attributes. Legacy (Q2, Q6), the owner's definition: "an item or modifer or modifier value or unique or unique variant that cannot be found or created by playing the game, so it only exists in Standard stashes" — the Ashes of the Stars variant of 3.23.0 with `10-20% increased Reservation Efficiency of Skills`, a bugged body armour with `+25,244% fire resistance`; few in the owner's stash, many in Standard. So legacy is a test of an item against the current game's data — a mod, a value or a variant the export no longer lists — which needs the export's uniques and its history (repoe F6: versions since 2025-06; whether it reaches 3.23.0 is the experiment).
 
 **F2 — Not the owner's** (the prompt-2 and prompt-3 answers). Pricing: the consumer is a small set of other users with unknown workflows; their two known needs are rulings already (C35; the parked publishing item, now carrying the POESESSID reason). Organising: the app cannot move items or rename tabs, so the owner does not use it for that; counts and totals by kind — currencies, equipment, maps, fragments — are a candidate derivation, not a need (the parked currency-totals item, `decisions/pricing.md`).
 
@@ -56,11 +56,12 @@ invented.
 | R5 | A trade search, as a URL or its JSON, is a stash query; the join is the trade id → stat id map (repoe F1, F2) | re-typing a query the site already holds (F4) |
 | R6 | Every answer carries the item's location — tab or character, realm, league | Q2, Q4, Q6 answered without "where" |
 | R7 | League of origin is not promised: no field carries it; a derivation from league-specific mods or first-seen is the most a search can offer | Q4 answered wrongly |
-| R8 | Legacy detection: a unique's mod values against the current version's ranges | Q2, Q6; needs the uniques data (repoe) |
+| R8 | Legacy detection: the item's mods, values and variant against what the current game can produce | Q2, Q6; needs the export's uniques and a version history (repoe) |
+| R9 | A mod filter composes with a base — by name, or by the base's kind and attributes | Q1, Q3 returning the mod on the wrong slot or base |
 | — | Non-goals: acting on the stash; direct forum updates; a pricing engine | F2, F4 |
 
 ## Open questions
 
-- **Q1 — Legacy, operationally.** A mod value outside the current range, a mod the unique no longer rolls, or both? Closes: the repoe unique-mods extract against one known legacy item of the owner's.
+- **Q1 — Legacy, detectable?** The definition is ruled (F1); what is open is whether the export's history reaches the versions legacy items come from (the 3.23.0 Ashes of the Stars is the test item). Closes: one read of the `poe1` clone's history for its oldest exported version, in the repoe track.
 
 ## Provenance

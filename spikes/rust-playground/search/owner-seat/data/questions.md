@@ -43,3 +43,11 @@ So no organising question goes in the table: the app cannot act on the stash (th
 "Being able to use a trade search query against my stash would be fantastic, especially if there was an integrated way to make this happen--e.g. with a simple browser addon, or even a basic copy/paste. There's already a browser extension called Better Trading that people use to manage trade searches. Integrating with that might be fun, but not a core features."
 
 "Similarly, integrating with Awakened PoE trade to price items from within acquisition somehow (gui? cli? mcp?) would be useful. Some newer players have asked for this."
+
+## Refinements, verbatim (after the first pass, 2026-09-13)
+
+On the mod questions (Q1, Q3, Q7): "When I'm asking for specific mods, I likely have a base in mind--either something specific like Titan Gauntlet or Spiked Gloves, or I do care about the base and it's attributes."
+
+On legacy (Q2, Q6; the track's open question): "Legacy means an item or modifer or modifier value or unique or unique variant that cannot be found or created by playing the game, so it only exists in Standard stashes. An example is the Ashes of the Stars onyx amulet, which has a legacy variant from 3.23.0 which has the modifier 10-20% increased Reservation Efficiency of Skills that modern version lack."
+
+"I don't have many legacy items, but there are many legacy flasks, uniques, rares, and other items in standard. One classic example is a bugged body armour with +25,244% fire resistance, which is one of the most expensive items in the game because of how it interacts with certain damage and defense mechanics."

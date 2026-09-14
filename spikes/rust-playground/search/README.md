@@ -70,7 +70,7 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 | [`prior-art/`](prior-art/README.md) | How does a maintained item-to-trade tool (Awakened PoE Trade) give a line its identity and follow patches? | not started — 2026-09-13 | 2066 |
 | [`store-as-built/`](store-as-built/README.md) | What does the store's read surface give a search consumer today, and where would the first store change fall? | not started — 2026-09-13 | 1649 |
 | [`engine-bench/`](engine-bench/README.md) | Is SQLite over a derived search schema instant at a few hundred thousand items? Measured. | not started | 1201 |
-| [`owner-seat/`](owner-seat/README.md) | What does the owner actually ask of the stash, in their words, and what answer shape does each want? | first pass complete — 2026-09-13 | 6818 |
+| [`owner-seat/`](owner-seat/README.md) | What does the owner actually ask of the stash, in their words, and what answer shape does each want? | first pass complete — 2026-09-13 | 7990 |
 | [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | not started | 1139 |
 
 Standing rulings and parked items the design will revisit, so it knows
