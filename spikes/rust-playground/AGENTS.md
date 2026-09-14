@@ -1,61 +1,59 @@
 # Rust playground — agent entry point
 
-You are in `spikes/rust-playground` on branch `spikes/rust-playground`: a
-Cargo workspace (`acquisition-protocol`, `acquisition-client`,
-`acquisition-daemon`, `acquisition-store`, `acquisition-plan`,
-`acquisition-cli`, `acquisition-mcp`) that is the
-Rust implementation of Acquisition (`README.md`, the charter). The
-repository-level `AGENTS.md` describes the C++ app on `master`; its build
-and Qt guidance does not apply here. ADR 0003 (rewrite vs. evolve) is the
-owner's call and needs nothing from you — ignore it and `docs/redesign/`.
+You are in `spikes/rust-playground` on branch `spikes/rust-playground`:
+a Cargo workspace implementing Acquisition (`README.md`, the charter
+and crate index). The repository-level `AGENTS.md` describes the C++ app
+on `master`; its build and Qt guidance does not apply here. ADR 0003
+(rewrite vs. evolve) is the owner's call and needs nothing from you —
+ignore it and `docs/redesign/`.
 
 ## Read before changing anything
 
 Always, in this order:
 
 1. `README.md` — what exists, how to run it, knobs, known gaps.
-2. `CONTEXT.md` — invariants, the cross-cutting decisions, the index of
-   the area decision files, the cross-cutting parked items, and the
-   working style.
+2. `CONTEXT.md` — invariants, cross-cutting decisions and parks, area
+   decision index, working style.
    Owner (Tom) holds the boundaries (invariants, protocol, core API
    surface); agents own internals.
 
 Then, only when the work touches it:
 
 - Before running `acq` or driving `acq-mcp`: `CLI-REFERENCE.md` and
-  `MCP-REFERENCE.md` — every verb's and tool's semantics, generated from
-  the binaries' own help by tests that keep them equal to it; or
-  `acq <verb> --help`. The README's tour shows the shape only.
-- Before anything that talks to the real GGG API: `LIVE-TESTING.md` (the
-  standing rule, the rails), `RUN-LEDGER.md` (every live run, one row
-  each; read its tail) and the live-run procedure below. **The real
-  provider is the default (C88): never start a real-mode daemon from an
-  agent shell — the CLI refuses without a terminal, and the mock-session
-  skill sets `ACQ_PROVIDER=mock`.** Live runs are human-run, from a
-  terminal.
+  `MCP-REFERENCE.md` (generated semantics, checked against the binaries),
+  or `acq <verb> --help`. README's tour shows only the shape.
+- Before anything that talks to the real GGG API: `LIVE-TESTING.md`
+  (standing rule, rails), the tail of `RUN-LEDGER.md`, and the live-run
+  procedure below. **The real provider is the default (C88): never start
+  a real-mode daemon from an agent shell — the CLI refuses without a
+  terminal, and the mock-session skill sets `ACQ_PROVIDER=mock`.**
+  Live runs are human-run, from a terminal.
 - Before touching tests or the harness: `TESTING-NOTES.md` — the send
   journal is the contract surface; tests pin boundaries, never mechanisms.
-- Before touching the network layer: `NETWORK-CLEANUP.md` (closed record).
-- Before reading, citing or fetching a surface GGG does not sanction (the
-  trade site, the forums, feeds): `SURFACES.md`, the register under C79 —
-  a fetch by tooling needs the permission its row records.
-- Before touching pricing: `PRICING-SLICE.md` (the closed record; its
-  findings table is the review checklist for a pricing change).
-- Before touching item search: `search/README.md` — the slice's working
-  directory (one track per subdirectory; its rules in force are there).
-- Before touching an area, its decisions and what it has parked: `decisions/daemon.md` (daemon,
-  jobs, protocol, accounts), `decisions/network.md` (limiter, gate, rails,
-  OAuth traffic), `decisions/store.md` (ingest, facts, realm, characters),
+- Before reading, citing or fetching a surface GGG does not sanction
+  (trade site, forums, feeds): `SURFACES.md` (C79); tooling fetches need
+  the permission recorded in the surface's row.
+- Before touching item search: `search/README.md` — one track per
+  subdirectory, with the slice's rules in force.
+- Before touching an area, read its decisions and parks:
+  `decisions/daemon.md` (daemon, jobs, protocol, accounts),
+  `decisions/network.md` (limiter, gate, rails, OAuth traffic),
+  `decisions/store.md` (ingest, facts, realm, characters),
   `decisions/plans.md` (sync policy, planner, quote, apply),
   `decisions/pricing.md` (buyout intent, listing state, currency table,
   price plans, import, render), `decisions/frontends.md` (CLI, MCP,
-  rendering). Each module's doc names its file and ids at the top.
-- Before touching the store, planner, or plan slice: `REFRESH-SLICE.md`
-  (closed record; its findings table is the review checklist) and the
-  crates' module docs (`src/lib.rs`, "As built").
-- Before touching the protocol, the client, the daemon's lifecycle or
-  the world: `DAEMON-SPLIT-SLICE.md` (closed record; its findings table
-  is the review checklist) and the crates' module docs.
+  rendering). Each module doc names its decision file and ids at the top.
+
+Also read the applicable closed slice record below; its findings table
+is the review checklist. For the refresh and daemon split, also read the
+crates' module docs (refresh: `src/lib.rs`, "As built").
+
+| Before touching | Read |
+| --- | --- |
+| network layer | `NETWORK-CLEANUP.md` |
+| pricing | `PRICING-SLICE.md` |
+| store, planner or plan slice | `REFRESH-SLICE.md` |
+| protocol, client, daemon lifecycle or world | `DAEMON-SPLIT-SLICE.md` |
 
 Facts about GGG live in `../../docs/design/network-ground-truth.md`, cited
 by claim number; new claims are authored on the master-side branch and
@@ -72,55 +70,49 @@ range — `git log` — and nothing restates it.
 - Research track (a subagent under a committed brief, then review and
   commit): `.claude/skills/research-track/SKILL.md`
 
-A procedure becomes a skill after it has run twice and repeated a trap,
-not before.
-
 ## Quality gate, kept green by every change
 
 ```sh
-cargo build --workspace  # first, and again before any smoke or live run: the process tests and the drivers run the acqd this writes beside acq (C82); cargo test never writes acqd and rewrites acq-mcp in its all-targets form
+cargo build --workspace
 cargo test --workspace --all-targets
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
 git diff --check
-tools/docs-check.sh      # byte budgets on the always-loaded documents; stale identifiers; the dependency edges (C1)
-RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps   # no broken doc link anywhere: the rulings live in doc comments
+tools/docs-check.sh
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
-`cargo test --all-targets` never writes `target/debug/acqd` (no test in
-the daemon crate asks for it) and rewrites `target/debug/acq-mcp` in its
-all-targets form — a different artifact: proptest, the plan crate's
-dev-dependency, unifies `num-traits/std` into the chrono that rmcp links
-(measured 2026-09-11; `acq` and `acqd` have one form each since the
-store's `test-hooks` feature and its dev-only `hooks` feature went);
-`cargo clippy` rewrites none. So run the gate's `cargo build --workspace`
-before any smoke or live run, and never run the drivers while the gate
-runs — their preflight build replaces `acqd` under a live daemon (an
-artifact mismatch, C84). The contract revision hashes the protocol
-crate's sources, so an edit or a `cargo fmt` there after the build
-leaves `acqd` on the old revision and every daemon test failing "another
-contract": build again first (2026-09-12).
+Build first, and again before any smoke or live run (C82). If contract
+inputs change after building — including a formatting edit — build
+again before testing or running. Never run the drivers while the gate
+runs (C84). The artifact explanation is in
+[session-close, "Why build order matters"](.claude/skills/session-close/SKILL.md#why-build-order-matters).
 
 ## Routing: one authoritative home per fact
 
-The store's rule applies to the documents: every fact has one source, and
-a copy elsewhere is a parallel description that rots. When a document's
-budget trips, something landed where it does not belong.
+Every fact has one source; a duplicate description rots. When a document
+reaches its budget, route the information to its home. Registry formats
+and park lifecycle are in `CONTEXT.md` ("Decisions", "Parked"): use
+`decisions/<area>.md`, or `CONTEXT.md` only if every area must know it.
 
 | Kind of fact | Home |
 | --- | --- |
-| a ruling, invariant, or boundary property | the registry: one entry, a stable `C<n>` id, the ruling verbatim, *Why:*, and pointers (under the check's length limit) — in `decisions/<area>.md`, or in `CONTEXT.md` only if every area must know it |
-| parked scope, or a question with no ruling yet | the area's `decisions/<area>.md`, "Parked", one entry with its trigger — in `CONTEXT.md` only if it crosses every area; a fired trigger deletes the entry |
-| a property pinned by a test | the test cites the decision id (`c6_…`, or a comment); the entry's *Pinned:* names the file |
-| a review finding | a row in the slice's closed record, with its fix commit |
-| a build step's narrative | the commit message |
-| a live run | one run-ledger row; journals in `runs/` (gitignored; mock rehearsals under `runs/mock/`) |
-| a fact about GGG | a numbered ground-truth claim |
-| how a mechanism works | a doc comment on the code, under "Decisions as recorded" / "As built", headed by the id |
-| how to use a verb, a flag or a knob | its clap help string (the reference files regenerate from it under `ACQ_UPDATE_FIXTURES=1`), or the knob's read-site doc comment; one line in the README's tour or one row in its knob table — never a comment block |
-| a procedure | its skill file, referenced here |
-| deliberation | a numbered note in `brainstorming-notes/`: on demand while a ruling, a tool, a skill or a crate doc cites it by path; history once nothing does — deleted, cited as "note NN at `<commit>`" (`tools/docs-check.sh` refuses a path citation to a note that is gone and reports the uncited) |
-| the owner's verdict | recorded verbatim from the conversation, marked as such |
+| ruling, invariant or boundary property | the registry; next stable `C<n>`, ruling verbatim, *Why:* and pointers |
+| parked scope or question without a ruling | the area's "Parked", with its trigger |
+| observation without a ruling | the open slice's "Observations still open"; after closure, an area park with a trigger |
+| property pinned by a test | test name or comment cites the decision id; the entry's *Pinned:* names the file |
+| review finding | slice's closed record: a row with its fix commit |
+| build narrative | commit message |
+| live run | one `RUN-LEDGER.md` row; journals in gitignored `runs/`, mock rehearsals in `runs/mock/` |
+| fact about GGG | numbered ground-truth claim |
+| mechanism | code doc comment under "Decisions as recorded" / "As built", headed by the decision id |
+| verb, flag or knob usage | clap help / MCP tool description (regenerate references with `ACQ_UPDATE_FIXTURES=1`), or knob read-site doc; README gets one tour line or knob row, never a comment block |
+| procedure | skill file referenced here, when earned under P6 |
+| deliberation | numbered `brainstorming-notes/` note while a ruling, tool, skill or crate doc cites its path; otherwise delete, citing history as "note NN at `<commit>`" |
+| owner's verdict | verbatim from the conversation, marked as such |
 
+`tools/docs-check.sh` checks budgets, stale identifiers, registry and note
+citations, README form and dependency edges (C1); it reports uncited notes
+and refuses paths to deleted ones. Rustdoc checks links in code docs.
 Headers carry no status. Struck-through items are deleted. Session notes
 are history, never a second authority.

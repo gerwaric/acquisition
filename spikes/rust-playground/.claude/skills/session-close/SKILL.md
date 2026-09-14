@@ -12,37 +12,39 @@ the ladder behind it is note 09 at `decda84e`.
 
 ## 1. Gate
 
-```sh
-cargo build --workspace
-cargo test --workspace --all-targets
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo fmt --all -- --check
-git diff --check
-tools/docs-check.sh
-RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
-```
+Run the quality gate in `AGENTS.md`, "Quality gate".
 
 Run each command bare and read its exit status. A check piped through
 `grep` or `tail` reports the filter's exit, not the check's: on
 2026-09-03 an over-length registry entry was committed that way.
 
+### Why build order matters
+
+`cargo test --all-targets` never writes `target/debug/acqd` (no test in
+the daemon crate asks for it) and rewrites `target/debug/acq-mcp` in its
+all-targets form — a different artifact: proptest, the plan crate's
+dev-dependency, unifies `num-traits/std` into the chrono that rmcp links
+(measured 2026-09-11; `acq` and `acqd` have one form each since the
+store's `test-hooks` feature and its dev-only `hooks` feature went);
+`cargo clippy` rewrites none. So run the gate's `cargo build --workspace`
+before any smoke or live run, and never run the drivers while the gate
+runs — their preflight build replaces `acqd` under a live daemon (an
+artifact mismatch, C84). The contract revision hashes the protocol
+crate's sources, so an edit or a `cargo fmt` there after the build
+leaves `acqd` on the old revision and every daemon test failing "another
+contract": build again first (2026-09-12).
+
+The full contract-input set is documented in
+[the revision build script](../../../crates/acquisition-protocol/build.rs).
+
 ## 2. Route each thing learned
 
-For every item the session produced, exactly one of:
-
-| It is | It goes to |
-| --- | --- |
-| a ruling by the owner, or a boundary property | the registry, in `decisions/<area>.md` (or `CONTEXT.md` only if every area must know it): the next `C<n>` (never reuse an id), the ruling verbatim, *Why:* in a sentence, *Details:*/*Pinned:*/*Evidence:* pointers — one bullet under the length limit; the mechanism it implies goes to the code's doc comment under its id |
-| a property now pinned by a test | the test's name carries the id (`c44_stale_revision_refused`), or a comment cites it; the entry's *Pinned:* names the file |
-| a review finding | a row in the slice's closed record (`REFRESH-SLICE.md` is the shape), with the fix commit |
-| the story of what was built and why | the commit message |
-| a live run | one row in `RUN-LEDGER.md` (the row's shape is the standing rule's, `LIVE-TESTING.md`); evidence in `runs/` |
-| a fact about GGG | a numbered ground-truth claim, authored master-side and cherry-picked here |
-| how a mechanism works | a doc comment on the code |
-| how to use a verb, a flag or a knob | its clap help string, then `ACQ_UPDATE_FIXTURES=1 cargo test` regenerates `CLI-REFERENCE.md` / `MCP-REFERENCE.md`; one line in the README's tour or one row in its knob table, never a comment block (`tests/readme_tour.rs` and `tools/docs-check.sh` hold the form) |
-| an observation with no ruling yet | the slice record's "Observations still open" while the slice is open; otherwise the area's `decisions/<area>.md`, "Parked", **with a trigger** (`CONTEXT.md` only if it crosses every area) |
-| a procedure run twice that repeated a trap | a skill file under `.claude/skills/`, referenced by path from `AGENTS.md` |
-| the owner's verdict on a reading | recorded verbatim from the conversation, marked as such |
+Route every item through `AGENTS.md`, "Routing: one authoritative home
+per fact"; the registry format and park lifecycle are in `CONTEXT.md`.
+`REFRESH-SLICE.md` is the shape for a finding row; `LIVE-TESTING.md`
+defines the run-ledger row. Usage references regenerate from their
+sources (commands in each reference's header); `tests/readme_tour.rs`
+and `tools/docs-check.sh` hold README's form.
 
 Do not write "built on <date>", "step N done", or a list of what a test
 covers into `CONTEXT.md`: git holds the first two, the test the third.

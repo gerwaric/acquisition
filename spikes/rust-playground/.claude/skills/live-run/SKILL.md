@@ -29,9 +29,9 @@ live run is the owner's, from a terminal, under this procedure.
    — the binaries carry no commit: the contract revision and, for
    `acqd`, its file's hash (C84), so a dirty build's identity would be
    paired with a HEAD it is not; the journal header carries both and
-   the ledger row names HEAD (`cargo test` never writes `acqd` and
-   rewrites `acq-mcp` in its all-targets form; the plain build restores
-   it — the drivers build first), then `tools/sign-acqd.sh` — the
+   the ledger row names HEAD. Build after any tests (see
+   [why build order matters](../session-close/SKILL.md#why-build-order-matters)),
+   then `tools/sign-acqd.sh` — the
    daemon's code identity, from `ACQ_CODESIGN_IDENTITY` in your shell
    profile; without it macOS Keychain asks twice per login after every
    rebuild. Sign after the build: one that re-links `acqd` writes a fresh
