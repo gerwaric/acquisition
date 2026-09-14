@@ -837,6 +837,334 @@ fn median(mut v: Vec<f64>) -> f64 {
     v[v.len() / 2]
 }
 
+// ---------------------------------------------------------------- the seat projection (--seat)
+//
+// A second, separate mode: it writes ../raw/seat-projection.db and touches nothing the timings
+// use — not `build_db`, not the twelve queries, not the schema they run against. Real scale only,
+// no clones. It holds only what an existing ruling already requires; finding what is still
+// missing is agent-seat's job, not this mode's.
+
+/// The same number rule as `template_and_value` (cpp-search F3), keeping every number instead of
+/// only their mean. A deliberate second copy: the timed load must stay byte-for-byte what it was.
+fn template_and_numbers(s: &str) -> (String, Vec<f64>) {
+    let b = s.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(b.len());
+    let mut nums: Vec<f64> = Vec::new();
+    let mut i = 0usize;
+    let mut prev = 0u8;
+    while i < b.len() {
+        let c = b[i];
+        let sign = (c == b'+' || c == b'-') && i + 1 < b.len() && b[i + 1].is_ascii_digit();
+        let starts = (c.is_ascii_digit() || sign) && !(prev.is_ascii_digit() || prev == b'#');
+        if starts {
+            let start = i;
+            if sign {
+                i += 1;
+            }
+            while i < b.len() && b[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i + 1 < b.len() && b[i] == b'.' && b[i + 1].is_ascii_digit() {
+                i += 1;
+                while i < b.len() && b[i].is_ascii_digit() {
+                    i += 1;
+                }
+            }
+            if let Ok(v) = std::str::from_utf8(&b[start..i]).unwrap_or("0").parse::<f64>() {
+                nums.push(v);
+            }
+            out.push(b'#');
+            prev = b'#';
+        } else {
+            if c == b'\n' {
+                out.push(b'\\');
+                out.push(b'n');
+            } else {
+                out.push(c);
+            }
+            prev = c;
+            i += 1;
+        }
+    }
+    (String::from_utf8(out).unwrap_or_default(), nums)
+}
+
+/// The C++ app's bucket for a line (cpp-search F3, `data/derivations.md` §4a): the flag cascade
+/// over `implicitMods`/`explicitMods` (first match wins), `enchantMods` whole, and for every array
+/// `LoadModifiers` never reads, the array's own name — so what the C++ could not search is visible
+/// rather than absent. `desecrated` and `vestigial`, which the C++ drops, occur on no line here.
+fn seat_kind(arr: &str, flags: &[String]) -> String {
+    let has = |f: &str| flags.iter().any(|x| x == f);
+    match arr {
+        "implicitMods" | "explicitMods" => {
+            if has("fractured") {
+                "fractured".to_string()
+            } else if has("mutated") {
+                "mutated".to_string()
+            } else if has("crafted") {
+                "crafted".to_string()
+            } else if arr == "implicitMods" {
+                "implicit".to_string()
+            } else {
+                "explicit".to_string()
+            }
+        }
+        "enchantMods" => "enchant".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// A coordinate field that the two stores type differently (a tab id is text, a character id can
+/// arrive as a number): either becomes text, an absent or null field becomes NULL.
+fn as_text(v: Option<&serde_json::Value>) -> Option<String> {
+    match v? {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    }
+}
+
+const SEAT_SCHEMA: &str = "
+CREATE TABLE items (
+  rid INTEGER PRIMARY KEY, -- row id, local to this file; lines.item joins it
+  gid TEXT,                -- the GGG item id, verbatim
+  name TEXT,               -- GGG `name`, verbatim ('' on an item with none)
+  type_line TEXT,          -- GGG `typeLine`, verbatim
+  base_type TEXT,          -- GGG `baseType`, verbatim
+  rarity TEXT,             -- GGG `rarity`, verbatim; NULL where GGG omits it
+  frame_type_id TEXT,      -- GGG `frameTypeId`, verbatim
+  pretty TEXT,             -- derived: lowercased `name typeLine`, the C++ Name haystack
+  base TEXT,               -- derived: lowercased `baseType`, the C++ base haystack
+  frame TEXT,              -- derived: the bench's frame column, `frameTypeId` or '' when absent
+  ilvl INT,                -- GGG `ilvl`, 0 when absent
+  req_level INT,           -- requirements[] `Level`, its first number
+  req_str INT,             -- requirements[] `Str`/`Strength`, its first number
+  req_dex INT,             -- requirements[] `Dex`/`Dexterity`, its first number
+  req_int INT,             -- requirements[] `Int`/`Intelligence`, its first number
+  armour INT,              -- properties[] `Armour`, its first number
+  evasion INT,             -- properties[] `Evasion Rating`, its first number
+  energy_shield INT,       -- properties[] `Energy Shield`, its first number
+  quality INT,             -- properties[] `Quality`, its first number
+  identified INT,          -- GGG `identified`, 0/1
+  corrupted INT,           -- GGG `corrupted`, 0/1
+  realm TEXT,              -- coordinate: the realm, above league
+  league TEXT,             -- coordinate: the league
+  location_kind TEXT,      -- coordinate: 'stash' or 'character'
+  location_id TEXT,        -- coordinate: the stash tab id or the character id
+  tab_name TEXT,           -- coordinate: the tab's or character's name, a label and not identity
+  container TEXT,          -- coordinate: the array the item sat in (items, equipment, inventory, jewels, skills, guardian)
+  socketed_in TEXT,        -- the host item's gid when this is a socketed gem, else NULL
+  last_seen INT            -- the corpus's `fetched`, epoch seconds; the corpus carries no first-seen
+);
+CREATE TABLE lines (
+  item INTEGER, -- items.rid
+  arr TEXT,     -- the GGG array the line came from, verbatim (explicitMods, utilityMods, …)
+  line TEXT,    -- the display template: every number run becomes '#' (cpp-search F3)
+  value REAL,   -- the mean of the line's numbers, the C++ per-line value the timed queries use
+  kind TEXT,    -- the C++ bucket: implicit/explicit/crafted/fractured/mutated/enchant, else the array name
+  flags TEXT,   -- the line's GGG flags, comma-separated alphabetically; '' when it carries none
+  n INT,        -- how many numbers the line carries
+  n0 REAL,      -- its first number, NULL when it has none (min and max stay separate)
+  n1 REAL,      -- its second number, NULL when absent
+  numbers TEXT  -- every number of the line, as a JSON array
+);";
+
+fn seat(track: &std::path::Path) {
+    let corpus_path = track.join("raw/corpus.jsonl");
+    let path = track.join("raw/seat-projection.db");
+    let raw = std::fs::read_to_string(&corpus_path).expect("corpus.jsonl");
+    let _ = std::fs::remove_file(&path);
+    let t0 = Instant::now();
+    let mut db = rusqlite::Connection::open(&path).expect("open");
+    db.execute_batch(&format!(
+        "PRAGMA journal_mode=OFF; PRAGMA synchronous=OFF;{SEAT_SCHEMA}"
+    ))
+    .expect("schema");
+    let (mut nitems, mut nlines, mut skipped) = (0i64, 0u64, 0u64);
+    {
+        let tx = db.transaction().expect("tx");
+        {
+            let mut ins = tx
+                .prepare(
+                    "INSERT INTO items VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,\
+                     ?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29)",
+                )
+                .expect("prep");
+            let mut insl = tx
+                .prepare("INSERT INTO lines VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)")
+                .expect("prepl");
+            for text in raw.lines() {
+                if text.is_empty() {
+                    continue;
+                }
+                let v: serde_json::Value = match serde_json::from_str(text) {
+                    Ok(v) => v,
+                    Err(_) => {
+                        skipped += 1;
+                        continue;
+                    }
+                };
+                let (co, it) = match (v.get("c"), v.get("i")) {
+                    (Some(a), Some(b)) if b.is_object() => (a, b),
+                    _ => {
+                        skipped += 1;
+                        continue;
+                    }
+                };
+                let opt = |o: &serde_json::Value, k: &str| -> Option<String> {
+                    o.get(k).and_then(|x| x.as_str()).map(|s| s.to_string())
+                };
+                let s = |o: &serde_json::Value, k: &str| -> String {
+                    o.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string()
+                };
+                let name = s(it, "name");
+                let type_line = s(it, "typeLine");
+                let base_type = s(it, "baseType");
+                let pretty = if name.is_empty() {
+                    type_line.to_lowercase()
+                } else {
+                    format!("{name} {type_line}").to_lowercase()
+                };
+                let (mut req_level, mut req_str, mut req_dex, mut req_int) = (0i64, 0i64, 0i64, 0i64);
+                if let Some(rs) = it.get("requirements").and_then(|x| x.as_array()) {
+                    for r in rs {
+                        let x = first_number(r).unwrap_or(0.0) as i64;
+                        match plain(&s(r, "name")) {
+                            "Level" => req_level = x,
+                            "Str" | "Strength" => req_str = x,
+                            "Dex" | "Dexterity" => req_dex = x,
+                            "Int" | "Intelligence" => req_int = x,
+                            _ => {}
+                        }
+                    }
+                }
+                let (mut armour, mut evasion, mut es, mut quality) = (0i64, 0i64, 0i64, 0i64);
+                if let Some(ps) = it.get("properties").and_then(|x| x.as_array()) {
+                    for p in ps {
+                        let x = first_number(p).unwrap_or(0.0) as i64;
+                        match plain(&s(p, "name")) {
+                            "Armour" => armour = x,
+                            "Evasion Rating" => evasion = x,
+                            "Energy Shield" => es = x,
+                            "Quality" => quality = x,
+                            _ => {}
+                        }
+                    }
+                }
+                let rid = nitems;
+                ins.execute(rusqlite::params![
+                    rid,
+                    s(co, "id"),
+                    name,
+                    type_line,
+                    base_type,
+                    opt(it, "rarity"),
+                    s(it, "frameTypeId"),
+                    pretty,
+                    base_type.to_lowercase(),
+                    s(it, "frameTypeId"),
+                    it.get("ilvl").and_then(|x| x.as_u64()).unwrap_or(0) as i64,
+                    req_level,
+                    req_str,
+                    req_dex,
+                    req_int,
+                    armour,
+                    evasion,
+                    es,
+                    quality,
+                    it.get("identified").and_then(|x| x.as_bool()).unwrap_or(false) as i32,
+                    it.get("corrupted").and_then(|x| x.as_bool()).unwrap_or(false) as i32,
+                    s(co, "realm"),
+                    s(co, "league"),
+                    s(co, "kind"),
+                    as_text(co.get("loc")),
+                    as_text(co.get("tab")),
+                    as_text(co.get("container")),
+                    as_text(co.get("socketed_in")),
+                    co.get("fetched").and_then(|x| x.as_i64()),
+                ])
+                .expect("ins");
+                nitems += 1;
+                let Some(obj) = it.as_object() else { continue };
+                for (k, val) in obj {
+                    if !k.ends_with("Mods") {
+                        continue;
+                    }
+                    let Some(arr) = val.as_array() else { continue };
+                    for e in arr {
+                        let (text, flags) = match e {
+                            serde_json::Value::String(t) => (Some(t.as_str()), Vec::new()),
+                            serde_json::Value::Object(o) => {
+                                let mut f: Vec<String> = o
+                                    .get("flags")
+                                    .and_then(|x| x.as_object())
+                                    .map(|m| {
+                                        m.iter()
+                                            .filter(|(_, v)| v.as_bool().unwrap_or(false))
+                                            .map(|(k, _)| k.clone())
+                                            .collect()
+                                    })
+                                    .unwrap_or_default();
+                                f.sort();
+                                (o.get("description").and_then(|d| d.as_str()), f)
+                            }
+                            _ => (None, Vec::new()),
+                        };
+                        let Some(text) = text else { continue };
+                        let (tmpl, nums) = template_and_numbers(text);
+                        let mean = if nums.is_empty() {
+                            0.0
+                        } else {
+                            nums.iter().sum::<f64>() / nums.len() as f64
+                        };
+                        let json: String = format!(
+                            "[{}]",
+                            nums.iter()
+                                .map(|x| x.to_string())
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        );
+                        insl.execute(rusqlite::params![
+                            rid,
+                            k,
+                            tmpl,
+                            mean as f32 as f64,
+                            seat_kind(k, &flags),
+                            flags.join(","),
+                            nums.len() as i64,
+                            nums.first().copied(),
+                            nums.get(1).copied(),
+                            json,
+                        ])
+                        .expect("insl");
+                        nlines += 1;
+                    }
+                }
+            }
+        }
+        tx.commit().expect("commit");
+    }
+    db.execute_batch(
+        "CREATE INDEX lines_line ON lines(line, value);
+         CREATE INDEX lines_item ON lines(item);
+         CREATE INDEX items_frame ON items(frame);
+         CREATE INDEX items_tab ON items(tab_name);
+         CREATE INDEX items_ilvl ON items(ilvl);
+         CREATE INDEX items_req_level ON items(req_level);
+         CREATE INDEX items_armour ON items(armour);
+         CREATE INDEX items_base ON items(base);
+         ANALYZE;",
+    )
+    .expect("indexes");
+    drop(db);
+    let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+    eprintln!(
+        "seat projection: {nitems} items, {nlines} lines, {skipped} skipped, {bytes} bytes, {} ms -> {}",
+        t0.elapsed().as_millis(),
+        path.display()
+    );
+}
+
 // ---------------------------------------------------------------- main
 
 const REPS: usize = 7;
@@ -844,6 +1172,10 @@ const REPS: usize = 7;
 fn main() {
     let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf();
     let track = here.parent().unwrap().to_path_buf();
+    if std::env::args().skip(1).any(|a| a == "--seat") {
+        seat(&track);
+        return;
+    }
     let corpus_path = track.join("raw/corpus.jsonl");
     let tvt = track
         .parent()

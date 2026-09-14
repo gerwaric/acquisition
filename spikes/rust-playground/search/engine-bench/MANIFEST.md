@@ -10,6 +10,7 @@ committed; it dies with the machine. Every file is regenerable from the two item
 | `corpus.jsonl` | 2026-09-13 | the two files above | `scripts/build-corpus.py` | local | `70755f6794fce10d8e43601e28633f9e62c7c901c334f66f57a3299d5b4b6086` | 53,569,958 |
 | `bench-template-x1.db` | 2026-09-13 | `corpus.jsonl` | `bench/` (`cargo run --release`) | local | — (rebuilt on every run) | 24,911,872 |
 | `bench-stat-x1.db` | 2026-09-13 | `corpus.jsonl` | same | local | — (rebuilt on every run) | 15,863,808 |
+| `seat-projection.db` | 2026-09-14 | `corpus.jsonl` | `bench/` (`cargo run --release --offline -- --seat`) | local | `beb2ba47f42a238dfa31993254a2cc94e2a4b447b9c497b5ce38c7ab88278b88` | 30,818,304 |
 
 The x10 and x30 databases the run built (254 MB / 163 MB and 765 MB / 490 MB) were deleted
 after their numbers were recorded; a rerun rebuilds them. The `.backup` copies left the
