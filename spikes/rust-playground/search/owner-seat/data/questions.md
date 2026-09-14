@@ -51,3 +51,9 @@ On the mod questions (Q1, Q3, Q7): "When I'm asking for specific mods, I likely 
 On legacy (Q2, Q6; the track's open question): "Legacy means an item or modifer or modifier value or unique or unique variant that cannot be found or created by playing the game, so it only exists in Standard stashes. An example is the Ashes of the Stars onyx amulet, which has a legacy variant from 3.23.0 which has the modifier 10-20% increased Reservation Efficiency of Skills that modern version lack."
 
 "I don't have many legacy items, but there are many legacy flasks, uniques, rares, and other items in standard. One classic example is a bugged body armour with +25,244% fire resistance, which is one of the most expensive items in the game because of how it interacts with certain damage and defense mechanics."
+
+## Two corrections to the reading, verbatim (2026-09-13)
+
+"Be careful not to over-specify what a mod question means. PoE's itemization is complex, and the build system is complex, so for any given possible definition, someone probably wants to use it. We need a system that is flexible, simple, and generalizable here, not one tuned to a specific set of questions from a specific single user."
+
+"For legacy items, I'm ok writing down the idea you mention, but keeping track of what is possible to create in the game is a complex task beyond the scope of acquisition. We should let users provide that knowledge for now instead of trying to embed or access it from within the app."
