@@ -1,0 +1,16 @@
+[package]
+name = "engine-bench"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Its own workspace on purpose: this crate is a throwaway and must never become a
+# member of the playground workspace, which the quality gate builds and lints.
+[workspace]
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde_json = "1"
+
+[profile.release]
+debug = false
