@@ -108,7 +108,7 @@ empty). The ones a stash search could actually evaluate today:
 item-reading filters. The pattern is sharp — the filter language names
 **no computed number and no requirement**: no DPS of any kind, no APS,
 no crit, no block, no total defence, no `R. Level`/`Str`/`Dex`/`Int`,
-and no trade `damage`/`lvl`/`str`/`dex`/`int`. It also names nothing
+and no trade `damage`/`lvl`/`str`/`dex`/`int`. The owner's reading of why, 2026-09-13, verbatim: "item filters are design by GGG to be unable to require specific numbers, because GGG wants people to experience the randomness of checking loot" — so the absence says nothing about whether a search needs values; it does (owner-seat F1). It also names nothing
 about a listing (`Tab`, `Priced`, trade's `price`/`account`/`indexed`
 are excluded or unnamed) and, oddly, no `Crafted`, `Veiled` or `Split`,
 which both other surfaces do name. Its league-mechanic vocabulary is a

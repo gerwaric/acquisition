@@ -57,3 +57,7 @@ On legacy (Q2, Q6; the track's open question): "Legacy means an item or modifer 
 "Be careful not to over-specify what a mod question means. PoE's itemization is complex, and the build system is complex, so for any given possible definition, someone probably wants to use it. We need a system that is flexible, simple, and generalizable here, not one tuned to a specific set of questions from a specific single user."
 
 "For legacy items, I'm ok writing down the idea you mention, but keeping track of what is possible to create in the game is a complex task beyond the scope of acquisition. We should let users provide that knowledge for now instead of trying to embed or access it from within the app."
+
+## On specific values, verbatim (2026-09-13, after the item-filter read)
+
+"Note on the item-filter results: item filters are design by GGG to be unable to require specific numbers, because GGG wants people to experience the randomness of checking loot. My own examples also missed the mark on this. There are many times where a specific modifier value is needed. Examples include attributes, resistances, crit, and spell supression, but there are many others. It will vary heavily depending on what the user is trying to put together."
