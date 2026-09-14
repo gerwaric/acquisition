@@ -66,7 +66,7 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 | [`cpp-search/`](cpp-search/README.md) | What does the C++ app's search do, filter by filter, and how does it stay instant? | first pass complete — 2026-09-13 | 12992 |
 | [`trade-query/`](trade-query/README.md) | What is the trade site's query language, and which of it means something for a private stash? | first pass complete — 2026-09-13 | 12826 |
 | [`repoe/`](repoe/README.md) | What does the game's own data (RePoE's export, with Path of Building as corroboration) give a stash search that the item JSON does not? | first pass complete — 2026-09-13 | 12586 |
-| [`item-filter/`](item-filter/README.md) | What predicates does GGG's own item-filter language name over an item, and which does a stash search inherit? | not started — 2026-09-13 | 1931 |
+| [`item-filter/`](item-filter/README.md) | What predicates does GGG's own item-filter language name over an item, and which does a stash search inherit? | first pass complete — 2026-09-13 | 12202 |
 | [`prior-art/`](prior-art/README.md) | How does a maintained item-to-trade tool (Awakened PoE Trade) give a line its identity and follow patches? | not started — 2026-09-13 | 2066 |
 | [`store-as-built/`](store-as-built/README.md) | What does the store's read surface give a search consumer today, and where would the first store change fall? | not started — 2026-09-13 | 1649 |
 | [`engine-bench/`](engine-bench/README.md) | Is SQLite over a derived search schema instant at a few hundred thousand items? Measured. | not started | 1201 |
