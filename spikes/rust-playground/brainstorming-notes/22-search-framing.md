@@ -191,8 +191,10 @@ scenario is expressible in its model, written out in the appendix, and
 every limit it inherits is named. Simplicity is judged, not capped:
 each proposal carries a concept inventory — every concept named, with
 one line on why the model cannot do without it — and the reconciliation
-compares inventories. *(The owner may replace this paragraph with his
-own instrument.)*
+compares inventories. **Ruled 2026-09-14: judged, not capped** — the
+owner, offered capped, judged, or both: "I agree with you on 1." No
+concept limit binds a proposal; the inventory and the appendix are
+what the reconciliation weighs.
 
 ## The questions the design must answer (ranked)
 
