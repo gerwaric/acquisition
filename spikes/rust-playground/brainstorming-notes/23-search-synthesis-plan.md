@@ -27,7 +27,7 @@ and deeply thought-provoking" (the register is note 00, at `a6a8f53e~1`).
 | --- | --- | --- | --- | --- |
 | 1 | Digest: one claim per line with a stable `S<n>`, a kind, a weight, a pointer; a limits register; a kill list per track | Opus subagents per track, Fable review | `search/DIGEST.md` — the entry point in place of the READMEs once accepted | note 21 |
 | 2 | Framing: the goal function, the owner's stances, the sources and their lanes, the settled floor, the vocabulary map, triage, convergences, seeds, gravity, the acceptance test, the questions | the owner edits; Fable drafted | note 22 | — |
-| 3 | Two proposals, blind: the model on one page, the grammar, an answer per framing question, the appendix (every seat question in the model's notation), the concept inventory, refusals, decisions left to the owner; under 10 KB | Fable and Astra, in parallel, neither seeing the other's until both are committed | notes 24 (Fable), 25 (Astra) | note to write, after the owner's edit of 22 |
+| 3 | Two proposals, blind, in the output shape note 22 sets (the model, the grammar, the derivation after it, an answer per framing question, the appendix with each question one query or a listed gap, the cold start, the concept inventory, refusals, decisions left to the owner; under 12 KB) | Fable and Astra, in parallel, neither seeing the other's until both are committed | notes 24 (Fable), 25 (Astra) | note to write, after the owner's edit of 22 |
 | 4 | Cross-review, then reconciliation: a decision table — where they agree (essential), where they differ (each side, the claims that decide, a recommendation) | each reviews the other's; Fable writes the reconciliation, Astra checks it | notes 26, 27 | — |
 | 5 | Ruling: candidate decision lines in registry form, a parking lot with triggers, the owner's verdicts verbatim; harvested into `decisions/search.md` (new area file, one index row in `CONTEXT.md`) | the owner, with Fable | note 28, then `decisions/search.md` | — |
 | 6 | Build plan: slice steps with their evidence; the seats' question files as acceptance tests; the closed record at the end in `PRICING-SLICE.md`'s mold | Fable | `search/` | — |
@@ -50,6 +50,12 @@ and deeply thought-provoking" (the register is note 00, at `a6a8f53e~1`).
    specific set of questions from a specific single user." And on game
    knowledge: "We should let users provide that knowledge for now
    instead of trying to embed or access it from within the app."
+8. SQL on the surface (2026-09-14, after the reframing in note 22,
+   stance 6): "MCP gets an SQL tool for symmetry, so an agent using it
+   isn't tempted to waste tokens figuring out how to use the CLI for
+   something the mcp can't do." And "read-only annotations should be
+   viewable. This kind of thing is present in the c++ app ('priced')
+   and the trade site in more detail ('Trade Filters')."
 
 ## Guardrails
 
@@ -58,16 +64,25 @@ and deeply thought-provoking" (the register is note 00, at `a6a8f53e~1`).
 - A session loads the previous stage's artifact and reaches a README
   only to verify a claim.
 - The limits register from stage 1 rides through every later stage.
+- When the digest is accepted, note 22's citations of track findings
+  (F- and R-numbers) are re-pointed to the digest's `S<n>` ids, so a
+  proposer holding only the digest can resolve them.
 - The acceptance test: every owner-seat question and every agent-seat
   scenario expressible in the model, written out; simplicity judged
   from the concept inventory, never capped.
 
-## The question the design will meet first
+## The question the design met first
 
 The owner, 2026-09-14: in the product, agents get "a read-only
 interface", and whether that is the on-disk store or a projected
-database is open. The agent-seat's phase two measures it (its brief);
-engine-bench's seat projection is the file it measures against. The
-candidate amendment it will put to stage 5: raw SQL over the facts file
-stays no surface (C48); a published, versioned, read-only projection
-derived from facts (C34) may be one.
+database was open. The agent-seat's phase two measured it (its brief)
+against engine-bench's seat projection, and the framing (note 22,
+settled floor and stance 6) settled it the same day with decision 8:
+the search reads a projection derived from facts (C34), persisted as
+SQLite, kept in step with its facts by construction; SQL is a second
+language over it through the store, on the CLI and the MCP alike, and
+a file opened outside the store is the only bypass. The amendment
+stage 5 records: raw SQL over the facts file stays no surface (C48); a
+published, versioned, read-only projection derived from facts is one.
+Open for the proposals: what it carries, who holds it, its contract,
+and how the model itself reads it.

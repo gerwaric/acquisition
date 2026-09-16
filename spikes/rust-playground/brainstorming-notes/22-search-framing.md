@@ -1,51 +1,77 @@
-# 22 — Framing for the item-search design (draft for the owner's edit)
+# 22 — Framing for the item-search design
 
-**Drafted 2026-09-13 by Fable, before the session, in the mold of the
-2026-08-31 framing (note 00, at `a6a8f53e~1`).** The owner edits this in
-place — the headline stances in particular are his to write — and the
-proposal stage does not run until he has. Read after `search/DIGEST.md`;
-like every note here it is disposable: anything it proposes becomes real
-only as a ruling in `decisions/search.md` or `CONTEXT.md`.
+Read after `search/DIGEST.md`; like every note here it is disposable:
+anything it proposes becomes real only as a ruling in
+`decisions/search.md` or `CONTEXT.md`.
 
 ## The goal function
 
-The owner's words, 2026-09-13: the research is synthesized "into a
-powerfully simple, usable, comprehensive system of search that eschews
-overcomplication and tricky edge cases and implementations." Not a port
-of the C++ search, not a copy of the trade site, not a thin shell over
-the store. The synthesis of ten sources might land somewhere
+The goal is to build "a powerfully simple, usable, comprehensive system
+of search that eschews overcomplication and tricky edge cases and
+implementations." It should be intuitive for agents to use and support
+multiple clients such as agents and user interfaces.
+
+We are not here to select one of the researched approaches, but to
+synthesize a holistic search design. If it borrows from any of the
+research tracks, that's great, but we should think tabula rasa about
+this aspect, because the synthesis of ten sources might land somewhere
 unexpectedly better than any of them; that possibility is the point of
 the session, and this framing exists to protect it.
 
-Search is "the real heart of acquisition" (the owner, 2026-09-11). It
-is the first slice whose validating consumers are two seats at once —
-the owner at a terminal and an agent over MCP — and the first whose
-product is a *model*, not a verb: the query, the vocabulary, the answer.
+Search is "the real heart of acquisition" (the owner). It is the first
+slice whose validating consumers are two seats at once — the owner at
+a terminal and an agent over MCP — and the first whose product is a
+*model*, not a verb: the query, the vocabulary, the answer, and it will
+form the basis for multiple client interfaces, both agentic and
+traditional.
 
-## Headline stances (owner — to write)
+## Headline stances
 
-These go first so they cannot be buried. Candidates drawn from the
-owner's own words this week, each to keep, amend or strike:
+Think deeply about what you want from the search system, and how to make its
+use a natural extension of how you already work and think - and generalizable enough
+that it can also be encoded into other client interfaces such as a gui or tui.
 
-1. *"We need a system that is flexible, simple, and generalizable here,
+1. *"We need a system that is flexible, simple, and generalizable,
    not one tuned to a specific set of questions from a specific single
    user."* (2026-09-13) — the seat questions test a model's reach;
    they never specify it.
-2. *"There are many times where a specific modifier value is needed."*
-   (2026-09-13) — a mod's value is a first-class predicate.
-3. *"Legacy means an item or modifer or modifier value or unique or
-   unique variant that cannot be found or created by playing the game"*
-   and *"We should let users provide that knowledge for now"* — game
-   knowledge the API does not carry is the user's input, never the
-   app's.
-4. *"let's keep min and max separate."* (repoe Q5) — a two-value line
-   is two values.
-5. *"I do not want acquisition updating forum shops directly"* — and no
-   pricing engine; a trade query out and a trade URL in are the
-   boundary, and integrations (Better Trading, Awakened) are "fun, but
-   not a core features".
-6. What "powerfully simple" means when you are holding it. (Blank on
-   purpose. The proposals are judged by this line.)
+2. *The trade site sets the floor of reach and the ceiling of
+   vocabulary. Every question it can ask of an item, a stash search can
+   ask; composition is at least the site's (and, not, at-least-N-of) and
+   extends across fields. Its stat keys and listing filters are not the
+   target: the corpus's own lines are the vocabulary. A computed stat the
+   app can derive from lines is in reach; one needing game data the API
+   does not carry is stance 4's.*
+3. *"There are use cases when a specific modifier and/or value is
+   needed on an item that has several other specific characteristics."*
+4. *Game knowledge the API does not carry is the user's input*, never the
+   app's - e.g. what unique variants, modifiers, or values are legacy.
+5. Powerfully simple means that both the agent and the human can be maximally
+   expressive in search with minimal cognition. This comes from being idiomatic
+   and building on what agents and humans already know how to do, not from elegant
+   but complex or alien framework that requires time and attention to understand.
+   *Semantics live in the model; idiom lives in the adapter (C46). Each
+   consumer gets the shape it already knows, and all of them render one
+   query. The test is the cold start: the calls a stranger makes from
+   zero to a correct answer, counted.*
+6. *Reach is a property of the derivation, not the language. What the
+   projection carries, every language over it can ask; SQL is a second
+   language on the surface, never a door around it, and a file opened
+   outside the store is the only bypass. A question the model cannot
+   ask in one query is a gap in the model, listed in the appendix, never
+   routed to SQL.* The MCP carries the SQL tool as the CLI does (the
+   owner, 2026-09-14: "for symmetry, so an agent using it isn't tempted
+   to waste tokens figuring out how to use the CLI for something the
+   mcp can't do").
+
+There is tension inherent in the design process. That is ok. Sit with it
+and consider how things balance and relate. For example, responsiveness is
+critical for gui clients, but this may be at odds with design simplicity. Use
+this tension as a motivating creative pressure.
+
+Take time to understand the higher order impacts of ideas and decisions. Much
+of the structure of this project came from stepping back to look for meta-patterns
+as tools for cutting the Gordian knot.
 
 ## The ten sources, and the one rule about them
 
@@ -62,7 +88,7 @@ owner's own words this week, each to keep, amend or strike:
 | store-as-built | what a search gets today, and where the first change falls (a read) | what should be |
 | engine-bench | that no engine beyond a scan is needed, that the load is the cost, that identity moves reach not latency | who holds the corpus — that is a design question |
 | owner-seat | the human test: seven questions, eight requirements, three non-goals | the specification (stance 1) |
-| agent-seat | the agent test: schema discovery, facets, stable ids, explain, refinement, the failure of a query that pulls fifty thousand rows | (not yet run) |
+| agent-seat | the agent test: twelve questions, R9–R19; that SQL made each one call at the price of silent misses (F12); the query the agent wanted to type (F13) | the specification (stance 1); a projection's conventions — it read them only after three silent misses |
 
 When a source speaks outside its lane, discount it.
 
@@ -74,19 +100,28 @@ else:
 - The five invariants; the daemon owns GGG traffic and never reads
   facts (C2, C34); a frontend consumes two surfaces (C12); shared
   semantics live in Rust and every frontend has an adapter (C46).
-- Raw SQL is not a surface, and there is no cached search service —
-  with the reopening trigger now *measured*: engine-bench says the
-  per-command load is 202 ms at the real corpus and 5.9 s at a million
-  items (C48; `decisions/store.md`, "Parked: search-at-scale"). The
-  design may reopen it with that number, and must say so if it does.
+- The facts file is internal and never a surface (C48); the
+  annotations file is never opened by SQL (C35), and intent is read
+  through a read-only view (the owner, 2026-09-14: the C++ app's
+  "priced", the site's trade filters). The search reads a projection
+  derived from facts (C34), persisted as SQLite so that SQL is a
+  language over it (the owner, 2026-09-14, note 23 decision 8), and
+  kept in step with its facts by construction, never by a refresh: a
+  derivation, not the cache C48 forbids. What the design answers is
+  what it carries, who holds it, its contract, and how the model reads
+  it (SQL or a scan: the bench says the scan wins eleven of twelve and
+  SQLite is instant at the real corpus either way); the number is
+  measured: 0.5 s to build and 38 ms to load at the real corpus, 5.7 s
+  and 1.14 s at a million (engine-bench F5, F7).
 - Annotations are the only irreplaceable state (C35); a saved search,
   if one exists, is intent and lands there or in the user-scoped home
   the store has parked.
+- Output has three levels — the decision view, the audit view, and JSON
+  as the contract (C53) — and a search answer inherits them.
 - Governed surfaces stay governed (C79): the trade site, RePoE, Awakened
   are read as the register says, never fetched by the app.
 - The realm is a coordinate above league (the characters ruling); PoE2
   is an axis, not a fork.
-- Min and max are separate (stance 4); publishing is parked.
 
 ## Shared vocabulary: one thing, four names
 
@@ -116,9 +151,9 @@ The full tables: item-filter F2–F3, repoe F3, trade-query F5.
   landed".
 - **(c) New scope** — a trade URL in, a trade query out; Awakened for
   pricing; Better Trading. Real, and must not crowd out (b).
-- **(d) Conflicts with a ruling** — a cached search service without the
-  reopening; the daemon reading facts; RePoE fetched at runtime; the
-  app judging legacy.
+- **(d) Conflicts with a ruling** — a search cache written outside the
+  store, with its own lifetime; the daemon reading facts; RePoE fetched
+  at runtime; the app judging legacy.
 
 ## Convergence signals
 
@@ -140,6 +175,10 @@ Independent agreement is the strongest evidence in the pile:
   filter loop was never the cost).
 - **Unknown is shown, never guessed** (prior-art F4; the C++ dropdown's
   failure by contrast).
+- **Every tool that lasted asks in the item's own terms**: the site's
+  form is the tooltip as a form; item-filter names predicates after
+  tooltip fields (F2); the C++ buckets are the tooltip's mod sections;
+  Awakened starts from an item and makes a query of it.
 
 ## Synthesis seeds — where "unexpectedly better" might live
 
@@ -165,56 +204,86 @@ Independent agreement is the strongest evidence in the pile:
 - **One grammar, four adapters** (C46). The CLI's syntax, the MCP tool's
   arguments, a GUI's form and a trade URL are four renderings of one
   query type.
+- **Query by example.** "Like this item, but with life at least 70":
+  Awakened's move turned into a stash verb, and the refinement both
+  seats want (agent R14: the previous query plus one predicate) with an
+  item id as the seed either seat can write.
+- **The model's semantics as views.** A derived meaning — a pseudo
+  total, the named location, "priced" — defined once as a view in the
+  projection's DDL, owned by the store crate (C46), so the model and a
+  SQL caller read the same thing and cannot disagree; what stance 6
+  needs to be true, if it holds under derivation gravity.
 
 ## Gravity warnings
 
 - **C++ detail gravity.** 38 filters and 26 columns are the most
   detailed source and will dominate an unframed discussion. Extract
   the rules; discard the widgets.
-- **Trade-site gravity.** 93 filters and 14,193 stat keys are the
-  ceiling of what players already understand, not the target; 27
-  filters and four whole categories mean nothing for a stash.
+- **Trade-site gravity.** The site is the floor of reach and the
+  ceiling of vocabulary (stance 2): its 93 filters and 14,193 stat keys
+  are not the target, and 27 filters and four whole categories mean
+  nothing for a stash. Take its shape of asking; leave its contents.
 - **RePoE gravity.** The stat spine is seductive and a third of lines
   are outside it; its access method is unruled. A design that needs it
   says so as a decision, not an assumption.
-- **Engine gravity.** The instinct to index is the C++ app's and the
-  bench says no. Reopen it with a number or not at all.
+- **Engine gravity.** The instinct to index for speed is the C++ app's
+  and the bench says no: the projection is for load and reach, not
+  latency (F3, F4); an index is added with a number, not an instinct.
 - **Edge-case gravity.** Twice-numbered stats, the 83 unreachable
   collisions, the veiled placeholder, `[Tag|Display]` markup: each is a
   limits-register row unless a `main` claim depends on it.
 - **One user's questions.** Stance 1. The seven questions are a test.
+- **Derivation gravity.** The columns are what the model needs, never
+  the model's source. A grammar that is a WHERE clause in new spelling
+  was designed from the table.
+- **Change gravity.** Patches, leagues, endpoints and stat sets cannot
+  be predicted, so nothing is built for them and no compatibility layer
+  is carried. The search follows the corpus, not the game: a new or
+  moved line is a line it has not seen, shown, and searchable by its
+  template without a code change; when the API or the item's shape
+  changes enough, the user refreshes, since facts are refetchable
+  (C35). The dated captures are a diff for a human, never an input. A
+  layer that exists to survive change is a concept the inventory must
+  justify.
 
-## The acceptance test, and simplicity (owner — to edit)
+## The acceptance test, and simplicity
 
 A proposal passes when every owner-seat question and every agent-seat
-scenario is expressible in its model, written out in the appendix, and
-every limit it inherits is named. Simplicity is judged, not capped:
+scenario is written out in the appendix, each as one query in its model
+or as a listed gap, and every limit it inherits is named; a gap is never
+closed by SQL. Simplicity is judged, not capped:
 each proposal carries a concept inventory — every concept named, with
 one line on why the model cannot do without it — and the reconciliation
-compares inventories. **Ruled 2026-09-14: judged, not capped** — the
-owner, offered capped, judged, or both: "I agree with you on 1." No
-concept limit binds a proposal; the inventory and the appendix are
-what the reconciliation weighs.
+compares inventories.
 
 ## The questions the design must answer (ranked)
 
 1. What is a line's identity, and what does the search do with a line
-   it cannot name?
+   it cannot name, or whose text has moved since it last could?
 2. What is the query model — predicates, composition, tri-state flags,
    values, the location coordinates — and what is its one grammar?
 3. What is the vocabulary read, and how is it served to a human and an
    agent from the corpus?
-4. Who holds the corpus, for how long, and what does a restart cost?
+4. Who holds the corpus, for how long, and what does a restart cost;
+   is the derivation persisted, and what is its contract (the DDL, its
+   version, its freshness)?
 5. What crosses the trade boundary, in each direction, and what does
    not?
 6. What does a result carry — the item, its location, its freshness,
-   and how much of the body?
+   how much of the body, and which intent (priced, legacy) it joins
+   read-only?
 7. What are the non-goals and the limits, written as outputs?
 
 ## Output shape (stage 3, each proposal)
 
-The model on one page; the grammar in as few lines as it takes; an
-answer to each question above; the appendix (every acceptance question
-in the model's notation); the concept inventory; what the design
-refuses; the decisions left to the owner. Under 10 KB. Two proposals,
-blind, then reconciliation (the plan of 2026-09-13).
+The model on one page; the grammar in as few lines as it takes; the
+derivation the model needs (columns, views, its contract), after the
+model and never before it; an answer to each question above; the
+appendix (every acceptance question in the model's notation, each
+marked one query or a listed gap, discovery reads and refinements
+apart); the cold start (the calls a stranger makes to a correct answer
+to owner Q1 and one agent scenario, the stranger being agent-seat's
+phase-one condition: tool descriptions and help only, no row seen); the
+concept inventory; what the design refuses; the decisions left to the
+owner. Under 12 KB. Two proposals, blind, then reconciliation
+(`brainstorming-notes/23-search-synthesis-plan.md`).
