@@ -56,6 +56,9 @@ and deeply thought-provoking" (the register is note 00, at `a6a8f53e~1`).
    something the mcp can't do." And "read-only annotations should be
    viewable. This kind of thing is present in the c++ app ('priced')
    and the trade site in more detail ('Trade Filters')."
+9. On the digest brief (2026-09-16), taking note 21 as committed: "I
+   don't have any edits to note 21. It's mostly process and I trust you
+   to manage process better than me for this effort."
 
 ## Guardrails
 
