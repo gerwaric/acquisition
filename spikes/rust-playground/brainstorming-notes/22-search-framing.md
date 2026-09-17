@@ -44,6 +44,11 @@ that it can also be encoded into other client interfaces such as a gui or tui.
    does not carry is stance 4's.*
 3. *"There are use cases when a specific modifier and/or value is
    needed on an item that has several other specific characteristics."*
+   — the everyday question is one or more precise requirements among
+   others that may be broader, and the model makes that the easy case,
+   never the advanced one. The seat questions under-sample it (the
+   owner, S162: "My own examples also missed the mark on this"), so a
+   model is held to it beyond them.
 4. *Game knowledge the API does not carry is the user's input*, never the
    app's - e.g. what unique variants, modifiers, or values are legacy.
 5. Powerfully simple means that both the agent and the human can be maximally
