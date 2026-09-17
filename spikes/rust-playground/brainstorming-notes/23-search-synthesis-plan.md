@@ -74,6 +74,27 @@ and deeply thought-provoking" (the register is note 00, at `a6a8f53e~1`).
     settled by the pilot's measurement (note 21, "The run, in series"),
     the choice recorded here when it is made.
 
+    **The pilot's measurement (2026-09-16).** item-facts, one prompt,
+    two runners: Opus wrote 12 claims in 2,046 bytes (95,755 tokens,
+    552 s); Fable 12 claims in 2,048 bytes (76,059 tokens, 294 s). The
+    reviewer's diff, every pointer hopped: claims the other had and it
+    lacked — Opus 8 (4 of weight: the schema delta, the field shares,
+    the map-area limit, the fields that never drift), Fable 8 (4 of
+    weight: the 13 universal field names, the properties census, the
+    `ValueStyle` codes, the 96 drifted items itemised); softened —
+    Opus 0, Fable 2 (lines and names summed to 338; four arrays' 192
+    where the data file has eight arrays' 220); recommendations in
+    disguise — Opus 1 (F7's closing "a map is a tier, a rarity and its
+    mods"), Fable 0; pointers not carrying their claim — Opus 1
+    (`max 16` is in numbers.md, not F3), Fable 2 (the same, and F5's
+    sentence under an F7 pointer). Both cut the id-persistence claim
+    for budget and said so; both wrote no `idiom`, rightly; both
+    reports were honest. Too close to call, so the cheaper model wins:
+    **Opus runs the other nine tracks.** The merge is a union of the
+    two, 15 claims, at 2.6 KB against the brief's 2 KB — a
+    fifteen-claim track does not fit 2 KB at this density, and the
+    brief's per-track budget is the first amendment candidate.
+
 ## Guardrails
 
 - Every stage's brief is committed before it runs and deleted at its
