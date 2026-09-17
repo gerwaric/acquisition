@@ -74,8 +74,9 @@ judgment informed by S144–S153: **a store-owned, transactionally maintained
 projection, scanned in long-lived frontends and queried through the same
 Rust evaluator in short-lived ones. No search service.** Query time was
 cheap; loading and decoding was expensive. Persisting the small facts
-used by search removes repeated JSON decoding without inventing another
-process, IPC surface or synchronization protocol.
+used by projected predicates avoids repeated body decoding; raw-path
+predicates still decode bodies (S127, S150), with no measured cost for
+this accessor. No additional process, IPC surface or synchronization protocol.
 All behavioral rules here are proposed choices; citations identify the
 evidence motivating them, not a claim that a track mandated this design.
 
@@ -94,8 +95,10 @@ around scope. Discovery states their types and presence coverage.
 
 Convenience fields include rarity separate from frame family, item and
 required levels, flags, dimensions, stack count, socket/link/colour
-facts, displayed defences and damage, and arithmetic such as displayed
-physical DPS. Explicitly named alternatives distinguish displayed
+facts (proposed grouping, S22/S194; **coverage gap:** item-facts F2,
+undigested, observes `sockets` on 16.4 % but establishes no group/colour
+coverage), displayed defences and damage, and displayed physical DPS.
+Explicitly named alternatives distinguish displayed
 defence from base defence or a quality-normalised value (S26, S90).
 Nothing labels all three “armour”. Map tier can be parsed from the
 observed base name; absence of the old property is not tier zero (S10).
@@ -197,9 +200,10 @@ A compound condition within `line(...)` binds one occurrence; separate `line(...
 ones. Repeated lines survive and may satisfy both predicates; requiring
 two occurrences uses `count(lines where ...) >= 2` (S27–S28).
 
-Normalization v1 unwraps `[Tag|Display]` to Display, normalizes whitespace
-and case for matching, and replaces each signed decimal number with `#`,
-recording its signed value in ordered `n1`, `n2`, … slots. Thus `+90 to
+Normalization v1 unwraps `[Tag|Display]` to Display (S4), normalizes whitespace
+and case, and replaces signed decimals with `#`. By design judgment the
+sign belongs to the ordered `n1`, `n2`, … slots, not the template (S25's
+contrast, S71's precedent; documented per S200). Thus `+90 to
 maximum Life` has template `# to maximum Life`, `n1=90`; `Adds 17 to 30`
 has two slots, never their mean (S68). Original bytes and source
 are retained. Numeric literals, such as a granted skill's level, also
@@ -209,7 +213,7 @@ A numberless line has a template and zero slots. Unknown numeric syntax
 stays text with a diagnostic; a veiled placeholder has no value (S12).
 Recognized range separators are not negative signs: `10-20` has values
 10 and 20, while `-10 to -5` has -10 and -5. Ambiguous syntax is unknown.
-Do not delete punctuation or invert “reduced” into “increased”.
+Retain other punctuation; never invert “reduced” into “increased”.
 
 `n1` is intentionally a position, not a guessed meaning. Discovery shows
 a representative verbatim line with each capture highlighted. Optional
@@ -246,7 +250,10 @@ unparseable/unsupported one unknown; ordinary comparisons to either
 are unknown. `present` distinguishes known absence from presence and
 itself stays unknown for undecodable input. `unknown` explicitly selects
 unavailable values. Collection existence is false only when the relevant
-collection is known complete and no occurrence qualifies.
+collection is known complete and every occurrence fails the predicate.
+`lines` is complete only when all present mod arrays are recognized and
+their occurrences enumerated without loss; an unsupported array or shape
+leaves a line test with no positive witness unknown, not false.
 
 Scalar aggregates consume occurrences, not distinct templates. An empty
 complete sum is zero; an unavailable contributing value makes the sum
@@ -308,7 +315,7 @@ optional terms/fields and returns descriptors, applicable value sets,
 coverage counts and ready-to-use predicate fragments together. A first
 call can ask for `ring`, `fire resistance`, and `dexterity` at once. It
 returns field types and units, exact template/source/flag alternatives,
-slot examples, named recipe definitions, supported/unknown counts, and
+slot examples with aggregate/order expressions, named recipe definitions, supported/unknown counts, and
 location names beside ids. It does not require a sample item (S181).
 
 Rank exact names first, then token matches, then frequency within scope;
@@ -375,10 +382,11 @@ tabs never observed” is a different answer from “zero matches in all
 observed items”. Fresh local truth is never a promise of fresh server
 truth.
 
-Default rows carry full usable identity, display name/base/rarity, realm,
-league, named location and parent chain, observation age, and bounded
-positive witnesses. Counts of omitted witnesses and an audit read prevent
-silent truncation. The audit view adds all predicate outcomes, verbatim
+Select targets include typed fields/expressions and the bundles `identity`
+(full item identity), `location` (realm, league, named location, parent chain),
+and `evidence` (bounded positive witnesses and their omitted count).
+Default rows carry these bundles, display name/base/rarity and observation
+age. The audit view adds all predicate outcomes, verbatim
 source lines, numeric slots, recipe contributors and extraction/reference
 versions. JSON is authoritative; text follows C53, listing ten or fewer
 entities and otherwise counting with a continuation action. Bodies are
@@ -417,26 +425,26 @@ The digest's entire limits register is inherited:
 
 Additional limits: a corpus may be old or incompletely refreshed; numeric
 position is not numeric meaning; some raw paths have no convenient alias;
-unrecognized future mod-array shapes cannot silently be counted as fully
-covered by `lines`; recipes and taxonomy have declared incomplete
+incomplete `lines` leaves non-matches unknown (§4.2), including AQ5's
+unresolved candidates; recipes and taxonomy have declared incomplete
 coverage; unchanged old wording cannot reveal intended renamed variants;
 snapshot establishment and pagination may require retry; full-projection
-load and CLI cold-response performance are unproven; URL conversion is
+load, CLI cold-response and raw-path predicate costs (§3) are unproven;
+socket group/colour coverage is unverified; URL conversion is
 partial. Private crafted/fractured flag decoding and the complete S42
 filter mapping are unverified; named totals can leave everyday OQ1/AQ2
-unanswered. AQ1 cannot restrict just its tab facet in one query. Data
-coverage failures have diagnostic fields; the unmeasured performance and
-unmapped reach remain proposal gaps. In particular, a new unknown
-array remains queryable through its raw path and marks line coverage
-incomplete until extraction understands it.
+unanswered. Coverage failures have diagnostics; performance and unmapped
+reach remain proposal gaps. Unknown arrays remain queryable by raw path.
 
 **One-page contract gap:** §1–2 alone cannot specify an interoperable
-implementation. Normalization, three-valued logic, aggregate/empty/error
-rules, ordering, text comparison, field catalogue, decoded flags,
-collection schemas, raw paths, recipe coverage, select targets, scope
-tokens, answer envelope, continuation, and JSON encoding require §3 and
-§4 or remain unspecified there. The page is a synopsis; this repair does
-not claim to fit those fifteen definitions into it.
+implementation. Deferred: projection/versioning, raw paths,
+snapshot establishment/`snapshot_busy` and published SQL views
+(§3); normalization, decoded flags, aliases and reviewed slot labels
+(§4.1); truth, aggregate/empty/error rules, ordering, text comparison,
+recipe coverage and JSON encoding (§4.2); discovery arguments/returns
+(§4.3, §6); select targets, answer envelope and continuation (§4.6);
+limits-as-output (§4.7); scope tokens (§5); partial field catalogues
+(§3/§4.3) and collection schemas (§3/§7).
 
 ## 5. Acceptance appendix — written first
 
@@ -450,12 +458,12 @@ socketed children. It is an explicit scope value, not a server session.
 | --- | --- |
 | OQ1: a rare to complete resistances or attributes | **One query**, given slot and deficits: `in S where rarity = rare and class = Ring and (total.fire_resistance >= 40 or total.dexterity >= 30) select identity, location, total.fire_resistance, total.dexterity, evidence`. These totals mean the published displayed-line recipes, not a build simulation. **Gap:** unclassified possible contributors leave the predicate unknown; the everyday answer is not assured without the missing coverage trial. A stricter supplied need is simply `and`, not `or`. The fractured-base refinement is `base = "Spiked Gloves" and line(template = "#% chance to Suppress Spell Damage" and flag.fractured = true and n1 >= 14)`; this illustrates the notation, not a claim that this base/roll exists or that private fractured flags have been decoded. That decoding is a separate gap (§4.1). |
 | OQ2: a legacy version of a named unique | **One query after the observed criterion is supplied**: `in S where name = "Ashes of the Stars" and line(template = $legacy_template and $legacy_value_test) select identity, location, evidence`. S165 names the variant but does not give a verbatim item line. If an observed line literally reads `10-20% increased Reservation Efficiency of Skills`, its predicate is `template = "#-#% increased Reservation Efficiency of Skills" and n1 = 10 and n2 = 20`; a confirmed single-roll line instead uses one slot and the user's bounds. Neither shape is established by S165. **Gap:** without the observed template and user-supplied value test this is not an executable legacy search; “legacy” alone is not a criterion, and the query cannot certify present game availability. |
-| OQ3: gear for a newly described interaction | **One query given the interaction**: `in S where base = "Spiked Gloves" and line(template = $interaction_line and n1 >= $minimum) and any(socket_groups, red >= 2 and blue >= 1) select identity, location, evidence`. All three colours must be in one group. A unique or an alternative base can be another Boolean branch. **Gap:** discovering the interaction or deciding whether a build works is not search. |
+| OQ3: gear for a newly described interaction | **One query given the interaction**: `in S where base = "Spiked Gloves" and line(template = $interaction_line and n1 >= $minimum) and any(socket_groups, red >= 2 and blue >= 1) select identity, location, evidence`. At least two red sockets and one blue socket must share a group. A unique or alternative base can be another branch. **Gaps:** socket group/colour coverage is unverified (§3); discovering the interaction or deciding whether a build works is not search. |
 | OQ4: the valuable staff from Crucible | **Gap in the question as asked:** neither league of origin nor the remembered offer is a stored fact. `in S where class in [Staff, Warstaff] and line(source = crucible) select identity, location, evidence` is a **candidate query only**, not an answer to the original question. Once the owner supplies its id or distinguishing lines, one query locates it. No “Crucible item” inference is silently substituted for origin. |
 | OQ5: leveling gear across tabs | **One query**, with a supplied bracket: `in S where equipable = true and required.level >= 1 and required.level <= 28 select identity, location, required.level order required.level asc`. **Gap:** an absent or undecodable requirement is unknown, not zero; such items are counted separately. The query finds eligible candidates, not a complete recommended equipment set. |
 | OQ6: the value of the legacy explode chest | **Gap:** market valuation is outside search. Given a user-supplied exact legacy criterion: `in S where class = BodyArmour and line(template = $legacy_explode_line and $legacy_value_test) select identity, location, evidence` is **one query for the prerequisite identification**, not the requested price. A broad `line(text contains "explode")` is discovery, never a legacy test. |
-| OQ7: gear with a retiring modifier | **One query given its displayed variants**: `in S where line(template in $announced_templates and $announced_value_test) select identity, location, evidence`. `$announced_templates` is an explicit finite list supplied by the user or selected from discovery; a source/flag restriction is added only if the announcement requires it. **Gap:** a hidden generating-mod id or an unprovided new wording cannot be reconstructed from private lines (S52). |
-| AQ1: counts per tab, league, rarity before rows | **Gap in the exact three-table answer:** `in account where true facets [location, league, rarity]` yields per-location, per-league and per-rarity counts, including character locations. `account` explicitly spans its realms and leagues. Facets share one predicate; restricting it to tabs also changes the league/rarity denominators. A second tab-only query is needed to return the requested tab table while preserving account-wide league/rarity counts. No item bodies; the location table is not claimed as the tab table. |
+| OQ7: gear with a retiring modifier | **One query given its displayed variants**: `in account where line(template in $announced_templates and $announced_value_test) select identity, location, evidence`. `$announced_templates` is an explicit finite list supplied by the user or selected from discovery; a source/flag restriction is added only if the announcement requires it. **Gap:** a hidden generating-mod id or an unprovided new wording cannot be reconstructed from private lines (S52). |
+| AQ1: counts per tab, league, rarity before rows | **One query:** `in account where true facets [location, league, rarity]`. `account` spans its realms and leagues. This reading accepts tab counts alongside character counts, distinguished by location kind. League/rarity counts remain account-wide; three count tables, no item bodies. |
 | AQ2: previous Q1 rares, total resistance at least 60 | **One query**: `Q1.refine(total.elemental_resistance >= 60)`. `refine` is the adapter's local operation of appending a predicate to Q1's returned query document and resubmitting it. It carries the original scope, projection and ordering. No handle, replayed rows or remembered server context. “Total resistance” is resolved here to elemental, explicitly excluding chaos; discovery offers both. **Gap:** incomplete recipe coverage can make this predicate unknown, so refinement does not assure the requested shorter list. |
 | AQ3: why an item matched or did not | **One query**: `in S where $previous_predicate inspect $item_id`. Returns that item's predicate tree with true/false/unknown leaves, raw supporting lines and scope membership. Inspecting an out-of-scope id says so rather than widening S. Ordinary queries already return positive witnesses; empty results already report scope and unknown counts. |
 | AQ4: find an id again | **One query**: `in account where id = $full_id select identity, location, evidence`. Every returned identity includes the provider/account/realm needed to construct this scope; adapters pass it through. Default live-only scope reports a matching removed id as excluded when inspected, never silently revives it. |
@@ -465,21 +473,19 @@ Discovery and refinement are separate from these acceptance queries.
 Discovering a template does not answer OQ7; looking up a remembered
 item's possible candidates does not answer OQ4. In particular, the three
 gaps about origin, legacy knowledge and market value survive the appendix,
-as do unverified flags, total coverage and AQ1's per-tab answer.
+as do unverified flags, total coverage and socket group/colour coverage.
 
 ## 6. Cold start: help and tool descriptions only
 
-The tool description itself shows the Query v1 skeleton, basic Boolean
-operators, default scope resolution, decision fields, and the discovery
-call. No one must call an unrelated command to learn that discovery
-exists. `acq --help` locates `items search`; `acq items search --help`
-gives that skeleton and names the discovery command. Neither supplies
-the account's realm/league vocabulary: that needs a discovery read
-(the cold-start need is S181). Help documents `--scope account` and
-`--fields` for this use of the existing scoped discovery operation.
-Calls below count every invocation and identify data reads separately;
-ordinary user clarification is identified separately. They assume an already selected, populated account.
-If several accounts need selection, that is one additional account read.
+The MCP description lists `search_items`' Query v1 skeleton, Boolean operators,
+default scope including `account`, decision fields, `location`/`league`/
+`rarity` facets, and `search_describe` with signed positional line numbers.
+`acq --help` locates `items search`; `acq items search --help` gives the
+skeleton and discovery flags `--scope`, `--fields`, `--realm`, `--league`,
+`--terms`. Help text contains no account-specific vocabulary; reads
+supply it (S181 already yields realms; S184 records the league gap).
+Counts include every invocation, separating help from data reads, for a
+selected, populated account; account selection adds one read if needed.
 
 **OQ1, terminal stranger.** The original question lacks a slot and build
 deficits; no truthful search can invent them. Suppose the person supplies
@@ -489,41 +495,33 @@ deficits; no truthful search can invent them. Suppose the person supplies
 2. `acq items search --help` supplies the query and discovery shapes.
 3. `acq items search describe --scope account --fields realm,league`
    resolves `pc` and verifies `Standard` before narrowing the scope.
-4. `acq items search describe --realm pc --league Standard --terms 'ring,fire resistance,dexterity'`
-   returns the Ring enum predicate, the rare enum, both recipe predicates
-   with definitions/coverage, and a complete example of combining them.
-   This is one batched discovery read, with no item row pulled.
+4. `acq items search describe --realm pc --league Standard --terms 'rare,ring,fire resistance,dexterity'`
+   returns Ring/rare enums, both recipe predicates with coverage and a
+   combined example, without an item row.
 5. Run OQ1's query. The decision view includes location, requested totals,
    matching lines and completeness; exact totals and unknown counts
    make the answer usable without `show` for each candidate.
 
-**Five terminal invocations: two help calls and three search reads.** A deliberate candidate-audit read adds a sixth
-invocation; it is not required to discover what the result means.
+**Five terminal invocations: two help calls and three search reads.**
+Optional candidate inspection adds a sixth invocation.
 If the named total has unknown contributors, the answer is a bounded
 candidate set plus a stated gap; more tool calls do not magically turn
 unknown into false. This count reaches an answer envelope, not a
 guaranteed resolution of OQ1; falling back to line tests would expose
 the everyday-search gap rather than close it.
 
-**AQ5, MCP stranger.** The tool list says “Use `search_describe` to get
-typed fields and line predicates; `search_items` accepts Query v1;
-line numbers are signed, positional, and never averaged.”
+**AQ5, MCP stranger**, starting from the description above:
 
-1. `search_describe` with scope `account` and terms `maximum Life` returns
-   `# to maximum Life`, its one numeric slot, source/flag alternatives,
-   a verbatim example, and the exact predicate fragment. It also gives
-   the aggregate/order expression shape for that slot.
+1. `search_describe`, scope `account`, terms `maximum Life`: template,
+   slot, source/flag alternatives, verbatim example, predicate and
+   aggregate/order expression (§4.3).
 2. `search_items` submits the AQ5 query object, requesting compact rows,
    exact total and descending maximum matching line value.
 
-**Two calls, no sample-body detour.** Selecting a particular source would
-be a local edit of the provided fragment. Refining the result is one
-further call with its returned query plus the new condition, without
-re-describing the schema. AQ1's broader location facets would be one
-call from the tool description alone: its field names and the facets shape appear there. Its exact
-per-tab answer remains the two-query gap recorded in §5. Descriptions
-must be held to these concrete cold-start walks in validation, rather
-than declaring victory because a trained agent eventually succeeds.
+**Two calls, no sample-body detour.** A source restriction edits the
+fragment; refinement resubmits the returned query with another condition.
+AQ1 is one call using the described fields/facets, accepting character
+counts alongside tabs (§5). Validate descriptions against these walks.
 
 The agent benefit I would defend is **accumulating an explicit question,
 not accumulating a local copy of a stash**. Each result is enough to
@@ -548,23 +546,25 @@ This inventory includes costs hidden from the everyday text syntax.
 | Selection, order and summaries | Removing them makes the caller download and sort/count bodies; facets are independent count summaries. |
 | Unknown/absent with reasons | Removing them makes missing data masquerade as zero or a failed predicate. |
 | Vocabulary descriptors with predicate fragments | Removing them recreates the sample-row/schema-discovery loop. Optional semantic aliases carry candidates and provenance; without those, an offered alias would conceal ambiguity. |
-| Evidence/inspection | Removing it makes a match or empty answer uncheckable; it is an answer view, not a second query model. |
-| Basis and continuation | Removing them lets pagination mix different stashes without saying so. Snapshot-establishment retry and `snapshot_busy` expose failure to obtain the consistent basis. Bundled reviewed reference extracts and their version belong to that basis; omitting it conceals changes to class/recipe meanings. |
+| Evidence/inspection | Removing it makes a match or empty answer uncheckable. Observation age and per-item live/removed membership distinguish local evidence from current server truth; omitting them conceals stale observations or exclusions. |
+| Basis and continuation | Removing them lets pagination mix different stashes. Snapshot retry/`snapshot_busy` expose failure to obtain a basis; loading state and request cancellation prevent obsolete keystrokes appearing current. Reviewed reference versions belong to the basis; omitting them conceals changes to class/recipe meanings. |
 | Saved query and semantic version | Removing persistence loses user intent; removing the version silently changes that intent after upgrades. No saved-result object. |
 | Translation remainder | Removing it makes partial trade compatibility claim equivalence it cannot establish. Peripheral to the core, but indispensable if the bridge ships. |
 | Published SQL view | Removing it violates note 22's settled SQL floor, which proposes amending C48; using the internal schema instead violates C48's retained privacy boundary. |
 
-The twelve do not exercise at-least-N, general arithmetic, `summarize`,
-continuation, saved-query versions, translation remainders or SQL, nor
-do they require repeated occurrences or a second numeric slot (OQ2's
-conditional two-slot illustration is not observed evidence). Their
-justifications above rest on the broader floor, S27/S68 and design
-judgment; these acceptance examples do not validate their necessity.
+The twelve do not exercise at-least-N, arithmetic, `if`, `present`,
+`unknown`, collection `count`/`sum`/`min`, `summarize`, raw-path access,
+listing fields/`priced`, socket parent chains, semantic aliases, reviewed
+slot labels, continuation, saved versions, translation remainders or SQL.
+Repeated occurrences, a second slot, `contains`, source and flags occur
+only in illustrations or candidate/discovery queries, not demonstrated
+answers. Their justification remains the broader floor, S27/S68 and
+judgment; the twelve do not validate their necessity.
 
 This is not a four-concept design disguised by grouping headings. The
 largest learning cost is collection aggregation; **it is the first
-concept I would delete if forced**, but then weighted questions and
-arbitrary line combinations become application features or listed gaps.
+concept I would delete if forced**, but then AQ5's sorted list, weighted
+questions and arbitrary line combinations become application features or gaps.
 Named recipes keep ordinary searches short without foreclosing those
 questions. No query handles, sessions, macros, user-defined executable
 functions, semantic mod-id spine, query planner DSL or search daemon.
@@ -572,8 +572,8 @@ functions, semantic mod-id spine, query planner DSL or search daemon.
 ## 8. What this design refuses
 
 - An app-maintained account of what the game can currently generate,
-  automatic legacy classification, build simulation or market valuation
-  (S164, S178, S180).
+  automatic legacy classification or market valuation (S164, S178, S180);
+  build simulation is also excluded by design judgment.
 - Fuzzy execution, implicit typo correction, a missing number treated
   as zero, a line's several numbers averaged by default, or a successful
   partial trade import masquerading as the original query.
@@ -617,7 +617,8 @@ as an everyday shortcut.
 I left out an exhaustive field/recipe catalogue, detailed SQL DDL,
 parser error productions, GUI layouts, complete trade-group translations,
 and measured cold/reload timings for this larger derivation. None was
-measured by this run; no undigested finding is used. **The one cut I
+measured by this run; the socket presence share in §3 uses undigested
+item-facts F2. **The one cut I
 most want reversed is a worked coverage trial of resistance totals on
 real line families**, recording exactly which unknown lines prevent a
 complete total. It could show that my most important honesty rule makes
@@ -646,3 +647,27 @@ want to learn before implementation hardens it.
 | F16 | Fixed | §3 and §7: cited C2/C34 for daemon blindness and distinguished note 22's proposed SQL amendment from C48's retained boundary. |
 
 The audit taught me that explicit unknowns protect the truth of an answer, but do not establish the coverage, usability or performance needed to make that answer useful.
+
+## Repairs — round 2
+
+| Audit id | Answer | Section changed |
+| --- | --- | --- |
+| F1 | Fixed | §4.6: named `identity`, `location` and `evidence` select bundles and their contents. |
+| F2 | Gap | §3, §4.7, §5 OQ3 and §9: undigested item-facts F2 establishes socket presence only; proposed group/colour coverage remains unverified. |
+| F3 | Fixed | §6: search help documents all discovery flags used; included `rare` in the terms. Five invocations remain. |
+| F4 | Fixed | §4.3 and §6: discovery returns the slot's aggregate/order expression, supporting AQ5's two calls. |
+| F7 | Fixed | §4.7: mapped the deferred definitions to sections, including all six omissions. |
+| F8 | Fixed | §4.1: cited S4/S25/S71/S200; signs belong to slots, other punctuation stays. |
+| F9 | Fixed | §4.2 and §4.7: defined complete `lines`; unsupported arrays leave tests without positive witnesses unknown, including AQ5 candidates. |
+| F10 | Gap | §3 and §4.7: raw-path predicates still decode bodies (S127/S150); their cost is unmeasured. |
+| F11 | Fixed | §6: consolidated the MCP description's contents, including facet fields and shape. |
+| F12 | Fixed | §5 OQ3: corrected the prose to two red sockets and one blue socket sharing a group. |
+| F13 | Fixed | §8: marked exclusion of build simulation as judgment. |
+| F14 | Fixed | §5 AQ1, §4.7 and §6: accepted character counts alongside tab counts; removed the narrower reading's two-query gap. |
+| F15 | Fixed | §7: disclosed the unexercised forms and distinguished illustrations/candidate queries from demonstrated answers. |
+| F16 | Fixed | §7: deleting collection aggregation also loses AQ5's sorted list. |
+| F17 | Fixed | §7: attached observation age/membership to evidence and loading/cancellation to basis. |
+| F18 | Fixed | §6: distinguished help text from vocabulary reads; S181 covers realms, S184 the league gap. |
+| F19 | Fixed | §5 OQ7: changed the scope from Standard to the account. |
+
+The audit taught me to distinguish what the notation can express from what the evidence and a stranger's documented calls can establish.
