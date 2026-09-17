@@ -1,6 +1,6 @@
 # The search digest
 
-Status: partial — item-facts, cpp-search — 2026-09-16
+Status: partial — item-facts, cpp-search, trade-query — 2026-09-16
 
 The slice's evidence in the shape a design can cite: one claim per
 line, `S<n> · kind · weight · claim · pointer`, under the brief
@@ -43,6 +43,25 @@ S32 · tool · — · Rarity is `frameType` alone; gems, currency, cards and `-1
 S37 · measure · — · 975,711 items, M4, 1 thread: a pre-M3 reset 5,562 ms, 93 % the sort; materialized keys cut a sort to 130 ms (266 MB/column); `FilterItems` then 329 ms (20.2 ms at 101,048), an unindexed scan deferred by M3 D7 · F6, delta-pipeline.md
 S39 · idiom · — · A mod row is the `#`-templated line with inclusive min/max, either side blank — `+# to maximum Life`; rows AND · F1, F3
 
+## trade-query
+
+S41 · ggg · main · `stats` takes eight group types — `and`, `not`, `if`, `count`, `weight`, `weight2`, `crucible`, `mercenary`; `if` tip, verbatim: "Match items that meet each stat's `min` and `max` requirements if the stat is present." · F2
+S42 · ggg · main · 93 filters in 12 groups: 59 read a field a private item carries or derives, 7 the market, 27 unsettled — the largest `category`, 83 option ids no private field gives · F3, gap.csv
+S43 · ggg · main · 18,187 stat entries, 14,193 keys, 13,975 texts, 14 categories; key = the numeric stat id, category = the mod's source; 11,694 keys in one category, 2,499 in several · F4
+S44 · ggg · main · Text does not identify a key: 380 (category, text) groups are shared, 369 by two ids, 8 by three, 3 by four; 93 entries have a `(Local)` twin · F4, stat-collisions.csv
+S45 · ggg · edge · Of the one collision tested, `stat_3680664274` hit the capped total 10,000, its twin `stat_492027537` 0; the picker offers both; 379 untested · F8 Q2
+S46 · owner · — · "I confirmed that the second modifier returns no results. I tested this across every poe1 league possible." (2026-09-13) · F8 Q2
+S47 · ggg · main · A two-number line matches on its numbers' average: min 20 admitted lows of 15–27, all averages ≥ 20; max 25 admitted `Adds 17 to 30`, all averages ≤ 25 · F8 Q3
+S48 · item · main · In 70 fetched items, 443 lines: 11 lines came from two mods each (life from a hybrid prefix plus a pure one) and 31 mods fed two lines each · F8 Q6
+S49 · ggg · main · At `pseudo_total_fire_resistance` min 80 every total equalled the sum of the item's displayed fire, all-elemental and fire-and-X lines, explicit and crafted; a 46–48 mod shown `+60%` counted 60 · F8 Q5
+S50 · item · main · Private-API items carry `explicitMods` and `implicitMods` as `{description, flags?}` objects, never with a hash; enchant, utility, veiled, crucible arrays stay strings — 18,383 items, 71,695 lines, 2026-09-02..11 · F7
+S51 · ggg · main · A fetched line is `{description, domain, hash, mods: [{name?, tier?, level?, magnitudes: [{min, max}]}], flags?}`; crafted (12) and fractured (4) lines sit in `explicitMods`; no `extended.mods` · F7, fetch-census.json census
+S52 · limit · main · Only the trade `fetch`'s `mods` list attributes a line to the mods that made it; 34 of 443 fetched lines lack it and `pseudoMods` name no contributors; a private item has none · F7, F8 Q6
+S53 · limit · main · No item-class field on a fetched or private item; the class sits only in `extended.text`, base64 clipboard text whose first line is `Item Class: <class>` in all 70 fetched items — listed items only · F9
+S54 · idiom · — · The owner's own search, verbatim: `{"id": "explicit.stat_3299347043", "value": {"min": 60}, …}` in an `and` group with `{"category": {"option": "accessory.ring"}, "rarity": {"option": "rare"}}` · fetch-census.json `queries.q1.request`
+S55 · ggg · main · The site's renderer bridges 70 `properties[].type` ids to filter fields (1–4 map tier/iiq/iir/pack size, 5 gem level, 6 quality, 9–13 damage/crit/aps, 15–18 block/ar/ev/es, 62–65 level/str/dex/int, 78 ilvl) · F5
+S56 · ggg · main · The search `id` in the response and the site's URL is the `query` object gzipped and base64url-encoded: q4's id decodes to exactly its request · F9
+
 ## The acceptance set
 
 Written when owner-seat and agent-seat merge.
@@ -54,9 +73,12 @@ unknown shown, never guessed, is the model).
 
 - S12 — a veiled line is shown as the placeholder it is; a value query never matches it.
 - S14 — a map's area is not a fact the search holds; a query for one gets an unknown, never the icon's art.
+- S52 — a line is matched as displayed text and value; which mods made it is not known and never guessed.
+- S53 — an item's class is not a field; a class the search names is a derivation it owns, and an item it cannot class is shown unclassed.
 
 ## Kill list
 
+- trade-query: F1 request body, `query` decomposition, realm by omission, default sort, 100/500/10,000 caps — budget; F1 `status` options — moot; F2 `count`/`weight`/`weight2`/`crucible`/`mercenary` tips — budget; F3 per-group counts, map/heist/sanctum/ultimatum open items — sizing; F3 "what a stash search adds" — budget; F4 per-category counts, id-kind prefixes, C++-pseudomod comparison — sizing; F5 renderer array order, `frameType` values — internals; F6 realms, leagues, `items.json`/`static.json` counts — sizing; F7 `extended.hashes`, the computed `dps`/`pdps`/`ar`/`ev`/`es` (`pdps` = average physical × APS × 1.2; ≈ S26) — budget; F8 Q3 the owner's expectation before q3b, Q4 `weight`/`count` shapes, `complexity` 85, `inexact` — budget.
 - cpp-search: F1 refresh split, F6 mechanisms (not its numbers) — internals; F4 `m_replace_map` — moot.
 - item-facts: F7 `mn`/`mg`/`mi`/`mc` and the icon payload past the tier — unread; F2 `crucible.nodes`, `frameTypeId` composition — internals; Numbers' per-store and file-size tables — sizing.
 
@@ -65,17 +87,21 @@ unknown shown, never guessed, is the model).
 Note 22's ranked questions, each with the claims that bear on it;
 extended after every merge.
 
-1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29
-2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39
-3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30
-4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37
-5. What crosses the trade boundary — S7, S8, S26, S29
-6. What a result carries — S1, S11, S31
-7. The non-goals and limits, as outputs — S12, S14
+1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52
+2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54
+3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55
+4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50
+5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56
+6. What a result carries — S1, S11, S31, S53
+7. The non-goals and limits, as outputs — S12, S14, S52, S53
 
 ## Convergence and contradiction
 
 - S23 ≈ S10: no map carries a `Map Tier` property (cpp-search measured it through the app's accessor, item-facts through the census).
 - S27 ≈ item-facts F3: the same 905/914/3,978/862 counts, sized in item-facts' numbers.md for cpp-search's template.
+- S50 ≈ S3: the object mod lines with no hash, seen in the spike store (18,383 items) and the census over both stores (36,139).
+- S53 ≈ S9: no class field on a PoE1 item, from the trade captures and from the census.
+- S49 ≈ S29: the site's `pseudo_total_*` contributor set matches the C++ pseudomod table (F8 Q5: "matches the C++ table").
+- trade-query F4 says "380 pairs"; stat-collisions.csv has 380 groups of two to four ids (369/8/3). S44 carries the data.
 - item-facts F5 itemises the unmatched bases to 7,885 (7,512 + 272 + 98 + 3) while `data/numbers.md`'s `frameTypeId` table sums them to 7,826 (36,139 − 28,313); a 59-item gap the track does not explain. S8 carries F5's figures.
 - item-facts F3 counts PoE2 markup over four arrays (192 lines); `data/numbers.md` lists eight (220). S4 carries the data file.
