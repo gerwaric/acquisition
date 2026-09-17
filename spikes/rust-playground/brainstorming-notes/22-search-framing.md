@@ -177,44 +177,6 @@ Independent agreement is the strongest evidence in the pile:
   filter loop was never the cost).
 - **Unknown is shown, never guessed** (prior-art F4, S107; the C++ dropdown's
   failure by contrast).
-- **Every tool that lasted asks in the item's own terms**: the site's
-  form is the tooltip as a form; item-filter names predicates after
-  tooltip fields (F2); the C++ buckets are the tooltip's mod sections;
-  Awakened starts from an item and makes a query of it.
-
-## Synthesis seeds — where "unexpectedly better" might live
-
-- **The query as a value.** Immutable, serializable, named: saved,
-  shared, sent to the site as a search, received from the site as a
-  URL, handed from an agent to a human. C38's plan is the mold — an
-  object every frontend can carry because it is data.
-- **The vocabulary is a read.** Autocomplete for the owner and schema
-  discovery for the agent are the same read (C53's views): what lines
-  exist in *this* corpus, by kind, ranked by how many items carry them.
-  The site's instant categorised autocomplete, built from the corpus
-  instead of a 14,000-key list.
-- **Identity is the template plus its kind; the stat id lives at the
-  boundary.** Awakened's way, and engine-bench says it costs nothing:
-  the template names every line, the stat id names 67 %, and only the
-  trade boundary needs the id.
-- **Limits are an output.** The search says what it does not promise —
-  an unrecognised line, a legacy it cannot judge, a league of origin
-  no field carries — instead of silently returning less.
-- **The holder.** A corpus parsed once and held is what makes every
-  query free; at the real scale a per-command parse is cheap. The
-  design says who holds it, for how long, and what a restart costs.
-- **One grammar, four adapters** (C46). The CLI's syntax, the MCP tool's
-  arguments, a GUI's form and a trade URL are four renderings of one
-  query type.
-- **Query by example.** "Like this item, but with life at least 70":
-  Awakened's move turned into a stash verb, and the refinement both
-  seats want (agent R14, S195: the previous query plus one predicate) with an
-  item id as the seed either seat can write.
-- **The model's semantics as views.** A derived meaning — a pseudo
-  total, the named location, "priced" — defined once as a view in the
-  projection's DDL, owned by the store crate (C46), so the model and a
-  SQL caller read the same thing and cannot disagree; what stance 6
-  needs to be true, if it holds under derivation gravity.
 
 ## Gravity warnings
 
@@ -287,4 +249,8 @@ apart); the cold start (the calls a stranger makes to a correct answer
 to owner Q1 and one agent scenario, the stranger being agent-seat's
 phase-one condition: tool descriptions and help only, no row seen); the
 concept inventory; what the design refuses; the decisions left to the
-owner. Under 12 KB. Two proposals, blind, then reconciliation.
+owner. The model and its grammar fit one page; that limit is the test.
+The rest is as long as honesty takes — about 16 KB is a guide, never a
+target — and the proposal closes by naming what it left out and the one
+cut it would most want reversed. Two proposals, blind, then
+reconciliation.

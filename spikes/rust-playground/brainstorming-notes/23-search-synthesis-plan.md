@@ -74,6 +74,51 @@ self-contained (decision 1) and carries all of this itself:
     stages".
 11. On the audit that cut this note to what stages 3–6 need
     (2026-09-17): "I approve your changes."
+12. On the proposal's size and the seeds (2026-09-17). The estimate was
+    that note 22's output shape needs about 16 KB against its 12 KB
+    cap, and stage 1 showed what a binding cap cuts: whole items, here
+    the gaps, limits and inventory lines stage 4 judges by. The
+    recommendation: the model and grammar hold to one page, the rest
+    gets a guide. "I approve your recommendedation on the cap, but
+    let's make 16kB the guide. Several times our estimates on the
+    amount needed have been low, so I'd like to give the models more
+    room to be expressive so we have more to judge." And on moving the
+    answer-shaped seeds and the one thesis among the convergence
+    signals out of the proposers' reading: "I agree to the rest of your
+    recommendaitons on the seeds and signals."
+
+## Withheld from the proposers: stage 4's checklist
+
+Note 22 carried eight synthesis seeds, Fable's drafts. Three restated
+framing that stays (limits as an output: question 7; the holder:
+question 4; one grammar, four adapters: stance 5) and are dropped. Five
+were answers to ranked questions 1–4, and one convergence signal was a
+design thesis; handed to both proposers they would have returned as
+agreement. They wait here (full text: note 22 at `5e0d0681`). The
+reconciliation asks of each: did a proposal reach it unprompted — which
+is evidence — and if neither did, the reconciliation proposes it then,
+so nothing is lost.
+
+- **The query as a value.** Immutable, serializable, named: saved,
+  shared, sent to the site as a search, received from the site as a
+  URL, handed from an agent to a human. C38's plan is the mold.
+- **The vocabulary is a read.** Autocomplete for the owner and schema
+  discovery for the agent are the same read (C53's views): what lines
+  exist in *this* corpus, by kind, ranked by how many items carry them.
+- **Identity is the template plus its kind; the stat id lives at the
+  boundary.** The template names every line, the stat id names 67 %,
+  and only the trade boundary needs the id.
+- **Query by example.** "Like this item, but with life at least 70":
+  the refinement both seats want (agent R14, S195), with an item id as
+  the starting point either seat can write.
+- **The model's semantics as views.** A derived meaning — a pseudo
+  total, the named location, "priced" — defined once as a view in the
+  projection's DDL, owned by the store crate (C46), so the model and a
+  SQL caller cannot disagree; what stance 6 needs to be true.
+- **Every tool that lasted asks in the item's own terms** (the thesis):
+  the site's form is the tooltip as a form; item-filter names
+  predicates after tooltip fields; the C++ buckets are the tooltip's
+  mod sections; Awakened starts from an item and makes a query of it.
 
 ## Owed by later stages
 
