@@ -115,8 +115,11 @@ per source that has one.
   the design that follows can only be as brave as this digest is
   honest, so a softened claim, a rounded number or a fact chosen to
   fit a conclusion is a decision made for the designer.
-- Budget for the whole digest: about 30 KB, the acceptance set
-  included.
+- Budget for the whole digest: about 35 KB, the acceptance set
+  included — judged, not capped: the per-claim rules are the
+  compression discipline, and a claim is cut only against the
+  questions, never to reach a number. Stage 4 shows which ids the
+  proposals cite; a pruning with that evidence goes to the kill list.
 
 ## The run, in series
 

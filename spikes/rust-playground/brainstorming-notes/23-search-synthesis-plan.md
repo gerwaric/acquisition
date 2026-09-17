@@ -106,6 +106,11 @@ and deeply thought-provoking" (the register is note 00, at `a6a8f53e~1`).
     encouraging result. Let's continue. I agree with your judgement
     call." — the per-track figure is a guide, the reviewer is held to
     the total.
+    After item-filter (five tracks, 24.6 KB), on what 30 against 35 KB
+    would buy — about 1,200 tokens a load, against a fidelity risk in
+    every word trim: "i agree with not trimming to 30 aggressively."
+    — the total is about 35 KB, judged; pruning waits for stage 4's
+    evidence of what the proposals cite.
 
 ## Guardrails
 
