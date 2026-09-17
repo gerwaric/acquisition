@@ -44,7 +44,16 @@ unknown shown, never guessed, is the model).
 
 ## The question index
 
-Written after the pilot's merge, from note 22's ranked questions.
+Note 22's ranked questions, each with the claims that bear on it;
+extended after every merge.
+
+1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12
+2. The query model and its one grammar — S2, S6, S7, S9, S10
+3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13
+4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15
+5. What crosses the trade boundary — S7, S8
+6. What a result carries — S1, S11
+7. The non-goals and limits, as outputs — S12, S14
 
 ## Convergence and contradiction
 
