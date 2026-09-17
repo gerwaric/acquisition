@@ -76,7 +76,7 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 | [`engine-bench/`](engine-bench/README.md) | Is SQLite over a derived search schema instant at a few hundred thousand items? Measured. | first pass complete — 2026-09-13 | 13056 |
 | [`owner-seat/`](owner-seat/README.md) | What does the owner actually ask of the stash, in their words, and what answer shape does each want? | first pass complete — 2026-09-13 | 9169 |
 | [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | first pass complete — 2026-09-14 | 12317 |
-| [`proposal-audit/`](proposal-audit/README.md) | Do the two blind search designs hold against their own page and their evidence? (synthesis stage 4; not research) | both audits in, repairs owed — 2026-09-17 | — |
+| [`proposal-audit/`](proposal-audit/README.md) | Do the two blind search designs hold against their own page and their evidence? (synthesis stage 4; not research) | second audits in after one repair pass — 2026-09-17 | — |
 
 Standing rulings and parked items the design will revisit, so it knows
 what it overrides: C48 (raw SQL is not a surface), C34 (derivations),
