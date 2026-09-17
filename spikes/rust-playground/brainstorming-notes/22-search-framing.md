@@ -102,10 +102,12 @@ else:
   semantics live in Rust and every frontend has an adapter (C46).
 - The facts file is internal and never a surface (C48); the
   annotations file is never opened by SQL (C35), and intent is read
-  through a read-only view (the owner, 2026-09-14: the C++ app's
-  "priced", the site's trade filters). The search reads a projection
-  derived from facts (C34), persisted as SQLite so that SQL is a
-  language over it (the owner, 2026-09-14, note 23 decision 8), and
+  through a read-only view (the owner, 2026-09-14: "read-only
+  annotations should be viewable. This kind of thing is present in the
+  c++ app ('priced') and the trade site in more detail ('Trade
+  Filters')."). The search reads a projection derived from facts (C34),
+  persisted as SQLite so that SQL is a language over it (the owner,
+  2026-09-14; stance 6), and
   kept in step with its facts by construction, never by a refresh: a
   derivation, not the cache C48 forbids. What the design answers is
   what it carries, who holds it, its contract, and how the model reads
@@ -285,5 +287,4 @@ apart); the cold start (the calls a stranger makes to a correct answer
 to owner Q1 and one agent scenario, the stranger being agent-seat's
 phase-one condition: tool descriptions and help only, no row seen); the
 concept inventory; what the design refuses; the decisions left to the
-owner. Under 12 KB. Two proposals, blind, then reconciliation
-(`brainstorming-notes/23-search-synthesis-plan.md`).
+owner. Under 12 KB. Two proposals, blind, then reconciliation.
