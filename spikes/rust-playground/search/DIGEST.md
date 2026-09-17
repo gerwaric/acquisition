@@ -1,6 +1,6 @@
 # The search digest
 
-Status: partial — item-facts, cpp-search, trade-query, repoe, item-filter, prior-art — 2026-09-16
+Status: partial — item-facts, cpp-search, trade-query, repoe, item-filter, prior-art, store-as-built — 2026-09-16
 
 The slice's evidence in the shape a design can cite: one claim per
 line, `S<n> · kind · weight · claim · pointer`, under the brief
@@ -117,6 +117,25 @@ S113 · tool · — · Its stash search does no matching: a saved string goes on
 S114 · tool · — · The game highlights the matching cells and the tool learns nothing back; there is no ranking, and the editor turns the input red past 250 characters, the game's field length · stash-search.md "The two features" (Result, Ranking, Limits rows)
 S115 · idiom · — · Ten stash-search strings ship as defaults, four for map rolling and six for dump sorting, e.g. `"Pack Size: +3"` and `"Map Device" "Rarity: Normal"` · stash-search.md "Defaults shipped"
 
+## store-as-built
+
+S121 · store · — · Server-side item predicates are four — case-insensitive substring over `name`/`type_line`/`base_type`, realm, league, live-or-removed (`Store::search(text, realm, league, include_removed, limit)`) — `Store::item` takes an id, and no read takes a rarity, frame type, container, `ilvl`, mod or location · F1
+S122 · store · — · `items_location (location_kind, location_id)`, the index `Store::tabs`, `Store::characters` and `read_items` all seek on and the coordinate C29/C54 make authoritative, has no public read keyed on it; `TabRow.item_count` gives a tab's live count, not its items · F2, query-plans.txt
+S123 · store · — · The only routes to "this tab's items": `pricing_snapshot`, which returns the whole league, needs an `Annotations` handle and refuses unless the file's account uuid pairs; or a `Store::search` substring that happens to match; raw SQL is not a surface (C48) · F2
+S124 · store · — · `Store::search` builds `%{text}%`, planned `SCAN items USING INDEX items_location` + `USE TEMP B-TREE FOR LAST 2 TERMS OF ORDER BY`; `items_names (name, type_line, base_type)` is written on every ingest and every `rebuild` and serves no read in the crate · F3, query-plans.txt (plans under SQLite 3.53.4; shipped `acq` links 3.46.0, Q6)
+S125 · store · — · Anchored `LIKE 'Kaom%'` also plans `SCAN items` (LIKE is case-insensitive by default, `items_names` collates BINARY); under `case_sensitive_like=ON` it becomes `SEARCH items USING INDEX items_names (name>? AND name<?)`, and `name = ?` becomes `SEARCH items USING INDEX items_names (name=?)` · query-plans.txt, the three counterfactual rows
+S126 · store · — · A whole league's live items plans as `SCAN items`: no index spans `(realm, league, removed_at)` · query-plans.txt, "a whole league's live items"
+S127 · store · — · `ItemRow` carries `json: Value`, so each row `Store::search` returns costs one full `serde_json` body parse on top of the scan and the temp sort · F3, read-surface.md `Store::search`
+S128 · measure · — · `items`' 21 columns: 9 derived from the row's own json, 6 ingest facts the body does not carry (realm, league, location_kind, location_id, container, socketed_in), 4 bookkeeping, the id, the body; 53 columns across `items`, `tabs`, `characters`, `item_events` · Numbers, F4, columns-vs-json.csv
+S129 · measure · — · 224 census paths have no column (73 top-level), and 7 top-level paths present on every one of the 36,139 census items have none: `frameType`, `frameTypeId`, `icon`, `identified`, `ilvl`, `league`, `verified` · Numbers, columns-vs-json.csv
+S130 · store · — · `rarity` is a json-derived column returned in `ItemRow`, present on 25,370 of the 36,139 census items, and no read filters on it · columns-vs-json.csv row `column,items,rarity`
+S131 · store · — · Two reads mean different things by "in this league": `Store::search` filters `items.league` — for a character item, the character row's listing-owned league as it stood at ingest — while `read_items` ignores `items.league` for character items and joins the character's current league, deliberately carrying league-less characters (C61); a league-filtered search silently drops a league-less character's items and can answer from a stamp the last listing has already moved · F5
+S132 · store · — · Per item the store gives `first_seen`, `last_seen`, `removed_at` and `seen_response` (that last only through `ItemSnapshot`); membership is per response, never per clock (C54) · F6
+S133 · store · — · The only aggregates on the surface are the per-tab and per-character `item_count` and the 12 counts in `Status`; `events_since(since, limit)` is keyed on time alone, with no filter by kind, location or item, name/type from a LEFT JOIN to the live row; there is no grouping · F6
+S134 · store · — · With no store change every predicate in the census is reachable by pulling the corpus and filtering in the frontend: `Store::search("")` matches every row whose extracted columns are non-NULL (the current extractor writes `""`, not NULL) and returns each whole body, at one full scan, one temp sort and one `serde_json` parse per item, with realm, league, `location_kind`, `location_id`, `container`, `socketed_in` on `ItemRow`; no predicate can be pushed down · F8, "What a search consumer can do today"
+S135 · store · — · Three classes of change and their schema cost: a new read (`items_at(location)`, a container/location filter on `search`, an events filter) needs none, `items_location` already serving it (C48); a derived column (`frame_type`, `identified`, `ilvl`, `corrupted`, `note`) is one `rebuild` re-extracts from each row's own json (C29); a derived table (a mod/stat index, FTS at ingest) is a new table reproducible from `items.json` (C34; `decisions/store.md` "Parked: search-at-scale", trigger *a real consumer with a measured latency or duplication case*) · F8 table
+S136 · idiom · — · The whole item search a user has today is `acq items search` and MCP `search_items`, both on `Store::search` · read-surface.md `Store::search` row, "Called by today"
+
 ## The acceptance set
 
 Written when owner-seat and agent-seat merge.
@@ -136,6 +155,7 @@ unknown shown, never guessed, is the model).
 
 ## Kill list
 
+- store-as-built: F7 — moot (registry rulings, cited as `C<n>`, never re-digested); F4 column exposure (`w`/`h` in no read type, `x`/`y` only in `ItemSnapshot`, read-time `json_extract`s `$.note` on 184 and `$.inventoryId` on 34,161 of 36,139 items) — budget; the surface-sizing Numbers rows (17 public reads, one uncalled: `Store::orphaned_item_annotations`; 8 tables, 4 indexes; 12 queries planned, 5 as full scans) — sizing.
 - prior-art: F8 (no corpus, no persistence, no ranking, no mod-level identity, `modFamily` 187, no PoE2) — budget; F7 the item-search widget (two `items.ndjson` slices, ≥ 3 characters, cap of 5, OCR ranking) — budget; F4 the markup half (0 lines carry `[Tag|Display]`; `<<set:…>>`/`<if:…>` handled only on the name plate) — budget; F1 the hash-collision re-check, Q2 — internals; Q3 — moot; Q4 — sizing.
 - item-filter: F3 `Rarity` ordering, `Sockets`/`SocketGroup` compound operand, `HasInfluence` granularity, `Class` substring-matched on the C++ side — budget; F4 `BaseDefencePercentile` and the conditions with no export field — budget; F6 the 17 absent conditions by name — budget; Q2 `duplicated` as the unverified candidate for `Mirrored` — budget; the 14 actions — moot; the scripts' join-validation aborts — internals.
 - repoe: F1 229 ids listed twice, older text joined for 263 rows — budget; F2 the owner's acceptance-rule quote — budget; F3 site agreement 3,363/1/8/586, clipboard `Item Class:` = export class for 46 bases — budget; F4 unmatched equipment remainder (heist `Alert Level`, `Has # Abyssal Socket`, cluster-jewel passives, necropolis) — budget; pob-format.md the C++ export's `craftedMods`/`fracturedMods` reading — internals; Q8 access method — open question, not a fact.
@@ -149,11 +169,11 @@ Note 22's ranked questions, each with the claims that bear on it;
 extended after every merge.
 
 1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52, S63, S64, S65, S66, S67, S71, S72, S73, S76, S84, S101, S102, S103, S104, S105, S106, S107, S109, S110, S111
-2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95, S106
+2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95, S106, S121, S125
 3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55, S61, S62, S69, S70, S74, S82, S85, S86, S87, S89, S92, S93, S94, S108, S112
-4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50, S75, S110, S112
+4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50, S75, S110, S112, S122, S124, S126, S127, S128, S129, S130, S131, S134, S135
 5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S61, S62, S66, S67, S69, S86, S90, S106, S108, S109
-6. What a result carries — S1, S11, S31, S53, S107
+6. What a result carries — S1, S11, S31, S53, S107, S127, S132, S133, S134
 7. The non-goals and limits, as outputs — S12, S14, S52, S53, S67, S84, S107, S111
 
 ## Convergence and contradiction
@@ -180,6 +200,11 @@ extended after every merge.
 - S108 ≈ S61: the capture's 17958 distinct ids are its 18,187 entries less the 229 listed twice (repoe F1); Awakened carries 12507, the export names 11,004.
 - S106 ≈ S41: several ids for one line go outward as a trade `count` group with min 1, the shape trade-query's F2 documents.
 - S110 ≈ S75: the two maintained datasets move on their own cadence, Awakened's at a median 12 days with 2436 re-texted ids, the export's with 33 of 86 game versions never exported.
+- S129 ≈ S2: of the 13 fields on every item, 7 have no column in the store as built.
+- S130 ≈ S2: `rarity` on 25,370 items is the census's 70.2 %.
+- S121 ≈ S24: substring search over the name fields, the C++ app's over `name + " " + typeLine`, the store's over `name`/`type_line`/`base_type`.
+- S122 ≈ S31: the location coordinate (`location_kind`, `location_id`) the store indexes and the C++ app buckets on (`location type`, `id`), neither by label or position.
+- S132 ≈ S11: per-response membership and `first_seen`/`last_seen` on the store's side; on the census's, 99.5 % of same-id bodies byte-identical across a month.
 - trade-query F4 says "380 pairs"; stat-collisions.csv has 380 groups of two to four ids (369/8/3). S44 carries the data.
 - item-facts F5 itemises the unmatched bases to 7,885 (7,512 + 272 + 98 + 3) while `data/numbers.md`'s `frameTypeId` table sums them to 7,826 (36,139 − 28,313); a 59-item gap the track does not explain. S8 carries F5's figures.
 - item-facts F3 counts PoE2 markup over four arrays (192 lines); `data/numbers.md` lists eight (220). S4 carries the data file.
