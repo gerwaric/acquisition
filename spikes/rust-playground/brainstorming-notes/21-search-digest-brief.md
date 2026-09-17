@@ -65,9 +65,10 @@ One line each, under a track heading, in this shape:
 - The pointer is the README finding (`item-facts F7`) or the data file
   and row that carries it. No pointer, no claim.
 
-About ten claims per track, fifteen where the track earns it, under
-3 KB (the pilot measured 150–200 bytes a claim; 2 KB cut facts, not
-words). The track's headline block is the seed and is not enough: a claim
+About ten claims per track, fifteen where the track earns it, about
+3 KB as a guide (the pilot measured 150–200 bytes a claim; 2 KB cut
+facts, not words); tracks are not equal, and the reviewer is held to
+the whole digest's budget, not the track's. The track's headline block is the seed and is not enough: a claim
 the design would need and the headline dropped goes in. One `idiom`
 per source that has one.
 

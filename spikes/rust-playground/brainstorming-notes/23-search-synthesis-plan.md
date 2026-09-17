@@ -101,6 +101,11 @@ and deeply thought-provoking" (the register is note 00, at `a6a8f53e~1`).
     Losing the contents of the transcripts is a miss. I like keeping
     that around. Approved." — note 21 amended: 3 KB a track, 30 KB in
     all, budget cuts on the kill list by finding id.
+    After trade-query (3.3 KB, the reviewer's restores over the track
+    guide, the track bearing three of seven questions): "This is an
+    encouraging result. Let's continue. I agree with your judgement
+    call." — the per-track figure is a guide, the reviewer is held to
+    the total.
 
 ## Guardrails
 
