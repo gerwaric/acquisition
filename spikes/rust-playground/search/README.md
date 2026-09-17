@@ -88,7 +88,8 @@ owner's decisions: `brainstorming-notes/23-search-synthesis-plan.md`):
 its briefs and drafts are numbered notes, each edited by the owner
 before it runs — the digest brief was note 21 (at c56404ca, deleted at
 acceptance), the framing is `brainstorming-notes/22-search-framing.md`;
-the digest is `DIGEST.md`, accepted 2026-09-17.
+the digest is `DIGEST.md`, accepted 2026-09-17; the proposal brief
+for stage 3 is `brainstorming-notes/29-search-proposal-brief.md`.
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search

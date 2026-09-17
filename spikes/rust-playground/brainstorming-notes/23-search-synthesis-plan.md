@@ -27,8 +27,8 @@ are similarly challenging, aspirational, and deeply thought-provoking"
 | # | Stage | Runner | Artifact | Brief |
 | --- | --- | --- | --- | --- |
 | 1 | Digest — closed, accepted 2026-09-17 | — | `search/DIGEST.md` | note 21 at c56404ca |
-| 2 | Framing — the owner's edit is the last step | the owner edits; Fable drafted | note 22 | — |
-| 3 | Two proposals, blind, in the output shape note 22 sets | Fable and Astra, in parallel, neither seeing the other's until both are committed | notes 24 (Fable), 25 (Astra) | note to write, after the owner's edit of 22 |
+| 2 | Framing — closed; the owner's edits done 2026-09-17 | the owner edits; Fable drafted | note 22 | — |
+| 3 | Two proposals, blind, in the output shape note 22 sets | Fable and Astra, in parallel, neither seeing the other's until both are committed | notes 24 (Fable), 25 (Astra) | note 29 |
 | 4 | Cross-review, then reconciliation: a decision table — where they agree, where they differ (each side, the claims that decide, a recommendation) | each reviews the other's; Fable writes the reconciliation, Astra checks it | notes 26, 27 | — |
 | 5 | Ruling: candidate decision lines in registry form, a parking lot with triggers, the owner's verdicts verbatim; harvested into `decisions/search.md` (new area file, one index row in `CONTEXT.md`) | the owner, with Fable | note 28, then `decisions/search.md` | — |
 | 6 | Build plan: slice steps with their evidence; the digest's acceptance set as acceptance tests; the closed record at the end in `PRICING-SLICE.md`'s mold | Fable | `search/` | — |
@@ -52,6 +52,16 @@ self-contained (decision 1) and carries all of this itself:
   its output.
 - Where the proposal is written and that its author commits it (notes
   24 and 25; Codex commits its own, as it has for reviews).
+
+**Blind by construction, not by instruction.** Each proposer runs in
+its own worktree on its own branch, both cut from the commit that holds
+the brief (`git worktree add <dir> -b search-proposal-fable <commit>`,
+and `-astra`), so neither tree ever contains the other's file and the
+two can run at once. Both branches merge into `spikes/rust-playground`
+only after both proposals are committed; the files are distinct, so the
+merge cannot conflict. A worktree at a new path should also start a
+Fable session without this project's memory files; check that at the
+start of the run rather than assume it.
 
 ## The owner's decisions, verbatim (numbers are stable; citations use them)
 
@@ -92,6 +102,13 @@ at `e490196e`.
     answer-shaped seeds and the one thesis among the convergence
     signals out of the proposers' reading: "I agree to the rest of your
     recommendations on the seeds and signals."
+13. On the stage-3 brief (note 29, 2026-09-17): the body taken as
+    drafted ("it looks good"), the owner's own final word added, and
+    Fable's edits to it — scoped to the search, the human seat kept, "a
+    few linked abstractions" for "a tower" — "All of your changes
+    improve the text. Accepted." On isolation: "either branches or
+    worktrees based on whichever best serves our purposes in a simple,
+    reliable way."
 
 ## Withheld from the proposers: stage 4's checklist
 
