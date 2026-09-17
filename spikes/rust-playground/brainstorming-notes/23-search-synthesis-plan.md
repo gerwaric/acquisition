@@ -144,6 +144,18 @@ and deeply thought-provoking" (the register is note 00, at `a6a8f53e~1`).
 - The acceptance test: every owner-seat question and every agent-seat
   scenario expressible in the model, written out; simplicity judged
   from the concept inventory, never capped.
+- Agreement is counted by its evidence, not its voices (stage 4):
+  two proposals that agree while resting on the same `S` id are one
+  piece of evidence; the pilot's two runners agreed largely because
+  both followed the same headline block, and two readers of one text
+  agreeing is evidence about the text. Independence enters through
+  the acceptance test and through Astra reading the digest cold.
+- A brief's terms are defined by what they are for, with the wrong
+  reading named: nine of the twelve `limit` claims the runners marked
+  were the source's limitations, not edges the search declines, and
+  each was rekinded on review. The pilot measured the brief more than
+  the models — under a binding constraint an A/B of runners reports
+  the constraint.
 
 ## The question the design met first
 

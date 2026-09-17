@@ -18,8 +18,11 @@ repeated two traps, so it is a skill (P6).
    `CONTEXT.md`, `decisions/`, `SURFACES.md`; never commit, push,
    fetch, or spawn), the inputs by path, the outputs by file and
    script, the findings expected, an acceptance sentence, and the
-   report asked for (at most 300 words). The README already holds the
-   question; the brief holds only the procedure.
+   report asked for (at most 300 words), which names what the runner
+   left out and the one cut it would most want reversed — the reviewer
+   restores from that line, never from the transcript (the digest run,
+   2026-09-16: every restore came from it). The README already holds
+   the question; the brief holds only the procedure.
 2. Commit the brief before the run, so any session — or Codex — can
    run it.
 3. Launch one general-purpose subagent per track with a prompt that
