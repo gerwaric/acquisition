@@ -88,7 +88,7 @@ as tools for cutting the Gordian knot.
 | store-as-built | what a search gets today, and where the first change falls (a read) | what should be |
 | engine-bench | that no engine beyond a scan is needed, that the load is the cost, that identity moves reach not latency | who holds the corpus — that is a design question |
 | owner-seat | the human test: seven questions, eight requirements, three non-goals | the specification (stance 1) |
-| agent-seat | the agent test: twelve questions, R9–R19; that SQL made each one call at the price of silent misses (F12); the query the agent wanted to type (F13) | the specification (stance 1); a projection's conventions — it read them only after three silent misses |
+| agent-seat | the agent test: twelve questions, R9–R19 (S190–S200); that SQL made each one call at the price of silent misses (F12); the query the agent wanted to type (F13) | the specification (stance 1); a projection's conventions — it read them only after three silent misses |
 
 When a source speaks outside its lane, discount it.
 
@@ -112,7 +112,7 @@ else:
   it (SQL or a scan: the bench says the scan wins eleven of twelve and
   SQLite is instant at the real corpus either way); the number is
   measured: 0.5 s to build and 38 ms to load at the real corpus, 5.7 s
-  and 1.14 s at a million (engine-bench F5, F7).
+  and 1.14 s at a million (engine-bench F5, F7; S151, S187, S188).
 - Annotations are the only irreplaceable state (C35); a saved search,
   if one exists, is intent and lands there or in the user-scoped home
   the store has parked.
@@ -138,7 +138,7 @@ about spellings:
 | defence | `Armour` property (total) | `Armour` | `ar` (20 % quality normalised) | `BaseArmour` (base) |
 | where it is | realm, league, location, container | tab header | — | — |
 
-The full tables: item-filter F2–F3, repoe F3, trade-query F5.
+The full tables: item-filter F2–F3 (S89–S91), repoe F3 (S69, S70), trade-query F5 (S55).
 
 ## Triage: four buckets before any evaluation
 
@@ -163,17 +163,17 @@ Independent agreement is the strongest evidence in the pile:
   site (380 collisions), the export (150 ambiguous templates), Awakened
   (twins as a two-stat group, several ids emitted as a `count` OR).
 - **The text is the moving part**: 2,436 re-wordings under stable trade
-  ids (prior-art), 229 renamed lines in one capture (repoe F1), the
-  string-to-object format change of July 2026 (item-facts F3).
-- **Identity finer than text**: owner R1, Awakened's ref plus matchers
+  ids (prior-art), 229 renamed lines in one capture (repoe F1; S61), the
+  string-to-object format change of July 2026 (item-facts F3; S3).
+- **Identity finer than text**: owner R1 (S171), Awakened's ref plus matchers
   plus category, the site's 14 categories.
 - **Composition across fields is missing everywhere** (owner F3): the
   site composes stats only; the C++ app ANDs.
-- **Every answer wants its location** (owner R6; the read the store
-  lacks, store-as-built F2).
-- **The load, not the query** (engine-bench F3; cpp-search F6: the
+- **Every answer wants its location** (owner R6, S176; the read the store
+  lacks, store-as-built F2; S122, S123).
+- **The load, not the query** (engine-bench F3, S150–S153; cpp-search F6, S37: the
   filter loop was never the cost).
-- **Unknown is shown, never guessed** (prior-art F4; the C++ dropdown's
+- **Unknown is shown, never guessed** (prior-art F4, S107; the C++ dropdown's
   failure by contrast).
 - **Every tool that lasted asks in the item's own terms**: the site's
   form is the tooltip as a form; item-filter names predicates after
@@ -206,7 +206,7 @@ Independent agreement is the strongest evidence in the pile:
   query type.
 - **Query by example.** "Like this item, but with life at least 70":
   Awakened's move turned into a stash verb, and the refinement both
-  seats want (agent R14: the previous query plus one predicate) with an
+  seats want (agent R14, S195: the previous query plus one predicate) with an
   item id as the seed either seat can write.
 - **The model's semantics as views.** A derived meaning — a pseudo
   total, the named location, "priced" — defined once as a view in the

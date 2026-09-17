@@ -25,7 +25,7 @@ and deeply thought-provoking" (the register is note 00, at `a6a8f53e~1`).
 
 | # | Stage | Runner | Artifact | Brief |
 | --- | --- | --- | --- | --- |
-| 1 | Digest: one claim per line with a stable `S<n>`, a kind, a weight, a pointer; the acceptance set; a limits register; a kill list per track; the reviewer's question index and convergence marks | one subagent per track, in series; the runner model chosen at the pilot (decision 10); Fable review and merge after each | `search/DIGEST.md` — partial and committed after every track, the entry point in place of the READMEs once accepted | note 21 |
+| 1 | Digest: one claim per line with a stable `S<n>`, a kind, a weight, a pointer; the acceptance set; a limits register; a kill list per track; the reviewer's question index and convergence marks | one subagent per track, in series; the runner model chosen at the pilot (decision 10); Fable review and merge after each | `search/DIGEST.md` — partial and committed after every track, the entry point in place of the READMEs once accepted (2026-09-17) | note 21 at c56404ca |
 | 2 | Framing: the goal function, the owner's stances, the sources and their lanes, the settled floor, the vocabulary map, triage, convergences, seeds, gravity, the acceptance test, the questions | the owner edits; Fable drafted | note 22 | — |
 | 3 | Two proposals, blind, in the output shape note 22 sets (the model, the grammar, the derivation after it, an answer per framing question, the appendix with each question one query or a listed gap, the cold start, the concept inventory, refusals, decisions left to the owner; under 12 KB) | Fable and Astra, in parallel, neither seeing the other's until both are committed | notes 24 (Fable), 25 (Astra) | note to write, after the owner's edit of 22 |
 | 4 | Cross-review, then reconciliation: a decision table — where they agree (essential), where they differ (each side, the claims that decide, a recommendation) | each reviews the other's; Fable writes the reconciliation, Astra checks it | notes 26, 27 | — |
@@ -111,6 +111,16 @@ and deeply thought-provoking" (the register is note 00, at `a6a8f53e~1`).
     every word trim: "i agree with not trimming to 30 aggressively."
     — the total is about 35 KB, judged; pruning waits for stage 4's
     evidence of what the proposals cite.
+    At acceptance (2026-09-17) the digest was 63.8 KB: 46 KB of claims
+    (165, S1–S200 with the runners' gaps), 13 KB of them the two seats'
+    verbatim R-lines and answers, and 18 KB of reviewer sections. The
+    READMEs compressed 2.6×, not 6×; the value moved from bytes to
+    structure (ids, pointers, kinds, the question index, the
+    acceptance set). The reviewer's 8.3 KB convergence prose was an
+    interpretation layer ahead of the blind pair, and the brief's own
+    form — `≈ S<m>` on the claim line — replaced it at acceptance;
+    contradictions keep their lines. The owner, on keeping the size
+    and folding the convergences: "Agreed. Go ahead."
 
 ## Guardrails
 

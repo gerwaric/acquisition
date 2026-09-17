@@ -8,8 +8,9 @@ a session that thinks out loud writes a numbered `brainstorming-notes/`
 note that cites a track by path; a ruling lands in `decisions/`. Nothing
 here is an authority for either.
 
-**Bootstrap for the design session:** load this file, then every track
-`README.md` in the order below. Reach `data/` and `raw/` by pointer only.
+**Bootstrap:** load this file, then `DIGEST.md` — accepted 2026-09-17, the
+entry point in place of the track READMEs. Reach a README only to verify a
+claim, and `data/` and `raw/` by pointer only.
 
 ## Rules in force
 
@@ -82,11 +83,10 @@ the user-scoped annotations home whose trigger lists saved searches.
 
 The synthesis runs in stages after the tracks close (the plan and the
 owner's decisions: `brainstorming-notes/23-search-synthesis-plan.md`):
-its briefs and drafts are numbered notes —
-`brainstorming-notes/21-search-digest-brief.md`,
-`brainstorming-notes/22-search-framing.md` — each edited by the owner
-before it runs; the digest itself will be `DIGEST.md` here and, once accepted,
-the entry point in place of the READMEs.
+its briefs and drafts are numbered notes, each edited by the owner
+before it runs — the digest brief was note 21 (at c56404ca, deleted at
+acceptance), the framing is `brainstorming-notes/22-search-framing.md`;
+the digest is `DIGEST.md`, accepted 2026-09-17.
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search
