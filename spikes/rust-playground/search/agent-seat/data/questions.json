@@ -10,7 +10,7 @@
   {
    "id": "Q1",
    "source": "owner",
-   "question": "Do I have a rare that I can use to flech out the resistances or attribute requirements for a build I'm testing?",
+   "question": "Do I have a rare that I can use to flesh out the resistances or attribute requirements for a build I'm testing?",
    "wanted_query": "rarity=Rare AND base='Titan Gauntlets' AND mod ~ /Resistance|Strength|Dexterity|Intelligence/ -> id, name, tab, the matching lines (the owner: a base is usually in mind)",
    "expected_shape": "a short list of candidates for one slot, each with its resist and attribute lines",
    "phase1": {
@@ -229,7 +229,7 @@
   {
    "id": "Q4",
    "source": "owner",
-   "question": "Where is that staff from Cruicible league someone tried to pay me real money for?",
+   "question": "Where is that staff from Crucible league someone tried to pay me real money for?",
    "wanted_query": "base ~ /Staff/ AND has(crucibleMods) -> id, name, base, tab name (league of origin is not a field; crucibleMods is the tell)",
    "expected_shape": "one item and its tab",
    "phase1": {
@@ -449,7 +449,7 @@
   {
    "id": "Q7",
    "source": "owner",
-   "question": "Do I have any gear with the modifier GGG just anounced is going away except on Standard?",
+   "question": "Do I have any gear with the modifier GGG just announced is going away except on Standard?",
    "wanted_query": "mod_template = '#% increased Rarity of Items found' (chosen: present on stash and character items) across every mod array, every tab, every character -> count, then items grouped by location with names",
    "expected_shape": "a list across all tabs and characters, item and tab, to decide keep or sell",
    "phase1": {

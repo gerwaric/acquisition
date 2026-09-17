@@ -55,11 +55,16 @@ self-contained (decision 1) and carries all of this itself:
 
 ## The owner's decisions, verbatim (numbers are stable; citations use them)
 
+The owner's words are verbatim but for spelling, corrected at his
+request in every file a model reads (2026-09-17: "I don't want their
+attention distracted by my mistakes"); the uncorrected text is history,
+at `e490196e`.
+
 1. "Astra is an OpenAI model I will run from codex." — so every brief
    is a self-contained repository file Codex can be pointed at, and
    Codex commits its own artifacts, as it has for reviews.
 2. Blind proposals: "agreed".
-3. Reconciliation: "Agree fabe writes. I've been using codex for
+3. Reconciliation: "Agree Fable writes. I've been using codex for
    reviews and this has worked well."
 4. The rulings' home: "yes, new decisions file".
 5. The digest as entry point — carried out; `search/README.md` says so.
@@ -79,13 +84,13 @@ self-contained (decision 1) and carries all of this itself:
     cap, and stage 1 showed what a binding cap cuts: whole items, here
     the gaps, limits and inventory lines stage 4 judges by. The
     recommendation: the model and grammar hold to one page, the rest
-    gets a guide. "I approve your recommendedation on the cap, but
+    gets a guide. "I approve your recommendation on the cap, but
     let's make 16kB the guide. Several times our estimates on the
     amount needed have been low, so I'd like to give the models more
     room to be expressive so we have more to judge." And on moving the
     answer-shaped seeds and the one thesis among the convergence
     signals out of the proposers' reading: "I agree to the rest of your
-    recommendaitons on the seeds and signals."
+    recommendations on the seeds and signals."
 
 ## Withheld from the proposers: stage 4's checklist
 

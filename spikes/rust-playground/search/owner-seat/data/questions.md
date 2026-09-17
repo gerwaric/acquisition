@@ -6,13 +6,13 @@ One row per question as the owner said it. *Wants back* and *Today* are the agen
 
 | # | Question, verbatim | Purpose | Wants back | Today | Needs |
 | --- | --- | --- | --- | --- | --- |
-| Q1 | "Do I have a rare that I can use to flech out the resistances or attribute requirements for a build I'm testing?" | gearing a build | a short list of candidates for one slot, with their resist and attribute lines visible, to pick from | C++ Mods filter with pseudo totals, one slot at a time via Category | pseudo totals over displayed values (cpp-search F3, trade-query F8); class/slot (repoe F3); a specific mod by identity — a fractured mod, a build-enabling mod, a defensive-layer stat (repoe F4, the identity question) |
+| Q1 | "Do I have a rare that I can use to flesh out the resistances or attribute requirements for a build I'm testing?" | gearing a build | a short list of candidates for one slot, with their resist and attribute lines visible, to pick from | C++ Mods filter with pseudo totals, one slot at a time via Category | pseudo totals over displayed values (cpp-search F3, trade-query F8); class/slot (repoe F3); a specific mod by identity — a fractured mod, a build-enabling mod, a defensive-layer stat (repoe F4, the identity question) |
 | Q2 | "Do I have a legacy version of a specific unique item?" | find one remembered item | one item or "no", and where it is | Name filter, then read the mod values by eye to tell legacy from current | name; mod values against the current version's ranges (repoe `mod-stat-index.csv` / unique data, not yet extracted) |
 | Q3 | "I just read about a new interaction someone found and I want gear to test it out." | gearing a build | a list, defined by whatever the interaction needs: a mod, a base, socket colours, a unique | Mods filter if it is a mod, Name if a unique | a mod by identity, base, sockets and colours, name |
-| Q4 | "Where is that staff from Cruicible league someone tried to pay me real money for?" | find one remembered item | one item and its tab | remembered name, or scrolling tabs by hand; no "from Crucible" filter exists | league of origin — not a field the item carries (item-facts F2); crucible mods (`crucibleMods`, unread by the C++ app); class |
+| Q4 | "Where is that staff from Crucible league someone tried to pay me real money for?" | find one remembered item | one item and its tab | remembered name, or scrolling tabs by hand; no "from Crucible" filter exists | league of origin — not a field the item carries (item-facts F2); crucible mods (`crucibleMods`, unread by the C++ app); class |
 | Q5 | "I want to practice leveling, so I need to find my leveling gear." | gearing a character | a set of items across tabs, by level bracket | by tab name if a leveling tab was kept; otherwise R. Level max and by eye | requirements level (cpp-search F2), tab, name; possibly the uniques known as leveling gear |
 | Q6 | "What is that legacy explode chest I have worth?" | price one item | a price — outside the stash search — after finding the item and knowing it is the legacy version | Name filter, then the trade site by hand | as Q2; then a trade query built from the item (trade-query F9, prior-art) |
-| Q7 | "Do I have any gear with the modifier GGG just anounced is going away except on Standard?" | a sweep across everything | a list across all tabs and characters, item and tab, to decide keep or sell | Mods filter with the exact template, only if the mod normalises to one template | a mod by identity across every array, every tab, every character (item-facts F3, repoe F4); realm and league coordinates (store) |
+| Q7 | "Do I have any gear with the modifier GGG just announced is going away except on Standard?" | a sweep across everything | a list across all tabs and characters, item and tab, to decide keep or sell | Mods filter with the exact template, only if the mod normalises to one template | a mod by identity across every array, every tab, every character (item-facts F3, repoe F4); realm and league coordinates (store) |
 
 ## Refinements, verbatim
 
@@ -20,7 +20,7 @@ On Q1 (2026-09-13): "Sometimes a specific item will have a specific stat, like a
 
 "Usually well-crafted endgame gear is already on bases with the right armour or evasion, so I don't worry about those numbers as much."
 
-"I don't play melee builds, but people who do care very much about the modifiers on their weapong, and many builds care about other damage mods--sometimes they are hit-based, sometimes they are spell-based, sometimes they are damage over time, sometimes they are other ailments."
+"I don't play melee builds, but people who do care very much about the modifiers on their weapon, and many builds care about other damage mods--sometimes they are hit-based, sometimes they are spell-based, sometimes they are damage over time, sometimes they are other ailments."
 
 ## Pricing and listing, verbatim (prompt 2, 2026-09-13)
 
@@ -36,7 +36,7 @@ So no organising question goes in the table: the app cannot act on the stash (th
 
 ## The trade site against the stash, verbatim (prompt 4, 2026-09-13)
 
-"The trade site lets me select yes/no/any for binary flags. It's stat field's autocomplete distinguishes implicit, explicit, pseudo, fractured, and other modifier types. The stat field autocompelte is also almost instantly responsive to keystrokes and lists autocomplete options that makes sense in an order that makes sence. The c++ mod search box is terrible by comparison on both fronts. The c++ does not allow for complex boolean searches such as (A or (B AND C)). The trade site allows that kind of logic, but only for stat modifiers, not for any of the other search fields, so I can't ask for something like "(Armour > 1000) OR (Required Level < 80)"."
+"The trade site lets me select yes/no/any for binary flags. It's stat field's autocomplete distinguishes implicit, explicit, pseudo, fractured, and other modifier types. The stat field autocomplete is also almost instantly responsive to keystrokes and lists autocomplete options that makes sense in an order that makes sence. The c++ mod search box is terrible by comparison on both fronts. The c++ does not allow for complex boolean searches such as (A or (B AND C)). The trade site allows that kind of logic, but only for stat modifiers, not for any of the other search fields, so I can't ask for something like "(Armour > 1000) OR (Required Level < 80)"."
 
 ## Anything else, verbatim (prompt 5, 2026-09-13)
 
@@ -48,7 +48,7 @@ So no organising question goes in the table: the app cannot act on the stash (th
 
 On the mod questions (Q1, Q3, Q7): "When I'm asking for specific mods, I likely have a base in mind--either something specific like Titan Gauntlet or Spiked Gloves, or I do care about the base and it's attributes."
 
-On legacy (Q2, Q6; the track's open question): "Legacy means an item or modifer or modifier value or unique or unique variant that cannot be found or created by playing the game, so it only exists in Standard stashes. An example is the Ashes of the Stars onyx amulet, which has a legacy variant from 3.23.0 which has the modifier 10-20% increased Reservation Efficiency of Skills that modern version lack."
+On legacy (Q2, Q6; the track's open question): "Legacy means an item or modifier or modifier value or unique or unique variant that cannot be found or created by playing the game, so it only exists in Standard stashes. An example is the Ashes of the Stars onyx amulet, which has a legacy variant from 3.23.0 which has the modifier 10-20% increased Reservation Efficiency of Skills that modern version lack."
 
 "I don't have many legacy items, but there are many legacy flasks, uniques, rares, and other items in standard. One classic example is a bugged body armour with +25,244% fire resistance, which is one of the most expensive items in the game because of how it interacts with certain damage and defense mechanics."
 
@@ -60,4 +60,4 @@ On legacy (Q2, Q6; the track's open question): "Legacy means an item or modifer 
 
 ## On specific values, verbatim (2026-09-13, after the item-filter read)
 
-"Note on the item-filter results: item filters are design by GGG to be unable to require specific numbers, because GGG wants people to experience the randomness of checking loot. My own examples also missed the mark on this. There are many times where a specific modifier value is needed. Examples include attributes, resistances, crit, and spell supression, but there are many others. It will vary heavily depending on what the user is trying to put together."
+"Note on the item-filter results: item filters are design by GGG to be unable to require specific numbers, because GGG wants people to experience the randomness of checking loot. My own examples also missed the mark on this. There are many times where a specific modifier value is needed. Examples include attributes, resistances, crit, and spell suppression, but there are many others. It will vary heavily depending on what the user is trying to put together."
