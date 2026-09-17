@@ -168,7 +168,8 @@ so nothing is lost.
   nothing here restates them.
 - Agreement is counted by its evidence, not its voices (stage 4): two
   proposals that agree while resting on the same text — one `S` id,
-  one passage of note 22 — are one piece of evidence, because two
+  one passage of note 22 or of the brief, a response the limits
+  register already prescribes — are one piece of evidence, because two
   readers of one text agreeing is evidence about the text.
   Independence enters through the acceptance test and through what
   each proposer reached without being handed it.
@@ -176,3 +177,11 @@ so nothing is lost.
   reading named (stage 1: most runner-marked `limit` claims were the
   source's limitations, not edges the search declines). Under a binding
   constraint a comparison of runners reports the constraint.
+- Before a brief or a framing runs, read it top-down for an answer
+  sitting where a boundary belongs (notes 22 and 29, 2026-09-17, found
+  each of these): a floor that names a mechanism; a question that lists
+  its answer's parts; a source's lane stated as its conclusion; a
+  warning that carries a ruling; an example that pulls where a stance
+  pushes; a word that invites a reading nobody meant ("loose" read as
+  fuzzy, "maximally" read as more). The last words of a prompt weigh
+  most, so what closes it must agree with everything above it.
