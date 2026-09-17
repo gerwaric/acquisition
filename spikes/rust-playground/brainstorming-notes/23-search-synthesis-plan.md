@@ -182,6 +182,20 @@ at `e490196e`.
     are checking things instead of forming opinions on them, I'm
     thinking the model bias might be less important." — one auditor,
     the author repairs. "I confirm. Go ahead."
+15. On the reconciliation (note 31, 2026-09-17), asked twelve one-line
+    questions: "If I'm honest, this is over my head, and my input is not
+    likely to add value until the design is close to a UI such as trying
+    to replicate the trade site, or c++ app, or even the SQL-like
+    surface. In that spirit, my feeling is that we should press ahead
+    according to plan and I'll be able to add my input later, even if it
+    means cycling back on the design." — so, Fable's reading: Astra's
+    check runs as planned; stage 5 takes note 31's recommendations as
+    provisional rulings, each carrying its revisit trigger (the owner's
+    first seat at a surface he can use), and marks the three proposals
+    no audit or reviewer has seen as such; stage 6 orders the build so
+    a surface the owner can sit at comes as early as the evidence
+    allows, because that is where his input enters. The owner's seat
+    (step 4) moves there.
 
 ## Withheld from the proposers: stage 4's checklist
 

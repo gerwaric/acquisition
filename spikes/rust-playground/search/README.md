@@ -95,8 +95,11 @@ the two blind proposals it produced are
 `brainstorming-notes/24-search-proposal-fable.md` and
 `brainstorming-notes/25-search-proposal-astra.md` (merged f2b06a3e). Stage
 4 is an audit (`proposal-audit/`), the author's repair
-(`brainstorming-notes/32-search-repair-brief.md`) and the review, a
-seat under `brainstorming-notes/30-search-review-brief.md`.
+(`brainstorming-notes/32-search-repair-brief.md`), the review, a
+seat under `brainstorming-notes/30-search-review-brief.md`
+(`brainstorming-notes/26-search-review-by-fable.md`,
+`brainstorming-notes/27-search-review-by-astra.md`), and the reconciliation,
+`brainstorming-notes/31-search-reconciliation.md`, which Astra checks.
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search
