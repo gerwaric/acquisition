@@ -1,4 +1,4 @@
-# 21 — The search digest: brief for stage 1 of the synthesis (2026-09-13, amended 2026-09-16)
+# 21 — The search digest: brief for stage 1 of the synthesis (2026-09-13, amended 2026-09-16, twice)
 
 **Written 2026-09-13, before the run; amended 2026-09-16 after a dry
 run of the process (note 23, decision 10).** The synthesis of the
@@ -66,7 +66,8 @@ One line each, under a track heading, in this shape:
   and row that carries it. No pointer, no claim.
 
 About ten claims per track, fifteen where the track earns it, under
-2 KB. The track's headline block is the seed and is not enough: a claim
+3 KB (the pilot measured 150–200 bytes a claim; 2 KB cut facts, not
+words). The track's headline block is the seed and is not enough: a claim
 the design would need and the headline dropped goes in. One `idiom`
 per source that has one.
 
@@ -84,7 +85,11 @@ per source that has one.
   design inherits and rides through every later stage unchanged; the
   design's own limits are its output (note 22, question 7).
 - **Kill list** — one line per track: the finding ids the design may
-  safely ignore, a one-word reason each (internals, sizing, moot).
+  safely ignore, a one-word reason each (internals, sizing, moot,
+  budget). A claim cut for budget goes here by finding id, so the
+  loss is visible from the digest alone and reversible under the
+  floor-not-cap guardrail; a runner's report is a transcript, not a
+  record.
   Ignored is not deleted; the README keeps it, and a proposal may
   reach for it under the guardrail above.
 - **The question index** — the reviewer's: one line per ranked
@@ -109,7 +114,7 @@ per source that has one.
   the design that follows can only be as brave as this digest is
   honest, so a softened claim, a rounded number or a fact chosen to
   fit a conclusion is a decision made for the designer.
-- Budget for the whole digest: about 18 KB, the acceptance set
+- Budget for the whole digest: about 30 KB, the acceptance set
   included.
 
 ## The run, in series

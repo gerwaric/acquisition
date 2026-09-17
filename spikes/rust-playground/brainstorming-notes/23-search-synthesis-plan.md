@@ -94,6 +94,13 @@ and deeply thought-provoking" (the register is note 00, at `a6a8f53e~1`).
     two, 15 claims, at 2.6 KB against the brief's 2 KB — a
     fifteen-claim track does not fit 2 KB at this density, and the
     brief's per-track budget is the first amendment candidate.
+    The owner, on the reviewer's reading of that pressure (both runners
+    wrote to the byte, kept every number and cut whole claims; the
+    budget was derived top-down and never checked against the sources'
+    fact density; cuts lived only in runner transcripts): "Agreed.
+    Losing the contents of the transcripts is a miss. I like keeping
+    that around. Approved." — note 21 amended: 3 KB a track, 30 KB in
+    all, budget cuts on the kill list by finding id.
 
 ## Guardrails
 
