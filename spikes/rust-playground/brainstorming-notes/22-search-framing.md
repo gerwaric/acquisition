@@ -86,9 +86,9 @@ as tools for cutting the Gordian knot.
 | item-filter | GGG's own naming of the predicates; the divergences between the three namings | a query language — it ANDs and stops at the first match, and it withholds numbers on purpose |
 | prior-art | how a maintained tool survives the moving text: identity as the displayed line, twins resolved by category, unknown lines shown | a corpus, a saved query, a stash search |
 | store-as-built | what a search gets today, and where the first change falls (a read) | what should be |
-| engine-bench | that no engine beyond a scan is needed, that the load is the cost, that identity moves reach not latency | who holds the corpus — that is a design question |
+| engine-bench | what a scan and SQLite each cost at the real corpus and at a million; that the load dominates the query; that identity moves reach, not latency | who holds the corpus — that is a design question |
 | owner-seat | the human test: seven questions, eight requirements, three non-goals | the specification (stance 1) |
-| agent-seat | the agent test: twelve questions, R9–R19 (S190–S200); that SQL made each one call at the price of silent misses (F12); the query the agent wanted to type (F13) | the specification (stance 1); a projection's conventions — it read them only after three silent misses |
+| agent-seat | the agent test: twelve questions, R9–R19 (S190–S200); that SQL made each one call at the price of silent misses (S187, S188); the query the agent wanted to type (S189) | the specification (stance 1); a projection's conventions — it read them only after three silent misses |
 
 When a source speaks outside its lane, discount it.
 
@@ -100,18 +100,17 @@ else:
 - The five invariants; the daemon owns GGG traffic and never reads
   facts (C2, C34); a frontend consumes two surfaces (C12); shared
   semantics live in Rust and every frontend has an adapter (C46).
-- The facts schema is internal (C48) and annotations are written only
-  through the store (C35).
 - SQL is a surface, on the CLI and the MCP alike (the owner,
   2026-09-14; stance 6): read-only, over a published contract that is
-  never the internal schema. C48 is amended to that extent at the
-  ruling. Intent is readable by the search, read-only, in every
-  language over it.
+  never the facts schema, which stays internal (C48, amended to that
+  extent at the ruling). Intent is readable by the search, read-only,
+  in every language over it.
 - Whatever the search reads is a derivation of facts (C34), never a
   cache: it cannot be stale, by construction and not by a refresh,
   because stale results mistaken for current truth is the failure C48
   exists to prevent.
-- Annotations are the only irreplaceable state (C35); a saved search,
+- Annotations are the only irreplaceable state and are written only
+  through the store (C35); a saved search,
   if one exists, is intent and lands there or in the user-scoped home
   the store has parked.
 - Output has three levels — the decision view, the audit view, and JSON
@@ -123,8 +122,8 @@ else:
 
 ## Shared vocabulary: one thing, four names
 
-Do this mapping before debating proposals, or the session will argue
-about spellings:
+The sources spell one thing four ways. A proposal picks its own names
+and says which of these each one is:
 
 | Thing | API / store | C++ | trade | filter language |
 | --- | --- | --- | --- | --- |
@@ -138,7 +137,7 @@ about spellings:
 
 The full tables: item-filter F2–F3 (S89–S91), repoe F3 (S69, S70), trade-query F5 (S55).
 
-## Triage: four buckets before any evaluation
+## Triage: where an idea falls
 
 - **(a) Already built, or a read away** — the corpus and every field
   (store-as-built: pull, then filter in the frontend); the location
@@ -148,24 +147,26 @@ The full tables: item-filter F2–F3 (S89–S91), repoe F3 (S69, S70), trade-que
   MCP pricing read model parked behind "item search's read model
   landed".
 - **(c) New scope** — a trade URL in, a trade query out; Awakened for
-  pricing; Better Trading. Real, and must not crowd out (b).
-- **(d) Conflicts with a ruling** — a search cache written outside the
-  store, with its own lifetime; the daemon reading facts; RePoE fetched
-  at runtime; the app judging legacy.
+  pricing; Better Trading. Real, and must not crowd out (b): the model
+  says what could cross the trade boundary (question 5); building it is
+  new scope.
+- **(d) Conflicts with a ruling** — anything the settled floor or a
+  stance rules out.
 
 ## Convergence signals
 
 Independent agreement is the strongest evidence in the pile:
 
 - **Several ids for one line is the normal case**, not an edge: the
-  site (380 collisions), the export (150 ambiguous templates), Awakened
-  (twins as a two-stat group, several ids emitted as a `count` OR).
+  site (380 collisions; S44), the export (150 ambiguous templates; S72),
+  Awakened (twins as a two-stat group, several ids emitted as a `count`
+  OR; S104–S106).
 - **The text is the moving part**: 2,436 re-wordings under stable trade
-  ids (prior-art), 229 renamed lines in one capture (repoe F1; S61), the
+  ids (prior-art; S110), 229 renamed lines in one capture (repoe F1; S61), the
   string-to-object format change of July 2026 (item-facts F3; S3).
 - **Identity finer than text**: owner R1 (S171), Awakened's ref plus matchers
-  plus category, the site's 14 categories.
-- **Composition across fields is missing everywhere** (owner F3): the
+  plus category (S101, S104), the site's 14 categories (S43).
+- **Composition across fields is missing everywhere** (S169, S172): the
   site composes stats only; the C++ app ANDs.
 - **Every answer wants its location** (owner R6, S176; the read the store
   lacks, store-as-built F2; S122, S123).
@@ -186,9 +187,10 @@ Independent agreement is the strongest evidence in the pile:
 - **RePoE gravity.** The stat spine is seductive and a third of lines
   are outside it; its access method is unruled. A design that needs it
   says so as a decision, not an assumption.
-- **Engine gravity.** The instinct to index for speed is the C++ app's
-  and the bench says no: the projection is for load and reach, not
-  latency (F3, F4); an index is added with a number, not an instinct.
+- **Engine gravity.** The instinct to index for speed is the C++ app's;
+  the bench measured the query as the cheap part (S150–S153). An index,
+  an engine or a persisted anything is added with a number, not an
+  instinct.
 - **Edge-case gravity.** Twice-numbered stats, the 83 unreachable
   collisions, the veiled placeholder, `[Tag|Display]` markup: each is a
   limits-register row unless a `main` claim depends on it.
@@ -197,14 +199,10 @@ Independent agreement is the strongest evidence in the pile:
   the model's source. A grammar that is a WHERE clause in new spelling
   was designed from the table.
 - **Change gravity.** Patches, leagues, endpoints and stat sets cannot
-  be predicted, so nothing is built for them and no compatibility layer
-  is carried. The search follows the corpus, not the game: a new or
-  moved line is a line it has not seen, shown, and searchable by its
-  template without a code change; when the API or the item's shape
-  changes enough, the user refreshes, since facts are refetchable
-  (C35). The dated captures are a diff for a human, never an input. A
-  layer that exists to survive change is a concept the inventory must
-  justify.
+  be predicted, so nothing is built to predict them. The search follows
+  the corpus, not the game; facts are refetchable (C35), and the dated
+  captures are a diff for a human, never an input. A layer that exists
+  to survive change is a concept the inventory must justify.
 
 ## The acceptance test, and simplicity
 
@@ -220,13 +218,14 @@ compares inventories.
 
 1. What is a line's identity, and what does the search do with a line
    it cannot name, or whose text has moved since it last could?
-2. What is the query model — predicates, composition, tri-state flags,
-   values, the location coordinates — and what is its one grammar?
+2. What is the query model — what it can say of an item, how that
+   composes, where the item is — and what is its one grammar?
 3. What is the vocabulary read, and how is it served to a human and an
    agent from the corpus?
 4. Who holds the corpus, for how long, and what does a restart cost;
-   is the derivation persisted, what is its contract (the DDL, its
-   version, its freshness), and how does the model itself read it?
+   is the derivation persisted, what is its contract (what is
+   published, how it is versioned), and how does the model itself read
+   it?
 5. What crosses the trade boundary, in each direction, and what does
    not?
 6. What does a result carry — the item, its location, its freshness,
@@ -236,17 +235,23 @@ compares inventories.
 
 ## Output shape (stage 3, each proposal)
 
-The model on one page; the grammar in as few lines as it takes; the
-derivation the model needs (what it carries, its contract), after the
-model and never before it; an answer to each question above; the
-appendix (every acceptance question in the model's notation, each
-marked one query or a listed gap, discovery reads and refinements
-apart); the cold start (the calls a stranger makes to a correct answer
-to owner Q1 and one agent scenario, the stranger being agent-seat's
-phase-one condition: tool descriptions and help only, no row seen); the
-concept inventory; what the design refuses; the decisions left to the
-owner. The model and its grammar fit one page; that limit is the test.
-The rest is as long as honesty takes — about 16 KB is a guide, never a
+1. The model on one page.
+2. The grammar in as few lines as it takes.
+3. The derivation the model needs (what it carries, its contract),
+   after the model and never before it.
+4. An answer to each question above.
+5. The appendix: every acceptance question in the model's notation, each
+   marked one query or a listed gap, discovery reads and refinements
+   apart.
+6. The cold start: the calls a stranger makes to a correct answer to
+   owner Q1 and one agent scenario, the stranger being agent-seat's
+   phase-one condition — tool descriptions and help only, no row seen.
+7. The concept inventory.
+8. What the design refuses.
+9. The decisions left to the owner.
+
+The model and its grammar fit one page; that limit is the test. The
+rest is as long as honesty takes — about 16 KB is a guide, never a
 target — and the proposal closes by naming what it left out and the one
 cut it would most want reversed. Two proposals, blind, then
 reconciliation.
