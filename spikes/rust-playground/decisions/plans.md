@@ -21,7 +21,7 @@ Scope this area has deferred, with the trigger that reopens it, so deferral neve
 
 - Coverage advice in `refresh --plan` (the planner naming priced locations outside coverage) → the planner. Trigger: `price status` and the render's report (C72) proving the wrong place for it.
 - `aging` in the plan (C77) → a quote-bearing plan. Trigger: a cycle estimate that is trusted.
-- The explicit-selection door (C76) → its own slice, where its listing, freshness and two-cycle semantics are ruled. Trigger: pricing closed.
+- The explicit-selection door (C76) → its own slice, where its listing, freshness and two-cycle semantics are ruled. Trigger: pricing closed — fired 2026-09-09 with nothing built (the ad-hoc `refresh` kind still ships); it waits behind item search, the owner's direction of 2026-09-11.
 - Universal Plan grammar / five-verb surface → direction only. Trigger: C75's finding once a second plan-bearing consumer exists (C71 is parked, 2026-09-04).
 - Dynamic `--deep` fan-out under plans → the planner. Trigger: live evidence that two-cycle reconciliation genuinely hurts (none so far).
 - Type-level sync-policy filters ("skip map tabs", "include unique tabs", "fetch folder children") → a policy-shape change; the planner owns the schema (C37). Trigger: a policy author who needs a type exclusion the parent-covers-children rule cannot express.
