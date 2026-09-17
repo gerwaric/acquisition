@@ -101,7 +101,7 @@ the designs; "evidence" says whether that agreement is independent.
 | 5 | The trade boundary | yes; one text | S41, S47, S56, S67, S106, S155 | B's node mapping inside A's remainder report; the site's average lives only in the translation **→both** |
 | 6 | What a result carries | yes | S176, S192, S193, S196–S198, C53 | B's one answer shape, A's continuation bound to the revision **→both** |
 | 7 | Limits and non-goals | yes; inherited | the register | inherited whole by both; three additions below **→both** |
-| 8 | Sockets: a collection, or flat fields | **no** | S16, S22, S58 | colours are asked within a link group; no general collection **→A's reach, →new spelling** |
+| 8 | Sockets: a collection, or flat fields | **no** | S16, S22, S58, S59 | colours are asked within a link group; no general collection **→A's reach, →new spelling** |
 | 9 | A grouping above class | **no** | S42, S54, S69 | the trade category's prefix, carried by the class table **→new** |
 | 10 | A raw-path accessor | **no** | stance 6, S127, S135 | none; a missing field is a field to add **→B** |
 | 11 | Saved queries, user names, tags | the home yes; the form no | note 22's floor, the `user.db` park | out of the first slice; the read model first **→neither** |
@@ -396,12 +396,16 @@ the only form "unknown" takes; a defence bound from the site is inexact
   S16.
 - **The floor:** trade-query `gap.csv` lists two socket filters of one
   shape, `sockets` and `links` ("Link Groups"), each min/max with
-  colours; that the second counts colours inside a link group is my
-  knowledge of the site, not the capture's ("computation not in the
-  capture"). If so, B's multiset is below stance 2's floor, as note 26
-  found by use. New claim S58.
+  colours; the capture does not hold the computation. The owner
+  supplied it (2026-09-17, S59): the second counts colours inside a
+  single link group, and an item matches "if any of the link groups
+  contains at least as many sockets of each color that were specified".
+  So B's multiset over the whole item is below stance 2's floor, as note
+  26 found by use. New claims S58, S59.
 - **Recommendation →A's reach, →new spelling.** Two colour fields, one
-  over the item and one within the largest link group; no general
+  over the item and one that holds when any one link group has at
+  least the colours named (S59 — not the largest group, which I first
+  wrote and the owner's answer corrects); no general
   `any(collection, P)`. The one other collection A names is lines, which
   the term already binds (2a).
 
@@ -564,7 +568,8 @@ ahead according to plan; his input enters when the design is close to a
 surface he can use, "even if it means cycling back on the design"
 (verbatim in note 23, decision 15). So the bracketed recommendations go
 to stage 5 as provisional, each with that revisit trigger. Question 10
-stays open: it is game knowledge, not design.
+he answered the same day, and it is S59: colours are counted within any
+one link group, which decides row 8 as recommended.
 
 ## What I left out, and am least sure of
 

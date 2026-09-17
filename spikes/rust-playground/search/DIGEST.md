@@ -72,6 +72,7 @@ S55 · ggg · main · The site's renderer bridges 70 `properties[].type` ids to 
 S56 · ggg · main · The search `id` in the response and the site's URL is the `query` object gzipped and base64url-encoded: q4's id decodes to exactly its request · F9 ≈ S175
 S57 · ggg · main · The `weight` tip, verbatim: "Check each stat meets the `min` and `max` (if provided, otherwise existence) requirements before multiplying the stat value by the `weight` and finally summing them together. …"; `weight2`: "Each stat value that meets the `min` and `max` (if provided, otherwise existence) requirements will be multiplied by the `weight` before being summed together. …" · F2 ≈ S41
 S58 · ggg · main · Two socket filters of one shape, min/max plus socket colours: `sockets` ("Sockets") and `links` ("Link Groups"); both derivable from a private item, the computation not in the capture · gap.csv rows `socket_filters` ≈ S16, S22
+S59 · owner · — · "Yes, the Link Groups filter counts colors in a single link group, e.g. a 4-link item with R-R-G-B would match R-R-B or R-G, etc. An item can have more than one link group, and the filter matches the item if any of the link groups contains at least as many sockets of each color that were specified by the filter." (2026-09-17) · the reconciliation, note 31 row 8 ≈ S58, S16
 
 ## repoe
 
@@ -276,7 +277,7 @@ extended after every merge.
 2. The query model and its one grammar — S2, S6, S7, S9, S10, S16, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95, S106, S121, S125, S158, S162, S163, S166, S167, S169, S172, S173, S182, S189, S194, S195
 3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55, S61, S62, S69, S70, S74, S82, S85, S86, S87, S89, S92, S93, S94, S108, S112, S168, S174, S181, S184, S190, S191
 4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50, S75, S110, S112, S122, S124, S126, S127, S128, S129, S130, S131, S134, S135, S141, S142, S143, S144, S145, S146, S147, S148, S149, S150, S151, S152, S153, S157, S159, S183, S185, S187, S188
-5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S57, S58, S61, S62, S66, S67, S69, S86, S90, S106, S108, S109, S147, S155, S175, S179
+5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S57, S58, S59, S61, S62, S66, S67, S69, S86, S90, S106, S108, S109, S147, S155, S175, S179
 6. What a result carries — S1, S11, S31, S53, S107, S127, S132, S133, S134, S143, S161, S176, S177, S183, S186, S192, S193, S197, S198
 7. The non-goals and limits, as outputs — S12, S14, S52, S53, S67, S84, S107, S111, S164, S170, S177, S178, S180, S192, S199
 
