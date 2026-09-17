@@ -1,6 +1,6 @@
 # proposal-audit — do the two search designs hold against their own page and their evidence?
 
-Status: brief committed, no audit run — 2026-09-17
+Status: both audits in (31 findings on note 24, 16 on note 25), repairs owed — 2026-09-17
 
 - Stage 4 of the synthesis, the checking step: one auditor per proposal
   under `BRIEF.md` writes `audit-24.md` and `audit-25.md` — marks,
