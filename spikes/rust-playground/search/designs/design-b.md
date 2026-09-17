@@ -11,7 +11,8 @@ number, so `+#` and `#` are one template (my choice among the three
 conventions the digest's contradictions list under S200 against S25) —
 and the query's text is canonicalised by the same function, so no
 convention can cause a miss. Properties (`Armour: #`), requirements
-(`Level: #`), gem lines and every mod array are all lines; "displays"
+(`Level: #`), gem lines and every mod array are all lines — a veiled
+placeholder a line with no numbers (S12); "displays"
 means those arrays by this design's definition, not by a measurement
 (S6 says only that properties defeat a field list), and what else a
 body holds (S2, S13) is a field, a flag, or seen through `show`. The
@@ -82,7 +83,7 @@ term   := -term | ( query ) | term or term
 thing  := name                        bare word: a field, a total, a user's name
         | "text"                      any displayed text: name, base, every line
         | kind:"text"                 lines of one kind  fractured:"spell suppress"
-        | count(q, q, …)              how many of these hold      count(a, b, c)>=2
+        | holds(q, q, …)              how many of these hold      holds(a, b, c)>=2
         | sum(thing, 2*thing, …)      weighted total of values
 "text" containing #  names one whole template; without #, it is a
 case-insensitive substring, and under a comparison it means "any
@@ -92,7 +93,10 @@ template it resolves to" — the answer lists them.
 `or` binds looser than adjacency. Kinds (`property`, `requirement`,
 each mod array, and the `crafted` and `fractured` flags that override
 it) and flags (the item's booleans) are closed lists in the help;
-`-is:x` is "no", silence is "any" (S173). A bare word is a name when one
+`-is:x` is "no", silence is "any" (S173). On a field with a closed
+value set (`rarity`, `class`) `:` is a substring of the legal values:
+the terms block lists those it resolved to, and text none contains is
+an error listing them (S199). A bare word is a name when one
 exists and text otherwise; quotes force text, and defining a name that
 exists is an error. A line with several numbers satisfies a comparison
 when every number does — min and max kept apart (S68), against the
@@ -100,9 +104,8 @@ site's average (S47); `*` for a number drops it from the comparison
 (`"Adds * to # Cold Damage">=40`); a `sum` needs one number, so there
 the line contributes its mean, as on the site (S47) — a judgment, and
 against S68's grain. A bare word — `explode` — searching all displayed
-text is what I judge a player means by typing one into a stash box
-(S113–S115 show the habit, not the game's matching rule); it fixes S186
-as the default. The text is the rendering; the model is the tree
+text is what I judge a player means by typing one into a stash box; it fixes
+S186 as the default. The text is the rendering; the model is the tree
 (`Query: FromStr + Display + Serialize`), bijective with it. A GUI holds
 the tree as rows; the CLI and the MCP both pass the string. That departs
 from R14's "a query object, not a text argument" (S195), on judgment,
@@ -143,7 +146,8 @@ the parse alone — arithmetic, not a measurement, and sooner with the
 read). At a million a one-shot process is the wrong seat under either
 (S152); that is a limit this design adds. Needs from the store: one
 streaming read of live bodies with coordinates, and the change counter.
-Neither is on the read surface the digest records (S121, S132, S133);
+Neither appears in what the digest records of the read surface (S121,
+S133, S134) — an inference from silence, no claim enumerating it;
 both are requests, and whether the counter is a new read or a schema
 cost (S135) is not known here. Home: a library crate frontends link,
 reading only through the store API (C12, C46) — where the store area
@@ -161,18 +165,21 @@ scope. The reference tables stand beside the contract, as inputs: class
 reaches both languages as an `items` column, and a total is a query
 anyone can read, so SQL's reach is unchanged.
 
-The fields, by source. The body (S2): `name base rarity ilvl stack
-id`. Property and requirement lines under a short name: `armour
+The fields, by source. The body (S2): `name base rarity ilvl id
+note`. Property and requirement lines under a short name: `armour
 evasion es reqlevel`. Computed from the body's sockets: `sockets`, the
 count; `links`, the longest run in one group (S22); `colors`, the
 socket letters, which `colors:rrg` matches as a multiset — the one
-field where `:` is not a substring. Computed from property lines:
-`pdps edps dps`, APS × the mean of the range, quality not applied
-(S22). `tier`, the N of a base reading `Map (Tier N)`, which no
+field where `:` is not a substring. That the body carries socket
+colours, and a stack size for `stack`, is on no claim (S22 implies only
+the sockets' `group`) — an assumption. Computed from property lines:
+`pdps edps dps`, APS × the mean of the range, quality not applied;
+`edps` takes every range on the elemental line, the damage type tag
+ignored (S22). `tier`, the N of a base reading `Map (Tier N)`, which no
 property carries (S10, S23). `class`, the table above. Ingest
 coordinates (S128): `realm league tab character container`. The store's
 stamps (S132): `first-seen last-seen removed`. Intent, read-only:
-`priced price note`. An item's attributes and resistances are totals, not
+`priced price`. An item's attributes and resistances are totals, not
 fields.
 
 ## 4. The seven questions
@@ -188,16 +195,17 @@ fields.
    a substring finds both and the terms block shows both; an exact
    template that resolves to nothing says so and *shows* the templates
    sharing its words — never applies them (S107, S111). A shipped total
-   lists which of its templates occur in the corpus.
+   lists each of its templates with its count, zeros included; a
+   moved template and one the stash lacks look the same there, so
+   S111's loud failure for a relied-on name is not met — a gap.
 2. **Query model and grammar**: sections 1–2. Place is terms like any
    other; default scope is every realm and league, live items.
 3. **Vocabulary** is `--count line [text]` under any query: kind,
    template, items, value range, ranked by count — R4 and R9 are one
-   read (S174, S190). Field value sets are `--count rarity` and so on;
-   a wrong enum value errors with the legal ones (S199).
+   read (S174, S190). Field value sets are `--count rarity` and so on.
 4. **Corpus**: section 3.
 5. **Trade boundary**: a trade query's stat groups map node for node —
-   `and`, `not`, `count`, `weight` → `sum` (my reading of its tip,
+   `and`, `not`, `count` → `holds`, `weight` → `sum` (my reading of its tip,
    trade-query F2, `undigested`), `if` → `(-has:x or x>=n)` (S41) — and
    the 59 item-reading filters → fields (S42); the 7 market filters are
    dropped and named. The 27 unsettled filters (S42) — `category` and
@@ -213,8 +221,8 @@ fields.
 6. **A result carries** section 1's row; place is realm, league,
    tab or character by name and id, container, position; freshness is
    the location's fetch age; the body only through `show <id>`
-   (any printed id or unique prefix, S198). Intent joined: price and
-   note. Legacy is not a field (S178).
+   (any printed id or unique prefix, S198). Intent joined: price.
+   Legacy is not a field (S178).
 7. **Limits and non-goals**: section 8.
 
 ## 5. Appendix — the acceptance set
@@ -225,11 +233,11 @@ Discovery reads (D) and refinements (R) apart; every line is one query.
 - OQ2 · `name:"ashes of the stars" "reservation efficiency of skills":10..20` — the variant and its values are the user's (S178); "no" is an empty answer whose terms block shows, say, `name:` matching 3 and the line 0.
 - OQ3 · `base:"titan gauntlets" colors:rrg "# to maximum Life">=80 or name:"kaom's roots"` — whatever the interaction names.
 - OQ4 · `class:staff has:crucible` · one query under S177: crucible lines are a derivation of origin, offered as one, never the answer.
-- OQ5 · `gear (reqlevel<=30 or -has:reqlevel) --count tab` then rows · one query only once the user has named `gear` as the `or` of the classes they mean: the model ships no grouping above class (S69), a listed gap. The `or` is where an ordinary question feels like programming; I kept one absence rule over a special case.
+- OQ5 · `gear (reqlevel<=30 or -has:reqlevel) --count tab` then rows · one query only once the user has named `gear` as the `or` of the classes they mean: the model ships no grouping above class — my choice, not S69's — a listed gap. The `or` is where an ordinary question feels like programming; I kept one absence rule over a special case.
 - OQ6 · find: `explode class:"body armour"`; worth: refused (S180). Listed gap, by design.
 - OQ7 · `"<words of the announced mod>" --count tab`, then rows; all realms, tabs and characters by default.
 - AQ1 · `--count tab,league,rarity` — three tables, no rows, empty query.
-- AQ2 · R: `<AQ1's or OQ1's text> total-res>=60`.
+- AQ2 · R: `<OQ1's text> total-res>=60`.
 - AQ3 · the terms block and the touched lines on every row; an empty answer carries scope and per-term counts, so the term that emptied it is visible; why-not is `show <id> --against '<query>'`, each term marked with the item's own value.
 - AQ4 · `show <id>`, or `id:<printed id>` inside any query — a prefix is a substring, so `:` means what it always means.
 - AQ5 · `"# to maximum Life">=90 --sort "# to maximum Life" --desc` — count and sorted list, every kind summed; typed as `+#` it canonicalises to the same template.
@@ -237,10 +245,11 @@ Discovery reads (D) and refinements (R) apart; every line is one query.
 Gaps found writing it: no question across two items (a chest *and* the
 gems in it — a socketed gem's place names its parent, no more); no
 comparison between two quantities; no cross-tabulated counts; OQ5's
-absence clause. Found by the audit: no grouping above class (OQ5);
+absence clause. Also: no grouping above class (OQ5);
 local/global twins on one item are summed (section 4.1); the 27
 unsettled trade filters have no mapping (section 4.5); a keystroke
-after a store change pays the whole re-derive (section 3).
+after a store change pays the whole re-derive (section 3); a shipped
+total's moved template does not fail loudly (section 4.1).
 
 ## 6. The cold start
 
@@ -249,18 +258,18 @@ field list, the tool's arguments by name (`query count text sort desc
 columns expand next`), and "`count: line` lists the lines your items
 carry."
 
-- OQ1: call 1 `search {query:"rarity:rare class:ring", count:"line", text:"resist"}` — validates `rarity`/`class` spellings (an error lists the legal values) and returns the resist lines and the shipped totals that cover them. Call 2 the same read with `text:"strength"`, because attributes are totals and the description names none. Call 3 the OQ1 query with `sort`. **Three calls**, the audit's count; two if the description spends the space to list the 35 totals by name.
+- OQ1: call 1 `search {query:"rarity:rare class:ring", count:"line", text:"resist"}` — validates `rarity`/`class` spellings (an error lists the legal values) and returns the resist lines. Call 2 the same read with `text:"strength"`. Call 3 the OQ1 query with `sort`, its totals written as `sum(…)` over the templates the reads returned, because the description names no total. **Three calls**; two if the description spends the space to list the 35 totals by name.
 - AQ5: the question carries the template. **One call**; the terms block says what the text resolved to (one template, its line and item counts; S187 measured 477 items) or, on a miss, shows the near templates — so one call is also the call that tells it that it was wrong.
 
 ## 7. Concept inventory
 
 1. **Item** — the unit of every answer.
 2. **Line** (kind, template, numbers) — without it the vocabulary is a field list someone maintains against the game.
-3. **Name** — fields need it; totals and the user's names reuse it. *The user-defined part is what I would delete first*: the model stands without it. It stays because it is the only place stance 4's knowledge and an agent's learning can accumulate.
+3. **Name** — fields need it; totals and the user's names reuse it. *The user-defined part is what I would delete first*: the model stands without it, and OQ5 then types its classes out. It stays because it is the only place stance 4's knowledge and an agent's learning can accumulate.
 4. **Term** — a thing and an optional comparison; every question is made of these.
 5. **Absent is false** — without it a missing requirement reads as 0 (S158); OQ5's `-has:` clause exists for it.
 6. **Value is the sum** — what a number means when a template occurs twice; the twelve can be asked without it, which is why section 9 hands it to the owner.
-7. **Composition**: and, or, not, `count`, `sum` — `sum` is AQ2; `count` is used by none of the twelve and stands on stance 2's "at-least-N-of" and the trade mapping (S41, S106), not on a question. Both are quantities, so they add no comparison syntax.
+7. **Composition**: and, or, not, `holds`, `sum` — `sum` is AQ2; `holds` is used by none of the twelve and stands on stance 2's "at-least-N-of" and the trade mapping's `count` (S41, S106), not on a question. Both are quantities, so they add no comparison syntax.
 8. **Place** — every answer's "where" (S176), and terms like any other.
 9. **Answer** — one shape with its terms block; trust in an empty result is this concept.
 10. **View** (rows, counts, one item) — what makes discovery, facets and vocabulary not be separate APIs; `show` and `--against` are the one-item view, not a second operation.
@@ -275,7 +284,8 @@ acting on the stash; fetching anything (C79); base or
 quality-normalised defences (S26, S90 — `armour` is the displayed
 property); a saved *result* — a name saves a query, so it cannot be
 stale; a persisted index without the number in section 3. Inherited
-whole: S12, S14, S52, S53, S67, S107, S111, S177, S178. Added: the
+whole: S12, S14, S52, S53, S67, S107, S177, S178; S111 but for the
+shipped totals (section 4.1). Added: the
 million-item one-shot CLI; S131's league is resolved to the store's
 current-truth join, league-less characters shown as such.
 
