@@ -1,6 +1,6 @@
 # The search digest
 
-Status: partial — item-facts, cpp-search, trade-query, repoe, item-filter, prior-art, store-as-built, engine-bench, owner-seat — 2026-09-16
+Status: partial — all ten tracks merged, acceptance pending — 2026-09-16
 
 The slice's evidence in the shape a design can cite: one claim per
 line, `S<n> · kind · weight · claim · pointer`, under the brief
@@ -180,6 +180,29 @@ S178 · requirement · — · R8: "Legacy is the user's knowledge: the search fi
 S179 · owner · — · "Being able to use a trade search query against my stash would be fantastic, especially if there was an integrated way to make this happen--e.g. with a simple browser addon, or even a basic copy/paste. There's already a browser extension called Better Trading that people use to manage trade searches. Integrating with that might be fun, but not a core features." … "integrating with Awakened PoE trade to price items from within acquisition somehow (gui? cli? mcp?) would be useful. Some newer players have asked for this." · `data/questions.md`, "Anything else, verbatim (prompt 5, 2026-09-13)"; `owner-seat F4`
 S180 · requirement · — · Non-goals: "acting on the stash; direct forum updates; a pricing engine"; prevents: F2, F4 · `owner-seat` requirements table, last row
 
+## agent-seat
+
+S181 · store · — · From the tool list and `acq --help` alone the store surfaces yield the corpus size, tabs with counts, characters with counts, the realm vocabulary and the currency table — no field, rarity, class or mod of an item; the first row pulled (call 5, 3.5 KB, a gem, `rarity: null`) is the only schema. · agent-seat F1
+S182 · store · — · `search_items` / `items search` has one predicate — a case-insensitive substring over name, type line and base type — plus `league`, `realm` and `include_removed` filters and `limit`; there is no rarity, class, level, mod, tab, sort, offset or count, and the order is ingest order (characters first), deterministic and undocumented. · agent-seat F2
+S183 · measure · — · A row is the store's columns plus the whole GGG JSON: 50 default rows are 91.5 KB compact (MCP) / 149 KB pretty (CLI); the corpus of 22,721 items is 38,820,498 B / 5,644 ms (MCP) / 63,534,917 B / 2,335 ms (CLI); `search_items {text:"Staff"}` returned 50 of 81 with no total and no flag. · agent-seat F3, Numbers table ("dump" row, Q4)
+S184 · store · — · The only count surface is `tabs` (1,006,740 B pretty on the CLI, 745,672 B on the MCP, which has no `limit` parameter; Standard only, the league named); `store_status` reports `leagues: 0`; per-league, per-rarity and per-class counts came from the dump and jq (Standard 21,409 / Allflame 1,312, poe2 realm 98; `rarity` null on 8,297 of 22,721). · agent-seat F4, data/questions.json A1
+S185 · measure · — · The CLI seat answered all twelve questions and the MCP seat five: the CLI's route to the other seven was `items search "" --limit 100000 --json` to a file (63.5 MB) then jq at 0.8–1.5 s a question; Q3, Q5's items, Q6, Q7, A1's league and rarity counts and A5 have no MCP route (112 calls: 29 CLI, 23 MCP, 22 jq, 38 SQL). · agent-seat F5, data/calls.csv
+S186 · store · — · Nothing explains: a row carries no matched-on field, an empty answer is `[]` (JSON) or `0 item(s)` (text) and never the scope searched, and `items search Explode` is empty on both seats while 32 items of the store copy's 22,721 carry an explode line. · agent-seat F7
+S187 · store · — · Under read-only SQL each of the twelve was one call (two for Q5 and Q7) on both files, at the price of body idioms — a number inside display text (`substr`/`instr`/`CAST`), entries that are objects in one array and bare strings in another, "every array" as a `UNION ALL` per array name the schema does not list: A5 is nine lines, 353 items, 196 ms on the store copy against one indexed template equality at 2 ms on the projection (477 items over its 36,139); class is absent, so Q6 went by base. · agent-seat F12, data/questions.json A5
+S188 · measure · — · The seat projection cannot answer sockets, links or colours (Q3: `no such column: links`), names a character location by its id (`tab_name`, Q6, Q7), has no column saying which of the two merged stores a row came from, and holds the template in `lines.line`, so an explain quoting the verbatim line needs the body. · agent-seat F12, data/questions.json phase2_notes.projection_could_not
+S189 · idiom · — · The query the agent would have typed for A1's facets, recorded per question during the run: `SELECT league, rarity, count(*) FROM items GROUP BY 1, 2`. · agent-seat F13, data/questions.json A1.phase1.temptation
+S190 · requirement · — · "The schema and its vocabularies are readable before any row: fields, value sets (rarity, class, realm, league, container), mod templates ranked by count" · agent-seat R9 (prevents F1; same need as owner-seat R4 — "the owner's dropdown is the agent's discovery")
+S191 · requirement · — · "A count mode: facets by tab, league, rarity, class, template, returning no bodies" · agent-seat R10 (prevents F4; same need as "the owner's 'counts and totals' candidate")
+S192 · requirement · — · "Every truncated answer says total, returned and how to continue" · agent-seat R11 (prevents F3: 50 of 81, silently)
+S193 · requirement · — · "The caller names the fields; the default is a decision view (id, name, base, rarity, location name, the matching lines), never the body" · agent-seat R12 (prevents F3: 31.8 KB for twenty gloves; same need as C53's decision view)
+S194 · requirement · — · "Predicates over derived facts — rarity, class, level, links and colours, a mod by template with a numeric value across every array — composed with boolean logic" · agent-seat R13 (prevents F5: seven of twelve unanswerable without the dump; same need as owner-seat R1, R2 and the owner's "specific values")
+S195 · requirement · — · "A query composes: the refinement is the previous query plus one predicate (a query object, not a text argument)" · agent-seat R14 (prevents F6; same need as owner-seat R2)
+S196 · requirement · — · "Explain: a matched-on per row, an empty answer that names the scope searched, a why-not for one id" · agent-seat R15 (prevents F7)
+S197 · requirement · — · "The location's name on the row, beside its id" · agent-seat R16 (prevents F9; same need as owner-seat R6)
+S198 · requirement · — · "Every id the surface prints is one `show` accepts: full ids in text, or prefix lookup" · agent-seat R17 (prevents F8)
+S199 · requirement · — · "Errors name the wrong value and the fix that applies here: an unknown league lists the known ones; a missing store names the directory" · agent-seat R18 (prevents F10)
+S200 · requirement · — · "If a lines table is ever exposed (C48 stands), its template convention and the location names are in the schema, or the miss is silent" · agent-seat R19 (prevents F12)
+
 ## The acceptance set
 
 One line per owner question and per agent scenario, verbatim, with
@@ -196,7 +219,13 @@ Owner (`owner-seat/data/questions.md`, the table and refinements, 2026-09-13):
 - OQ6 · "What is that legacy explode chest I have worth?" · a price, outside the stash search, after finding the item and knowing it is the legacy version
 - OQ7 · "Do I have any gear with the modifier GGG just anounced is going away except on Standard?" · a list across all tabs and characters, item and tab, to decide keep or sell
 
-Agent: written when agent-seat merges.
+Agent (`agent-seat/data/questions.json`, 2026-09-14; the seven owner questions were also run in this seat, their `wanted_query` readings in the same file):
+
+- AQ1 · "Facets before rows: how many items per tab, per league, per rarity?" · three small tables of counts, no rows
+- AQ2 · "Refine the previous answer without restating it: of the Q1 rares, only those with 60 or more total resistance." · a shorter list, the same shape; the previous query plus one predicate
+- AQ3 · "Explain why an item matched or did not." · a per-row matched-on field; an empty answer that names the scope searched
+- AQ4 · "Find one item again by id." · one item, exact
+- AQ5 · "One whole-corpus mod query with a value: +# to maximum Life at 90 or more." · a count and a sorted list, across every mod array
 
 ## Limits register
 
@@ -215,6 +244,7 @@ unknown shown, never guessed, is the model).
 
 ## Kill list
 
+- agent-seat: F6, F8, F9 — budget (each carried by its R-line's *prevents*: R14, R17, R16); F10 the error census — budget, its `…` registration trap and the stdio driving — internals; F11 the MCP-text audit against C53 — budget, the first candidate for a new id when a proposal reaches for it; "The projection's requirements" paragraph — budget (S188 carries it); the two open questions — experiments, not findings.
 - owner-seat: F1's identity refinement quote — carried by OQ1 in the acceptance set; `data/questions.md`'s *Wants back* and *Today* columns — the first is the acceptance set, the second cpp-search's route.
 - engine-bench: Inputs, Outputs, Provenance tables — internals; F6 (the ~0.33 s C++ filter loop at ~1 M against this scan's 88 ms, not like-for-like) — budget; F7 (the seat projection's DDL, per-column derivations, `kind` histogram, the mean hiding a second number on 11,020 of 125,006 lines, `ultimatumMods` in neither file) — budget; F1's per-scale worst column (`q03` 1.27 ms at 36,139, 13.3 at 361,390) — budget; Q2–Q5, the experiments not run (FTS5 over the pretty names, update cost with six indexes live, a struct materializing every census field over 1 % of items, several searches at once over one corpus) — budget.
 - store-as-built: F7 — moot (registry rulings, cited as `C<n>`, never re-digested); F4 column exposure (`w`/`h` in no read type, `x`/`y` only in `ItemSnapshot`, read-time `json_extract`s `$.note` on 184 and `$.inventoryId` on 34,161 of 36,139 items) — budget; the surface-sizing Numbers rows (17 public reads, one uncalled: `Store::orphaned_item_annotations`; 8 tables, 4 indexes; 12 queries planned, 5 as full scans) — sizing.
@@ -230,13 +260,13 @@ unknown shown, never guessed, is the model).
 Note 22's ranked questions, each with the claims that bear on it;
 extended after every merge.
 
-1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52, S63, S64, S65, S66, S67, S71, S72, S73, S76, S84, S101, S102, S103, S104, S105, S106, S107, S109, S110, S111, S154, S155, S156, S165, S171, S178
-2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95, S106, S121, S125, S158, S162, S163, S166, S167, S169, S172, S173
-3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55, S61, S62, S69, S70, S74, S82, S85, S86, S87, S89, S92, S93, S94, S108, S112, S168, S174
-4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50, S75, S110, S112, S122, S124, S126, S127, S128, S129, S130, S131, S134, S135, S141, S142, S143, S144, S145, S146, S147, S148, S149, S150, S151, S152, S153, S157
+1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52, S63, S64, S65, S66, S67, S71, S72, S73, S76, S84, S101, S102, S103, S104, S105, S106, S107, S109, S110, S111, S154, S155, S156, S165, S171, S178, S186, S196, S200
+2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95, S106, S121, S125, S158, S162, S163, S166, S167, S169, S172, S173, S182, S189, S194, S195
+3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55, S61, S62, S69, S70, S74, S82, S85, S86, S87, S89, S92, S93, S94, S108, S112, S168, S174, S181, S184, S190, S191
+4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50, S75, S110, S112, S122, S124, S126, S127, S128, S129, S130, S131, S134, S135, S141, S142, S143, S144, S145, S146, S147, S148, S149, S150, S151, S152, S153, S157, S183, S185, S187, S188
 5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S61, S62, S66, S67, S69, S86, S90, S106, S108, S109, S147, S155, S175, S179
-6. What a result carries — S1, S11, S31, S53, S107, S127, S132, S133, S134, S143, S161, S176, S177
-7. The non-goals and limits, as outputs — S12, S14, S52, S53, S67, S84, S107, S111, S164, S170, S177, S178, S180
+6. What a result carries — S1, S11, S31, S53, S107, S127, S132, S133, S134, S143, S161, S176, S177, S183, S186, S192, S193, S197, S198
+7. The non-goals and limits, as outputs — S12, S14, S52, S53, S67, S84, S107, S111, S164, S170, S177, S178, S180, S192, S199
 
 ## Convergence and contradiction
 
@@ -283,6 +313,17 @@ extended after every merge.
 - S174 ≈ S30, S168: the vocabulary served instantly and by kind, against the C++ dropdown of RePoE strings plus pseudomods.
 - S162 ≈ S87, S88: the owner's correction that a specific value is often needed, beside the filter language that names no number and the owner's reading of why.
 - S177 ≈ S13, S15: no field carries league of origin (item-facts F2's schema delta), and ids survive a league's end into Standard.
+- S182 ≈ S121, S24: one substring predicate over the name fields, the store's surface as the agent met it and as store-as-built read it.
+- S183 ≈ S127: a row is the whole body, the parse the store pays per row and the bytes the agent pays per row.
+- S186 ≈ S107: nothing explains, against the model the register inherits from Awakened — an unknown shown with what is known of it.
+- S187 ≈ S148, S151: one indexed template equality at 2 ms on the projection, the shape SQLite wins in engine-bench.
+- S188 ≈ S135: what the seat projection lacked (sockets, a character's name, a source-store column, the verbatim line) is the derived-table class of change store-as-built names.
+- S190 ≈ S174, S30: the vocabulary before any row — the agent's discovery, the owner's dropdown, the C++ app's RePoE fetch.
+- S194 ≈ S171, S172, S162: predicates over derived facts with boolean logic, the owner's R1, R2 and "specific values".
+- S197 ≈ S176, S122: the location's name on the row; the owner's R6; the store's coordinate with no name on it.
+- S200 against S25, contrast: the seat projection's template folds the sign into the number (`# to maximum Life`); the C++ template keeps it (`+#%`); repoe's canonical form drops a sign before a placeholder (S71); three conventions for one line.
+- S184 ≈ S2: `rarity` null on 8,297 of the spike store's 22,721 (36.5 %) against absent on 29.8 % of the 36,139 census — a different corpus, the spike store alone.
+- agent-seat F7 counts 32 items with an explode line (phase one, the store copy, 22,721 items); phase two found 271 bodies containing the word on the same copy and 58 explode lines on the 36,139-item projection — three measures, not one; S186 carries F7's.
 - trade-query F4 says "380 pairs"; stat-collisions.csv has 380 groups of two to four ids (369/8/3). S44 carries the data.
 - item-facts F5 itemises the unmatched bases to 7,885 (7,512 + 272 + 98 + 3) while `data/numbers.md`'s `frameTypeId` table sums them to 7,826 (36,139 − 28,313); a 59-item gap the track does not explain. S8 carries F5's figures.
 - item-facts F3 counts PoE2 markup over four arrays (192 lines); `data/numbers.md` lists eight (220). S4 carries the data file.
