@@ -1,6 +1,6 @@
 # The search digest
 
-Status: partial — item-facts, cpp-search, trade-query, repoe — 2026-09-16
+Status: partial — item-facts, cpp-search, trade-query, repoe, item-filter — 2026-09-16
 
 The slice's evidence in the shape a design can cite: one claim per
 line, `S<n> · kind · weight · claim · pointer`, under the brief
@@ -81,6 +81,24 @@ S74 · tool · — · The mod extract holds 15,920 item-domain mods with stats, 
 S75 · tool · — · 86 game versions seen since 2025-06-07, 53 exported; lag from the fork's version poll to its export 0 days for 46, 1 for 3, 4–13 for 4; 33 never exported; the poll's date is not the patch's · F6
 S76 · tool · — · Path of Building's affix identity is its own mod id (`Prefix: {range:r}{fractured}<modId>`), which nothing on the private API carries; its explicit lines take `{fractured}`, `{crafted}`, `{mutated}`, `{prefix}`, `{suffix}` and other tags; its parser accepts the game's clipboard text (`Item Class:` then `Rarity:`) directly · pob-format.md rows 1, 8, 17, notes
 
+## item-filter
+
+S81 · ggg · main · Conditions in a `Show`/`Hide`/`Minimal` block are ANDed — "If there are multiple conditions in a block then all of them must be matched for the block to match an item."; the page names blocks, `Continue`, `Import` and conditions, and no OR or grouping · "The language, as the page states it"
+S82 · measure · — · The 2026-09-13 page save names 61 conditions and 14 actions (no action reads an item); ribbons: 6 `PoE2-only`, 3 `New`, 1 `Updated`, 1 `Deleted` (`GemQualityType`); operands: 27 boolean, 22 numeric, 4 name, 3 enum, 5 compound · Numbers, conditions.csv, actions.csv
+S83 · ggg · main · One operator table of eight (`=` `!` `!=` `<` `<=` `>` `>=` `==`) serves every condition, no per-condition restriction stated; `conditions.csv`'s `operators` column is this track's derivation, not a page statement · "The language, as the page states it"
+S84 · ggg · main · What a bare operator-less value matches — prefix, substring or exact — is unstated for `BaseType`, `Class`, `HasEnchantment`, `HasExplicitMod`, as is whether `HasExplicitMod`'s count ranges over the named mods or all mods; no real filter was read, so nothing here is checked against usage · F1, Q1, "Not done"
+S85 · measure · — · Of the 61 conditions, 32 read a stash-export field directly, 7 are derivable, 5 need base-item data (RePoE), 17 have no source found · F6, conditions.csv `item_field`
+S86 · measure · — · Of the 61, 22 are named by both other surfaces, 14 by trade alone, 1 by the C++ app alone, 24 by neither (7 joins land on a trade stat, not a filter id); in reverse it names 19 of the C++ app's 38 filters (14 exact, 5 divergent) and 27 of trade's 86 item-reading filters (21 exact, 6 divergent) · Numbers, conditions.csv, coverage.csv
+S87 · ggg · main · It names no computed number and no requirement: no DPS of any kind, no APS, crit or block, no total defence, no `R. Level`/`R. Str`/`R. Dex`/`R. Int` and no trade `damage`/`lvl`/`str`/`dex`/`int`; nothing about a listing; and no `Crafted`, `Veiled` or `Split`, which both other surfaces name · F5, coverage.csv `kind=none`
+S88 · owner · — · "item filters are design by GGG to be unable to require specific numbers, because GGG wants people to experience the randomness of checking loot" (2026-09-13) · F5
+S89 · ggg · main · One thing carries a spelling per surface: the Foulborn flag is `Foulborn` here, C++ `Mutated`, trade id `mutated` with the text "Foulborn", export `mutated`; synthesised is `SynthesisedItem`/`Synthesized`/`synthesised_item`/`synthesised`; five more rows at the pointer · F2
+S90 · ggg · main · Two conditions diverge in referent, not spelling: `AreaLevel` is the area the item dropped in, trade's `area_level` a map's own level; `BaseArmour`/`BaseEvasion`/`BaseEnergyShield`/`BaseWard` read base values before mods where C++ `Armour`/`Evasion`/`Shield` and trade `ar`/`ev`/`es`/`ward` read the total, and nothing here reads a total · F3
+S91 · ggg · edge · `HasSearingExarchImplicit` and `HasEaterOfWorldsImplicit` compare an implicit tier 1–6 while trade's `searing_item`/`tangled_item` and export `searing`/`tangled` are yes/no; `Scourged` is yes/no while trade's `scourge_tier` and export `scourged.tier` carry a tier · F3
+S92 · ggg · main · It names `Width` and `Height`; the export carries `w` and `h` on every item in the census (share 1.000) and neither other surface offers a filter for either · F4, item-facts field-census.csv
+S93 · ggg · main · No class vocabulary is on the page: `Class` takes an "Item class name" with the one example `Class Currency`, and `class-names.csv` holds one `class_value` row (Currency) plus five tokens occurring only inside other phrases; the class join rests on repoe F3 · F7, Q3, class-names.csv
+S94 · ggg · main · One page serves PoE1 and PoE2: six conditions are ribboned `PoE2-only` (listed at the pointer), among them `WaystoneTier`, which is PoE2's `MapTier` renamed; whether those ribbons enumerate the whole PoE1/PoE2 divergence is open · F8, Q4
+S95 · idiom · — · GGG's own example on the page, verbatim: `HasExplicitMod >=2 "of Haast" "of Tzteosh" "of Ephij"` — a page example, not a filter observed in use · F1, conditions.csv row `HasExplicitMod`
+
 ## The acceptance set
 
 Written when owner-seat and agent-seat merge.
@@ -98,6 +116,7 @@ unknown shown, never guessed, is the model).
 
 ## Kill list
 
+- item-filter: F3 `Rarity` ordering, `Sockets`/`SocketGroup` compound operand, `HasInfluence` granularity, `Class` substring-matched on the C++ side — budget; F4 `BaseDefencePercentile` and the conditions with no export field — budget; F6 the 17 absent conditions by name — budget; Q2 `duplicated` as the unverified candidate for `Mirrored` — budget; the 14 actions — moot; the scripts' join-validation aborts — internals.
 - repoe: F1 229 ids listed twice, older text joined for 263 rows — budget; F2 the owner's acceptance-rule quote — budget; F3 site agreement 3,363/1/8/586, clipboard `Item Class:` = export class for 46 bases — budget; F4 unmatched equipment remainder (heist `Alert Level`, `Has # Abyssal Socket`, cluster-jewel passives, necropolis) — budget; pob-format.md the C++ export's `craftedMods`/`fracturedMods` reading — internals; Q8 access method — open question, not a fact.
 - trade-query: F1 request body, `query` decomposition, realm by omission, default sort, 100/500/10,000 caps — budget; F1 `status` options — moot; F2 `count`/`weight`/`weight2`/`crucible`/`mercenary` tips — budget; F3 per-group counts, map/heist/sanctum/ultimatum open items — sizing; F3 "what a stash search adds" — budget; F4 per-category counts, id-kind prefixes, C++-pseudomod comparison — sizing; F5 renderer array order, `frameType` values — internals; F6 realms, leagues, `items.json`/`static.json` counts — sizing; F7 `extended.hashes`, the computed `dps`/`pdps`/`ar`/`ev`/`es` (`pdps` = average physical × APS × 1.2; ≈ S26) — budget; F8 Q3 the owner's expectation before q3b, Q4 `weight`/`count` shapes, `complexity` 85, `inexact` — budget.
 - cpp-search: F1 refresh split, F6 mechanisms (not its numbers) — internals; F4 `m_replace_map` — moot.
@@ -108,13 +127,13 @@ unknown shown, never guessed, is the model).
 Note 22's ranked questions, each with the claims that bear on it;
 extended after every merge.
 
-1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52, S63, S64, S65, S66, S67, S71, S72, S73, S76
-2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68
-3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55, S61, S62, S69, S70, S74
+1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52, S63, S64, S65, S66, S67, S71, S72, S73, S76, S84
+2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95
+3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55, S61, S62, S69, S70, S74, S82, S85, S86, S87, S89, S92, S93, S94
 4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50, S75
-5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S61, S62, S66, S67, S69
+5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S61, S62, S66, S67, S69, S86, S90
 6. What a result carries — S1, S11, S31, S53
-7. The non-goals and limits, as outputs — S12, S14, S52, S53, S67
+7. The non-goals and limits, as outputs — S12, S14, S52, S53, S67, S84
 
 ## Convergence and contradiction
 
@@ -129,6 +148,11 @@ extended after every merge.
 - S70 ≈ S8, contrast: `baseType` joins an export base for 98.2 % of PC items but a trade category for 78.3 %, because `Map (Tier N)` is an export base and no trade base.
 - S69 ≈ S42: the `category` filter's 83 option ids, 65 of the 68 leaves generated from the export's classes.
 - S68 ≈ S47, S25: the two-value line averaged by the site, meaned by the C++ app, kept apart by Path of Building and the owner.
+- S92 ≈ S2: `w` and `h` on every item, from the census and from the filter language's `Width`/`Height`.
+- S93 ≈ S9, S53, S69: no class vocabulary on the filter page, no class field on the item; the join rests on the export's classes.
+- S94 ≈ S10: a map's tier is a base-type fact on PoE1 items and a `WaystoneTier` condition on PoE2's page.
+- S87 ≈ S21, S22, contrast: the filter language names no computed number where the C++ app derives six and the site serves them.
+- S90 ≈ S26: the filter language's `Base*` defences read base values; the C++ app and the site read totals, the site's with quality normalised.
 - trade-query F4 says "380 pairs"; stat-collisions.csv has 380 groups of two to four ids (369/8/3). S44 carries the data.
 - item-facts F5 itemises the unmatched bases to 7,885 (7,512 + 272 + 98 + 3) while `data/numbers.md`'s `frameTypeId` table sums them to 7,826 (36,139 − 28,313); a 59-item gap the track does not explain. S8 carries F5's figures.
 - item-facts F3 counts PoE2 markup over four arrays (192 lines); `data/numbers.md` lists eight (220). S4 carries the data file.
