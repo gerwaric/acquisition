@@ -578,3 +578,240 @@ The three things proposed here that neither design holds — the
 "together reach it" count (2a), the category grouping (row 9), the two
 colour fields (row 8) — have been checked by no audit and used by no
 reviewer.
+
+## Astra's check — stage 4, step 6
+
+Astra, from Codex, 2026-09-17; checked the reconciliation at
+`2ad2986d` under note 23, step 6. Read both repaired proposals and
+their repair tables, both second-round audits, both reviews, the
+digest, notes 22, 23, 29 and 30, and the cited standing decisions.
+Verified the new claims and taxonomy against the committed track
+evidence named below. This is a check of the reconciliation, not a new
+seat, a third proposal, or an owner ruling. A is my model's proposal;
+my earlier review and this check do not create another independent
+voice for it.
+
+**Verdict: the recommendations are substantially traceable, but the
+table is not ready to be copied unchanged into rulings.** The useful
+direction survives: B's compact terms and scoped discovery, explicit
+occurrence semantics, and an answer that explains its interpretation.
+The joins between those parts leave several questions unanswered, and
+the socket and category recommendations claim reach their stated
+mechanisms do not preserve. Stage 5 can proceed under decision 15,
+carrying the corrections and open choices below. The owner's later
+seat can judge usability; it cannot substitute for settling these
+meaning differences.
+
+### Row-by-row trace
+
+Section references in the A/B columns are to notes 25/24, respectively.
+“Supported” means a reasoned recommendation from the cited material,
+not a measured or accepted design. K1–K7 below name the qualifications.
+
+| Row | A | B | Check of evidence and recommendation |
+| --- | --- | --- | --- |
+| 1 | §4.1 | §§1–2, §4.1 | Supported by S3, S4, S17, S68, S71 and the inherited limits. S17 establishes the observed private flags; it does not make B's overriding kinds identical to A's source-plus-flags. Preserve both coordinates when defining `explicit` and `fractured`, rather than silently choosing one bucket rule. |
+| 2 | §§1–2, §4.2 | §§1–2 | One tree and cross-field composition follow from stance 2, S169/S172 and both designs. B's surface is a defensible preference, qualified by K1 and the evidence accounting below; it is not a consequence of those claims. |
+| 2a | §§4.1–2, §5 AQ5 | §1, §9.1 | S27–S28 support retaining occurrences, S68 separate slots. Neither prescribes the default. Both reviews support the proposed default; K1 is still needed to preserve the precision for which it was chosen. |
+| 2b | §4.2, §4.6 | §1 | Known absence as false plus per-term diagnostics is a motivated new combination. S158 motivates not substituting zero; S107 motivates showing unreadable evidence. Neither decides its negation semantics. K2 prevents the proposed combination from contradicting itself. |
+| 2c | §4.2, §4.7 | §§3, 4.1 | S29/S49 and both reviews support useful, inspectable recipe sums. The S111 exception is correctly disclosed. A missing mechanism in A does not prove every possible validation has B's corpus-count limitation; distinguish reference-definition validation from detecting a renamed line in the stash. |
+| 2d | §4.2 | §1, §5 gaps | Crossed counts and stack sums follow from S170/S189 and the reviewers' concrete tasks. S191 and AQ1 also require independent facets. Keep both; K3. |
+| 2e | §§1–2, §5 scope/AQ1/AQ5 | §4.2 | C58 supports realm-qualified meaning; S199 supports an informative error, not a mandatory single-realm query. A explicitly permits account-wide scope across realms. The new default is reasonable, but label it new and retain an explicit all-realms scope. |
+| 3 | §4.3 | §1, §4.3, §6 | Supported: S174/S190 state the shared read need; S181 supplies the cold-start failure. Both reviews contribute concrete reasons to combine scoped counts with insertion-ready fragments. No comparative latency or call-count victory is established. |
+| 4 | §3, §4.4 | §3, §9.4 | An unpersisted first measurement follows the engine warning and S135/S150–S153. It remains a provisional implementation choice. A counter alone is not a snapshot contract, and the later move to A is a candidate, not a measured conclusion; K4. |
+| 5 | §4.5 | §4.5, §2 | The remainder report, local URL decoding and separate core slots are supported by S56/S67/S68/S155. B's node mapping cannot be accepted as complete arithmetic semantics merely by wrapping it in A's report; K5. S26 correctly exposes the defence translation gap. |
+| 6 | §4.6, §3 | §1, §4.6 | Supported by S176/S192–S193/S196–S198 and C53. Reuse C64/C69's effective resolution for `priced`; bind continuation to all semantic inputs, including intent and reference versions, not only a facts counter. K4 supplies the basis. |
+| 7 | §§4.7, 8 | §8, §5 gaps | The inherited register and non-goals are traceable, with the S111 exception already noted. Occurrence binding removes accidental summation of twins; it does not identify their hidden local/global meanings (S52/S72). The added unreadability limit needs K2, and unresolved reach must remain a gap. |
+| 8 | §3, §5 OQ3, §7 | §3, §5 OQ3 | S16 establishes available group/colour data and S58 records the captured filters. Neither supports “largest” as equivalent to A's existential group. The recommendation loses A's reach; K6. |
+| 9 | §3, §5 OQ5 | §3, §5 OQ5 | S42/S54/S69 support a familiar derived category, not a prefix-only hierarchy or a complete equipment selector. The idea is useful and new, but the claimed closure is overstated; K7. |
+| 10 | §3, §7 | §§1, 3 | Supported as a simplicity choice. S127 supplies cost motivation, S135 a route to new fields; neither proves named fields already cover the floor. Carry A's acknowledged S42 catalogue gap forward when deleting its escape hatch. |
+| 11 | §3, §9 | §§1–2, §7.3, §9.3 | Deferral is supported as a first-slice choice by B's deletion test and the store park. Note 22 makes the home conditional on a saved query existing. Deferring the write does not require deferring versioned query values passed between clients. |
+| 12 | §§1–2, §4.2 | §2 | Text plus an accepted/returned tree is compatible with the proposed synthesis, but S195 does not supply evidence for preferring text on MCP. The reviews did not compare complete text and JSON interfaces; retain this as a provisional adapter choice, not a second vote for row 2. |
+
+### Corrections needed when harvesting the rows
+
+**K1 — One-occurrence atoms do not bind two atoms to one occurrence
+(rows 1, 2, 2a).** Row 2a fixes AQ5's 20 + 75 surprise. It does not
+yet fix note 27's wand: one low bound and one high bound must hold on
+the same line. With hypothetical occurrences `[15,40]` and `[5,20]`,
+separate existential tests of low ≥ 12 and high ≤ 28 both pass;
+neither occurrence satisfies the requested range. A's single
+`line(... n1 >= 12 and n2 <= 28)` expresses that distinction; B's two
+starred terms do not. The combined model needs a shared occurrence
+binder, or an explicitly equivalent compound term, before claiming
+A's reach. It also needs a scalar rule for sorting a template that
+now denotes several occurrences: A's AQ5 explicitly uses `max`; B's
+sort previously inherited its sum. The proposed “together reach it”
+counter is useful only for a defined scalar case; it is not a meaning
+for arbitrary multi-slot comparisons. These are unresolved semantics,
+not reasons to reverse the one-line default.
+
+**K2 — “Could not read” cannot be false under ordinary negation and
+also “never a match” (rows 2b, 6, 7).** If an unreadable life array makes
+the atom `life >= 90` false, `-(life >= 90)` becomes true. Likewise,
+treating an unreadable requirement as absent makes `-has:reqlevel`
+admit it in the leveling query. A separate counter does not change
+either result. Stage 5 must choose and state how undecidable evidence
+affects compound queries: for example, exclude affected candidates
+under a defined validity rule, or retain an internal indeterminate
+outcome while simplifying its presentation. The former also needs a
+rule for `true OR unreadable`; excluding it gives up a known positive
+witness. Neither choice is fully specified by the recommendation or
+settled by the reviews. Known absence can still have B's simple rule
+without equating it to decode failure. Nor are matched/lacked/unreadable
+three exhaustive buckets: a present, readable value below a threshold
+belongs to none of them. Name the denominator and the ordinary failed
+comparison in the answer contract.
+
+**K3 — Add crossed counts without replacing independent facets
+(row 2d).** AQ1 explicitly asks for three small tables, and both
+proposals provide them. Redefining every multi-name counts request as
+one crossed table loses that answer unless another form remains.
+Specify the two shapes distinctly. The new summed column also needs
+an empty/missing/unreadable rule; note 26's B/F6 already found the
+missing sum rule. This is a small contract addition, but calling it a
+view does not eliminate that cost. Keep the withheld seed's shared
+recipe definitions for SQL and the evaluator; the recipe includes
+source/flag and slot selection where relevant, not merely a template
+string and weight detached from row 1's identity.
+
+**K4 — Freshness is a snapshot property, independent of persistence
+(rows 4, 6).** A §3 explicitly opens a fresh snapshot, matches resident
+arrays to that snapshot, and establishes overlapping facts/intent
+snapshots. B §3 names a counter and a streaming read but does not bind
+those reads together. A counter read followed by a multi-read rebuild
+could otherwise label mixed revisions as one. An unpersisted design
+can satisfy the floor: derive from one consistent basis and validate
+reuse against that basis, including joined location metadata, intent
+and reference/derivation versions. A write after that basis is chosen
+does not retrospectively invalidate a correctly labelled in-flight
+answer; both designs need the same rule. Persistence alone would not
+provide it either.
+
+The claim that A “differs only” in writing the persisted copy therefore
+overlooks its explicit snapshot contract. Conversely, running a
+store-owned extractor inside ingest does not itself give the daemon a
+fact-read API: C28/C29 already distinguish the daemon's `record` call
+from the store's extraction work, and C34 allows reproducible
+derivations. No boundary violation is established by sharing a process.
+Keep crate placement as an explicit C1/C12 decision. Measure reload
+and cold-query costs before choosing the next mechanism: S152 also
+supports direct SQLite queries for short-lived consumers, not only
+loading A's projection into a scan. Row 4's two proposed measurements
+justify an experiment, not a preselected successor for every failure.
+
+**K5 — Translation needs bounded counts and guarded contributions
+(row 5).** S41's pointer, trade-query F2, gives `count` both group min
+and max. “Count → at-least-N” covers its lower bound only; B's numeric
+`holds` can express both, as can a suitable Boolean tree. S57 expressly
+distinguishes `weight` from `weight2` by how per-stat requirements gate
+contributions. A bare `sum` of values does not specify those guards.
+A §4.5 leaves unverified groups unsupported; preserve that condition
+instead of presenting every weighted group as a completed node map.
+The row also confines two-slot arithmetic to translation while deleting
+general arithmetic from the public surface. If translation emits a
+query tree, its averaging/guarded expressions must have a representation
+in the published model, or the affected clause stays in the remainder.
+The report makes a missing mapping honest; it does not supply one.
+
+**K6 — Any qualifying group is not the largest group (row 8).** A
+query for two linked blue sockets should match hypothetical groups
+`RRR` and `BB` under A's proposed semantics. A field describing only
+the largest group sees `RRR` and misses it. Equal-sized groups require
+a choice too; taking each colour's maximum independently can invent
+a combination no group contains. Keep group membership and evaluate
+the requested constraints together on one qualifying group, even if
+the adapter exposes a compact dedicated term rather than general
+collection syntax. This counterexample concerns the proposal's own
+semantics and needs no assumption about the live trade site. S58's
+exact site computation remains unverified, as row 8 correctly says.
+S16 closes the absence of group/colour evidence, not universal coverage:
+5,922 items have `sockets`, 5,918 have a group, 5,894 colour/attribute
+fields; the same census records 24 with `sockets[].type`. Preserve
+those different shapes rather than declaring every socket decoded.
+
+**K7 — Dotted category ids are not a complete prefix hierarchy
+(row 9).** RePoE F3 explicitly calls the 14 parents *unions*. Its
+`class-to-trade-category.csv` assigns Staff to `weapon.basestaff` and
+Warstaff to `weapon.warstaff`; `weapon.staff` is a parent in the
+associated `base-taxonomy.py`. Neither leaf contains that parent id.
+Thus `armour` and `accessory` work as the row's examples without proving
+the general prefix recommendation. S69 also says seven leaves need
+base-name rules; a single class-to-id value does not cover them.
+Use the reviewed membership/base rules, or label the narrower feature
+honestly. Finally, OQ5 still needs a definition of which categories
+count as equipment; category names make that easier but do not provide
+the missing definition. One mapped category filter does not close
+most of the other 26 unsettled filters merely because its option list
+is large. Keep the remaining reach catalogue open.
+
+### Evidence accounting, seeds and digest
+
+The reconciliation generally obeys note 23's counting rule: shared
+requirements are identified as shared text, and the two overall choices
+are discounted. There is no demonstrated two-vote majority. Several
+phrases nevertheless give evidence more force than it has:
+
+- **A recommendation's destination is not another seat.** Fable's
+  reconciliation choosing A is not automatically strong evidence in
+  the same sense as its earlier cross-preference *during use*. The
+  arrows disclose provenance; the quoted experience or counterexample
+  does the evidentiary work. Similarly, two own-design preferences are
+  weak, conflicting testimony, not measured quantities that “cancel”.
+- **Rows 2 and 12 reuse the same testimony.** Note 27 preferred B at a
+  terminal for quick remembered-item searches, and A for precise saved
+  gear selection. “Astra leans to it at a terminal” loses that condition.
+  Both reviewers wrote A text too. Note 27 expressly used text to expose
+  meaning; A did not provide a full JSON contract. This supports making
+  text available and testing it, not a demonstrated MCP preference
+  between equally specified encodings. Note 26's `where` criticism also
+  cannot establish that the design was derived from a table: familiar
+  syntax alone is not evidence of its design process.
+- **Unprompted does not mean independent of the digest.** S71 and the
+  S200/S25 contrast already offered the sign convention; S155 and note
+  22's RePoE warning pushed ids toward the trade boundary. The proposals
+  independently selected those options, but did not independently
+  discover their supporting facts. The withheld-checklist row is more
+  careful about this than row 1's “unprompted” claim. The seed audit
+  otherwise holds: query values in both; vocabulary partly handed;
+  query-by-example in neither; A closer to shared SQL semantics; the
+  item's-own-terms thesis visible in both. Returning a canonical query
+  is a genuine common design addition, not a separate fact measurement.
+- **The concept comparison remains incomplete.** Note 22 asks for one.
+  A's inventory has 16 entries; B's 11 omit costs its second audit lists
+  separately, so subtracting those totals would be misleading. The
+  recommendation removes A's general collection/arithmetic machinery
+  and B's user names, but retains occurrence binding, line summation,
+  adds two summary shapes, and must resolve group binding and decode
+  failure. Those concepts survive regardless of their shorter spelling.
+  The combined model needs that inventory and a mistake walk; neither
+  existing review validates the combination.
+
+The five new `S` ids have traceable homes: S16/S17 in item-facts F2/F3
+and `field-census.csv`, S57/S58 in trade-query F2 and `gap.csv`, S159 in
+engine-bench F1/Numbers and `results.csv`. The private flag counts close
+A's stated evidence gap for the observed flags. The socket qualification
+is K6. These additions do not require another research run.
+
+The citation arithmetic also reproduces **when its denominator is
+stated**: before the five additions, 165 claims; in the proposal bodies
+excluding repair tables, 92 cited (42 both, 22 B only, 28 A only), 73
+uncited. The current digest has 170, with 78 uncited under that same
+rule. Repair tables contain superseded citations and should stay out
+of this pruning count. The proposed kill candidates are not yet a
+pruning: they remain candidates, as this note correctly labels them.
+Recheck them against the combined model and stage 6's acceptance tests
+before removal, rather than treating noncitation as disproof of need.
+
+No author dispute was found in either current repair table; “no
+disputed finding” is accurate. Unanswered findings and newly exposed
+gaps remain a different matter. In particular, the absence of a complete
+mapping of the trade site's item-reading filters survives the
+reconciliation, and a clean audit is not proof that it disappeared.
+The three proposals called
+unchecked at the end of Fable's section now have this logical check:
+the together-count needs a bounded meaning (K1), the colour fields need
+group binding (K6), and category needs membership rules (K7). None has
+been exercised by a user or against the corpus. Decision 15 permits
+progress with those facts visible; it supplies no new game evidence
+and no additional endorsement of a specific semantic choice.
