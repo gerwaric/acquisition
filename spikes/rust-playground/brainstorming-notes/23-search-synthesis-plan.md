@@ -71,8 +71,9 @@ at `e490196e`.
 6. Simplicity judged, not capped — recorded in note 22.
 7. The seat questions test reach, and game knowledge is the user's —
    recorded in note 22, stance 1 (verbatim) and stance 4.
-8. SQL on the surface, and read-only annotations viewable — recorded
-   verbatim in note 22, stance 6 and the settled floor.
+8. SQL on the surface, and read-only annotations viewable — distilled
+   into note 22 (stance 6, the settled floor); the owner's words are
+   at `a4dec10a`, this decision.
 9. The digest brief taken as committed — spent with stage 1.
 10. Stage 1's run: series, the pilot, the budgets, the acceptance —
     spent with stage 1; what it leaves owed is under "Owed by later
@@ -135,8 +136,8 @@ so nothing is lost.
 - **Stage 4 grows the digest.** A finding a proposal cited as
   undigested gets a new `S` id in the reconciliation.
 - **Stage 5 amends C48.** Raw SQL over the facts file stays no surface;
-  the projection note 22's settled floor describes becomes one, with
-  the contract the ruling gives it. `search/README.md` lists the other
+  read-only SQL over the published contract note 22's settled floor
+  describes becomes one, with the contract the ruling gives it. `search/README.md` lists the other
   standing rulings the design revisits.
 - **Stage 6 reads the digest's acceptance set as its tests.**
 

@@ -100,21 +100,17 @@ else:
 - The five invariants; the daemon owns GGG traffic and never reads
   facts (C2, C34); a frontend consumes two surfaces (C12); shared
   semantics live in Rust and every frontend has an adapter (C46).
-- The facts file is internal and never a surface (C48); the
-  annotations file is never opened by SQL (C35), and intent is read
-  through a read-only view (the owner, 2026-09-14: "read-only
-  annotations should be viewable. This kind of thing is present in the
-  c++ app ('priced') and the trade site in more detail ('Trade
-  Filters')."). The search reads a projection derived from facts (C34),
-  persisted as SQLite so that SQL is a language over it (the owner,
-  2026-09-14; stance 6), and
-  kept in step with its facts by construction, never by a refresh: a
-  derivation, not the cache C48 forbids. What the design answers is
-  what it carries, who holds it, its contract, and how the model reads
-  it (SQL or a scan: the bench says the scan wins eleven of twelve and
-  SQLite is instant at the real corpus either way); the number is
-  measured: 0.5 s to build and 38 ms to load at the real corpus, 5.7 s
-  and 1.14 s at a million (engine-bench F5, F7; S151, S187, S188).
+- The facts schema is internal (C48) and annotations are written only
+  through the store (C35).
+- SQL is a surface, on the CLI and the MCP alike (the owner,
+  2026-09-14; stance 6): read-only, over a published contract that is
+  never the internal schema. C48 is amended to that extent at the
+  ruling. Intent is readable by the search, read-only, in every
+  language over it.
+- Whatever the search reads is a derivation of facts (C34), never a
+  cache: it cannot be stale, by construction and not by a refresh,
+  because stale results mistaken for current truth is the failure C48
+  exists to prevent.
 - Annotations are the only irreplaceable state (C35); a saved search,
   if one exists, is intent and lands there or in the user-scoped home
   the store has parked.
@@ -229,8 +225,8 @@ compares inventories.
 3. What is the vocabulary read, and how is it served to a human and an
    agent from the corpus?
 4. Who holds the corpus, for how long, and what does a restart cost;
-   is the derivation persisted, and what is its contract (the DDL, its
-   version, its freshness)?
+   is the derivation persisted, what is its contract (the DDL, its
+   version, its freshness), and how does the model itself read it?
 5. What crosses the trade boundary, in each direction, and what does
    not?
 6. What does a result carry — the item, its location, its freshness,
@@ -241,7 +237,7 @@ compares inventories.
 ## Output shape (stage 3, each proposal)
 
 The model on one page; the grammar in as few lines as it takes; the
-derivation the model needs (columns, views, its contract), after the
+derivation the model needs (what it carries, its contract), after the
 model and never before it; an answer to each question above; the
 appendix (every acceptance question in the model's notation, each
 marked one query or a listed gap, discovery reads and refinements
