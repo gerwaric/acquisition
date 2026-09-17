@@ -76,6 +76,7 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 | [`engine-bench/`](engine-bench/README.md) | Is SQLite over a derived search schema instant at a few hundred thousand items? Measured. | first pass complete — 2026-09-13 | 13056 |
 | [`owner-seat/`](owner-seat/README.md) | What does the owner actually ask of the stash, in their words, and what answer shape does each want? | first pass complete — 2026-09-13 | 9169 |
 | [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | first pass complete — 2026-09-14 | 12317 |
+| [`proposal-audit/`](proposal-audit/README.md) | Do the two blind search designs hold against their own page and their evidence? (synthesis stage 4; not research) | brief committed, no audit run — 2026-09-17 | — |
 
 Standing rulings and parked items the design will revisit, so it knows
 what it overrides: C48 (raw SQL is not a surface), C34 (derivations),
@@ -92,7 +93,10 @@ the digest is `DIGEST.md`, accepted 2026-09-17; the proposal brief
 for stage 3 is `brainstorming-notes/29-search-proposal-brief.md`, and
 the two blind proposals it produced are
 `brainstorming-notes/24-search-proposal-fable.md` and
-`brainstorming-notes/25-search-proposal-astra.md` (merged f2b06a3e).
+`brainstorming-notes/25-search-proposal-astra.md` (merged f2b06a3e). Stage
+4 is an audit (`proposal-audit/`), the author's repair
+(`brainstorming-notes/32-search-repair-brief.md`) and the review, a
+seat under `brainstorming-notes/30-search-review-brief.md`.
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search

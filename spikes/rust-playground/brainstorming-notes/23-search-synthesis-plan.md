@@ -28,8 +28,8 @@ are similarly challenging, aspirational, and deeply thought-provoking"
 | --- | --- | --- | --- | --- |
 | 1 | Digest — closed, accepted 2026-09-17 | — | `search/DIGEST.md` | note 21 at c56404ca |
 | 2 | Framing — closed; the owner's edits done 2026-09-17 | the owner edits; Fable drafted | note 22 | — |
-| 3 | Two proposals, blind, in the output shape note 22 sets | Fable and Astra, in parallel, neither seeing the other's until both are committed | notes 24 (Fable), 25 (Astra) | note 29 |
-| 4 | Cross-review, then reconciliation: a decision table — where they agree, where they differ (each side, the claims that decide, a recommendation) | each reviews the other's; Fable writes the reconciliation, Astra checks it | notes 26, 27 | — |
+| 3 | Two proposals, blind — closed; merged `f2b06a3e` 2026-09-17 | Fable and Astra, each in its own worktree | notes 24 (Fable), 25 (Astra) | note 29 |
+| 4 | Audit (a check: does each design hold against its page and its citations), the author's repair, the review (a seat: what each design is like to use), then the reconciliation: a decision table — where the designs agree, where they differ (each side, the claims that decide, what the users said, a recommendation) | audit: one Opus subagent per proposal. Repair: each author, its own proposal. Review: Fable and Astra, each using both designs. Reconciliation: a fresh Fable session with the owner; Astra checks it | `search/proposal-audit/audit-24.md`, `audit-25.md`; notes 24 and 25 repaired in place; notes 26 (Fable's review), 27 (Astra's); note 31, the reconciliation with Astra's check | `search/proposal-audit/BRIEF.md`; note 32 (repair); note 30 (review); this note (the reconciliation) |
 | 5 | Ruling: candidate decision lines in registry form, a parking lot with triggers, the owner's verdicts verbatim; harvested into `decisions/search.md` (new area file, one index row in `CONTEXT.md`) | the owner, with Fable | note 28, then `decisions/search.md` | — |
 | 6 | Build plan: slice steps with their evidence; the digest's acceptance set as acceptance tests; the closed record at the end in `PRICING-SLICE.md`'s mold | Fable | `search/` | — |
 
@@ -62,6 +62,68 @@ only after both proposals are committed; the files are distinct, so the
 merge cannot conflict. A worktree at a new path should also start a
 Fable session without this project's memory files; check that at the
 start of the run rather than assume it.
+
+## Stage 4: how it runs
+
+Four steps, in order, each with one input. A first design of this stage
+had two auditors per design, anonymised audits, a parts merge and a
+fate for every finding; the owner cut it (decision 14): checking is not
+judging, so model bias matters little there, and a design may be edited
+— so its author repairs it, and the findings are spent where they are
+found.
+
+1. **The audit.** One Opus subagent per proposal under
+   `search/proposal-audit/BRIEF.md`, launched from any session (prompt:
+   the brief's path, the proposal's number, the prohibitions repeated).
+   The launching session checks each audit against the brief's
+   acceptance sentence — form, not substance — and commits. The check
+   on a wrong finding is the next step.
+2. **The repair,** one pass under note 32, skipped for a proposal whose
+   audit found nothing that matters. A fresh Fable session repairs note
+   24; Astra, from Codex, repairs note 25; each sees only its own
+   audit. Every finding is fixed, listed as a gap, or disputed with the
+   line; nothing else changes; a `## Repairs` table is appended. No
+   re-audit.
+3. **The review,** under note 30, on the repaired designs. First run
+   `python3 search/proposal-audit/anonymise.py` and commit
+   `search/designs/`: the proposals with provenance, titles and the
+   `## Repairs` table removed.
+   **Design A is note 25 (Astra's); design B is note 24 (Fable's)** — a
+   coin flip, recorded here and in that script, where no reviewer
+   reads. It lowers a reviewer's preference for its own model's work;
+   it cannot remove it (the sizes differ, and style shows). Fable and
+   Astra each use both designs, in opposite orders, each in its own
+   worktree and branch cut from the commit that holds the copies
+   (`search-review-fable`, `search-review-astra`), merged only after
+   both reviews are committed: a review written in sight of the other
+   is one review.
+4. **The owner's seat** (optional, and worth more than either review's
+   opinion): before reading any review, ten minutes asking OQ1 of each
+   design's model page, and a few lines on what happened. Both
+   reviewers are agents; stance 5 says "both the agent and the human".
+5. **The reconciliation** (note 31), a fresh Fable session here, with
+   the owner. It reads this note, note 22, the digest, both repaired
+   proposals with their `## Repairs` tables, both audits and both
+   reviews, and writes:
+   - the decision table: one row per design question (note 22's seven,
+     then any the proposals raised) — what each proposal says, whether
+     they agree, the `S` ids that decide, what the users said, and a
+     recommendation.
+   - the disputed findings, each settled by the line or left to the
+     owner; and any place where a design audited clean and was a labour
+     to use, or the reverse.
+   - the withheld checklist, seed by seed: reached unprompted by which
+     proposal, or by neither — and then proposed here.
+   - the digest's changes: undigested findings the proposals cited, to
+     become new `S` ids; claims nothing cited, as candidates for the
+     kill list.
+   - what stage 5 needs from the owner, as questions he can answer in a
+     line.
+6. **Astra's check**, from Codex, appended to note 31 as its last
+   section and committed by Codex: is every row traceable to both
+   proposals and to the claims it names; does each recommendation
+   follow from its row; is any voice counted twice. At this step Astra
+   reads this note too — nothing is blind any more.
 
 ## The owner's decisions, verbatim (numbers are stable; citations use them)
 
@@ -109,6 +171,17 @@ at `e490196e`.
     improve the text. Accepted." On isolation: "either branches or
     worktrees based on whichever best serves our purposes in a simple,
     reliable way."
+14. On stage 4 (2026-09-17). Audit and review are split at the owner's
+    suggestion: "What if we do a 2-stage process here, where the first
+    stage is purely an audit, so we can devote the second-stage to
+    purely what adds value as a review to the reconciliation?" Then,
+    when Fable's first design of the audit had grown to six sessions
+    and a fate for every finding: "you and I are spiraling into some
+    process complexity here. Is there a way to simplify the audit stage
+    significantly? I'm ok if we have to edit the designs, and since we
+    are checking things instead of forming opinions on them, I'm
+    thinking the model bias might be less important." — one auditor,
+    the author repairs. "I confirm. Go ahead."
 
 ## Withheld from the proposers: stage 4's checklist
 
@@ -173,6 +246,12 @@ so nothing is lost.
   readers of one text agreeing is evidence about the text.
   Independence enters through the acceptance test and through what
   each proposer reached without being handed it.
+- Three kinds of evidence reach the reconciliation and are never added
+  together. An audit finding counts by the line it points at.
+  Testimony is one seat's experience: evidence about what a design is
+  like to use, never about what is true of it. And a reviewer's taste and its own
+  model's proposal are one voice, never two: a reviewer preferring the
+  other model's design is strong evidence; preferring its own is weak.
 - A brief's terms are defined by what they are for, with the wrong
   reading named (stage 1: most runner-marked `limit` claims were the
   source's limitations, not edges the search declines). Under a binding
