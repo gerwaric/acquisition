@@ -1,6 +1,6 @@
 # The search digest
 
-Status: partial — item-facts, cpp-search, trade-query, repoe, item-filter, prior-art, store-as-built — 2026-09-16
+Status: partial — item-facts, cpp-search, trade-query, repoe, item-filter, prior-art, store-as-built, engine-bench — 2026-09-16
 
 The slice's evidence in the shape a design can cite: one claim per
 line, `S<n> · kind · weight · claim · pointer`, under the brief
@@ -136,6 +136,27 @@ S134 · store · — · With no store change every predicate in the census is re
 S135 · store · — · Three classes of change and their schema cost: a new read (`items_at(location)`, a container/location filter on `search`, an events filter) needs none, `items_location` already serving it (C48); a derived column (`frame_type`, `identified`, `ilvl`, `corrupted`, `note`) is one `rebuild` re-extracts from each row's own json (C29); a derived table (a mod/stat index, FTS at ingest) is a new table reproducible from `items.json` (C34; `decisions/store.md` "Parked: search-at-scale", trigger *a real consumer with a measured latency or duplication case*) · F8 table
 S136 · idiom · — · The whole item search a user has today is `acq items search` and MCP `search_items`, both on `Store::search` · read-surface.md `Store::search` row, "Called by today"
 
+## engine-bench
+
+S141 · measure · — · The corpus is 36,139 items (both stores deduped by id, 0 skipped as malformed), 53,569,958 JSONL bytes, 125,006 mod lines, 6,513 templates, 2,939 stat ids; the ×10 (361,390) and ×30 (1,084,170) corpora are clones with fresh ids, so selectivity per query is identical at every scale and the scaled rows measure size, not variety · Numbers, numbers.csv
+S142 · measure · — · Every number is Apple M4 / macOS 26.6.2 / 32 GB, rustc 1.94.1 release, bundled SQLite 3.45.3 (`journal_mode=OFF`, `synchronous=OFF` for the build), warm = median of 7, cold = first run on a fresh connection with SQLite's page cache empty and the OS file cache still warm · Numbers preamble
+S143 · measure · — · The scan is one pass over a compact struct per item (template, stat id, array, tab and league interned to `u32` at load; no index), producing the matching id set, not a count · F1
+S144 · measure · — · All twelve queries take 2.6 ms together at 36,139; at 1,084,170 the warm median query is 4.47 ms and the twelve together 88.0 ms; cold is within 4 % of warm · F1, results.csv
+S145 · measure · — · Per-million scan cost is flat across the three scales (`q03` 35.5 → 37.6 ms/M, `q08` 6.45 → 6.30); extrapolated to 100 ms, the substring query — the scan's worst, 40.8 ms at 1,084,170 — arrives at ~2.7 M items, the mod-value queries at ~23 M, the plain attribute queries at ~55–69 M · F1, results.csv
+S146 · measure · — · SQLite over the derived schema (18 columns, six indexes, an indexed `lines` table, `ANALYZE` run) is slower on eleven of twelve, by a median 8.6× at 36,139, 16.8× at 361,390, 20.5× at 1,084,170, worst 85× (`q12`) · F2
+S147 · measure · — · Five of the twelve pass 100 ms on SQLite at 1,084,170 (`q02` 101.7, `q11` 104.5, `q08` 129.6, `q12` 135.7, `q09` 202.7 ms) and none do on the scan; the trade-style group queries `q08` and `q09` are SQLite's worst, against 6.8 and 8.2 ms scanned · F2, results.csv
+S148 · measure · — · SQLite wins one shape, a high-selectivity indexed equality: `q06-one-tab` at 1,084,170 is 0.66 ms delivering ids, 0.32 ms as `count(*)`, against the scan's 1.57 ms — an index turning 1 M comparisons into 25 k; at the real 36,139 it wins nothing, `q06` there being 1.3× slower · F2, results.csv
+S149 · measure · — · The same SQL wrapped in `count(*)` runs within 4 % of the row-delivering form at every scale, so the gap is the engine's own work — btree descents, row decoding, the join back to `items` — not rusqlite's row plumbing · F2, results.csv
+S150 · measure · — · Parsing GGG JSON into the struct costs 5.4 µs per item: 202 ms at 36,139, 5,884 ms at 1,084,170 · F3, numbers.csv
+S151 · measure · — · Rebuilding the same structs from the derived tables costs 38 ms at 36,139 and 1,142 ms at 1,084,170, 5.2× cheaper than from GGG JSON; the 18 columns plus line rows answer all twelve without the item body; resident is 392 MB from the projection against 289 MB from the parse at 1,084,170 · F5, numbers.csv
+S152 · measure · — · A process that does not outlive one query cannot use the scan: at 1,084,170 it pays 5,884 ms of load to answer a 4.5 ms question, where SQLite's 77 ms median wins by two orders of magnitude · F3
+S153 · store · — · `acqd`, the spike's long-lived process, writes facts and never reads them (C2, C34), so the corpus-holding process these numbers argue for is frontend-side and does not exist today; at 36,139 a per-command load is 202 ms from JSON, 38 ms from a projection · F3, Review row (Fable, 2026-09-13)
+S154 · measure · — · Template and stat-id identities answer the twelve within noise on the scan (±5 % on ten of twelve; two mod-heavy queries swing ±25 % run to run) and 4–11 % apart on SQLite, tracking the smaller table, not the identity · F4, results.csv
+S155 · measure · — · 40,793 of 125,006 mod lines (32.6 %) carry no trade stat id — 23,796 gem skill text, 9,201 map, ultimatum and flavour-shaped, 7,796 equipment; keyed by stat id the `lines` table is 33 % shorter (84,213 rows) and the file 36 % smaller (15,863,808 against 24,911,872 bytes) at 36,139 · F4, identity-coverage.csv, numbers.csv
+S156 · measure · — · The trade stat id merges variants of one stat (implicit/explicit/fractured/crafted) that the template keeps apart, and 259 of 3,478 mapped templates are ambiguous — several entries, the first trade id winning · F4
+S157 · measure · — · The derived schema costs 764,694,528 file bytes and a 5,687 ms build at 1,084,170 against 288,532,800 bytes resident for the scan; at 36,139, 24,911,872 bytes and 162 ms against 10,982,951 · Numbers, numbers.csv
+S158 · idiom · — · The owner's query shape as `q10` records it: "(Armour > 1000) OR (Required Level < 80)" — 35,956 of 36,139 items match, because a requirement the item lacks reads as 0 · queries.md, `q10-boolean-or` row and the absence-rule note
+
 ## The acceptance set
 
 Written when owner-seat and agent-seat merge.
@@ -155,6 +176,7 @@ unknown shown, never guessed, is the model).
 
 ## Kill list
 
+- engine-bench: Inputs, Outputs, Provenance tables — internals; F6 (the ~0.33 s C++ filter loop at ~1 M against this scan's 88 ms, not like-for-like) — budget; F7 (the seat projection's DDL, per-column derivations, `kind` histogram, the mean hiding a second number on 11,020 of 125,006 lines, `ultimatumMods` in neither file) — budget; F1's per-scale worst column (`q03` 1.27 ms at 36,139, 13.3 at 361,390) — budget; Q2–Q5, the experiments not run (FTS5 over the pretty names, update cost with six indexes live, a struct materializing every census field over 1 % of items, several searches at once over one corpus) — budget.
 - store-as-built: F7 — moot (registry rulings, cited as `C<n>`, never re-digested); F4 column exposure (`w`/`h` in no read type, `x`/`y` only in `ItemSnapshot`, read-time `json_extract`s `$.note` on 184 and `$.inventoryId` on 34,161 of 36,139 items) — budget; the surface-sizing Numbers rows (17 public reads, one uncalled: `Store::orphaned_item_annotations`; 8 tables, 4 indexes; 12 queries planned, 5 as full scans) — sizing.
 - prior-art: F8 (no corpus, no persistence, no ranking, no mod-level identity, `modFamily` 187, no PoE2) — budget; F7 the item-search widget (two `items.ndjson` slices, ≥ 3 characters, cap of 5, OCR ranking) — budget; F4 the markup half (0 lines carry `[Tag|Display]`; `<<set:…>>`/`<if:…>` handled only on the name plate) — budget; F1 the hash-collision re-check, Q2 — internals; Q3 — moot; Q4 — sizing.
 - item-filter: F3 `Rarity` ordering, `Sockets`/`SocketGroup` compound operand, `HasInfluence` granularity, `Class` substring-matched on the C++ side — budget; F4 `BaseDefencePercentile` and the conditions with no export field — budget; F6 the 17 absent conditions by name — budget; Q2 `duplicated` as the unverified candidate for `Mirrored` — budget; the 14 actions — moot; the scripts' join-validation aborts — internals.
@@ -168,12 +190,12 @@ unknown shown, never guessed, is the model).
 Note 22's ranked questions, each with the claims that bear on it;
 extended after every merge.
 
-1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52, S63, S64, S65, S66, S67, S71, S72, S73, S76, S84, S101, S102, S103, S104, S105, S106, S107, S109, S110, S111
-2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95, S106, S121, S125
+1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52, S63, S64, S65, S66, S67, S71, S72, S73, S76, S84, S101, S102, S103, S104, S105, S106, S107, S109, S110, S111, S154, S155, S156
+2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95, S106, S121, S125, S158
 3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55, S61, S62, S69, S70, S74, S82, S85, S86, S87, S89, S92, S93, S94, S108, S112
-4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50, S75, S110, S112, S122, S124, S126, S127, S128, S129, S130, S131, S134, S135
-5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S61, S62, S66, S67, S69, S86, S90, S106, S108, S109
-6. What a result carries — S1, S11, S31, S53, S107, S127, S132, S133, S134
+4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50, S75, S110, S112, S122, S124, S126, S127, S128, S129, S130, S131, S134, S135, S141, S142, S143, S144, S145, S146, S147, S148, S149, S150, S151, S152, S153, S157
+5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S61, S62, S66, S67, S69, S86, S90, S106, S108, S109, S147, S155
+6. What a result carries — S1, S11, S31, S53, S107, S127, S132, S133, S134, S143
 7. The non-goals and limits, as outputs — S12, S14, S52, S53, S67, S84, S107, S111
 
 ## Convergence and contradiction
@@ -205,6 +227,14 @@ extended after every merge.
 - S121 ≈ S24: substring search over the name fields, the C++ app's over `name + " " + typeLine`, the store's over `name`/`type_line`/`base_type`.
 - S122 ≈ S31: the location coordinate (`location_kind`, `location_id`) the store indexes and the C++ app buckets on (`location type`, `id`), neither by label or position.
 - S132 ≈ S11: per-response membership and `first_seen`/`last_seen` on the store's side; on the census's, 99.5 % of same-id bodies byte-identical across a month.
+- S150 ≈ S127: the body parse the store pays per returned row, measured here at 5.4 µs an item.
+- S151 ≈ S135: the derived table store-as-built names as the third class of change, measured as a load 5.2× cheaper than the parse.
+- S158 ≈ S21: the requirement an item lacks reads as 0, the C++ absence rule carried into the bench and turning the owner's OR into 35,956 of 36,139.
+- S141 ≈ S1: the same 36,139 items; 53,569,958 JSONL bytes here against 44,083,581 JSON bytes there (a serialisation, not a discrepancy), and 6,513 templates over every mod array against 5,703 over `explicitMods` alone.
+- S144 ≈ S37, contrast, not like-for-like (engine-bench F6): the C++ app's unindexed `FilterItems` at 329 ms for 975,711 items against this scan's 88 ms for twelve queries at 1,084,170.
+- S155 ≈ S71, S61: what a stat id cannot name — 32.6 % of all lines here, where repoe's text join reaches 95.3 % of equipment explicit lines and the export names a trade id for 61.7 % of the capture; three denominators, one gap.
+- S156 against S72: 259 of 3,478 mapped templates ambiguous here (all arrays, first trade id wins) and 150 of 3,402 in repoe (equipment explicit, the twins); different sets, not a contradiction.
+- engine-bench F2's prose gives `q06` at 1,084,170 as 0.30 ms and `q09`'s scan as 7.1 ms; results.csv has 0.659 (delivering rows; 0.317 is the `count(*)` row) and 8.208. F1's table gives the ×10 worst as 13.1 ms; results.csv and the Numbers table 13.3. S147 and S148 carry the data file.
 - trade-query F4 says "380 pairs"; stat-collisions.csv has 380 groups of two to four ids (369/8/3). S44 carries the data.
 - item-facts F5 itemises the unmatched bases to 7,885 (7,512 + 272 + 98 + 3) while `data/numbers.md`'s `frameTypeId` table sums them to 7,826 (36,139 − 28,313); a 59-item gap the track does not explain. S8 carries F5's figures.
 - item-facts F3 counts PoE2 markup over four arrays (192 lines); `data/numbers.md` lists eight (220). S4 carries the data file.
