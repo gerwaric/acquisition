@@ -1,6 +1,6 @@
 # The search digest
 
-Status: partial — item-facts, cpp-search, trade-query, repoe, item-filter — 2026-09-16
+Status: partial — item-facts, cpp-search, trade-query, repoe, item-filter, prior-art — 2026-09-16
 
 The slice's evidence in the shape a design can cite: one claim per
 line, `S<n> · kind · weight · claim · pointer`, under the brief
@@ -99,6 +99,24 @@ S93 · ggg · main · No class vocabulary is on the page: `Class` takes an "Item
 S94 · ggg · main · One page serves PoE1 and PoE2: six conditions are ribboned `PoE2-only` (listed at the pointer), among them `WaystoneTier`, which is PoE2's `MapTier` renamed; whether those ribbons enumerate the whole PoE1/PoE2 divergence is open · F8, Q4
 S95 · idiom · — · GGG's own example on the page, verbatim: `HasExplicitMod >=2 "of Haast" "of Tzteosh" "of Ephij"` — a page example, not a filter observed in use · F1, conditions.csv row `HasExplicitMod`
 
+## prior-art
+
+S101 · tool · — · Identity is the displayed line's own English text: fnv1a-32 of the matcher string, binary-searched over (hash, byte offset) pairs into one ndjson line of a 2.5 MB file held as a single string; the key is itself a sentence · F1
+S102 · tool · — · `ref` is English in every language file (`ru/stats.ndjson` line 1 has the English `ref` with Russian matchers); only `matchers[].string` is translated · F1
+S103 · tool · — · Numbers are removed by trying every placement: up to 11 candidates of "which numbers stay literal, which become `#`", most-placeholders-first with raw text last, each looked up until one hits whose `trade.ids` holds the modifier type; reversed wordings carry `negate: true` (1653 matchers) and flip the roll's sign; the advanced-mod-description wording is a second key, `advanced` (1420 matchers), indexed instead of `string` when present · F2
+S104 · tool · — · Ambiguity is a two-stat `StatGroup` with a named resolver: 100 of 9178 lines, each exactly two stats, resolver one of `trivial-merge` 43, `select` 41 (by the item's category), `percent-merge` 11, `flag-merge` 5 · F3
+S105 · tool · — · The local/global twin is one line with two trade ids: `#% increased Armour` appears twice with identical `ref` and identical matchers, told apart only by `resolve.test: ["ARMOUR", null]` · F3, stat-model.md "A local/global twin — line 489"
+S106 · tool · — · No entry carries two ids in one modifier category (0 of 9278); 2294 carry ids in several. A group's second id is merged into the list at match time, and a filter with several ids becomes a trade `count` group with `value.min = 1`, an OR · F3, Numbers
+S107 · limit · main · Unknown lines are kept, never guessed: the leftover goes to `item.unknownModifiers` with its modifier type and renders as an orange "Not recognized modifier"; no fuzzy match on mod text exists anywhere (the only Levenshtein is over OCR'd gem names) · F4
+S108 · measure · — · Its 12507 distinct trade ids are all known to the 2026-09-12 trade capture (0 unknown) and cover 12507 of that capture's 17958; the 5451 lacked include crucible 2492, scourge 409, delve 81, ultimatum 63 at zero, 187 of 240 sanctum, 944 enchants, 1026 explicits; all 88 option-bearing capture ids are carried · F5, stat-model.md "Coverage of the trade capture"
+S109 · measure · — · Of the 380 trade-id collisions the trade-query track found: 57 resolved by a group (30 trivial-merge, 24 select, 3 percent-merge), 83 kept as separate entries, 143 with one id carried, 97 with neither, 0 as several ids in one entry · F5, Numbers, coverage.csv `collision_verdict`
+S110 · measure · — · Over 55 data commits to `stats.ndjson` (2022-03-24…2026-09-09, median gap 12 days, max 205) refs grew 6139 → 9198, 31 of 54 diffs removed at least one ref, `d876a14` added 1402 refs, `9a012b5` ("update stats for 3.26.0.15") removed 930 refs and 1434 trade ids; 2436 times a trade id survived while the text it displays changed, 526 of them in `9a012b5` · F6, cadence.csv
+S111 · limit · main · A rename fails loudly for the 210 refs hard-coded as `stat()` string literals in 10 source files, each asserted at startup with a `Cannot find stat: X` throw, and silently — one orange line — for the other ~9000 · F6
+S112 · tool · — · The dataset generator is not in the repository: no script writes `stats.ndjson`, the only build step over it regenerates the four `*.index.bin` files, data arrives as opaque "update data" commits, and what generates it from what is unknown · F6, Q1
+S113 · tool · — · Its stash search does no matching: a saved string goes on the clipboard and Ctrl+F, Ctrl/Cmd+V, Enter are synthesised into the game window; the corpus is the game client's own box, the tool never parses the string, and the only GGG endpoints it calls are `/api/trade/search` and `/api/trade/fetch` — no stash endpoint in `renderer/src`, `main/src` or `ipc/` · F7, stash-search.md
+S114 · tool · — · The game highlights the matching cells and the tool learns nothing back; there is no ranking, and the editor turns the input red past 250 characters, the game's field length · stash-search.md "The two features" (Result, Ranking, Limits rows)
+S115 · idiom · — · Ten stash-search strings ship as defaults, four for map rolling and six for dump sorting, e.g. `"Pack Size: +3"` and `"Map Device" "Rarity: Normal"` · stash-search.md "Defaults shipped"
+
 ## The acceptance set
 
 Written when owner-seat and agent-seat merge.
@@ -113,9 +131,12 @@ unknown shown, never guessed, is the model).
 - S52 — a line is matched as displayed text and value; which mods made it is not known and never guessed.
 - S53 — an item's class is not a field; a class the search names is a derivation it owns, and an item it cannot class is shown unclassed.
 - S67 — a line whose trade number the hash and the site both leave undecided is shown with both candidates, never one guessed.
+- S107 — the model for this register: a line the search cannot name is shown as unknown, with what it knows of it, and never fuzzy-matched.
+- S111 — a line whose text has moved since the search last named it falls to the unknown path; nothing re-guesses it, and a name the code itself relies on fails loudly.
 
 ## Kill list
 
+- prior-art: F8 (no corpus, no persistence, no ranking, no mod-level identity, `modFamily` 187, no PoE2) — budget; F7 the item-search widget (two `items.ndjson` slices, ≥ 3 characters, cap of 5, OCR ranking) — budget; F4 the markup half (0 lines carry `[Tag|Display]`; `<<set:…>>`/`<if:…>` handled only on the name plate) — budget; F1 the hash-collision re-check, Q2 — internals; Q3 — moot; Q4 — sizing.
 - item-filter: F3 `Rarity` ordering, `Sockets`/`SocketGroup` compound operand, `HasInfluence` granularity, `Class` substring-matched on the C++ side — budget; F4 `BaseDefencePercentile` and the conditions with no export field — budget; F6 the 17 absent conditions by name — budget; Q2 `duplicated` as the unverified candidate for `Mirrored` — budget; the 14 actions — moot; the scripts' join-validation aborts — internals.
 - repoe: F1 229 ids listed twice, older text joined for 263 rows — budget; F2 the owner's acceptance-rule quote — budget; F3 site agreement 3,363/1/8/586, clipboard `Item Class:` = export class for 46 bases — budget; F4 unmatched equipment remainder (heist `Alert Level`, `Has # Abyssal Socket`, cluster-jewel passives, necropolis) — budget; pob-format.md the C++ export's `craftedMods`/`fracturedMods` reading — internals; Q8 access method — open question, not a fact.
 - trade-query: F1 request body, `query` decomposition, realm by omission, default sort, 100/500/10,000 caps — budget; F1 `status` options — moot; F2 `count`/`weight`/`weight2`/`crucible`/`mercenary` tips — budget; F3 per-group counts, map/heist/sanctum/ultimatum open items — sizing; F3 "what a stash search adds" — budget; F4 per-category counts, id-kind prefixes, C++-pseudomod comparison — sizing; F5 renderer array order, `frameType` values — internals; F6 realms, leagues, `items.json`/`static.json` counts — sizing; F7 `extended.hashes`, the computed `dps`/`pdps`/`ar`/`ev`/`es` (`pdps` = average physical × APS × 1.2; ≈ S26) — budget; F8 Q3 the owner's expectation before q3b, Q4 `weight`/`count` shapes, `complexity` 85, `inexact` — budget.
@@ -127,13 +148,13 @@ unknown shown, never guessed, is the model).
 Note 22's ranked questions, each with the claims that bear on it;
 extended after every merge.
 
-1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52, S63, S64, S65, S66, S67, S71, S72, S73, S76, S84
-2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95
-3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55, S61, S62, S69, S70, S74, S82, S85, S86, S87, S89, S92, S93, S94
-4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50, S75
-5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S61, S62, S66, S67, S69, S86, S90
-6. What a result carries — S1, S11, S31, S53
-7. The non-goals and limits, as outputs — S12, S14, S52, S53, S67, S84
+1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52, S63, S64, S65, S66, S67, S71, S72, S73, S76, S84, S101, S102, S103, S104, S105, S106, S107, S109, S110, S111
+2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95, S106
+3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55, S61, S62, S69, S70, S74, S82, S85, S86, S87, S89, S92, S93, S94, S108, S112
+4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50, S75, S110, S112
+5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S61, S62, S66, S67, S69, S86, S90, S106, S108, S109
+6. What a result carries — S1, S11, S31, S53, S107
+7. The non-goals and limits, as outputs — S12, S14, S52, S53, S67, S84, S107, S111
 
 ## Convergence and contradiction
 
@@ -153,6 +174,12 @@ extended after every merge.
 - S94 ≈ S10: a map's tier is a base-type fact on PoE1 items and a `WaystoneTier` condition on PoE2's page.
 - S87 ≈ S21, S22, contrast: the filter language names no computed number where the C++ app derives six and the site serves them.
 - S90 ≈ S26: the filter language's `Base*` defences read base values; the C++ app and the site read totals, the site's with quality normalised.
+- S101 ≈ S25, S71: identity by the displayed line's text in Awakened, in the C++ template and in repoe's text join; three tools, one key, a sentence.
+- S105 ≈ S72, S44: the local/global twin, one text with two ids, resolved by Awakened per item category, by repoe per `is_local`.
+- S109 ≈ S44, S66: the 380 collisions, counted by trade-query, 175 attributed by repoe's hashes, 57 grouped and 97 uncarried by Awakened.
+- S108 ≈ S61: the capture's 17958 distinct ids are its 18,187 entries less the 229 listed twice (repoe F1); Awakened carries 12507, the export names 11,004.
+- S106 ≈ S41: several ids for one line go outward as a trade `count` group with min 1, the shape trade-query's F2 documents.
+- S110 ≈ S75: the two maintained datasets move on their own cadence, Awakened's at a median 12 days with 2436 re-texted ids, the export's with 33 of 86 game versions never exported.
 - trade-query F4 says "380 pairs"; stat-collisions.csv has 380 groups of two to four ids (369/8/3). S44 carries the data.
 - item-facts F5 itemises the unmatched bases to 7,885 (7,512 + 272 + 98 + 3) while `data/numbers.md`'s `frameTypeId` table sums them to 7,826 (36,139 − 28,313); a 59-item gap the track does not explain. S8 carries F5's figures.
 - item-facts F3 counts PoE2 markup over four arrays (192 lines); `data/numbers.md` lists eight (220). S4 carries the data file.
