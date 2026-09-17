@@ -1,6 +1,6 @@
 # The search digest
 
-Status: partial — item-facts, cpp-search, trade-query, repoe, item-filter, prior-art, store-as-built, engine-bench — 2026-09-16
+Status: partial — item-facts, cpp-search, trade-query, repoe, item-filter, prior-art, store-as-built, engine-bench, owner-seat — 2026-09-16
 
 The slice's evidence in the shape a design can cite: one claim per
 line, `S<n> · kind · weight · claim · pointer`, under the brief
@@ -157,9 +157,46 @@ S156 · measure · — · The trade stat id merges variants of one stat (implici
 S157 · measure · — · The derived schema costs 764,694,528 file bytes and a 5,687 ms build at 1,084,170 against 288,532,800 bytes resident for the scan; at 36,139, 24,911,872 bytes and 162 ms against 10,982,951 · Numbers, numbers.csv
 S158 · idiom · — · The owner's query shape as `q10` records it: "(Armour > 1000) OR (Required Level < 80)" — 35,956 of 36,139 items match, because a requirement the item lacks reads as 0 · queries.md, `q10-boolean-or` row and the absence-rule note
 
+## owner-seat
+
+S161 · measure · — · The recorded set is seven questions in three kinds: find one remembered item (Q2, Q4, Q6), which items carry mod X (Q1, Q3, Q7), a set by level (Q5); none of the seven filters on armour, evasion or damage numbers · `owner-seat F1`, `data/questions.md` table (corpus: the owner's seven questions, 2026-09-13)
+S162 · owner · — · "My own examples also missed the mark on this. There are many times where a specific modifier value is needed. Examples include attributes, resistances, crit, and spell supression, but there are many others. It will vary heavily depending on what the user is trying to put together." · `data/questions.md`, "On specific values, verbatim (2026-09-13, after the item-filter read)"
+S163 · owner · — · "Be careful not to over-specify what a mod question means. PoE's itemization is complex, and the build system is complex, so for any given possible definition, someone probably wants to use it. We need a system that is flexible, simple, and generalizable here, not one tuned to a specific set of questions from a specific single user." · `data/questions.md`, "Two corrections to the reading"; `owner-seat F5`
+S164 · owner · — · "keeping track of what is possible to create in the game is a complex task beyond the scope of acquisition. We should let users provide that knowledge for now instead of trying to embed or access it from within the app." · `data/questions.md`, "Two corrections to the reading"; `owner-seat F5`
+S165 · owner · — · "Legacy means an item or modifer or modifier value or unique or unique variant that cannot be found or created by playing the game, so it only exists in Standard stashes" — examples given: the Ashes of the Stars onyx amulet's 3.23.0 variant with "10-20% increased Reservation Efficiency of Skills", and "a bugged body armour with +25,244% fire resistance"; "I don't have many legacy items, but there are many legacy flasks, uniques, rares, and other items in standard." · `data/questions.md`, "Refinements, verbatim (after the first pass, 2026-09-13)"
+S166 · owner · — · "When I'm asking for specific mods, I likely have a base in mind--either something specific like Titan Gauntlet or Spiked Gloves, or I do care about the base and it's attributes." · `data/questions.md`, "Refinements, verbatim (after the first pass, 2026-09-13)"
+S167 · owner · — · "Usually well-crafted endgame gear is already on bases with the right armour or evasion, so I don't worry about those numbers as much." … "I don't play melee builds, but people who do care very much about the modifiers on their weapong, and many builds care about other damage mods--sometimes they are hit-based, sometimes they are spell-based, sometimes they are damage over time, sometimes they are other ailments." · `data/questions.md`, "Refinements, verbatim" (2026-09-13)
+S168 · owner · — · "The trade site lets me select yes/no/any for binary flags. It's stat field's autocomplete distinguishes implicit, explicit, pseudo, fractured, and other modifier types. The stat field autocompelte is also almost instantly responsive to keystrokes and lists autocomplete options that makes sense in an order that makes sence. The c++ mod search box is terrible by comparison on both fronts." · `data/questions.md`, "The trade site against the stash, verbatim (prompt 4, 2026-09-13)"
+S169 · idiom · — · The composition neither search allows, in the owner's own writing: "The c++ does not allow for complex boolean searches such as (A or (B AND C)). The trade site allows that kind of logic, but only for stat modifiers, not for any of the other search fields, so I can't ask for something like "(Armour > 1000) OR (Required Level < 80)"." · `data/questions.md`, "The trade site against the stash, verbatim (prompt 4, 2026-09-13)"
+S170 · owner · — · Pricing: "I don't use acquisition for managing sales" … "There are a small number of users who depend upon this however, but I don't know their workflows." … "I do not want acquisition updating forum shops directly. Those users can have their agents drive their web browsers, or maybe we re-enable this feature later, but I don't want to support direct updates out of the gate because of the use of POESESSID." Organising: "I generally don't use acquisition to manage my stash at all, because it cannot perform actions like move items or rename tabs. However, knowing counts and total of different currencies, equipable items, and other non-equipable items such as maps and fragments might be useful, or at least interesting." · `data/questions.md`, prompt-2 and prompt-3 answers; `owner-seat F2`
+S171 · requirement · — · R1: "A line has an identity finer than its text: its kind (implicit, explicit, fractured, crafted, pseudo, …) and, where a mod is named, the mod"; prevents "Q1, Q3, Q7 missing a mod that renders several ways, or a template that hides its kind" · `owner-seat R1`
+S172 · requirement · — · R2: "Boolean composition across every field, not stats alone — a mod with a base, by name or by the base's attributes, being one instance"; prevents "the gap both existing searches share (F3); a model tuned to one user's questions (F5)" · `owner-seat R2`
+S173 · requirement · — · R3: "Tri-state flags: yes, no, any"; prevents "the C++ checkbox that can only demand" · `owner-seat R3`
+S174 · requirement · — · R4: "The mod vocabulary served instantly, categorised by kind, ranked sensibly — a read-model property"; prevents "the C++ dropdown (F3); the same need as an agent's schema discovery" · `owner-seat R4`
+S175 · requirement · — · R5: "A trade search, as a URL or its JSON, is a stash query; the join is the trade id → stat id map (repoe F1, F2)"; prevents "re-typing a query the site already holds (F4)" · `owner-seat R5`
+S176 · requirement · — · R6: "Every answer carries the item's location — tab or character, realm, league"; prevents "Q2, Q4, Q6 answered without "where"" · `owner-seat R6`
+S177 · requirement · — · R7: "League of origin is not promised: no field carries it; a derivation from league-specific mods or first-seen is the most a search can offer"; prevents "Q4 answered wrongly" · `owner-seat R7`
+S178 · requirement · — · R8: "Legacy is the user's knowledge: the search finds an item by the mod, value or variant the user names, and the app never judges what the game can produce"; prevents "Q2, Q6; and the scope creep of tracking the game (F5)" · `owner-seat R8`
+S179 · owner · — · "Being able to use a trade search query against my stash would be fantastic, especially if there was an integrated way to make this happen--e.g. with a simple browser addon, or even a basic copy/paste. There's already a browser extension called Better Trading that people use to manage trade searches. Integrating with that might be fun, but not a core features." … "integrating with Awakened PoE trade to price items from within acquisition somehow (gui? cli? mcp?) would be useful. Some newer players have asked for this." · `data/questions.md`, "Anything else, verbatim (prompt 5, 2026-09-13)"; `owner-seat F4`
+S180 · requirement · — · Non-goals: "acting on the stash; direct forum updates; a pricing engine"; prevents: F2, F4 · `owner-seat` requirements table, last row
+
 ## The acceptance set
 
-Written when owner-seat and agent-seat merge.
+One line per owner question and per agent scenario, verbatim, with
+the seat's reading of the answer wanted. The proposals write each out
+(note 22); stage 6 reads them as its acceptance tests.
+
+Owner (`owner-seat/data/questions.md`, the table and refinements, 2026-09-13):
+
+- OQ1 · "Do I have a rare that I can use to flech out the resistances or attribute requirements for a build I'm testing?" · a short list of candidates for one slot, with their resist and attribute lines visible, to pick from; refined: "Sometimes a specific item will have a specific stat, like a crafting base with a specific fractured modifier, or a key build-enabling modifier, or a stat that is needed to complete a defensive layer."
+- OQ2 · "Do I have a legacy version of a specific unique item?" · one item or "no", and where it is; legacy is the user's knowledge (S165, S178)
+- OQ3 · "I just read about a new interaction someone found and I want gear to test it out." · a list, defined by whatever the interaction needs: a mod, a base, socket colours, a unique
+- OQ4 · "Where is that staff from Cruicible league someone tried to pay me real money for?" · one item and its tab; league of origin is not a field (S177)
+- OQ5 · "I want to practice leveling, so I need to find my leveling gear." · a set of items across tabs, by level bracket
+- OQ6 · "What is that legacy explode chest I have worth?" · a price, outside the stash search, after finding the item and knowing it is the legacy version
+- OQ7 · "Do I have any gear with the modifier GGG just anounced is going away except on Standard?" · a list across all tabs and characters, item and tab, to decide keep or sell
+
+Agent: written when agent-seat merges.
 
 ## Limits register
 
@@ -173,9 +210,12 @@ unknown shown, never guessed, is the model).
 - S67 — a line whose trade number the hash and the site both leave undecided is shown with both candidates, never one guessed.
 - S107 — the model for this register: a line the search cannot name is shown as unknown, with what it knows of it, and never fuzzy-matched.
 - S111 — a line whose text has moved since the search last named it falls to the unknown path; nothing re-guesses it, and a name the code itself relies on fails loudly.
+- S177 — league of origin is not a fact the search holds; a derivation from league-specific mods or first-seen is offered as a derivation, never as the answer.
+- S178 — legacy is the user's knowledge; the search finds what the user names and never says whether the game can still produce it.
 
 ## Kill list
 
+- owner-seat: F1's identity refinement quote — carried by OQ1 in the acceptance set; `data/questions.md`'s *Wants back* and *Today* columns — the first is the acceptance set, the second cpp-search's route.
 - engine-bench: Inputs, Outputs, Provenance tables — internals; F6 (the ~0.33 s C++ filter loop at ~1 M against this scan's 88 ms, not like-for-like) — budget; F7 (the seat projection's DDL, per-column derivations, `kind` histogram, the mean hiding a second number on 11,020 of 125,006 lines, `ultimatumMods` in neither file) — budget; F1's per-scale worst column (`q03` 1.27 ms at 36,139, 13.3 at 361,390) — budget; Q2–Q5, the experiments not run (FTS5 over the pretty names, update cost with six indexes live, a struct materializing every census field over 1 % of items, several searches at once over one corpus) — budget.
 - store-as-built: F7 — moot (registry rulings, cited as `C<n>`, never re-digested); F4 column exposure (`w`/`h` in no read type, `x`/`y` only in `ItemSnapshot`, read-time `json_extract`s `$.note` on 184 and `$.inventoryId` on 34,161 of 36,139 items) — budget; the surface-sizing Numbers rows (17 public reads, one uncalled: `Store::orphaned_item_annotations`; 8 tables, 4 indexes; 12 queries planned, 5 as full scans) — sizing.
 - prior-art: F8 (no corpus, no persistence, no ranking, no mod-level identity, `modFamily` 187, no PoE2) — budget; F7 the item-search widget (two `items.ndjson` slices, ≥ 3 characters, cap of 5, OCR ranking) — budget; F4 the markup half (0 lines carry `[Tag|Display]`; `<<set:…>>`/`<if:…>` handled only on the name plate) — budget; F1 the hash-collision re-check, Q2 — internals; Q3 — moot; Q4 — sizing.
@@ -190,13 +230,13 @@ unknown shown, never guessed, is the model).
 Note 22's ranked questions, each with the claims that bear on it;
 extended after every merge.
 
-1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52, S63, S64, S65, S66, S67, S71, S72, S73, S76, S84, S101, S102, S103, S104, S105, S106, S107, S109, S110, S111, S154, S155, S156
-2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95, S106, S121, S125, S158
-3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55, S61, S62, S69, S70, S74, S82, S85, S86, S87, S89, S92, S93, S94, S108, S112
+1. A line's identity, and a line it cannot name — S3, S4, S5, S11, S12, S25, S27, S28, S29, S43, S44, S45, S47, S48, S52, S63, S64, S65, S66, S67, S71, S72, S73, S76, S84, S101, S102, S103, S104, S105, S106, S107, S109, S110, S111, S154, S155, S156, S165, S171, S178
+2. The query model and its one grammar — S2, S6, S7, S9, S10, S21, S22, S24, S32, S39, S41, S47, S54, S68, S81, S83, S90, S91, S95, S106, S121, S125, S158, S162, S163, S166, S167, S169, S172, S173
+3. The vocabulary read, served to a human and an agent — S2, S5, S6, S8, S13, S29, S30, S42, S43, S44, S55, S61, S62, S69, S70, S74, S82, S85, S86, S87, S89, S92, S93, S94, S108, S112, S168, S174
 4. Who holds the corpus, the derivation and its contract — S1, S11, S13, S15, S31, S37, S50, S75, S110, S112, S122, S124, S126, S127, S128, S129, S130, S131, S134, S135, S141, S142, S143, S144, S145, S146, S147, S148, S149, S150, S151, S152, S153, S157
-5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S61, S62, S66, S67, S69, S86, S90, S106, S108, S109, S147, S155
-6. What a result carries — S1, S11, S31, S53, S107, S127, S132, S133, S134, S143
-7. The non-goals and limits, as outputs — S12, S14, S52, S53, S67, S84, S107, S111
+5. What crosses the trade boundary — S7, S8, S26, S29, S41, S42, S45, S46, S49, S51, S54, S55, S56, S61, S62, S66, S67, S69, S86, S90, S106, S108, S109, S147, S155, S175, S179
+6. What a result carries — S1, S11, S31, S53, S107, S127, S132, S133, S134, S143, S161, S176, S177
+7. The non-goals and limits, as outputs — S12, S14, S52, S53, S67, S84, S107, S111, S164, S170, S177, S178, S180
 
 ## Convergence and contradiction
 
@@ -235,6 +275,14 @@ extended after every merge.
 - S155 ≈ S71, S61: what a stat id cannot name — 32.6 % of all lines here, where repoe's text join reaches 95.3 % of equipment explicit lines and the export names a trade id for 61.7 % of the capture; three denominators, one gap.
 - S156 against S72: 259 of 3,478 mapped templates ambiguous here (all arrays, first trade id wins) and 150 of 3,402 in repoe (equipment explicit, the twins); different sets, not a contradiction.
 - engine-bench F2's prose gives `q06` at 1,084,170 as 0.30 ms and `q09`'s scan as 7.1 ms; results.csv has 0.659 (delivering rows; 0.317 is the `count(*)` row) and 8.208. F1's table gives the ×10 worst as 13.1 ms; results.csv and the Numbers table 13.3. S147 and S148 carry the data file.
+- S169 ≈ S158: the owner's `(Armour > 1000) OR (Required Level < 80)`, the composition neither search allows, run by engine-bench as `q10`.
+- S175 ≈ S56, S61: a trade search URL is the query (trade-query F9) and the export's text join is the trade-id-to-stat-id map (repoe F1).
+- S171 ≈ S44, S101, S52: an identity finer than the text, required by the owner where trade-query, prior-art and the fetch each show text alone failing.
+- S176 ≈ S31, S122: every answer carries the location, the coordinate the C++ app buckets on and the store indexes.
+- S173 ≈ S21: tri-state flags against the C++ checkbox that "checked = predicate".
+- S174 ≈ S30, S168: the vocabulary served instantly and by kind, against the C++ dropdown of RePoE strings plus pseudomods.
+- S162 ≈ S87, S88: the owner's correction that a specific value is often needed, beside the filter language that names no number and the owner's reading of why.
+- S177 ≈ S13, S15: no field carries league of origin (item-facts F2's schema delta), and ids survive a league's end into Standard.
 - trade-query F4 says "380 pairs"; stat-collisions.csv has 380 groups of two to four ids (369/8/3). S44 carries the data.
 - item-facts F5 itemises the unmatched bases to 7,885 (7,512 + 272 + 98 + 3) while `data/numbers.md`'s `frameTypeId` table sums them to 7,826 (36,139 − 28,313); a 59-item gap the track does not explain. S8 carries F5's figures.
 - item-facts F3 counts PoE2 markup over four arrays (192 lines); `data/numbers.md` lists eight (220). S4 carries the data file.
