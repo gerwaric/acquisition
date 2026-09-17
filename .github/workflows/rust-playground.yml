@@ -60,6 +60,12 @@ jobs:
       - name: Build
         run: cargo build --workspace --locked
 
+      # If this step breaks: a Secret Service *connection* error means the
+      # session bus, so drop the dbus-run-session wrapper first (the keyring
+      # crate's own CI runs the gnome-keyring-daemon line bare). The round
+      # trip's *assertion* failing (Some(token) expected, None) means the
+      # Linux build reached the keyring crate's mock store: check feature
+      # unification. First run green 2026-09-12 (run 34704103311).
       - name: Test, with the keyring round trip against an unlocked gnome-keyring
         run: |
           dbus-run-session -- bash -eo pipefail -c '
