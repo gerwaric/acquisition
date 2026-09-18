@@ -105,11 +105,12 @@ else:
 - The five invariants; the daemon owns GGG traffic and never reads
   facts (C2, C34); a frontend consumes two surfaces (C12); shared
   semantics live in Rust and every frontend has an adapter (C46).
-- SQL is a surface, on the CLI and the MCP alike (the owner,
-  2026-09-14; stance 6): read-only, over a published contract that is
-  never the facts schema, which stays internal (C48, amended to that
-  extent at the ruling). Intent is readable by the search, read-only,
-  in every language over it.
+- ~~SQL is a surface, on the CLI and the MCP alike~~ — **withdrawn by
+  the owner 2026-09-17** at stage 5 (note 28, §4, question 3): no SQL
+  surface; C48 stands unamended; an export is parked with a trigger.
+  Stance 6's first sentence stands (reach is the derivation's); its
+  SQL clauses fall with this. Intent is readable by the search,
+  read-only, in every language over it.
 - Whatever the search reads is a derivation of facts (C34), never a
   cache: it cannot be stale, by construction and not by a refresh,
   because stale results mistaken for current truth is the failure C48

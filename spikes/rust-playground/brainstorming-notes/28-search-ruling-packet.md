@@ -78,8 +78,10 @@ an optional summed thing (2d, K3); counting by `line` under the query in
 hand **is** the vocabulary read, each row carrying the term that selects
 it (row 3). *One item* with `--against` is the why-not. A trade URL
 translates in, a query translates out, each with a per-clause report
-and a remainder (row 5). Read-only SQL runs over the same derived
-relations (row 4, stance 6).
+and a remainder (row 5). There is no SQL surface (the owner,
+2026-09-17, §4 question 3); the derivation keeps a table shape — lines
+as rows, fields as columns, place by name — so an export can be added
+when a recorded question asks for it.
 
 ### The concept inventory, and what it cost
 
@@ -91,8 +93,7 @@ composition with bounded `holds` · `sum` and the totals table · absent
 against unreadable · place terms and the realm rule · ask and the one
 answer shape · the three views, with two count shapes and a sum · the
 vocabulary as counts by line · basis and continuation · the trade
-translation and its remainder. (SQL is a second language over the same
-relations, not a concept of the model.)
+translation and its remainder.
 
 So it is **not simpler than B**; it is B's surface carrying A's
 precision. Gone from A: `any(collection, P)`, arithmetic and `if` on the
@@ -159,7 +160,7 @@ spends bytes on it.
   shrinks to the one case that is almost never there. The fourth count
   is Astra's "name the ordinary failed comparison".
 
-- **C94 — A named total is a sum that answers, defined once as reviewed reference data (C68).** A row names the contributing line — template, kind where it matters, slot — and its weight; the evaluator and the SQL view (C48) are both generated from that table, so the model and a SQL caller cannot disagree. The answer prints a total's definition on request and each row's contributions. A definition is checked against the reference data, loudly, when the table is built; a template the game has since moved and one the stash merely lacks look the same in a corpus, and that stays a listed limit (S111). *Why:* a total that may decline failed the everyday question in use (stance 3). *Evidence:* S29, S49, S111. 2026-09-17.
+- **C94 — A named total is a sum that answers, defined once as reviewed reference data (C68).** A row names the contributing line — template, kind where it matters, slot — and its weight; the evaluator is generated from that table and nothing else defines a total, so the shipped totals have one meaning in every surface. The answer prints a total's definition on request and each row's contributions. A definition is checked against the reference data, loudly, when the table is built; a template the game has since moved and one the stash merely lacks look the same in a corpus, and that stays a listed limit (S111). *Why:* a total that may decline failed the everyday question in use (stance 3). *Evidence:* S29, S49, S111. 2026-09-17.
 
   *checked* · 2c →B; the one table is the withheld seed note 31
   proposed, with K3's "source/flag and slot, not merely a template and
@@ -214,19 +215,19 @@ spends bytes on it.
   entirely"), the store read included. Split from C89 so each holds one
   thing: the crate and its edges; the deriver and what the store owes it.
 
-### C48, amended in place (`CONTEXT.md`) — owed by note 23
+### C48 — not amended; the SQL surface withdrawn (owner, 2026-09-17)
 
-- **C48 — The facts schema is internal, and raw SQL over it is not a surface; read-only SQL over the search's published relations is one, on the CLI and the MCP alike.** The published contract is the derived relations, under their own version, never the facts file's — filled by the same derivation and reference tables the model evaluates (C94), so SQL is a second language over the model and never a door around it; a gap in the model is never closed by SQL. Facts keep schema versions and compatibility errors, defended by a store API expressive enough that going around it is never worth it. No cached search service (C98). *Why:* stale results mistaken for current truth is the failure a cache reintroduces. Decided 2026-08-31; amended 2026-09-17.
-
-  The first half is the owner's settled floor (note 22), so it is
-  *ruled* in substance; the wording is mine. **Open inside it:** with
-  nothing persisted there is no database for SQL to run over. My
-  leaning (**chosen here**, and the thing in this packet I am least
-  sure of): the search crate fills an in-memory SQLite from its held
-  corpus — it links `rusqlite` and still opens no file — and the DDL
-  moves under the store with the deriver if persistence fires. The
-  alternative is to park the SQL surface behind persistence, against the
-  floor. The amended text above holds under either.
+Note 23 owed stage 5 an amendment of C48 that made read-only SQL over
+a published contract a surface. The owner withdrew the surface instead
+(§4, question 3), so C48 stands as written on 2026-08-31: the schema is
+internal, raw SQL is not a surface, no cached search service. The
+draft amendment and its open question (an in-memory SQLite the search
+crate would fill on request — Astra's check below reads it as
+"defensible, but still open") are history at `a0d85b23`. What the
+floor said SQL was for, the search now answers otherwise: reach is a
+property of the derivation, the vocabulary read shows what exists, a
+gap is listed and closed by a field, and every answer is JSON under
+C53. The parking lot carries the export form and its trigger.
 
 ### C1, amended in place (`CONTEXT.md`) — 670 bytes
 
@@ -285,8 +286,7 @@ number; it is what the first drafts carried that was never a boundary.
 - **C100, C101, C103 — where raw JSON is seen.** A result row never
   carries a body. One item's raw body is seen through `show <item>`, on
   request, one at a time (owner, 2026-09-17: "i agree with using show
-  <item> for this"); the query language has no path into it; SQL runs
-  over the derived relations. The store's bulk read (C103) hands bodies
+  <item> for this"); the query language has no path into it. The store's bulk read (C103) hands bodies
   to the search crate in-process and, being a public store read, to any
   code that links the store — as `Store::search` does today. Tab and
   character bodies have no read today and gain none.
@@ -297,13 +297,16 @@ number; it is what the first drafts carried that was never a boundary.
   normalises quality (S26) and sits in the remainder until a normalised
   field exists. Several ids for one line go out as a `count` of at
   least one (S106).
-- **C48.** The template convention and place by name are in the
-  published schema (S200).
+- **The derivation's shape.** Lines as rows (one per occurrence), fields
+  as columns, place by name (S200): the shape the model produces, kept
+  so that a JSON or SQLite export, or a persisted projection, is a
+  writer over it and not a redesign.
 
 ## 3. The parking lot (→ `decisions/search.md`, "Parked")
 
 - Saved queries, user names, tags → user-scoped intent through the store. Trigger: the `user.db` park firing (`decisions/store.md`). Then: A's version rule, B's composability, and the bare-word collision solved first. A query is already a value that travels between clients (C91); only the write is parked.
 - A persisted projection (A's transactional one is a candidate; direct SQLite for short-lived consumers is another, S152) → under the store, the deriver moving with it (C89). Trigger: a measured number — the streaming body read, the re-derive under an active refresh, or a CLI ask over 500 ms.
+- Whole-corpus export of the derived lines — JSON first; a SQLite file stamped with its basis if JSON in hand is not enough — → the search crate's CLI/MCP adapters, as a writer over the derivation's table shape. Trigger: a recorded question the term language, the counts view and the JSON answer could not serve. *The SQL surface the floor once named was withdrawn 2026-09-17; SQL as an engine was declined by measurement (S146–S148); a surface over a persisted projection is the one form that would be cheap, and rides on C98's trigger, not its own.*
 - A grouping above class (`category`) → the class table, by reviewed membership and base-name rules, never a dotted prefix (K7: the 14 parents are unions; seven leaves need base names). Trigger: stage 6 reaching OQ5. *New in note 31; logic-checked by Astra, used by no one.*
 - Query by example (the one-item view prints the item as an editable query) → a rendering over C92. Trigger: the first seat that asks. *Reached by neither proposal.*
 - A quality-normalised defence field → the derivation. Trigger: a translated trade query with a defence bound in its remainder (C99).
@@ -325,10 +328,27 @@ answered 2026-09-17. Spelling corrected per note 23's rule.
    with the daemon's events for promptness, as the Rust-side equivalent
    of the C++ app's in-process signal. Verdict: "Yes, with that
    explanation I agree to 2."
-3. **The SQL surface's home** while nothing is persisted. Verdict:
-   "i'm also unsure about sql. Let's come back to this after resolving
-   the others." — **open**; C48's amendment waits on it, and Astra's
-   check is asked for its reading as one more input.
+3. **The SQL surface's home** while nothing is persisted. First: "i'm
+   also unsure about sql. Let's come back to this after resolving the
+   others." Then, with Astra's C48 reading in hand, the owner stepped
+   back: "i have been insisting on SQL as a surface, but I didn't create
+   acquisition and I'm not a CRUD or database expert. Is it possible the
+   SQL surface as a requirement is doing some unaccounted-for harm like
+   constraining our design or implementation? Are we duplicating work,
+   adding complexity, or creating more room for bugs? should we consider
+   making SQL the primary interface language for search?" Fable's
+   reading: SQL as a surface is a second *meaning* where the design
+   allows only second *spellings* (C46, stance 5); the insurance it
+   bought is bought otherwise by stance 6; as the primary language it
+   makes stance 3's everyday case the advanced one (S187); as an engine
+   it lost by measurement. Verdict: "I agree with (b) now, and possibly
+   (c) if json export isn't sufficient for some future need. Between
+   pseudo-mods, counting, weighting, and all the other search features
+   we need, I suspect the only way an SQL surface makes sense is if we
+   have an SQL table behind it, which so far nobody has been pushing
+   for." — **the SQL surface is withdrawn**; C48 stands unamended; note
+   22's floor bullet is marked changed; the export is parked with its
+   trigger.
 4. **C1** — the owner first asked to raise the gate to 1 KB for this one
    rule ("I would rather expand the 800-byte limit for this rule to 1k.
    please think about this."); on the analysis that C1 carried a table
@@ -352,7 +372,7 @@ answered 2026-09-17. Spelling corrected per note 23's rule.
 ## 5. Measured sizes
 
 Bytes of each candidate bullet as it stands in §2, against the 800 gate
-(`tools/docs-check.sh`, `ENTRY_LIMIT`); C1 today is 793 and its amendment above is 670.
+(`tools/docs-check.sh`, `ENTRY_LIMIT`); C1 today is 793 and its amendment above is 670; C48 is unchanged.
 
 | Line | Bytes |
 | --- | --- |
@@ -362,7 +382,7 @@ Bytes of each candidate bullet as it stands in §2, against the 800 gate
 | C104 | 683 |
 | C92 | 714 |
 | C93 | 777 |
-| C94 | 730 |
+| C94 | 744 |
 | C95 | 724 |
 | C96 | 666 |
 | C97 | 740 |
@@ -372,7 +392,7 @@ Bytes of each candidate bullet as it stands in §2, against the 800 gate
 | C101 | 792 |
 | C102 | 709 |
 | C103 | 785 |
-| C48 | 756 |
+| C1 | 669 |
 
 ## What I left out, and am least sure of
 
@@ -381,7 +401,7 @@ account of them, as corrected by Astra. I read B's model and grammar
 pages and only the binder lines of A, so §1 is written in B's idiom by
 B's author — the bias note 31 named is compounded here, and Astra's eye
 on §1 is the remedy I can name. The slot-comparison spelling in §1 has
-been typed by nobody. I am least sure of the SQL home, then of whether
+been typed by nobody. With SQL withdrawn, I am least sure of whether
 "the largest satisfying occurrence" is what a person sorting by life
 expects when a second, smaller line also matched.
 

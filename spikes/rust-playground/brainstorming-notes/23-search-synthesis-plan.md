@@ -197,6 +197,18 @@ at `e490196e`.
     allows, because that is where his input enters. The owner's seat
     (step 4) moves there.
 
+16. On the SQL surface (stage 5, 2026-09-17), having ruled decision 8 and
+    then asked whether it was "doing some unaccounted-for harm like
+    constraining our design or implementation": "I agree with (b) now,
+    and possibly (c) if json export isn't sufficient for some future
+    need. Between pseudo-mods, counting, weighting, and all the other
+    search features we need, I suspect the only way an SQL surface makes
+    sense is if we have an SQL table behind it, which so far nobody has
+    been pushing for." — (b) is no SQL surface in the slice, (c) an
+    export parked with a trigger (note 28). Decision 8's SQL half is
+    withdrawn; its other half, read-only annotations viewable, stands.
+    The C48 amendment "Owed by later stages" lists is no longer owed.
+
 ## Withheld from the proposers: stage 4's checklist
 
 Note 22 carried eight synthesis seeds, Fable's drafts. Three restated
