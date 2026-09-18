@@ -25,17 +25,17 @@ There is also worthwhile cleanup:
 I ran `tools/docs-check.sh`, `git diff --check`, and reproduced the pseudo classification against the committed captures. The checks pass; they do not detect these semantic issues. No files were changed, and no live requests were made.
 ## Fates (kept by the sessions that work the audit in; one row per finding, its fix commit when closed)
 
-The audit is worked in three sessions (note 23, row 5): A — facts and cleanup; B — the contract gaps, with the owner; C — the language reference and where binding detail lives.
+The audit is worked in three sessions (note 23, row 5): A — facts and cleanup; B — the contract gaps, with the owner; C — the language reference and where binding detail lives. Session B's questions, the owner's verdicts verbatim and what the discussion changed are note 34 at `c2fbb374`, deleted at B's close.
 
 | Finding | Session | Fate | Commit |
 | --- | --- | --- | --- |
 | 1 pseudo classifier | A | Replaced by the `search/pseudo-stats/` track: per-entry evidence, an `unresolved` class (109 of 298), the partition withdrawn in note 28 §2b, the old script retired | 4753e214 (brief), 6ea3277b |
-| 2 stance 6 still requires SQL | B | open — a replacement drafted for the owner's word, note 34 §1; the old text stays at `6b3b4e49` | |
-| 3 unavailable grouping keys | B | open — laid out in note 34 §2: an undecided bucket named by its reason, buckets summing to the total, a pinned example | |
-| 4 realm-qualified vocabulary fragments | B | open — laid out in note 34 §3: a realm word inside a term names the line's identity coordinate (C90), distinct from the scope (C96) | |
+| 2 stance 6 still requires SQL | B | Stance 6 rewritten: reach is the derivation's, a gap closed by a field or a total; no history sentence in the stance and the floor bullet's stale sentence cut, on the owner's word ("Accepted after dropping the historical reference and fixing the floor"); the old text is note 22 at `6b3b4e49` | a9ea0277 |
+| 3 unavailable grouping keys | B | C105, new: every matching item is counted — `none` for known absence, `undecided` with the reason on the item and a tally by kind beneath, two invariants (every item somewhere; single-valued keys sum to the total, the first counts test's case); detail in `search/DESIGN.md` | 5cbadba6 |
+| 4 realm-qualified vocabulary fragments | B | The realm word in a term **declined** by the owner ("Disallow realm as a search term"): C96 says "never a term", C97's row carries the term that selects it "in its realm", the scope narrowing to the realm the row names; the word and the owner's sticky default realm are parked | 32ebd2b6 |
 | 5 the page is not walkable | C | open — a self-contained language reference with an example per construct, after B | |
-| 6 §2b holds contract rules | B then C | open — the home is the owner's call, note 34 §5 (a document under `search/` proposed) with the CONTEXT.md byte-limit sentence redrafted there; C builds it | |
-| 7 reference data vs game knowledge | B | open — laid out in note 34 §4: game data exported and reviewed (C68) against the user's judgments; the concrete case is the RePoE base-defence extract (`search/repoe/`, 2026-09-18); poedb held as a candidate surface if RePoE lacks something | |
+| 6 §2b holds contract rules | B then C | The home is `search/DESIGN.md`, the owner's option (a): §2b moved verbatim, binding until code takes each paragraph; the registry header, `search/README.md` and the `AGENTS.md` routing row cite it; the `CONTEXT.md` byte-limit sentence replaced as accepted. C adds the language reference to the same document | 39bd6ba4, 25fcc7b4 |
+| 7 reference data vs game knowledge | B | C106, new: the line is three-way — game data and community convention enter as reference data (C68, C79) through an admission test, judgment never; C102's clause and note 22's stances 2 and 4 follow; the percentile paragraph resolved on the RePoE extract. Legacy parked pending a research track over Path of Building's version-labelled variants, S178 standing | 91d54716 |
 | cleanup: 200 ms and "declined by measurement" | A | Qualified in the persistence and export parks and in note 28 §2b | ee2617fd |
 | cleanup: spent briefs | A | Notes 29, 30, 32, the stage-4 audit brief, the anonymised copies and their script retired, every path citation now a hash | ee2617fd |
 | cleanup: stale bookkeeping | A | Note 23's "stage 4 owes" marked spent; the mistake walk no longer "parked"; the registry header separates "checked for logic" from "exercised by no user" | ee2617fd |
