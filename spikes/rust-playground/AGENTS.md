@@ -42,7 +42,9 @@ Then, only when the work touches it:
   `decisions/plans.md` (sync policy, planner, quote, apply),
   `decisions/pricing.md` (buyout intent, listing state, currency table,
   price plans, import, render), `decisions/frontends.md` (CLI, MCP,
-  rendering). Each module doc names its decision file and ids at the top.
+  rendering), `decisions/search.md` (item search: the crate,
+  the line, the query, the answer, the basis, the trade boundary).
+  Each module doc names its decision file and ids at the top.
 
 Also read the applicable closed slice record below; its findings table
 is the review checklist. For the refresh and daemon split, also read the

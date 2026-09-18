@@ -79,11 +79,12 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 | [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | first pass complete — 2026-09-14 | 12317 |
 | [`proposal-audit/`](proposal-audit/README.md) | Do the two blind search designs hold against their own page and their evidence? (synthesis stage 4; not research) | closed: two audit rounds, two repair passes — 2026-09-17 | — |
 
-Standing rulings and parked items the design will revisit, so it knows
-what it overrides: C48 (raw SQL is not a surface), C34 (derivations),
-C12 (two surfaces), C79 (governed surfaces; `SURFACES.md`), and in
-`decisions/store.md` "Parked": search-at-scale (FTS, a search crate) and
-the user-scoped annotations home whose trigger lists saved searches.
+The rulings are `decisions/search.md` (harvested 2026-09-17;
+provisional under note 23's decision 15 until the owner's first seat at
+a surface he can use), read before touching anything here; the standing
+rulings they revisit — C48 (raw SQL is not a surface), C34
+(derivations), C12 (two surfaces), C79 (governed surfaces;
+`SURFACES.md`) — and the store's parks they cite are named from there.
 
 The synthesis runs in stages after the tracks close (the plan and the
 owner's decisions: `brainstorming-notes/23-search-synthesis-plan.md`):
@@ -100,7 +101,7 @@ the two blind proposals it produced are
 seat under `brainstorming-notes/30-search-review-brief.md`
 (`brainstorming-notes/26-search-review-by-fable.md`,
 `brainstorming-notes/27-search-review-by-astra.md`), and the reconciliation,
-`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md`, checked by Astra under `brainstorming-notes/33-search-ruling-check-brief.md` and harvested into `decisions/search.md`.
+`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the model page, the mechanism until built, the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17.
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search

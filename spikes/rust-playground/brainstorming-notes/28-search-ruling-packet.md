@@ -12,23 +12,20 @@ set and limits register; the registry's form (`CONTEXT.md`,
 into `decisions/search.md` in the registry's style; then this note is
 history, never a second authority.
 
-## How to read a line's standing
+## What this note holds now
 
-Under decision 15 every line but C89, C103 and C1 is **provisional**: note 31's
-recommendation, harvested *with* its K-correction, standing until the
-owner's first seat at a surface he can use, which may cycle any of them
-back. Each candidate carries one of three marks, because they are not
-the same kind of thing:
-
-- **checked** — a note-31 recommendation that Astra's check traced and
-  left standing, or corrected in a way that only narrows it.
-- **chosen here** — Astra's check said stage 5 "must choose and state"
-  and neither note 31 nor the check chose. The choice is Fable's alone:
-  no audit, no reviewer, no second model has seen it. One voice.
-- **ruled** — the owner's own words, this session.
-
-The arrows of note 31 (→A, →B) are kept so the weak direction stays
-visible: I am Fable, B is Fable's.
+The lines C89–C104 and the C1 amendment were harvested into
+`decisions/search.md` and `CONTEXT.md` on 2026-09-17, with Astra's check
+(the last section) worked in and the owner's verdicts on every finding
+that changed a line's meaning recorded in §4, questions 6–9. The lines
+as drafted here — with their *checked* / *chosen here* / *ruled* marks
+and note 31's arrows — are history at `f20fbf11`; the standing of each
+line is the header of `decisions/search.md`. This note keeps what the
+registry cannot: the combined model on one page (§1), the mechanism as
+recorded until a module doc takes it (§2b), the owner's answers
+verbatim (§4), and Astra's check. Under decision 15 every line but the
+ruled ones is provisional until the owner's first seat at a surface he
+can use.
 
 ## 1. The combined model on one page
 
@@ -40,26 +37,39 @@ proposal and is not harvested — the decisions are; the page is how to
 check that they cohere.
 
 **An item is what it displays, where it is, and what you said about
-it** (B). What it displays is a set of **lines**; each line is one
-*occurrence* with a *kind*, a *template* and its *numbers* in order
+it** (B). What it displays is a collection of **lines**, repeats kept;
+each line is one *occurrence* with a *kind*, a *template* and its *numbers* in order
 (row 1). Kind is the source array with the flags the line carries, both
 kept (Astra, row 1). Everything else a body holds is a *field* or a
 *flag* from a closed list, or is seen through `show`; there is no path
-into the body (row 10). Place — realm, league, tab, character,
-container — comes from the store's columns and is asked like anything
-else (2e). Intent joins read-only: `priced`, `price`, `note` (row 6).
+into the body (row 10). Place — league, tab, character, container —
+comes from the store's columns and is asked like anything else; the
+**realm is the search's scope**, stated outside the conditions, printed
+back in every answer, never hoisted from a branch; naming none over a
+two-realm store is an error, and an all-realms scope is explicit (2e;
+owner, §4 question 6). Intent joins read-only: `priced`, the effective
+price (row 6, C81); an item's `note` is a fact from the body, not intent.
 
 **A term** is a thing and optionally a comparison; terms side by side
 are *and*; `-`, `or`, parentheses and `holds(…)` with a lower and upper
 bound compose across everything (row 2, K5). A comparison on a line
 binds **one occurrence** (2a). Conditions on several numbers of one
-line are one term, so they hold together on one occurrence (K1); the
-spelling offered, **new**: each `#` in a quoted template may carry its
-own comparison, `"Adds #>=12 to #<=28 Cold Damage"`, and B's `*` is the
-slot left free. The item's sum is asked for by name: `sum("…")`, or a
+line are one term, so they hold together on one occurrence (K1); a
+**ranged line** (`# to #`) names its numbers `low` and `high` and
+admits `avg` — `"Adds # to # Cold Damage" low>=12 high<=28` — and a
+comparison, sort or sum naming no slot on such a line is an error that
+lists the words (the owner's syntax, §4 question 7). A refinement is
+the old query, parenthesised, and a new term; `has:` asks presence on
+purpose (C91, C93). Socket colours are asked over the whole item or
+within one link group, every colour and count met by the same group
+(row 8, S59). The item's sum is asked for by name: `sum("…")`, or a
 shipped **total** whose definition is one reference table (2c, the
-withheld seed, K3). **Absent is false** and counted; **unreadable is
-undecided** and counted apart (2b, K2).
+withheld seed, K3). **Absent is false** and counted — claimed only when
+everything that could hold the thing was readable; **undecided** — an
+unread body, a base the class table lacks, an unresolved price, an
+unbound name — is counted apart, always with its reason (2b, K2;
+*chosen here*: undecided propagates, one of K2's two routes; widened
+past decode failure by the owner, §4 question 8).
 
 **One operation: ask** (B, row 6). The answer is one shape:
 
@@ -67,7 +77,7 @@ undecided** and counted apart (2b, K2).
 query    canonical text, and its tree in JSON
 basis    the snapshot answered from (K4)
 scope    items searched; realms, leagues; never fetched; oldest fetch; undecided
-terms    per term: resolved to; matched, failed, lacked, unreadable
+terms    per term: resolved to; matched, failed, lacked, undecided; reached only together
 total    matches
 rows | counts | one item
 next     returned, total, the continuation (bound to the basis)
@@ -86,11 +96,11 @@ when a recorded question asks for it.
 ### The concept inventory, and what it cost
 
 Astra's check asked for this and said plainly that subtracting A's 16
-from B's 11 would mislead. The combined model has **15**: item and its
+from B's 11 would mislead. The combined model has **16**: item and its
 three parts · line as occurrence · kind (two coordinates) · name (field,
 total) · term and comparison · slot comparisons in one term ·
-composition with bounded `holds` · `sum` and the totals table · absent
-against unreadable · place terms and the realm rule · ask and the one
+composition with bounded `holds` · `sum` and the totals table · group
+binding for sockets · absent against undecided · place terms and the realm rule · ask and the one
 answer shape · the three views, with two count shapes and a sum · the
 vocabulary as counts by line · basis and continuation · the trade
 translation and its remainder.
@@ -108,136 +118,11 @@ failure.
 errors against a page, and neither review validates this combination.
 Parked below as stage 6's first step.
 
-## 2. Candidate decision lines
+## 2. The lines — harvested
 
-Registry form, one bullet each, ids C89–C104 (the registry ends at
-C88). Sizes are measured (`wc -c`, the 800-byte gate) and listed in §5.
-The file's header will carry the provisional standing once, so no entry
-spends bytes on it.
-
-### Ruled
-
-- **C89 — Item search is its own library crate, `acquisition-search`, over the store's read API.** It links the store, and `acquisition-plan` once a query reads the effective price (C81); never the daemon, the client, an HTTP client or an async runtime, and it opens no file of its own, so it is no third door (C12): a frontend links it as it links the planner (C1). The daemon and the planner never link it — a plan takes item ids, never a query. *Why:* each property is an edge the check can refuse, and a search edit recompiles no daemon. Ruled 2026-09-17 (owner: "Agreed with a new crate").
-
-  *Standing:* **ruled**, edges included — question 1 below asked
-  whether the agreement covered them: "I agree to 1 entirely."
-
-### Provisional
-
-- **C90 — A line's identity is (realm, kind, template), and the displayed text is the only name a line needs.** The template is the displayed English with each number replaced by `#`, markup reduced to its display half and the sign carried in the number; numbers are ordered slots, never averaged. Kind keeps both coordinates the body gives — the source array and the flags the line carries (`crafted`, `fractured`, `mutated`; S17) — so neither bucket rule is chosen silently. A rename is a new line. A stat id exists only at the trade boundary (C99). *Why:* the template names every line and the stat id two thirds (S155); the text is the moving part. *Evidence:* S3, S4, S17, S68, S71. 2026-09-17.
-
-  *checked* · row 1 →both, with Astra's "preserve both coordinates".
-
-- **C91 — A query is one typed tree, and a value: immutable, serializable, handed between a human and an agent, to the site and from it.** And, or, not and at-least-N-of (with a lower and an upper bound) compose across every field, line and place alike, and every surface is an encoding of the one tree. A refinement is the old query, parenthesised, and a new term. There are no silent modes: text that could be read two ways is an error that shows both readings. Every answer returns its canonical query. *Why:* composition the C++ app lacks and the site allows only among stats (S169); an answer that says how it was understood is what both designs reached unprompted. *Evidence:* S169, S172. 2026-09-17.
-
-  *checked* · row 2's tree and composition (one text: stance 2, S169,
-  S172); "the query as a value" is the withheld seed both reached. "No
-  silent modes" as an error showing both readings is my sharpening of
-  note 31's "one visible rule or an error".
-
-- **C104 — The text is carried on every seat; the tree is accepted and always returned.** The tree parses from and prints to the text bijectively; the CLI and the MCP pass the text, a client that holds a tree (a GUI's rows) may send it, and every answer carries both. *Why:* both reviewers wrote text in both designs, and the string is far shorter than its JSON. It departs from the letter of R14 — "a query object, not a text argument" (S195) — and keeps its intent, a refinement being the previous query plus one term. No review compared the text with an equally specified JSON, so this is an adapter choice, the first the owner's seat revisits. *Evidence:* S195. 2026-09-17.
-
-  *checked, with a discount* · row 12 →B, the weak direction; Astra:
-  rows 2 and 12 reuse one testimony, and this is "a provisional adapter
-  choice, not a second vote for row 2". Split from C91 so the line most
-  likely to cycle back can move alone. (The first draft held both in one
-  bullet and landed on exactly 800 bytes — a line doing two jobs.)
-
-- **C92 — A comparison on a line binds one occurrence; the item's total is asked for by name.** A bound of 90 on a life line holds when one line reaches 90, never when an implicit 20 and an explicit 75 do together; `sum` of the line, or a named total (C94), is the item's sum. Conditions on several numbers of one line are written in one term and hold on one occurrence together — a low bound and a high bound met by two different lines is no match. Where a term sorts or is shown as one number and several occurrences satisfy it, the largest is used, and the answer says so. *Why:* a sum is built from occurrences by a word; an occurrence cannot be recovered from a sum. *Evidence:* S27, S28, S68. 2026-09-17.
-
-  *checked* for the one-line default (2a →A, against Fable's grain, both
-  reviewers). **Chosen here** (K1): several conditions in one term as the
-  shared binder; the largest satisfying occurrence as the sort scalar;
-  the "together" count limited to a single-number bound.
-
-- **C93 — Absent is false; unreadable is undecided, and the two are never one count.** A comparison on something the item lacks is false, never zero (S158), and `has:` is how presence is asked. A body or array the deriver could not read makes the terms that needed it undecided, and only those: and, or and not carry it (true or undecided is true; not undecided is undecided), and an item whose whole query stays undecided is no match and is counted on the scope line. Per term the answer counts, over the items in scope: matched, compared and failed, lacked, unreadable — four that sum to the scope. *Why:* an unknown count that is nonzero on every ordinary query stops being read; one that is nearly always zero is read when it is not. *Evidence:* S107, S158. 2026-09-17.
-
-  *checked* for absent-is-false with per-term counts (2b →B with A's
-  conscience). **Chosen here** (K2): of Astra's two routes I took "retain
-  an internal indeterminate outcome", confined to decode failure, because
-  the other route gives up a known positive under `true or unreadable`.
-  So three-valued logic does not "leave the model" as note 31 said; it
-  shrinks to the one case that is almost never there. The fourth count
-  is Astra's "name the ordinary failed comparison".
-
-- **C94 — A named total is a sum that answers, defined once as reviewed reference data (C68).** A row names the contributing line — template, kind where it matters, slot — and its weight; the evaluator is generated from that table and nothing else defines a total, so the shipped totals have one meaning in every surface. The answer prints a total's definition on request and each row's contributions. A definition is checked against the reference data, loudly, when the table is built; a template the game has since moved and one the stash merely lacks look the same in a corpus, and that stays a listed limit (S111). *Why:* a total that may decline failed the everyday question in use (stance 3). *Evidence:* S29, S49, S111. 2026-09-17.
-
-  *checked* · 2c →B; the one table is the withheld seed note 31
-  proposed, with K3's "source/flag and slot, not merely a template and
-  a weight"; the build-time check is Astra's distinction between
-  validating a definition and detecting a renamed line in a stash.
-
-- **C95 — The counts view has two shapes and one optional sum; there is no aggregation language.** Several names give either independent facets, one small table each (AQ1), or one crossed table — two spellings, never one redefined as the other. A count may carry one summed thing beside it (a stack total); an item lacking the thing adds nothing and is counted as lacking, an unreadable one is counted apart (C93). Counting by `line` is the vocabulary read (C97). *Why:* the owner's "counts and total of different currencies" (S170) and the agent's own `GROUP BY 1, 2` (S189) are in reach, and collection aggregation was the largest learning cost A named and its first deletion. *Evidence:* S170, S189, S191. 2026-09-17.
-
-  *checked* · 2d →A's reach, with K3 (keep facets; give the sum a
-  missing rule). The missing rule itself is **chosen here**.
-
-- **C96 — Place is terms, and a query never spans realms by default.** Realm, league, tab, character and container are terms like any other. Over a store holding more than one realm, a query naming none is an error that lists them (S199), and an explicit all-realms scope exists. Within a realm the default is every league, live items. The answer's scope block says what was searched: items, realms, leagues, locations never fetched, the oldest fetch. *Why:* a template and a total mean different things in two games (C58). The default is new here — A required every scope explicit, B spanned realms silently — and is labelled so. *Evidence:* S199. 2026-09-17.
-
-  *checked* · 2e, with Astra's two notes: label the default new, keep an
-  explicit all-realms scope.
-
-- **C97 — The vocabulary is a read of this corpus, and it is the same call as search.** Counting by `line` under the query in hand lists the templates the matching items carry, by kind, ranked by how many items carry each, with the value range; several texts may be asked in one call, and every row carries the exact term that selects it, ready to paste. The closed lists — fields, kinds, flags, totals — are printed in the help. The owner's autocomplete and the agent's schema discovery are this one read. *Why:* S174 and S190 state one need; scoped discovery and the ready fragment were each the other model's reviewer's strongest praise. No call-count victory is claimed for either design. *Evidence:* S174, S181, S190. 2026-09-17.
-
-  *checked* · row 3 →B with A's fragment; both halves the strong
-  direction.
-
-- **C98 — No search service: a consumer holds the corpus, and every answer is derived from one consistent basis and labelled with it.** The basis is one snapshot of facts with their location metadata, the intent revision, and the reference and derivation versions; a held corpus is reused only while the store's revision — advanced in the transaction that changes facts — still matches, checked before every answer, with no timer and no message to miss. A write after the basis is chosen does not unmake a correctly labelled answer. Nothing is persisted first: a persisted projection is a candidate, never a preselected successor, and waits for a measured number. *Evidence:* S135, S150–S153. 2026-09-17.
-
-  *checked* for unpersisted-first (row 4 →B, weak direction) as "a
-  provisional implementation choice" in Astra's words. **Chosen here**
-  (K4): the basis as the contract, and — note 31's question 4 — that a
-  revision comparison before every answer is "by construction", which
-  is a reading of the owner's own floor text in note 22 and is his.
-
-- **C99 — Direction. The trade boundary is a translation with a report, in both directions, and the stat id lives only here.** A site URL decodes with no network (S56). Each clause lands as exact, ambiguous, unsupported or listing-only, and a nonempty remainder means the result is never run as equivalent; a clause the published model cannot represent stays in the remainder. The site's average of a two-number line (S47) exists only in the translation; an undecided pair is shown with both candidates (S67). A line with no stat id cannot cross (S155). *Why:* the report makes a missing mapping honest; it does not supply one. *Evidence:* S26, S41, S47, S56, S57, S67, S106. 2026-09-17.
-
-  *checked* · row 5 →both, with K5 whole. "Direction" because building
-  it is new scope (note 31) and its place in the order is stage 6's.
-
-- **C100 — One answer shape, whatever was asked: the canonical query, the basis, the scope, the terms block, the total, a view, and how to continue.** A row is compact: id, name, base, rarity, place by name beside its id, and the lines the query touched with their values — matched-on is the decision view (C53); the body only through `show`, whose `--against` form is the why-not. Every printed id is accepted back (S198). A continuation is bound to its basis (C98) and refused across a change, with the query that restarts. `priced` is the effective price the pricing area defines (C81), joined read-only; the manual and game sides are fields to add when a question needs them; legacy is never a field (S178). *Evidence:* S176, S192, S193, S196, S197, S198. 2026-09-17.
-
-  *checked* · row 6 →both, with Astra's "bind continuation to all
-  semantic inputs" (the basis, C98).
-
-- **C101 — A missing reach is a field to add, never a general door.** There is no raw-path accessor over the body and no general collection syntax. Socket colours are asked two ways: over the whole item, and within a link group, where every colour named must be met together by one group — any qualifying group, never the largest (S59). Socket shapes the census shows and the deriver does not decode stay counted as unread (S16). The trade site's item-reading filters not yet mapped stay an open catalogue (S42), listed as gaps. *Why:* reach is a property of the derivation (stance 6) and a derived field is the cheap class of change (S135); in use, `fact["corrupted"] = false` read unknown on nearly every item where the named flag read false. *Evidence:* S16, S42, S58, S59. 2026-09-17.
-
-  *checked* · rows 8 (→A's reach; K6, settled by the owner's S59) and 10
-  (→B, with Astra's "carry the S42 catalogue gap forward").
-
-- **C102 — The digest's limits register is inherited whole, and each limit is an output.** S12, S14, S52, S53, S67, S107, S111, S177, S178: what the search says on meeting each is the register's wording. Added here: unreadable is the only form unknown takes (C93); binding occurrences stops twins being summed by accident and does not say which is local (S52, S72); a moved template under a shipped total looks like a lacking one (C94); a site defence bound is inexact (C99); base defences, and which categories count as equipment, are game knowledge and the user's (stance 4). The search never fuzzy-matches, values, judges legacy, fetches, acts on the stash, or recovers the mod behind a line. 2026-09-17.
-
-  *checked* · row 7 →both, with Astra's twin qualification.
-
-- **C103 — One deriver per fact.** Place and every other ingest fact — realm, league, location, container — come from the store's columns and are never re-derived from a body; what a body displays is derived in the search crate, by a pure function of the body and those columns that names no store type, so it can move under the store unchanged if persistence fires (C98). The store gains what that needs and nothing more: a streaming read of bodies with their ingest columns under one snapshot, and a revision. `Store::search` is superseded when the search answers its questions. *Why:* two reads in one crate already mean different things by "in this league" (S131); two derivers over one body is that bug with a crate line through it. *Evidence:* S127, S128, S131. 2026-09-17.
-
-  *Standing:* **ruled** with C89 under question 1 ("I agree to 1
-  entirely"), the store read included. Split from C89 so each holds one
-  thing: the crate and its edges; the deriver and what the store owes it.
-
-### C48 — not amended; the SQL surface withdrawn (owner, 2026-09-17)
-
-Note 23 owed stage 5 an amendment of C48 that made read-only SQL over
-a published contract a surface. The owner withdrew the surface instead
-(§4, question 3), so C48 stands as written on 2026-08-31: the schema is
-internal, raw SQL is not a surface, no cached search service. The
-draft amendment and its open question (an in-memory SQLite the search
-crate would fill on request — Astra's check below reads it as
-"defensible, but still open") are history at `a0d85b23`. What the
-floor said SQL was for, the search now answers otherwise: reach is a
-property of the derivation, the vocabulary read shows what exists, a
-gap is listed and closed by a field, and every answer is JSON under
-C53. The parking lot carries the export form and its trigger.
-
-### C1, amended in place (`CONTEXT.md`) — 670 bytes
-
-C1 was 793 bytes because it did two jobs: the ruling, and a crate-by-
-crate table of edges that grows about 100 bytes per crate. The table's
-home is the check that enforces it from the real graph and prints it on
-every run; C1 keeps the ruling and the three edges that make it a
-boundary. Ruled 2026-09-17 ("I prefer your alternative").
-
-- **C1 — Cargo workspace, library-centric; the daemon is its own artifact.** Every crate's edges are declared by what it links and refused by the check: `acquisition-daemon` (binary `acqd`), the only GGG sender, links protocol and store and nothing else; the store links none of them; the protocol crate is serde-only; a frontend links client, protocol, store, plan and search as it needs them, never the daemon; the daemon and the planner never link search (C89). The full graph and its rules are the check's own record. *Why:* write/test logic once, and C12's two surfaces as edges the check refuses. *Pinned:* `tools/docs-check.sh`. Amended 2026-09-09, 2026-09-17.
+`decisions/search.md` holds C89–C104; `CONTEXT.md` holds the 670-byte C1
+("I prefer your alternative", §4 question 4). C48 stands unamended (§4,
+question 3). Nothing here restates a line.
 
 ## 2b. Mechanism as recorded, until built
 
@@ -245,84 +130,156 @@ The registry's rule: a decision that needs more than its bullet is a
 decision plus a mechanism, and the mechanism goes to the code. There is
 no code yet, so — as C71 did with note 10 — it waits here, under its id,
 and `decisions/search.md` points at this section until a module doc
-takes each paragraph. Nothing here is trimmed from a line to fit a
-number; it is what the first drafts carried that was never a boundary.
+takes each paragraph. What the harvest moved out of a line to keep it
+under the gate is here, marked by its id; Astra's completions (the last
+section) were accepted at the harvest as one voice, and say so.
 
-- **C89, C103.** `Store::search` and its `items_names` index (S124, serving
-  no read) become deletable once the search answers what they answer
-  (S136). The check gains: search ∌ daemon, client, HTTP, async runtime;
-  daemon ∌ search; plan ∌ search — with a breaker case each
-  (`tools/docs-check-breakers.sh`). The crate adopts the store's
-  `unwrap_used`/`expect_used` denial (C47).
-- **C89, C1 — the check.** The rules and the printed summary in
-  `tools/docs-check.sh` §5 gain: search links store and plan only, never
-  daemon, client, HTTP or an async runtime; daemon ∌ search; plan ∌
-  search — each with a breaker case in `tools/docs-check-breakers.sh`,
-  so the new rule is proven to refuse before it is trusted.
-- **C90, C102.** Twins stay one line (S52, S72); a template that
-  resolves to nothing answers with the templates sharing its words
-  (S107). Both are the register's, and C102 carries them.
-- **C92 (K1).** The terms block counts, beside "items matching", the
-  items whose lines reach a bound only together — defined for a
-  single-number bound and nothing else. The spelling offered for several
-  conditions in one term is §1's; it is internals.
-- **C93 (K2).** `true or undecided` is true; `false and undecided` is
-  false; `not undecided` is undecided; an item undecided at the root is
-  excluded and counted. `-has:reqlevel` is how OQ5 asks absence, and an
-  unreadable requirements array does not satisfy it.
+- **C89, C103 — the check and the store.** `Store::search` and its
+  `items_names` index (S124, serving no read) become deletable once the
+  search answers what they answer (S136). When the crate exists, the
+  rules and the printed summary in `tools/docs-check.sh` §5 gain: search
+  links store and plan only, never daemon, client, HTTP or an async
+  runtime; daemon ∌ search; plan ∌ search — each with a breaker case in
+  `tools/docs-check-breakers.sh`, so the new rule is proven to refuse
+  before it is trusted. The crate adopts the store's
+  `unwrap_used`/`expect_used` denial (C47). The store's bulk read joins
+  location the way `read_items` does (S131), never `items.league` alone.
+- **C90, C102.** Twins stay one line (S52, S72), and binding occurrences
+  stops them being summed by accident. A template that resolves to
+  nothing answers with the templates sharing its words: B §4.1's
+  suggestion, compatible with S107's "never guessed" and not prescribed
+  by it (Astra).
+- **C92 — slots, the sort scalar, the together count.** A bound of 90 on
+  a life line holds when one line reaches 90, never when an implicit 20
+  and an explicit 75 do together. A ranged line is one whose template
+  reads `# to #`: `low` and `high` are its two slots and `avg` their
+  mean; any line's slots are also addressable by position (`#1`, `#2`),
+  the general case a non-ranged multi-number line uses — the owner's
+  words apply to ranged modifiers only (§4, question 7). Sorting on a
+  term uses the named slot over the occurrences that satisfy the whole
+  term, the largest of them; with no comparison, the occurrences the
+  line selector picks; a row admitted by another branch with no
+  satisfying occurrence has no scalar and sorts last in either
+  direction, its status shown; a vector is shown as a vector, never a
+  representative built from independent maxima (Astra's reading,
+  accepted). The together count: for a lower bound on a one-slot line
+  selector, over C93's item scope, an item counts once when no
+  occurrence meets the bound and the complete sum of its occurrences
+  does — 20 + 75 counts for ≥ 90, 95 + 5 does not, and an unreadable
+  possible contributor cannot establish it; upper bounds, equality and
+  compound terms report not applicable, never zero. It is a diagnostic
+  beside C93's counts, not a fifth bucket (Astra's reading, accepted).
+- **C93 (K2) — composition and witnesses.** `true or undecided` is true;
+  `false and undecided` is false; `not undecided` is undecided;
+  at-least-N-of with `t` true and `u` undecided children has the count
+  interval `[t, t+u]`: true when wholly inside the bound, false when
+  disjoint, otherwise undecided, an omitted upper bound unbounded
+  (Astra's reading, accepted). A readable line is a witness: an explicit
+  95 life establishes life ≥ 90 even when another eligible array is
+  unread; a readable 20 with the same unread array is undecided; absence
+  is never inferred from an incomplete collection. The four counts are
+  taken per atomic term before outer composition, over the fixed item
+  scope, before pagination, with no short-circuit omission; root matches
+  and root undecided are separate answer counts. `has:` is the spelling
+  of presence; `-has:reqlevel` is how OQ5 asks absence, and an unread
+  requirements array does not satisfy it.
+- **C94, C95 — sums and the totals table.** Sum the known contributors;
+  an empty complete sum is zero with its lacking count; if any required
+  contribution is unreadable, return the known subtotal and an explicit
+  incomplete status, never an unqualified total, and a comparison on it
+  is undecided (Astra's reading, accepted). A readable line absent from a
+  recipe is not an unknown contributor: the recipe answers its declared
+  definition. A total's row: template, kind (source and flag) where it
+  matters, realm, slot or none, weight. A row with no slot contributes
+  its weight when the line is present, so the all-elemental line counts
+  three times into "# total Resistances" as the site does; a total whose
+  rows are ranged lines sums low with low and high with high and is a
+  ranged value taking `low`, `high`, `avg`. The site's 298 pseudo stats
+  by the mechanism each needs (`search/trade-query/scripts/classify-pseudo.py`
+  over the 2026-09-12 capture, run at the harvest): 164 a field or a
+  line's presence (temple rooms, logbook, lake, influence); 65 a weighted
+  sum (resistances, life, attributes, gem levels, regen, leech, speeds —
+  the C++ app's 35 tables are all here, S29, S49); 28 a field from
+  `properties` (catalyst quality, map properties); 21 a ranged total
+  ("Adds # to # X Damage"); 10 out of reach, needing the mod behind the
+  line (affix and empty-affix counts, eldritch implicit tiers; S52); 9 a
+  count of lines; 1 a computed field (base defence percentile).
+- **C96 — the realm scope.** The domain is stated outside the tree, shown
+  resolved in the canonical request and answer, and never hoisted from a
+  branch: `realm:pc or "# to maximum Life">=90` names pc and still admits
+  a poe2 item through its second branch, and `-realm:pc` has the same
+  problem without an `or` (Astra). An adapter may abbreviate an
+  unambiguous positive realm restriction — `realm:pc` at the front of a
+  plain query — into the scope; anything else is an error that names the
+  scope words.
 - **C98 (K4) — notification beside the check.** A long-lived frontend
   may listen for the daemon's job events and reload the moment a refresh
   lands, as the C++ app's signal did; that is responsiveness and is
   allowed. The revision check before every answer is what makes the
   answer correct when the change came from another client, a missed
-  event, or a machine waking. Whether events reach a client that did not
-  submit the job is unverified. Reload is whole (about 200 ms at 36,139
-  items from JSON, S150); an incremental update over `item_events` is
-  parked until a real GUI feels it.
-- **C98 (K4).** The numbers that would move persistence: the streaming
-  body read; the re-derive under an active refresh; a CLI ask over
-  500 ms. S152 keeps direct SQLite open for a consumer that does not
-  outlive its query.
+  event, or a machine waking — ruled "by construction" (§4, question 2).
+  Whether events reach a client that did not submit the job is
+  unverified. Reload is whole (about 200 ms at 36,139 items from JSON,
+  S150); an incremental update over `item_events` is parked.
+- **C98 (K4) — the basis.** The facts revision advances in the
+  transaction that changes bodies, locations or membership; the basis
+  carries the store and account identity, so revision 7 in two accounts
+  is never one snapshot; a resident joined value (an effective price) is
+  part of the held corpus and is reused only under the intent revision
+  it was read at (Astra's counterexample: facts at 7, a price moved at
+  intent 12 → 13). The numbers that would move persistence: the
+  streaming body read; the re-derive under an active refresh; a CLI ask
+  over 500 ms. S152 keeps direct SQLite open for a consumer that does
+  not outlive its query.
 - **C100, C101, C103 — where raw JSON is seen.** A result row never
   carries a body. One item's raw body is seen through `show <item>`, on
   request, one at a time (owner, 2026-09-17: "i agree with using show
-  <item> for this"); the query language has no path into it. The store's bulk read (C103) hands bodies
-  to the search crate in-process and, being a public store read, to any
-  code that links the store — as `Store::search` does today. Tab and
-  character bodies have no read today and gain none.
+  <item> for this"); the query language has no path into it. The store's
+  bulk read (C103) hands bodies to the search crate in-process and,
+  being a public store read, to any code that links the store — as
+  `Store::search` does today. The store's public snapshot read
+  (`Store::refresh_snapshot`, `CharacterSnapshot`: the listing entry and
+  the fetched envelope minus its lifted item arrays) stays what it is,
+  an in-process neutral read; no raw-path query, no bulk raw search
+  output and no new tab or character body read is proposed (Astra's
+  correction of the earlier "no read today and gain none").
+- **C101 — the derived-field pseudos and the sockets.** DPS is attacks
+  per second times the average of the range (S22); base defence
+  percentile is the item's defence against its base's range from
+  reference data (C68); a quality-normalised defence follows S26; each is
+  a named pure function in the search crate, listed with the totals in
+  the help (C97). Socket shapes the census shows and the deriver does
+  not decode stay counted as unread (S16); a combined link-count and
+  colour request is bound to one group when S58's shape is built.
 - **C99 (K5).** `count` carries its minimum and its maximum; `weight`
   and `weight2` differ in how a per-stat requirement gates a
   contribution (S57), and a weighted group translates only where that
   guard has a representation; a defence bound is inexact while the site
   normalises quality (S26) and sits in the remainder until a normalised
   field exists. Several ids for one line go out as a `count` of at
-  least one (S106).
+  least one (S106). A site bound on a ranged line is `avg` on the line
+  (S47), exact once the word exists.
 - **The derivation's shape.** Lines as rows (one per occurrence), fields
   as columns, place by name (S200): the shape the model produces, kept
   so that a JSON or SQLite export, or a persisted projection, is a
   writer over it and not a redesign.
 
-## 3. The parking lot (→ `decisions/search.md`, "Parked")
+## 3. The parking lot — harvested
 
-- Saved queries, user names, tags → user-scoped intent through the store. Trigger: the `user.db` park firing (`decisions/store.md`). Then: A's version rule, B's composability, and the bare-word collision solved first. A query is already a value that travels between clients (C91); only the write is parked.
-- A persisted projection (A's transactional one is a candidate; direct SQLite for short-lived consumers is another, S152) → under the store, the deriver moving with it (C89). Trigger: a measured number — the streaming body read, the re-derive under an active refresh, or a CLI ask over 500 ms.
-- Whole-corpus export of the derived lines — JSON first; a SQLite file stamped with its basis if JSON in hand is not enough — → the search crate's CLI/MCP adapters, as a writer over the derivation's table shape. Trigger: a recorded question the term language, the counts view and the JSON answer could not serve. *The SQL surface the floor once named was withdrawn 2026-09-17; SQL as an engine was declined by measurement (S146–S148); a surface over a persisted projection is the one form that would be cheap, and rides on C98's trigger, not its own.*
-- A grouping above class (`category`) → the class table, by reviewed membership and base-name rules, never a dotted prefix (K7: the 14 parents are unions; seven leaves need base names). Trigger: stage 6 reaching OQ5. *New in note 31; logic-checked by Astra, used by no one.*
-- Query by example (the one-item view prints the item as an editable query) → a rendering over C92. Trigger: the first seat that asks. *Reached by neither proposal.*
-- A quality-normalised defence field → the derivation. Trigger: a translated trade query with a defence bound in its remainder (C99).
-- The totals coverage trial (how many lines containing "Resistance" does `total-res` not count, on the real corpus) → one script over the census. Trigger: stage 6 shipping the first total.
-- The mistake walk over the combined model (the silent modes first: bare word as name, `#` in quotes, `colors`, `or` under an appended term) → stage 6, step 1, before the grammar is built.
-- The digest's kill-list candidates (note 31) → stay candidates. Trigger: stage 6's acceptance tests written; recheck against them and the combined model before any removal (Astra).
+The parks are `decisions/search.md`, "Parked", their triggers retuned on
+Astra's check; the drafted lot is history at `f20fbf11`. The mistake
+walk is not a park: it is stage 6's first step.
 
 ## 4. For the owner — asked and answered
 
 Asked as five questions, laid out in plain language on request, and
-answered 2026-09-17. Spelling corrected per note 23's rule.
+answered 2026-09-17; four more at the harvest, the same day. Spelling corrected per note 23's rule.
 
 1. **C89's edges and C103** (the crate you agreed to, plus the edge
    rules, the one-deriver rule and the new store read; and whether raw
-   item, tab or character JSON reaches a client — it does not, except
-   one item at a time through `show`). Verdict: "i agree with using
+   item JSON reaches a client through the search — it does not, except
+   one item at a time through `show`; the store's existing snapshot
+   reads stay what they are, §2b). Verdict: "i agree with using
    show <item> for this. I agree to 1 entirely."
 2. **C98, "by construction"** — the revision check before every answer,
    with the daemon's events for promptness, as the Rust-side equivalent
@@ -356,9 +313,44 @@ answered 2026-09-17. Spelling corrected per note 23's rule.
    catch to spot the table pattern and move it out." The 670-byte C1
    above is the ruling.
 5. **Astra's check of this packet** before the harvest. Verdict: "yes".
-   The brief is `brainstorming-notes/33-search-ruling-check-brief.md`;
+   The brief was note 33 (at `a0d85b23`, deleted at the harvest);
    Astra's check is appended to this note as its last section and
    committed from Codex, as in stage 4.
+
+6. **C96, the realm as the search's scope** (Astra: `realm:pc or …`
+   names pc and still matches the other game; proposed: the realm stated
+   outside the conditions and printed back, `realm:pc` at the front of a
+   plain query accepted as shorthand, the two-realm error unchanged).
+   Verdict: "accept."
+7. **C92, a line with two numbers** (Astra: "the largest" picks nothing
+   on a ranged line; proposed: sorting names which number, a line is
+   shown whole, an item with no qualifying line sorts last, a sum over a
+   ranged line names its number or errs — note 31 §5's ruling, dropped
+   in the draft), shown on a four-item stash. Verdict: "yes." Then:
+   "what about queries such as "adds <N> average damage" that operate on
+   the mean?" — answered as a word the query says, never applied
+   silently. Then the owner's own syntax: "for two-number values that
+   have a range like this, what about using queries like: `"Adds # to #
+   Cold Damage" min>10` · `"Adds # to # Cold Damage" avg>15 max>=20`.
+   That way min, max, and average have the same query syntax". On the
+   site's "min"/"max" being its bound inputs, and on the words applying
+   to `# to #` lines only: "i concur, low and high are better than min
+   and max, and this only applies to ranged modifiers."
+8. **C93 and C102, when the search says "can't tell"** (Astra: a
+   readable item whose base the class table lacks, an unresolved price
+   under C81; proposed: undecided keeps one form with a named reason,
+   absent stays false, absence claimed only when everything that could
+   hold the thing was readable). Verdict: "accept."
+9. **The pseudo classes** — the owner: "i'm also not sure about design vs
+   implementation, but we have a lot of different pseudo-mods to
+   implement. Not all of them are straight-forward addition. Can you help
+   me think through how much that impacts the design we are working on
+   now?" Fable's reading: the design question is which mechanisms a
+   pseudo needs, the implementation question which pseudos ship; the
+   site's 298 classified (§2b, C94); three additions — a total's row may
+   count instead of sum, a total over ranged lines is a range, a pseudo
+   that is not a sum or count is a derived field (C101) — and one limit,
+   the mod behind the line (C102). Verdict: "yes, accepted".
 
 ### The owner's verdicts, verbatim
 
@@ -367,32 +359,7 @@ answered 2026-09-17. Spelling corrected per note 23's rule.
 - On the crate, 2026-09-17: "I like the idea of a separate crate, but I
   want us to be thoughtful about this"; then, after the options were
   laid out: "Agreed with a new crate".
-- On this packet's five questions: above, under each.
-
-## 5. Measured sizes
-
-Bytes of each candidate bullet as it stands in §2, against the 800 gate
-(`tools/docs-check.sh`, `ENTRY_LIMIT`); C1 today is 793 and its amendment above is 670; C48 is unchanged.
-
-| Line | Bytes |
-| --- | --- |
-| C89 | 598 |
-| C90 | 705 |
-| C91 | 708 |
-| C104 | 683 |
-| C92 | 714 |
-| C93 | 777 |
-| C94 | 744 |
-| C95 | 724 |
-| C96 | 666 |
-| C97 | 740 |
-| C98 | 712 |
-| C99 | 689 |
-| C100 | 775 |
-| C101 | 792 |
-| C102 | 709 |
-| C103 | 785 |
-| C1 | 669 |
+- On this packet's nine questions: above, under each.
 
 ## What I left out, and am least sure of
 
@@ -400,8 +367,8 @@ I did not re-read notes 26 and 27 or either audit; I took note 31's
 account of them, as corrected by Astra. I read B's model and grammar
 pages and only the binder lines of A, so §1 is written in B's idiom by
 B's author — the bias note 31 named is compounded here, and Astra's eye
-on §1 is the remedy I can name. The slot-comparison spelling in §1 has
-been typed by nobody. With SQL withdrawn, I am least sure of whether
+on §1 is the remedy I can name. The slot words in §1 are the owner's (§4,
+question 7) and have been typed by nobody in a mistake walk. With SQL withdrawn, I am least sure of whether
 "the largest satisfying occurrence" is what a person sorting by life
 expects when a second, smaller line also matched.
 

@@ -30,7 +30,7 @@ are similarly challenging, aspirational, and deeply thought-provoking"
 | 2 | Framing — closed; the owner's edits done 2026-09-17 | the owner edits; Fable drafted | note 22 | — |
 | 3 | Two proposals, blind — closed; merged `f2b06a3e` 2026-09-17 | Fable and Astra, each in its own worktree | notes 24 (Fable), 25 (Astra) | note 29 |
 | 4 | Closed 2026-09-17: note 31 at `2ad2986d`, Astra's check at `8d26eb37`, the owner's Link Groups answer at `9b0b3070`. Audit (a check: does each design hold against its page and its citations), the author's repair, the review (a seat: what each design is like to use), then the reconciliation: a decision table — where the designs agree, where they differ (each side, the claims that decide, what the users said, a recommendation) | audit: one Opus subagent per proposal. Repair: each author, its own proposal. Review: Fable and Astra, each using both designs. Reconciliation: a fresh Fable session with the owner; Astra checks it | `search/proposal-audit/audit-24.md`, `audit-25.md`; notes 24 and 25 repaired in place; notes 26 (Fable's review), 27 (Astra's); note 31, the reconciliation with Astra's check | `search/proposal-audit/BRIEF.md`; note 32 (repair); note 30 (review); this note (the reconciliation) |
-| 5 | Running: note 28 at `6b3b4e49` holds the lines C89–C104 and the owner's five verdicts (crate ruled, SQL withdrawn — decision 16); Astra's check landed at `f20fbf11`, "ready with named changes"; the harvest is next. Under decision 15 the rulings are provisional. Input: note 31 whole, and its last section first — Astra's check holds seven corrections, K1–K7, that a row is harvested *with*, never without; K6 was written before the owner's answer (digest S59) and is settled by it. Ruling: candidate decision lines in registry form, a parking lot with triggers, the owner's verdicts verbatim; harvested into `decisions/search.md` (new area file, one index row in `CONTEXT.md`) | the owner, with Fable | note 28, then `decisions/search.md` | — |
+| 5 | Closed 2026-09-17: harvested into `decisions/search.md` (new area file, one index row in `CONTEXT.md`, C1 amended to 670 bytes) with Astra's check (note 28 at `f20fbf11`, "ready with named changes") worked in and the owner's verdicts on every finding that changed a line's meaning verbatim in note 28 §4, questions 6–9 (the realm as scope, `low`/`high`/`avg` on a ranged line, undecided with a reason, the pseudo classes); the brief was note 33 at `a0d85b23`. Under decision 15 the rulings are provisional; note 28 keeps the model page, the mechanism until built, the answers and the check | the owner, with Fable | note 28, then `decisions/search.md` | — |
 | 6 | Build plan: slice steps with their evidence; the digest's acceptance set as acceptance tests; the closed record at the end in `PRICING-SLICE.md`'s mold | Fable | `search/` | — |
 
 ## Stage 3: what a proposer reads
@@ -207,7 +207,8 @@ at `e490196e`.
     been pushing for." — (b) is no SQL surface in the slice, (c) an
     export parked with a trigger (note 28). Decision 8's SQL half is
     withdrawn; its other half, read-only annotations viewable, stands.
-    The C48 amendment "Owed by later stages" lists is no longer owed.
+    The C48 amendment once owed by stage 5 is no longer owed (its bullet
+    removed at the harvest).
 
 ## Withheld from the proposers: stage 4's checklist
 
@@ -251,10 +252,6 @@ so nothing is lost.
   list.
 - **Stage 4 grows the digest.** A finding a proposal cited as
   undigested gets a new `S` id in the reconciliation.
-- **Stage 5 amends C48.** Raw SQL over the facts file stays no surface;
-  read-only SQL over the published contract note 22's settled floor
-  describes becomes one, with the contract the ruling gives it. `search/README.md` lists the other
-  standing rulings the design revisits.
 - **Stage 6 reads the digest's acceptance set as its tests.**
 
 ## Guardrails

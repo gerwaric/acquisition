@@ -27,5 +27,5 @@ Scope this area has deferred, with the trigger that reopens it, so deferral neve
 
 - User-scoped annotations home (`user.db`) + scope taxonomy → the store crate. Trigger: the first user-scoped kind actually written (shop template, currency ratios, saved searches).
 - Fact-path migration to uuid naming → opportunistic, or never; facts are refetchable.
-- Search-at-scale (FTS at ingest, a search crate) → behind the store API (C48). Trigger: a real consumer with a measured latency or duplication case.
+- Search-at-scale under the store (FTS at ingest, a persisted lines table) → the store crate, the deriver moving with it (C103). Trigger: the search area's persistence park firing (`decisions/search.md`, "Parked"); the search crate itself is ruled (C89).
 - Realm segment semantics per endpoint and pc-by-omission; PoE2 on the character endpoints only; `inventoryId` undocumented → ground-truth claims, authored master-side. Trigger: observed at a first contact (from the 2026-09-02 documentation read; not yet observed).
