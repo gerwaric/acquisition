@@ -60,14 +60,10 @@ that it can also be encoded into other client interfaces such as a gui or tui.
    query. The test is the cold start: the calls a stranger makes from
    zero to a correct answer, counted.*
 6. *Reach is a property of the derivation, not the language. What the
-   projection carries, every language over it can ask; SQL is a second
-   language on the surface, never a door around it, and a file opened
-   outside the store is the only bypass. A question the model cannot
-   ask in one query is a gap in the model, listed in the appendix, never
-   routed to SQL.* The MCP carries the SQL tool as the CLI does (the
-   owner, 2026-09-14: "for symmetry, so an agent using it isn't tempted
-   to waste tokens figuring out how to use the CLI for something the
-   mcp can't do").
+   derivation carries, every adapter over it can ask, and a file opened
+   outside the store is the only bypass. A question the model cannot ask
+   in one query is a gap in the model, listed as a limit and closed by a
+   field or a total (C101, C94), never routed around it.*
 
 There is tension inherent in the design process. That is ok. Sit with it
 and consider how things balance and relate. For example, responsiveness is
@@ -108,9 +104,8 @@ else:
 - ~~SQL is a surface, on the CLI and the MCP alike~~ — **withdrawn by
   the owner 2026-09-17** at stage 5 (note 28, §4, question 3): no SQL
   surface; C48 stands unamended; an export is parked with a trigger.
-  Stance 6's first sentence stands (reach is the derivation's); its
-  SQL clauses fall with this. Intent is readable by the search,
-  read-only, in every language over it.
+  Intent is readable by the search, read-only, in every language over
+  it.
 - Whatever the search reads is a derivation of facts (C34), never a
   cache: it cannot be stale, by construction and not by a refresh,
   because stale results mistaken for current truth is the failure C48
