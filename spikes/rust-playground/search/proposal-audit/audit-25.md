@@ -2,7 +2,7 @@
 
 Run under `search/proposal-audit/BRIEF.md`. Read: the brief,
 `search/DIGEST.md`, `brainstorming-notes/22-search-framing.md`,
-`brainstorming-notes/29-search-proposal-brief.md`, the design, and
+note 29 (the proposal brief, at `e5d270bc`), the design, and
 `decisions/pricing.md` rows C64, C68, C69 to verify three cited rulings.
 "The page" means §1–2 (lines 3–66, 3,351 bytes, 64 lines).
 

@@ -116,7 +116,7 @@ failure.
 
 **Owed and not done here:** the mistake walk. It needs a seat making
 errors against a page, and neither review validates this combination.
-Parked below as stage 6's first step.
+It is stage 6's first step, not a park (§3).
 
 ## 2. The lines — harvested
 
@@ -219,8 +219,9 @@ section) were accepted at the harvest as one voice, and say so.
   answer correct when the change came from another client, a missed
   event, or a machine waking — ruled "by construction" (§4, question 2).
   Whether events reach a client that did not submit the job is
-  unverified. Reload is whole (about 200 ms at 36,139 items from JSON,
-  S150); an incremental update over `item_events` is parked.
+  unverified. Reload is whole; S150's 200 ms at 36,139 items is a benchmark
+  baseline for the JSON parse alone, not this design's reload; an
+  incremental update over `item_events` is parked.
 - **C98 (K4) — the basis.** The facts revision advances in the
   transaction that changes bodies, locations or membership; the basis
   carries the store and account identity, so revision 7 in two accounts

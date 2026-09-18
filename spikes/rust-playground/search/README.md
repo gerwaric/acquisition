@@ -92,13 +92,14 @@ its briefs and drafts are numbered notes, each edited by the owner
 before it runs — the digest brief was note 21 (at c56404ca, deleted at
 acceptance), the framing is `brainstorming-notes/22-search-framing.md`;
 the digest is `DIGEST.md`, accepted 2026-09-17; the proposal brief
-for stage 3 is `brainstorming-notes/29-search-proposal-brief.md`, and
+for stage 3 was note 29 (at `e5d270bc`, deleted at the close), and
 the two blind proposals it produced are
 `brainstorming-notes/24-search-proposal-fable.md` and
 `brainstorming-notes/25-search-proposal-astra.md` (merged f2b06a3e). Stage
 4 is an audit (`proposal-audit/`), the author's repair
-(`brainstorming-notes/32-search-repair-brief.md`), the review, a
-seat under `brainstorming-notes/30-search-review-brief.md`
+(note 32 at `a47fa1e5`), the review, a seat under note 30 (at
+`a47fa1e5`) over anonymised copies (`search/designs/`, retired at
+`548ecc4f`)
 (`brainstorming-notes/26-search-review-by-fable.md`,
 `brainstorming-notes/27-search-review-by-astra.md`), and the reconciliation,
 `brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the model page, the mechanism until built, the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17.
