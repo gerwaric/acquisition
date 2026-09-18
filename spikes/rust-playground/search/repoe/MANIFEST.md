@@ -18,7 +18,7 @@ Every input this track reads, and how it was obtained (index rule 4). Nothing he
 | --- | --- | --- |
 | `stat_translations.json` | 12,631,258 | `trade-stat-map.py`, `hash-check.py`, `template-vs-translation.py` — stat ids → English strings; the `trade_stats` the generator joins by text (it fetches `/api/trade/data/stats` live at each export, `stat_translations.py` line 308) |
 | `mods.json` | 34,279,067 | `hash-check.py`, `mod-stat-index.py` — mod id → ordered stats with ranges, domain, generation type, weights, tags |
-| `base_items.json` | 8,025,343 | `base-taxonomy.py` — base → class, tags, release state, domain |
+| `base_items.json` | 8,025,343 | `base-taxonomy.py` — base → class, tags, release state, domain; `base-defences.py` — `properties.armour`, `.evasion`, `.energy_shield`, `.ward` as `{min, max}` and `.block` |
 | `item_classes.json` | 17,659 | `base-taxonomy.py` — the 103 classes, their display names and 66 categories |
 | `stats.json` | 4,372,583 | by hand (README F2): locality and aliases only; no hash column |
 

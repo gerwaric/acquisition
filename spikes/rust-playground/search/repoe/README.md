@@ -26,6 +26,7 @@ What does the game's own data give a stash search that the item JSON does not �
 | `base-taxonomy.csv`, `class-to-trade-category.csv` | `base-taxonomy.py` | 4,310 / 0.6 MB; 103 | base → class → trade id with its basis and corpus items; the class table |
 | `template-vs-translation.csv` | `template-vs-translation.py` | 6,892 / 1.0 MB | each census template's match, entries, trade ids, lines by frame type |
 | `mod-stat-index.csv` | `mod-stat-index.py` | 15,920 / 3.7 MB | mod → stats, domain, generation, weights, tags (item domains; unique and crucible left out) |
+| `base-defences.csv` | `base-defences.py` | 476 / 46 KB | per metadata id: armour, evasion, energy shield and ward as `min`/`max`, and block |
 | `pob-format.md` | by hand | 5 KB | the import grammar against the C++ app's export, one table |
 
 ## Findings
@@ -68,6 +69,8 @@ The named remainder on equipment: heist `Alert Level` lines, `Has # Abyssal Sock
 **F6 — Staleness** (`git log` of `poe1`). 86 versions seen since 2025-06-07, 53 exported; lag from the fork's version poll to its export: 0 days for 46, 1 for 3, 4–13 for 4; 33 versions never exported (superseded within days). The poll's date is not the patch's, a GGG fact no clone holds.
 
 **F7 — Two rulings.** Two-value lines (Q5), the owner, verbatim, 2026-09-13: "let's keep min and max separate." The site averages (trade-query F8), the C++ app takes the mean (cpp-search F3), Path of Building keeps them apart; the search follows Path of Building, and the design session gives it its `C<n>`. The 32 twice-numbered stat ids the hash could not settle (Q7): the owner searched all 68 candidate numbers on the site, 2026-09-13, Standard, status any (`twice-numbered-verdicts.csv`, hand-kept; URLs in `twice-numbered-urls.txt`): 53 found, 15 not. Per stat id, 12 have one live number (the other dormant, trade-query Q2's pattern) and **20 have both live** — two stats render alike and both are in use, so the attribution stays undecided and the site cannot decide it. A `no` is dated dormancy in one league, never nonexistence (the owner: "it might possibly still exist"). Handling: outward, both ids in a `count` group with min 1 (trade-query F2); inward, a line's identity is the export's stat id and the number a label. The durable fix, the `Stats.dat` hash column in the export, is Q8's.
+
+**F8 — Base defences** (`base-defences.csv`). 476 of 5,461 base entries carry a non-null defence or block, in five classes: Body Armour 124, Shield 98, Helmet 94, Boots 81, Gloves 79 (474 names; Two-Toned Boots has three entries). Non-null: armour 230, evasion 227, energy shield 230, ward 9, block 98. Each is a `{min, max}` pair (Splintered Tower Shield: armour 9–12), so the base-defence percentile — the one `computed` pseudo — is the item's displayed defence against this range; `extended.base_defence_percentile` on fetched items (trade-query's `fetch-census.json`) corroborates.
 
 ## Numbers
 
