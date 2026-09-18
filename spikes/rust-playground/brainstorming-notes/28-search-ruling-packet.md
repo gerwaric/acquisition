@@ -195,15 +195,16 @@ section) were accepted at the harvest as one voice, and say so.
   three times into "# total Resistances" as the site does; a total whose
   rows are ranged lines sums low with low and high with high and is a
   ranged value taking `low`, `high`, `avg`. The site's 298 pseudo stats
-  by the mechanism each needs (`search/trade-query/scripts/classify-pseudo.py`
-  over the 2026-09-12 capture, run at the harvest): 164 a field or a
-  line's presence (temple rooms, logbook, lake, influence); 65 a weighted
-  sum (resistances, life, attributes, gem levels, regen, leech, speeds —
-  the C++ app's 35 tables are all here, S29, S49); 28 a field from
-  `properties` (catalyst quality, map properties); 21 a ranged total
-  ("Adds # to # X Damage"); 10 out of reach, needing the mod behind the
-  line (affix and empty-affix counts, eldritch implicit tiers; S52); 9 a
-  count of lines; 1 a computed field (base defence percentile).
+  by the mechanism each needs, per entry with the input that admits it
+  (`search/pseudo-stats/`, 2026-09-18): 123 a field or property the
+  private item carries (63 of them by an attested sibling, flagged);
+  36 a weighted sum (the C++ app's 35 tables, S29, plus the site's own
+  `pseudoMods` line proving a 0.5 weight, S49); 15 a ranged total; 14
+  needing the mod behind the line (S52; one crafted modifier renders as
+  two lines); 1 a count of lines; 0 computed; and **109 unresolved**,
+  each with the one read that closes it. The pattern classification of
+  2026-09-17, which partitioned all 298, is withdrawn (the stage-5
+  audit, finding 1); it is history at `3c4331f5`.
 - **C96 — the realm scope.** The domain is stated outside the tree, shown
   resolved in the canonical request and answer, and never hoisted from a
   branch: `realm:pc or "# to maximum Life">=90` names pc and still admits
@@ -246,8 +247,9 @@ section) were accepted at the harvest as one voice, and say so.
   correction of the earlier "no read today and gain none").
 - **C101 — the derived-field pseudos and the sockets.** DPS is attacks
   per second times the average of the range (S22); base defence
-  percentile is the item's defence against its base's range from
-  reference data (C68); a quality-normalised defence follows S26; each is
+  percentile would be the item's defence against its base's range from
+  reference data (C68) — unresolved until the export is shown to carry
+  those ranges (pseudo-stats, open question 3); a quality-normalised defence follows S26; each is
   a named pure function in the search crate, listed with the totals in
   the help (C97). Socket shapes the census shows and the deriver does
   not decode stay counted as unread (S16); a combined link-count and

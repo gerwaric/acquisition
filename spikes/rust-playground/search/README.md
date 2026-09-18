@@ -58,7 +58,7 @@ deleting one; nothing else encodes it. (Set 2026-09-12.)
 - A byte budget in a runner's prompt is filled to the byte, by every model, and the cuts vanish into the runner's report: give a guide, hold the reviewer to the whole, and put every budget cut on the kill list by finding id (both pilot runners, 2026-09-16).
 - A commit message that states a file's size states it from memory: measure with `wc -c` after the last edit, before writing the message (four amended messages, 2026-09-16).
 - Astra's committed output runs two to three times any guide (note 25 at 38.8 KB against 16; the stage-5 check at 29 KB under a brief that set none): a file past about 40 KB is read by section — `grep -n '^##'`, then `sed -n` by line range — never whole, and a brief gives a guide even for a check.
-- Files from the game and from Path of Building end lines with CRLF — the `Mod*.lua` tables, the clipboard text in a `fetch`'s `extended.text`: strip `\r` before matching a line end (bit the mod-table parser and the `Item Class:` check in one session).
+- Files from the game and from Path of Building end lines with CRLF — the `Mod*.lua` tables, the clipboard text in a `fetch`'s `extended.text`: strip `\r` before matching a line end (bit the mod-table parser and the `Item Class:` check in one session); `mod-templates.csv` carries a bare CR inside 260 templates, so open the census files with `newline="\n"` or every line number past the first is off (pseudo-stats, 2026-09-18).
 
 At the close this directory is expected to shrink to a closed record in
 the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
@@ -78,6 +78,7 @@ the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
 | [`owner-seat/`](owner-seat/README.md) | What does the owner actually ask of the stash, in their words, and what answer shape does each want? | first pass complete — 2026-09-13 | 9169 |
 | [`agent-seat/`](agent-seat/README.md) | What does an agent need to search a corpus that size well? | first pass complete — 2026-09-14 | 12317 |
 | [`proposal-audit/`](proposal-audit/README.md) | Do the two blind search designs hold against their own page and their evidence? (synthesis stage 4; not research) | closed: two audit rounds, two repair passes — 2026-09-17 | — |
+| [`pseudo-stats/`](pseudo-stats/README.md) | Which mechanism of the ruled model answers each of the site's 298 pseudo stats, on what evidence? (stage-5 audit, finding 1) | first pass complete — 2026-09-18 | 9028 |
 
 The rulings are `decisions/search.md` (harvested 2026-09-17;
 provisional under note 23's decision 15 until the owner's first seat at
