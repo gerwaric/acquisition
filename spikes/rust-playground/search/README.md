@@ -57,6 +57,7 @@ deleting one; nothing else encodes it. (Set 2026-09-12.)
 - A track run as a subagent (the research-track skill) never touches this index; the reviewer sets its row. And `git add search` while another subagent is still writing sweeps its files into the commit — add the track's directory, never the parent.
 - A byte budget in a runner's prompt is filled to the byte, by every model, and the cuts vanish into the runner's report: give a guide, hold the reviewer to the whole, and put every budget cut on the kill list by finding id (both pilot runners, 2026-09-16).
 - A commit message that states a file's size states it from memory: measure with `wc -c` after the last edit, before writing the message (four amended messages, 2026-09-16).
+- Astra's committed output runs two to three times any guide (note 25 at 38.8 KB against 16; the stage-5 check at 29 KB under a brief that set none): a file past about 40 KB is read by section — `grep -n '^##'`, then `sed -n` by line range — never whole, and a brief gives a guide even for a check.
 - Files from the game and from Path of Building end lines with CRLF — the `Mod*.lua` tables, the clipboard text in a `fetch`'s `extended.text`: strip `\r` before matching a line end (bit the mod-table parser and the `Item Class:` check in one session).
 
 At the close this directory is expected to shrink to a closed record in
@@ -99,7 +100,7 @@ the two blind proposals it produced are
 seat under `brainstorming-notes/30-search-review-brief.md`
 (`brainstorming-notes/26-search-review-by-fable.md`,
 `brainstorming-notes/27-search-review-by-astra.md`), and the reconciliation,
-`brainstorming-notes/31-search-reconciliation.md`, which Astra checks.
+`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md`, checked by Astra under `brainstorming-notes/33-search-ruling-check-brief.md` and harvested into `decisions/search.md`.
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search
