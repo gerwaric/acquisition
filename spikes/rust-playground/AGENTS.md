@@ -107,7 +107,7 @@ and park lifecycle are in `CONTEXT.md` ("Decisions", "Parked"): use
 | build narrative | commit message |
 | live run | one `RUN-LEDGER.md` row; journals in gitignored `runs/`, mock rehearsals in `runs/mock/` |
 | fact about GGG | numbered ground-truth claim |
-| mechanism | code doc comment under "Decisions as recorded" / "As built", headed by the decision id |
+| mechanism | code doc comment under "Decisions as recorded" / "As built", headed by the decision id; until the code exists, a rule that decides an answer lives in the area's labelled contract-detail document the registry cites (`search/DESIGN.md`) |
 | verb, flag or knob usage | clap help / MCP tool description (regenerate references with `ACQ_UPDATE_FIXTURES=1`), or knob read-site doc; README gets one tour line or knob row, never a comment block |
 | procedure | skill file referenced here, when earned under P6 |
 | deliberation | numbered `brainstorming-notes/` note while a ruling, tool, skill or crate doc cites its path; otherwise delete, citing history as "note NN at `<commit>`" |
