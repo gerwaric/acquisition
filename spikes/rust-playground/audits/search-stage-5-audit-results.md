@@ -23,3 +23,19 @@ There is also worthwhile cleanup:
 - **Remove stale stage bookkeeping.** Note 23 still says stage 4 owes digest pruning/growth; note 28 still calls the mistake walk “parked”; the registry says six choices have been seen by no audit or reviewer despite the appended checks. Distinguish “logically checked” from “not exercised by a user.”
 
 I ran `tools/docs-check.sh`, `git diff --check`, and reproduced the pseudo classification against the committed captures. The checks pass; they do not detect these semantic issues. No files were changed, and no live requests were made.
+## Fates (kept by the sessions that work the audit in; one row per finding, its fix commit when closed)
+
+The audit is worked in three sessions (note 23, row 5): A — facts and cleanup; B — the contract gaps, with the owner; C — the language reference and where binding detail lives.
+
+| Finding | Session | Fate | Commit |
+| --- | --- | --- | --- |
+| 1 pseudo classifier | A | Replaced by the `search/pseudo-stats/` track: per-entry evidence, an `unresolved` class (109 of 298), the partition withdrawn in note 28 §2b, the old script retired | 4753e214 (brief), 6ea3277b |
+| 2 stance 6 still requires SQL | B | open — the owner rewrites the stance (his framing language); the old text stays by hash | |
+| 3 unavailable grouping keys | B | open — needs a one-line ruling; recommendation to bring: an undecided bucket named by its reason, buckets summing to the total, a pinned example | |
+| 4 realm-qualified vocabulary fragments | B | open — needs a one-line ruling; recommendation: a realm word inside a term names the line's identity coordinate (C90), distinct from the scope (C96) | |
+| 5 the page is not walkable | C | open — a self-contained language reference with an example per construct, after B | |
+| 6 §2b holds contract rules | C | open — the home and the label are the owner's call in B (a document under `search/` proposed); CONTEXT's byte-limit sentence becomes a routing prompt | |
+| 7 reference data vs game knowledge | B | open — needs a one-line ruling; recommendation: game data exported and reviewed (C68) against the user's judgments | |
+| cleanup: 200 ms and "declined by measurement" | A | Qualified in the persistence and export parks and in note 28 §2b | ee2617fd |
+| cleanup: spent briefs | A | Notes 29, 30, 32, the stage-4 audit brief, the anonymised copies and their script retired, every path citation now a hash | ee2617fd |
+| cleanup: stale bookkeeping | A | Note 23's "stage 4 owes" marked spent; the mistake walk no longer "parked"; the registry header separates "checked for logic" from "exercised by no user" | ee2617fd |
