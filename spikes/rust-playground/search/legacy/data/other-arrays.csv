@@ -1,0 +1,773 @@
+array,template,items,lines,by_league,by_rarity,by_icon_dir,example
+bondedMods,# to maximum Life,1,1,Standard:1,Currency:1,Currency/Runes:1,+20 to maximum Life
+bondedMods,# to maximum Mana,1,1,Standard:1,Currency:1,Currency/Runes:1,+20 to maximum Mana
+bondedMods,Armour:,1,1,Standard:1,Currency:1,Currency/Runes:1,Armour:
+bondedMods,Wand or Staff: #% increased [Ignite|Ignite] [BuffMagnitude|Magnitude],1,1,Standard:1,Currency:1,Currency/Runes:1,Wand or Staff: 30% increased [Ignite|Ignite] [BuffMagnitude|Magnitude]
+bondedMods,[MartialWeapon|Martial Weapon]: #% increased [Ignite|Ignite] [BuffMagnitude|Magnitude],1,1,Standard:1,Currency:1,Currency/Runes:1,[MartialWeapon|Martial Weapon]: 30% increased [Ignite|Ignite] [BuffMagnitude|Magnitude]
+bondedMods,[ShamanOnlyMods|Bonded]:,1,1,Standard:1,Currency:1,Currency/Runes:1,[ShamanOnlyMods|Bonded]:
+crucibleMods,Adds # to # Fire Damage,14,14,Standard:14,Rare:10;Unique:2;Normal:1;Magic:1,Weapons/TwoHandWeapons:9;Weapons/OneHandWeapons:5,Adds 1 to 5 Fire Damage
+crucibleMods,Adds # to # Lightning Damage,14,14,Standard:14,Rare:10;Normal:2;Magic:2,Weapons/TwoHandWeapons:9;Weapons/OneHandWeapons:5,Adds 1 to 29 Lightning Damage
+crucibleMods,Adds # to # Physical Damage,9,9,Standard:9,Rare:4;Unique:2;Magic:2;Normal:1,Weapons/TwoHandWeapons:6;Weapons/OneHandWeapons:3,Adds 6 to 11 Physical Damage
+crucibleMods,#% increased Spell Damage,8,8,Standard:8,Unique:4;Rare:2;Magic:1;Normal:1,Weapons/OneHandWeapons:7;Weapons/TwoHandWeapons:1,10% increased Spell Damage
+crucibleMods,#% to Critical Strike Chance,7,7,Standard:7,Rare:3;Normal:2;Magic:1;Unique:1,Weapons/TwoHandWeapons:4;Weapons/OneHandWeapons:3,+1.5% to Critical Strike Chance
+crucibleMods,#% increased Attack Speed,5,5,Standard:5,Rare:2;Unique:1;Magic:1;Normal:1,Weapons/OneHandWeapons:3;Weapons/TwoHandWeapons:2,9% increased Attack Speed
+crucibleMods,#% reduced Attack Speed,5,5,Standard:5,Magic:3;Normal:1;Rare:1,Weapons/TwoHandWeapons:4;Weapons/OneHandWeapons:1,15% reduced Attack Speed
+crucibleMods,#% increased maximum Energy Shield,4,4,Standard:4,Unique:2;Rare:1;Normal:1,Weapons/OneHandWeapons:3;Weapons/TwoHandWeapons:1,10% increased maximum Energy Shield
+crucibleMods,#% increased maximum Mana,4,4,Standard:4,Unique:2;Magic:1;Rare:1,Weapons/OneHandWeapons:4,10% increased maximum Mana
+crucibleMods,#% to Spell Critical Strike Chance,3,3,Standard:3,Unique:2;Normal:1,Weapons/OneHandWeapons:2;Weapons/TwoHandWeapons:1,+0.8% to Spell Critical Strike Chance
+crucibleMods,Adds # to # Chaos Damage,3,3,Standard:3,Rare:2;Magic:1,Weapons/OneHandWeapons:2;Weapons/TwoHandWeapons:1,Adds 4 to 6 Chaos Damage
+crucibleMods,Adds # to # Cold Damage,3,3,Standard:3,Rare:2;Magic:1,Weapons/OneHandWeapons:2;Weapons/TwoHandWeapons:1,Adds 3 to 6 Cold Damage
+crucibleMods,# metres to Weapon Range,2,2,Standard:2,Unique:1;Rare:1,Weapons/OneHandWeapons:1;Weapons/TwoHandWeapons:1,+0.3 metres to Weapon Range
+crucibleMods,#% increased Damage over Time,2,2,Standard:2,Magic:1;Unique:1,Weapons/TwoHandWeapons:1;Weapons/OneHandWeapons:1,68% increased Damage over Time
+crucibleMods,#% increased Implicit Modifier magnitudes,2,2,Standard:2,Unique:1;Rare:1,Weapons/OneHandWeapons:1;Weapons/TwoHandWeapons:1,25% increased Implicit Modifier magnitudes
+crucibleMods,#% more Cast Speed,2,2,Standard:2,Unique:1;Normal:1,Weapons/OneHandWeapons:1;Weapons/TwoHandWeapons:1,6% more Cast Speed
+crucibleMods,#% reduced Totem Life,2,2,Standard:2,Rare:1;Normal:1,Weapons/TwoHandWeapons:1;Weapons/OneHandWeapons:1,25% reduced Totem Life
+crucibleMods,#% to Critical Strike Multiplier for Spell Damage,2,2,Standard:2,Unique:1;Normal:1,Weapons/OneHandWeapons:2,+50% to Critical Strike Multiplier for Spell Damage
+crucibleMods,#% to Quality,2,2,Standard:2,Magic:1;Rare:1,Weapons/OneHandWeapons:1;Weapons/TwoHandWeapons:1,+16% to Quality
+crucibleMods,Adds # to # Cold Damage to Spells,2,2,Standard:2,Unique:1;Rare:1,Weapons/OneHandWeapons:2,Adds 1 to 3 Cold Damage to Spells
+crucibleMods,Adds # to # Lightning Damage to Spells,2,2,Standard:2,Unique:1;Normal:1,Weapons/TwoHandWeapons:2,Adds 7 to 133 Lightning Damage to Spells
+crucibleMods,Regenerate #% of Mana per second,2,2,Standard:2,Normal:1;Rare:1,Weapons/TwoHandWeapons:2,Regenerate 0.6% of Mana per second
+crucibleMods,"Totems Explode on Death, dealing #% of their Life as Physical Damage",2,2,Standard:2,Rare:1;Normal:1,Weapons/TwoHandWeapons:1;Weapons/OneHandWeapons:1,"Totems Explode on Death, dealing 30% of their Life as Physical Damage"
+crucibleMods,# to Armour,1,1,Standard:1,Unique:1,Armours/Helmets:1,+125 to Armour
+crucibleMods,# to Level of Socketed Melee Gems,1,1,Standard:1,Normal:1,Weapons/OneHandWeapons:1,+2 to Level of Socketed Melee Gems
+crucibleMods,# to Level of Socketed Minion Gems,1,1,Standard:1,Magic:1,Weapons/OneHandWeapons:1,+2 to Level of Socketed Minion Gems
+crucibleMods,# to Strength,1,1,Standard:1,Normal:1,Weapons/TwoHandWeapons:1,+120 to Strength
+crucibleMods,#% chance to Freeze,1,1,Standard:1,Unique:1,Weapons/OneHandWeapons:1,10% chance to Freeze
+crucibleMods,#% chance to Ignite,1,1,Standard:1,Unique:1,Weapons/TwoHandWeapons:1,20% chance to Ignite
+crucibleMods,#% chance to deal Double Damage if Strength is below #,1,1,Standard:1,Rare:1,Weapons/OneHandWeapons:1,6% chance to deal Double Damage if Strength is below 100
+crucibleMods,#% chance to gain a Frenzy Charge on Kill,1,1,Standard:1,Normal:1,Weapons/TwoHandWeapons:1,6% chance to gain a Frenzy Charge on Kill
+crucibleMods,#% increased Cast Speed,1,1,Standard:1,Rare:1,Weapons/OneHandWeapons:1,5% increased Cast Speed
+crucibleMods,#% increased Cooldown Recovery Rate,1,1,Standard:1,Unique:1,Weapons/TwoHandWeapons:1,25% increased Cooldown Recovery Rate
+crucibleMods,#% increased Critical Strike Chance,1,1,Standard:1,Magic:1,Weapons/TwoHandWeapons:1,10% increased Critical Strike Chance
+crucibleMods,#% increased Explicit Attribute Modifier magnitudes,1,1,Standard:1,Unique:1,Weapons/OneHandWeapons:1,10% increased Explicit Attribute Modifier magnitudes
+crucibleMods,#% increased Explicit Physical and Chaos Damage Modifier magnitudes,1,1,Standard:1,Normal:1,Weapons/TwoHandWeapons:1,10% increased Explicit Physical and Chaos Damage Modifier magnitudes
+crucibleMods,#% increased Lightning Damage,1,1,Standard:1,Rare:1,Armours/Shields:1,20% increased Lightning Damage
+crucibleMods,#% increased Mana Cost of Skills,1,1,Standard:1,Normal:1,Weapons/TwoHandWeapons:1,15% increased Mana Cost of Skills
+crucibleMods,#% increased Movement Speed,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,18% increased Movement Speed
+crucibleMods,#% increased Movement Speed if Dexterity is below #,1,1,Standard:1,Unique:1,Weapons/TwoHandWeapons:1,20% increased Movement Speed if Dexterity is below 100
+crucibleMods,#% increased total Recovery per second from Mana Leech,1,1,Standard:1,Magic:1,Weapons/TwoHandWeapons:1,60% increased total Recovery per second from Mana Leech
+crucibleMods,#% less maximum Mana,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,25% less maximum Mana
+crucibleMods,#% of Attack Damage Leeched as Mana,1,1,Standard:1,Magic:1,Weapons/TwoHandWeapons:1,1% of Attack Damage Leeched as Mana
+crucibleMods,#% of Physical Damage Converted to Chaos Damage,1,1,Standard:1,Magic:1,Weapons/OneHandWeapons:1,15% of Physical Damage Converted to Chaos Damage
+crucibleMods,#% reduced Attribute Requirements,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,30% reduced Attribute Requirements
+crucibleMods,#% reduced Duration of Ailments on You,1,1,Standard:1,Unique:1,Weapons/OneHandWeapons:1,15% reduced Duration of Ailments on You
+crucibleMods,#% reduced Life Recovery rate,1,1,Standard:1,Magic:1,Weapons/TwoHandWeapons:1,16% reduced Life Recovery rate
+crucibleMods,#% reduced Skill Effect Duration,1,1,Standard:1,Unique:1,Weapons/TwoHandWeapons:1,10% reduced Skill Effect Duration
+crucibleMods,#% reduced Totem Placement speed,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,25% reduced Totem Placement speed
+crucibleMods,Adds # to # Fire Damage to Spells,1,1,Standard:1,Unique:1,Weapons/OneHandWeapons:1,Adds 9 to 14 Fire Damage to Spells
+crucibleMods,Adds # to # Physical Damage to Spells,1,1,Standard:1,Magic:1,Weapons/OneHandWeapons:1,Adds 6 to 10 Physical Damage to Spells
+crucibleMods,Allocates Heavy Draw,1,1,Standard:1,Magic:1,Weapons/TwoHandWeapons:1,Allocates Heavy Draw
+crucibleMods,Attacks with this Weapon have #% chance to deal Double Damage,1,1,Standard:1,Magic:1,Weapons/TwoHandWeapons:1,Attacks with this Weapon have 20% chance to deal Double Damage
+crucibleMods,Brand Skills have #% reduced Duration,1,1,Standard:1,Normal:1,Weapons/OneHandWeapons:1,Brand Skills have 20% reduced Duration
+crucibleMods,Brands have #% increased Area of Effect if #% of Attached Duration expired,1,1,Standard:1,Normal:1,Weapons/OneHandWeapons:1,Brands have 25% increased Area of Effect if 50% of Attached Duration expired
+crucibleMods,Gain no inherent bonuses from Strength,1,1,Standard:1,Normal:1,Weapons/TwoHandWeapons:1,Gain no inherent bonuses from Strength
+crucibleMods,Herald of Ash has #% increased Buff Effect,1,1,Standard:1,Rare:1,Weapons/OneHandWeapons:1,Herald of Ash has 35% increased Buff Effect
+crucibleMods,Herald of Ash has #% increased Reservation,1,1,Standard:1,Rare:1,Weapons/OneHandWeapons:1,Herald of Ash has 25% increased Reservation
+crucibleMods,Hits against you Overwhelm #% of Physical Damage Reduction,1,1,Standard:1,Normal:1,Weapons/TwoHandWeapons:1,Hits against you Overwhelm 10% of Physical Damage Reduction
+crucibleMods,Item sells for an additional Magmatic Ore,1,1,Standard:1,Magic:1,Weapons/TwoHandWeapons:1,Item sells for an additional Magmatic Ore
+crucibleMods,Overwhelm #% Physical Damage Reduction,1,1,Standard:1,Normal:1,Weapons/TwoHandWeapons:1,Overwhelm 24% Physical Damage Reduction
+crucibleMods,Skills that Summon a Totem have #% chance to Summon two Totems instead of one,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,Skills that Summon a Totem have 70% chance to Summon two Totems instead of one
+crucibleMods,Socketed Gems are Supported by Level # Iron Grip,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,Socketed Gems are Supported by Level 10 Iron Grip
+crucibleMods,Socketed Gems are Supported by Level # Rage,1,1,Standard:1,Normal:1,Weapons/OneHandWeapons:1,Socketed Gems are Supported by Level 10 Rage
+crucibleMods,Socketed Gems are Supported by Level # Unleash,1,1,Standard:1,Unique:1,Weapons/TwoHandWeapons:1,Socketed Gems are Supported by Level 30 Unleash
+crucibleMods,You take #% increased Extra Damage from Critical Strikes,1,1,Standard:1,Unique:1,Armours/Helmets:1,You take 20% increased Extra Damage from Critical Strikes
+crucibleMods,Your Critical Strikes do not deal extra Damage,1,1,Standard:1,Magic:1,Weapons/OneHandWeapons:1,Your Critical Strikes do not deal extra Damage
+crucibleMods,Your Travel Skills are Disabled,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,Your Travel Skills are Disabled
+enchantMods,Adds # Passive Skills,557,557,Allflame:7;Hardcore:6;Solo Self-Found:87;Standard:457,Rare:380;Magic:105;Normal:72,Jewels/NewGemBase2:246;Jewels/NewGemBase3:191;Jewels/NewGemBase1:120,Adds 11 Passive Skills
+enchantMods,# Added Passive Skill is a Jewel Socket,243,243,Allflame:4;Hardcore:1;Solo Self-Found:29;Standard:209,Rare:170;Magic:44;Normal:29,Jewels/NewGemBase2:243,1 Added Passive Skill is a Jewel Socket
+enchantMods,# Added Passive Skills are Jewel Sockets,187,187,Allflame:2;Hardcore:4;Solo Self-Found:34;Standard:147,Rare:130;Magic:32;Normal:25,Jewels/NewGemBase3:187,2 Added Passive Skills are Jewel Sockets
+enchantMods,Used when Charges reach full,123,123,Allflame:3;Standard:120,Magic:108;Unique:9;Normal:6,Flasks/sprint:21;Flasks/granite:21;Flasks/evasionflask01:12,Used when Charges reach full
+enchantMods,Players in Area are #% Delirious,92,92,Hardcore:3;Solo Self-Found:2;Standard:87,Normal:50;Rare:35;Magic:7,Maps/Atlas2Maps:92,Players in Area are 20% Delirious
+enchantMods,Gains no Charges during Effect,53,53,Allflame:5;Standard:48,Magic:45;Unique:7;Normal:1,Flasks/sprint:11;Flasks/granite:5;Flasks/ruby:5,Gains no Charges during Effect
+enchantMods,#% increased effect,45,45,Allflame:5;Standard:40,Magic:43;Normal:1;Unique:1,Flasks/sprint:11;Flasks/granite:5;Flasks/ruby:5,69% increased effect
+enchantMods,Your Meteor Towers create Burning Ground for # seconds on Hit,26,26,Allflame:1;Solo Self-Found:2;Standard:23,Rare:19;Unique:7,Rings/MoonstoneRing:4;Rings/TopazSapphire:3;Rings/MingsHeart:2,Your Meteor Towers create Burning Ground for 3 seconds on Hit
+enchantMods,Delirium Reward Type: Weapons,23,27,Solo Self-Found:1;Standard:22,Normal:12;Rare:9;Magic:2,Maps/Atlas2Maps:23,Delirium Reward Type: Weapons
+enchantMods,Your Chilling Towers freeze enemies for # seconds while they are affected by chilling beams,23,23,Solo Self-Found:1;Standard:22,Rare:18;Unique:5,Rings/AmethystRing:6;Rings/MoonstoneRing:2;Rings/Ring3Unique:2,Your Chilling Towers freeze enemies for 0.2 seconds while they are affected by chilling beams
+enchantMods,Added Small Passive Skills grant: #% increased Chaos Damage,22,22,Solo Self-Found:1;Standard:21,Rare:18;Normal:2;Magic:2,Jewels/NewGemBase3:22,Added Small Passive Skills grant: 12% increased Chaos Damage
+enchantMods,Added Small Passive Skills grant: #% increased Elemental Damage,21,21,Solo Self-Found:4;Standard:17,Rare:13;Normal:4;Magic:4,Jewels/NewGemBase3:21,Added Small Passive Skills grant: 10% increased Elemental Damage
+enchantMods,Added Small Passive Skills grant: #% increased Damage over Time,20,20,Solo Self-Found:2;Standard:18,Rare:14;Normal:4;Magic:2,Jewels/NewGemBase2:20,Added Small Passive Skills grant: 10% increased Damage over Time
+enchantMods,Delirium Reward Type: Armour,20,22,Hardcore:1;Solo Self-Found:1;Standard:18,Rare:10;Normal:9;Magic:1,Maps/Atlas2Maps:20,Delirium Reward Type: Armour
+enchantMods,Added Small Passive Skills grant: #% increased Chaos Damage over Time,19,19,Solo Self-Found:1;Standard:18,Rare:18;Magic:1,Jewels/NewGemBase2:19,Added Small Passive Skills grant: 12% increased Chaos Damage over Time
+enchantMods,Added Small Passive Skills grant: #% increased Projectile Damage,19,19,Solo Self-Found:2;Standard:17,Rare:7;Magic:6;Normal:6,Jewels/NewGemBase2:19,Added Small Passive Skills grant: 10% increased Projectile Damage
+enchantMods,Added Small Passive Skills grant: #% increased effect of Non-Curse Auras from your Skills,19,19,Solo Self-Found:1;Standard:18,Rare:18;Normal:1,Jewels/NewGemBase2:19,Added Small Passive Skills grant: 3% increased effect of Non-Curse Auras from your Skills
+enchantMods,Delirium Reward Type: Jewellery,19,20,Solo Self-Found:1;Standard:18,Rare:11;Normal:4;Magic:4,Maps/Atlas2Maps:19,Delirium Reward Type: Jewellery
+enchantMods,Added Small Passive Skills grant: #% increased Cold Damage,18,18,Solo Self-Found:5;Standard:13,Rare:17;Magic:1,Jewels/NewGemBase3:18,Added Small Passive Skills grant: 12% increased Cold Damage
+enchantMods,Added Small Passive Skills grant: #% increased Mine Damage,18,18,Standard:18,Rare:15;Magic:2;Normal:1,Jewels/NewGemBase2:18,Added Small Passive Skills grant: 12% increased Mine Damage
+enchantMods,Added Small Passive Skills grant: #% increased Trap Damage,18,18,Standard:18,Rare:15;Magic:2;Normal:1,Jewels/NewGemBase2:18,Added Small Passive Skills grant: 12% increased Trap Damage
+enchantMods,Delirium Reward Type: Currency,18,19,Hardcore:1;Solo Self-Found:1;Standard:16,Rare:9;Normal:8;Magic:1,Maps/Atlas2Maps:18,Delirium Reward Type: Currency
+enchantMods,Added Small Passive Skills grant: #% increased Attack Damage,17,17,Solo Self-Found:3;Standard:14,Rare:12;Magic:3;Normal:2,Jewels/NewGemBase3:17,Added Small Passive Skills grant: 10% increased Attack Damage
+enchantMods,Added Small Passive Skills grant: #% increased Fire Damage,17,17,Solo Self-Found:3;Standard:14,Rare:8;Magic:5;Normal:4,Jewels/NewGemBase3:17,Added Small Passive Skills grant: 12% increased Fire Damage
+enchantMods,Added Small Passive Skills grant: #% increased maximum Mana,17,17,Standard:17,Rare:14;Magic:3,Jewels/NewGemBase1:17,Added Small Passive Skills grant: 6% increased maximum Mana
+enchantMods,Area contains an Empowered Mirage which covers the entire Map,17,17,Standard:17,Rare:17,Maps/Atlas2Maps:17,Area contains an Empowered Mirage which covers the entire Map
+enchantMods,Added Small Passive Skills grant: #% increased Area Damage,16,16,Allflame:1;Solo Self-Found:1;Standard:14,Rare:8;Normal:6;Magic:2,Jewels/NewGemBase2:16,Added Small Passive Skills grant: 10% increased Area Damage
+enchantMods,Quality does not increase Physical Damage,15,15,Solo Self-Found:1;Standard:14,Rare:10;Unique:5,Weapons/TwoHandWeapons:8;Weapons/OneHandWeapons:7,Quality does not increase Physical Damage
+enchantMods,Added Small Passive Skills grant: #% increased Armour,14,14,Allflame:1;Standard:13,Rare:6;Magic:4;Normal:4,Jewels/NewGemBase1:14,Added Small Passive Skills grant: 15% increased Armour
+enchantMods,Added Small Passive Skills grant: #% increased Cold Damage over Time,14,14,Solo Self-Found:3;Standard:11,Rare:8;Magic:5;Normal:1,Jewels/NewGemBase2:14,Added Small Passive Skills grant: 12% increased Cold Damage over Time
+enchantMods,Added Small Passive Skills grant: #% increased Lightning Damage,14,14,Hardcore:1;Standard:13,Rare:11;Magic:3,Jewels/NewGemBase3:14,Added Small Passive Skills grant: 12% increased Lightning Damage
+enchantMods,Added Small Passive Skills grant: #% increased Mana Reservation Efficiency of Skills,14,14,Standard:14,Rare:10;Magic:4,Jewels/NewGemBase1:14,Added Small Passive Skills grant: 6% increased Mana Reservation Efficiency of Skills
+enchantMods,Added Small Passive Skills grant: Minions deal #% increased Damage,14,14,Standard:14,Rare:12;Normal:1;Magic:1,Jewels/NewGemBase3:14,Added Small Passive Skills grant: Minions deal 10% increased Damage
+enchantMods,Added Small Passive Skills grant: #% increased Critical Strike Chance,13,13,Solo Self-Found:4;Standard:9,Rare:9;Magic:3;Normal:1,Jewels/NewGemBase2:13,Added Small Passive Skills grant: 15% increased Critical Strike Chance
+enchantMods,Added Small Passive Skills grant: #% increased Effect of your Curses,13,13,Standard:13,Rare:10;Magic:2;Normal:1,Jewels/NewGemBase2:11;Jewels/NewGemBase1:2,Added Small Passive Skills grant: 2% increased Effect of your Curses
+enchantMods,Reused at the end of this Flask's effect,13,13,Standard:13,Magic:10;Unique:3,Flasks/sprint:2;Flasks/evasionflask01:2;Flasks/BlockFlask:1,Reused at the end of this Flask's effect
+enchantMods,Added Small Passive Skills grant: #% increased Flask Effect Duration,12,12,Solo Self-Found:1;Standard:11,Rare:10;Magic:2,Jewels/NewGemBase2:12,Added Small Passive Skills grant: 6% increased Flask Effect Duration
+enchantMods,Added Small Passive Skills grant: #% increased Physical Damage over Time,12,12,Solo Self-Found:3;Standard:9,Rare:7;Magic:3;Normal:2,Jewels/NewGemBase2:12,Added Small Passive Skills grant: 12% increased Physical Damage over Time
+enchantMods,Added Small Passive Skills grant: #% increased Totem Damage,12,12,Allflame:2;Standard:10,Rare:9;Magic:3,Jewels/NewGemBase2:12,Added Small Passive Skills grant: 12% increased Totem Damage
+enchantMods,Added Small Passive Skills grant: #% increased maximum Life,12,12,Solo Self-Found:3;Standard:9,Rare:7;Magic:4;Normal:1,Jewels/NewGemBase1:12,Added Small Passive Skills grant: 4% increased maximum Life
+enchantMods,Added Small Passive Skills grant: #% increased maximum Energy Shield,11,11,Solo Self-Found:4;Standard:7,Rare:5;Normal:4;Magic:2,Jewels/NewGemBase1:11,Added Small Passive Skills grant: 6% increased maximum Energy Shield
+enchantMods,Added Small Passive Skills grant: #% to Fire Resistance,11,11,Solo Self-Found:5;Standard:6,Rare:7;Normal:4,Jewels/NewGemBase1:11,Added Small Passive Skills grant: +15% to Fire Resistance
+enchantMods,Allocates Divine Judgement,11,11,Standard:11,Rare:6;Unique:5,Amulets/Amulet37:3;Amulets/Amulet5:2;Amulets/Amulet4Unique:1,Allocates Divine Judgement
+enchantMods,Added Small Passive Skills grant: #% chance to Suppress Spell Damage,10,10,Solo Self-Found:2;Standard:8,Rare:6;Magic:3;Normal:1,Jewels/NewGemBase1:10,Added Small Passive Skills grant: +4% chance to Suppress Spell Damage
+enchantMods,Added Small Passive Skills grant: #% increased Brand Damage,10,10,Solo Self-Found:3;Standard:7,Magic:4;Rare:4;Normal:2,Jewels/NewGemBase2:10,Added Small Passive Skills grant: 12% increased Brand Damage
+enchantMods,Added Small Passive Skills grant: #% increased Physical Damage,10,10,Allflame:2;Solo Self-Found:1;Standard:7,Rare:7;Magic:2;Normal:1,Jewels/NewGemBase3:10,Added Small Passive Skills grant: 12% increased Physical Damage
+enchantMods,Added Small Passive Skills grant: #% increased Spell Damage,10,10,Hardcore:1;Solo Self-Found:2;Standard:7,Rare:5;Normal:3;Magic:2,Jewels/NewGemBase3:10,Added Small Passive Skills grant: 10% increased Spell Damage
+enchantMods,Added Small Passive Skills grant: #% to Cold Resistance,10,10,Hardcore:1;Solo Self-Found:3;Standard:6,Rare:8;Normal:2,Jewels/NewGemBase1:10,Added Small Passive Skills grant: +15% to Cold Resistance
+enchantMods,#% increased Movement Speed if you haven't been Hit Recently,9,9,Hardcore:1;Standard:8,Rare:5;Unique:4,Armours/Boots:9,6% increased Movement Speed if you haven't been Hit Recently
+enchantMods,Your Empowering Towers have #% increased Range,9,9,Solo Self-Found:1;Standard:8,Rare:9,Rings/TopazRuby:3;Rings/Empty-Socket:2;Rings/TopazSapphire:1,Your Empowering Towers have 25% increased Range
+enchantMods,#% increased Duration,8,8,Standard:8,Unique:6;Magic:2,Flasks/VinktarFlask:2;Flasks/TasteOfHate:2;Flasks/VialofUnlife:2,82% increased Duration
+enchantMods,Added Small Passive Skills grant: #% increased Attack Damage while Dual Wielding,8,8,Solo Self-Found:2;Standard:6,Rare:6;Magic:1;Normal:1,Jewels/NewGemBase3:8,Added Small Passive Skills grant: 12% increased Attack Damage while Dual Wielding
+enchantMods,Added Small Passive Skills grant: #% increased Burning Damage,8,8,Standard:8,Rare:8,Jewels/NewGemBase2:8,Added Small Passive Skills grant: 12% increased Burning Damage
+enchantMods,Added Small Passive Skills grant: #% increased Effect of Non-Damaging Ailments,8,8,Solo Self-Found:3;Standard:5,Magic:3;Rare:3;Normal:2,Jewels/NewGemBase2:8,Added Small Passive Skills grant: 10% increased Effect of Non-Damaging Ailments
+enchantMods,Added Small Passive Skills grant: #% increased Life Recovery from Flasks,8,8,Solo Self-Found:2;Standard:6,Rare:5;Magic:2;Normal:1,Jewels/NewGemBase2:8,Added Small Passive Skills grant: 10% increased Life Recovery from Flasks
+enchantMods,Added Small Passive Skills grant: #% increased Mana Recovery from Flasks,8,8,Solo Self-Found:2;Standard:6,Rare:5;Magic:2;Normal:1,Jewels/NewGemBase2:8,Added Small Passive Skills grant: 10% increased Mana Recovery from Flasks
+enchantMods,Added Small Passive Skills grant: Axe Attacks deal #% increased Damage with Hits and Ailments,8,8,Hardcore:1;Solo Self-Found:1;Standard:6,Rare:8,Jewels/NewGemBase3:8,Added Small Passive Skills grant: Axe Attacks deal 12% increased Damage with Hits and Ailments
+enchantMods,Added Small Passive Skills grant: Minions have #% increased maximum Life,8,8,Allflame:1;Standard:7,Rare:6;Normal:2,Jewels/NewGemBase2:8,Added Small Passive Skills grant: Minions have 12% increased maximum Life
+enchantMods,Added Small Passive Skills grant: Sword Attacks deal #% increased Damage with Hits and Ailments,8,8,Hardcore:1;Solo Self-Found:1;Standard:6,Rare:8,Jewels/NewGemBase3:8,Added Small Passive Skills grant: Sword Attacks deal 12% increased Damage with Hits and Ailments
+enchantMods,Allocates Sovereignty,8,8,Standard:8,Unique:5;Rare:3,Amulets/MasterOfGems:2;Amulets/AgateAmulet:2;Amulets/Malachai's BrillianceAmulet:1,Allocates Sovereignty
+enchantMods,Added Small Passive Skills grant: #% increased Attack Damage while holding a Shield,7,7,Standard:7,Rare:3;Magic:3;Normal:1,Jewels/NewGemBase3:7,Added Small Passive Skills grant: 12% increased Attack Damage while holding a Shield
+enchantMods,Added Small Passive Skills grant: #% to Chaos Resistance,7,7,Standard:7,Rare:4;Magic:2;Normal:1,Jewels/NewGemBase1:7,Added Small Passive Skills grant: +12% to Chaos Resistance
+enchantMods,Added Small Passive Skills grant: Minions deal #% increased Damage while you are affected by a Herald,7,7,Solo Self-Found:1;Standard:6,Rare:6;Magic:1,Jewels/NewGemBase2:7,Added Small Passive Skills grant: Minions deal 10% increased Damage while you are affected by a Herald
+enchantMods,Delirium Reward Type: Unique Items,7,7,Hardcore:1;Standard:6,Normal:6;Rare:1,Maps/Atlas2Maps:7,Delirium Reward Type: Unique Items
+enchantMods,Added Small Passive Skills grant: #% increased Damage with Two Handed Weapons,6,6,Hardcore:1;Solo Self-Found:4;Standard:1,Magic:3;Rare:3,Jewels/NewGemBase3:6,Added Small Passive Skills grant: 12% increased Damage with Two Handed Weapons
+enchantMods,Added Small Passive Skills grant: #% increased Evasion Rating,6,6,Solo Self-Found:4;Standard:2,Rare:3;Magic:3,Jewels/NewGemBase1:6,Added Small Passive Skills grant: 15% increased Evasion Rating
+enchantMods,Added Small Passive Skills grant: Claw Attacks deal #% increased Damage with Hits and Ailments,6,6,Solo Self-Found:3;Standard:3,Rare:4;Normal:2,Jewels/NewGemBase3:6,Added Small Passive Skills grant: Claw Attacks deal 12% increased Damage with Hits and Ailments
+enchantMods,Added Small Passive Skills grant: Dagger Attacks deal #% increased Damage with Hits and Ailments,6,6,Solo Self-Found:3;Standard:3,Rare:4;Normal:2,Jewels/NewGemBase3:6,Added Small Passive Skills grant: Dagger Attacks deal 12% increased Damage with Hits and Ailments
+enchantMods,Added Small Passive Skills grant: Mace or Sceptre Attacks deal #% increased Damage with Hits and Ailments,6,6,Solo Self-Found:2;Standard:4,Rare:3;Magic:2;Normal:1,Jewels/NewGemBase3:6,Added Small Passive Skills grant: Mace or Sceptre Attacks deal 12% increased Damage with Hits and Ailments
+enchantMods,Added Small Passive Skills grant: Staff Attacks deal #% increased Damage with Hits and Ailments,6,6,Solo Self-Found:2;Standard:4,Rare:3;Magic:2;Normal:1,Jewels/NewGemBase3:6,Added Small Passive Skills grant: Staff Attacks deal 12% increased Damage with Hits and Ailments
+enchantMods,Delirium Reward Type: Blight Items,6,6,Standard:6,Normal:5;Rare:1,Maps/Atlas2Maps:6,Delirium Reward Type: Blight Items
+enchantMods,Delirium Reward Type: Essences,6,6,Standard:6,Rare:4;Normal:2,Maps/Atlas2Maps:6,Delirium Reward Type: Essences
+enchantMods,Grants #% increased Area of Effect per #% Quality,6,6,Solo Self-Found:1;Standard:5,Rare:4;Unique:2,Weapons/TwoHandWeapons:3;Weapons/OneHandWeapons:3,Grants 1% increased Area of Effect per 4% Quality
+enchantMods,Your Empowering Towers have #% increased Effect,6,6,Standard:6,Rare:4;Unique:2,Rings/EssenceWorm:1;Rings/TopazRuby:1;Rings/Empty-Socket:1,Your Empowering Towers have 25% increased Effect
+enchantMods,"#% chance to Freeze, Shock and Ignite if you haven't Crit Recently",5,5,Solo Self-Found:3;Standard:2,Rare:3;Unique:2,Armours/Boots:5,"8% chance to Freeze, Shock and Ignite if you haven't Crit Recently"
+enchantMods,#% increased Attack and Cast Speed if you've Killed Recently,5,5,Standard:5,Unique:3;Rare:2,Armours/Boots:5,8% increased Attack and Cast Speed if you've Killed Recently
+enchantMods,#% increased Mana Regeneration Rate if you've cast a Spell Recently,5,5,Solo Self-Found:1;Standard:4,Unique:3;Rare:2,Armours/Boots:5,35% increased Mana Regeneration Rate if you've cast a Spell Recently
+enchantMods,#% increased Spell Damage,5,5,Solo Self-Found:3;Standard:2,Rare:5,Weapons/OneHandWeapons:5,12% increased Spell Damage
+enchantMods,#% of Damage Leeched as Life if you've Killed Recently,5,5,Solo Self-Found:1;Standard:4,Unique:3;Rare:2,Armours/Boots:5,0.6% of Damage Leeched as Life if you've Killed Recently
+enchantMods,Added Small Passive Skills grant: #% increased Damage while affected by a Herald,5,5,Hardcore:1;Standard:4,Rare:3;Magic:2,Jewels/NewGemBase2:5,Added Small Passive Skills grant: 10% increased Damage while affected by a Herald
+enchantMods,Added Small Passive Skills grant: Exerted Attacks deal #% increased Damage,5,5,Solo Self-Found:1;Standard:4,Rare:4;Magic:1,Jewels/NewGemBase2:5,Added Small Passive Skills grant: Exerted Attacks deal 20% increased Damage
+enchantMods,Allocates Death Attunement,5,5,Allflame:2;Standard:3,Rare:3;Unique:2,Amulets/MasterOfGems:1;Amulets/CitrineAmulet:1;Amulets/JujusSoul:1,Allocates Death Attunement
+enchantMods,Allocates Hardened Scars,5,5,Standard:5,Rare:3;Unique:2,Amulets/Quid:2;Amulets/TalismanWhite5:2;Amulets/NewTalisman:1,Allocates Hardened Scars
+enchantMods,Allocates Toxic Strikes,5,5,Standard:5,Unique:2;Rare:2;SupporterFoil:1,Amulets/MetamorphosisAmulet:1;Amulets/TurquoiseAmulet:1;Amulets/MasterOfGems:1,Allocates Toxic Strikes
+enchantMods,Delirium Reward Type: Abyss Items,5,5,Standard:5,Normal:4;Rare:1,Maps/Atlas2Maps:5,Delirium Reward Type: Abyss Items
+enchantMods,Delirium Reward Type: Divination Cards,5,5,Hardcore:1;Standard:4,Rare:3;Magic:1;Normal:1,Maps/Atlas2Maps:5,Delirium Reward Type: Divination Cards
+enchantMods,Delirium Reward Type: Legion Items,5,5,Standard:5,Rare:3;Normal:2,Maps/Atlas2Maps:5,Delirium Reward Type: Legion Items
+enchantMods,Minions summoned by Your Scout Towers have #% increased Damage,5,5,Standard:5,Rare:5,Rings/TopazRuby:2;Rings/Ring6:1;Rings/TopazSapphire:1,Minions summoned by Your Scout Towers have 25% increased Damage
+enchantMods,#% increased Spark Projectile Speed,4,4,Standard:4,Rare:2;Normal:2,Armours/Helmets:4,20% increased Spark Projectile Speed
+enchantMods,#% reduced Attribute Requirements,4,4,Standard:4,Rare:4,Armours/BodyArmours:3;Weapons/OneHandWeapons:1,40% reduced Attribute Requirements
+enchantMods,Added Small Passive Skills grant: #% increased Damage Over Time with Bow Skills,4,4,Solo Self-Found:1;Standard:3,Normal:3;Rare:1,Jewels/NewGemBase3:4,Added Small Passive Skills grant: 12% increased Damage Over Time with Bow Skills
+enchantMods,Added Small Passive Skills grant: #% increased Damage with Bows,4,4,Solo Self-Found:1;Standard:3,Normal:3;Rare:1,Jewels/NewGemBase3:4,Added Small Passive Skills grant: 12% increased Damage with Bows
+enchantMods,Added Small Passive Skills grant: #% to Lightning Resistance,4,4,Solo Self-Found:1;Standard:3,Rare:3;Magic:1,Jewels/NewGemBase1:4,Added Small Passive Skills grant: +15% to Lightning Resistance
+enchantMods,Allocates Combat Stamina,4,4,Standard:4,Rare:3;Unique:1,Amulets/Amulet7:1;Amulets/VoidcoreAmulet:1;Amulets/TalismanBlack5:1,Allocates Combat Stamina
+enchantMods,Allocates Dreamer,4,4,Standard:4,Rare:4,Amulets/Amulet7:1;Amulets/AgateAmulet:1;Amulets/TalismanWhite8:1,Allocates Dreamer
+enchantMods,Allocates Tranquility,4,4,Standard:4,Unique:3;Rare:1,Amulets/PresenceOfChayula:3;Amulets/TalismanWhite6:1,Allocates Tranquility
+enchantMods,Delirium Reward Type: Fossils,4,4,Hardcore:1;Standard:3,Normal:4,Maps/Atlas2Maps:4,Delirium Reward Type: Fossils
+enchantMods,Delirium Reward Type: Fragments,4,4,Solo Self-Found:1;Standard:3,Normal:3;Magic:1,Maps/Atlas2Maps:4,Delirium Reward Type: Fragments
+enchantMods,Delirium Reward Type: Gems,4,4,Hardcore:1;Standard:3,Normal:3;Rare:1,Maps/Atlas2Maps:4,Delirium Reward Type: Gems
+enchantMods,Determination has #% increased Mana Reservation Efficiency,4,4,Standard:4,Rare:3;Unique:1,Armours/Helmets:4,Determination has 20% increased Mana Reservation Efficiency
+enchantMods,Explosive Arrow deals #% increased Damage,4,4,Standard:4,Rare:2;Unique:2,Armours/Helmets:4,Explosive Arrow deals 40% increased Damage
+enchantMods,Grants #% increased Elemental Damage per #% Quality,4,4,Standard:4,Unique:2;Rare:2,Weapons/TwoHandWeapons:3;Weapons/OneHandWeapons:1,Grants 1% increased Elemental Damage per 2% Quality
+enchantMods,Trigger Word of Flames on Hit,4,4,Solo Self-Found:1;Standard:3,Rare:3;Unique:1,Armours/Gloves:4,Trigger Word of Flames on Hit
+enchantMods,Your Chilling Towers have #% increased Range,4,4,Standard:4,Rare:4,Rings/Empty-Socket:2;Rings/MoonstoneRing:1;Rings/AmethystRing:1,Your Chilling Towers have 25% increased Range
+enchantMods,#% chance to Avoid being Stunned if you've Killed Recently,3,3,Standard:3,Rare:2;Unique:1,Armours/Boots:3,65% chance to Avoid being Stunned if you've Killed Recently
+enchantMods,#% increased Attack Speed per #% Quality,3,3,Standard:3,Rare:2;Unique:1,Weapons/OneHandWeapons:2;Weapons/TwoHandWeapons:1,1% increased Attack Speed per 8% Quality
+enchantMods,#% increased Corrupting Fever Duration,3,3,Standard:3,Rare:3,Armours/Helmets:3,30% increased Corrupting Fever Duration
+enchantMods,#% increased Critical Strike Chance if you haven't Crit Recently,3,3,Standard:3,Unique:3,Armours/Boots:3,90% increased Critical Strike Chance if you haven't Crit Recently
+enchantMods,#% increased Explicit Ailment Modifier magnitudes,3,3,Standard:3,Rare:3,Weapons/OneHandWeapons:2;Weapons/TwoHandWeapons:1,6% increased Explicit Ailment Modifier magnitudes
+enchantMods,#% increased Explicit Chaos Modifier magnitudes,3,3,Standard:3,Rare:3,Weapons/OneHandWeapons:3,6% increased Explicit Chaos Modifier magnitudes
+enchantMods,Added Small Passive Skills grant: Wand Attacks deal #% increased Damage with Hits and Ailments,3,3,Solo Self-Found:2;Standard:1,Rare:2;Magic:1,Jewels/NewGemBase3:3,Added Small Passive Skills grant: Wand Attacks deal 12% increased Damage with Hits and Ailments
+enchantMods,Adds # to # Fire Damage,3,3,Solo Self-Found:2;Standard:1,Rare:3,Weapons/OneHandWeapons:3,Adds 8 to 17 Fire Damage
+enchantMods,Allocates Annihilation,3,3,Standard:3,Rare:2;Unique:1,Armours/Helmets:1;Amulets/TalismanWhite4:1;Amulets/MonkeyPawTalisman:1,Allocates Annihilation
+enchantMods,Allocates Arcane Potency,3,3,Standard:3,Rare:3,Amulets/Amulet3:1;Amulets/NewTalisman:1;Amulets/TalismanWhite4:1,Allocates Arcane Potency
+enchantMods,Allocates Arsonist,3,3,Standard:3,Rare:3,Amulets/MarbleAmulet:1;Amulets/Amulet5:1;Amulets/NewTalisman3:1,Allocates Arsonist
+enchantMods,Allocates Breath of Flames,3,3,Standard:3,Rare:3,Amulets/TalismanWhite7:1;Amulets/NewTalisman:1;Amulets/TalismanBlack2:1,Allocates Breath of Flames
+enchantMods,Allocates Charisma,3,3,Standard:3,Unique:3,Amulets/Amulet36:1;Amulets/ShadowRay:1;Amulets/PresenceOfChayula:1,Allocates Charisma
+enchantMods,Allocates Disciple of the Unyielding,3,3,Standard:3,Rare:3,Amulets/Amulet3:1;Amulets/TalismanBlack5:1;Amulets/TalismanWhite5:1,Allocates Disciple of the Unyielding
+enchantMods,Allocates Freedom of Movement,3,3,Solo Self-Found:1;Standard:2,Rare:2;Unique:1,Amulets/Amulet3:1;Amulets/Amulet1:1;Amulets/UngilsHarmony:1,Allocates Freedom of Movement
+enchantMods,Allocates Kinetic Impacts,3,3,Standard:3,Rare:3,Amulets/Amulet7:1;Amulets/TalismanWhite8:1;Amulets/TalismanWhite7:1,Allocates Kinetic Impacts
+enchantMods,Allocates Lethality,3,3,Standard:3,Rare:2;Unique:1,Amulets/Amulet36:1;Amulets/AgateAmulet:1;Amulets/TalismanWhite5:1,Allocates Lethality
+enchantMods,Allocates Primal Manifestation,3,3,Standard:3,Rare:3,Amulets/Amulet7:1;Amulets/TalismanWhite4:1;Amulets/TalismanWhite1:1,Allocates Primal Manifestation
+enchantMods,Allocates Quickstep,3,3,Solo Self-Found:2;Standard:1,Rare:3,Amulets/TalismanBlack4:1;Amulets/Amulet2:1;Amulets/Amulet6:1,Allocates Quickstep
+enchantMods,Allocates Relentless Pursuit,3,3,Standard:3,Rare:2;Unique:1,Armours/Helmets:1;Amulets/Amulet4:1;Amulets/NewTalisman3:1,Allocates Relentless Pursuit
+enchantMods,Allocates Sacrifice,3,3,Standard:3,Rare:3,Amulets/TalismanRed3:1;Amulets/TalismanWhite3:1;Amulets/NewTalisman2:1,Allocates Sacrifice
+enchantMods,Allocates Sanctuary,3,3,Standard:3,Rare:3,Amulets/TurquoiseAmulet:1;Amulets/Amulet4:1;Amulets/Amulet7:1,Allocates Sanctuary
+enchantMods,Allocates Sentinel,3,3,Standard:3,Rare:3,Amulets/TalismanWhite8:2;Amulets/NewTalisman:1,Allocates Sentinel
+enchantMods,Allocates Soul of Steel,3,3,Standard:3,Rare:3,Amulets/AgateAmulet:1;Amulets/TalismanBlack4:1;Amulets/NewTalisman3:1,Allocates Soul of Steel
+enchantMods,Allocates Spiked Bulwark,3,3,Standard:3,Rare:2;Unique:1,Amulets/Amulet7:1;Amulets/TalismanWhite3:1;Amulets/Quid:1,Allocates Spiked Bulwark
+enchantMods,Blight Monsters spawn #% faster,3,3,Standard:3,Normal:3,Maps/Atlas2Maps:3,Blight Monsters spawn 90% faster
+enchantMods,Encounter duration is # seconds shorter,3,3,Standard:3,Normal:3,Maps/Atlas2Maps:3,Encounter duration is 150 seconds shorter
+enchantMods,Explosive Trap causes # additional smaller explosions,3,3,Standard:3,Rare:3,Armours/Helmets:3,Explosive Trap causes 2 additional smaller explosions
+enchantMods,Grants Level # Envy Skill,3,3,Standard:3,Normal:2;Magic:1,Weapons/OneHandWeapons:3,Grants Level 1 Envy Skill
+enchantMods,Hatred has #% increased Mana Reservation Efficiency,3,3,Standard:3,Rare:3,Armours/Helmets:3,Hatred has 20% increased Mana Reservation Efficiency
+enchantMods,Minions summoned by Your Summoning Towers have #% increased Damage,3,3,Solo Self-Found:1;Standard:2,Rare:3,Rings/SapphireRuby:1;Rings/TopazRuby:1;Rings/Ring7:1,Minions summoned by Your Summoning Towers have 25% increased Damage
+enchantMods,Pride has #% increased Mana Reservation Efficiency,3,3,Standard:3,Rare:2;Unique:1,Armours/Helmets:3,Pride has 30% increased Mana Reservation Efficiency
+enchantMods,Your Arc Towers deal #% increased Damage,3,3,Solo Self-Found:1;Standard:2,Rare:2;Unique:1,Rings/UberShaperRing:1;Rings/BoneRing:1;Rings/TopazSapphire:1,Your Arc Towers deal 25% increased Damage
+enchantMods,Your Fireball Towers deal #% increased Damage,3,3,Solo Self-Found:2;Standard:1,Rare:3,Rings/MoonstoneRing:1;Rings/Ring6:1;Rings/TopazSapphire:1,Your Fireball Towers deal 25% increased Damage
+enchantMods,#% increased Assassin's Mark Curse Effect,2,2,Standard:2,Magic:1;Rare:1,Armours/Helmets:2,30% increased Assassin's Mark Curse Effect
+enchantMods,#% increased Dual Strike Critical Strike Chance,2,2,Standard:2,Rare:2,Armours/Helmets:2,90% increased Dual Strike Critical Strike Chance
+enchantMods,#% increased Essence Drain Damage,2,2,Standard:2,Rare:2,Armours/Helmets:2,40% increased Essence Drain Damage
+enchantMods,#% increased Explicit Critical Modifier magnitudes,2,2,Standard:2,Rare:2,Weapons/OneHandWeapons:2,6% increased Explicit Critical Modifier magnitudes
+enchantMods,#% increased Explicit Life Modifier magnitudes,2,2,Standard:2,Rare:2,Armours/BodyArmours:2,6% increased Explicit Life Modifier magnitudes
+enchantMods,#% increased Fire Trap Burning Damage,2,2,Standard:2,Rare:2,Armours/Helmets:2,60% increased Fire Trap Burning Damage
+enchantMods,#% increased Flicker Strike Damage,2,2,Standard:2,Normal:1;Unique:1,Armours/Helmets:2,40% increased Flicker Strike Damage
+enchantMods,#% increased Kinetic Blast Area of Effect,2,2,Standard:2,Rare:2,Armours/Helmets:2,16% increased Kinetic Blast Area of Effect
+enchantMods,#% increased Lightning Arrow Damage,2,2,Standard:2,Rare:2,Armours/Helmets:2,40% increased Lightning Arrow Damage
+enchantMods,#% increased Lightning Tendrils Damage,2,2,Standard:2,Rare:1;Unique:1,Armours/Helmets:2,25% increased Lightning Tendrils Damage
+enchantMods,#% increased Molten Strike Area of Effect,2,2,Standard:2,Rare:2,Armours/Helmets:2,24% increased Molten Strike Area of Effect
+enchantMods,#% increased Orb of Storms Area of Effect,2,2,Standard:2,Rare:2,Armours/Helmets:2,16% increased Orb of Storms Area of Effect
+enchantMods,#% increased Punishment Curse Effect,2,2,Standard:2,Rare:2,Armours/Helmets:2,30% increased Punishment Curse Effect
+enchantMods,#% increased Rage Vortex Area of Effect,2,2,Standard:2,Rare:2,Armours/Helmets:2,24% increased Rage Vortex Area of Effect
+enchantMods,#% increased Shield Crush Damage,2,2,Standard:2,Rare:1;Magic:1,Armours/Helmets:2,40% increased Shield Crush Damage
+enchantMods,#% increased Spectral Helix Projectile Speed,2,2,Standard:2,Unique:1;Rare:1,Armours/Helmets:2,30% increased Spectral Helix Projectile Speed
+enchantMods,#% increased Tornado Shot Damage,2,2,Standard:2,Rare:2,Armours/Helmets:2,25% increased Tornado Shot Damage
+enchantMods,#% reduced Lightning Warp Duration,2,2,Standard:2,Unique:1;Rare:1,Armours/Helmets:2,30% reduced Lightning Warp Duration
+enchantMods,Added Small Passive Skills grant: #% Chance to Block Spell Damage,2,2,Solo Self-Found:2,Rare:1;Magic:1,Jewels/NewGemBase1:2,Added Small Passive Skills grant: 2% Chance to Block Spell Damage
+enchantMods,Added Small Passive Skills grant: Channelling Skills deal #% increased Damage,2,2,Solo Self-Found:1;Standard:1,Magic:1;Rare:1,Jewels/NewGemBase2:2,Added Small Passive Skills grant: Channelling Skills deal 12% increased Damage
+enchantMods,Adds # to # Cold Damage if you've been Hit Recently,2,2,Standard:2,Rare:2,Armours/Boots:2,Adds 45 to 68 Cold Damage if you've been Hit Recently
+enchantMods,Allocates Acrimony,2,2,Solo Self-Found:1;Standard:1,Rare:2,Amulets/TalismanWhite2:1;Amulets/TurquoiseAmulet:1,Allocates Acrimony
+enchantMods,Allocates Adamant,2,2,Standard:2,Rare:2,Amulets/NewTalisman:1;Amulets/TalismanRed6:1,Allocates Adamant
+enchantMods,Allocates Ancestral Knowledge,2,2,Standard:2,Rare:2,Amulets/TalismanWhite5:1;Amulets/TalismanWhite1:1,Allocates Ancestral Knowledge
+enchantMods,Allocates Arcane Capacitor,2,2,Standard:2,Rare:2,Amulets/TalismanWhite1:1;Amulets/TalismanRed1:1,Allocates Arcane Capacitor
+enchantMods,Allocates Arcane Sanctuary,2,2,Solo Self-Found:1;Standard:1,Rare:2,Amulets/TalismanBlack5:1;Amulets/TalismanWhite1:1,Allocates Arcane Sanctuary
+enchantMods,Allocates Blade Barrier,2,2,Standard:2,Rare:2,Amulets/TalismanRed8:1;Amulets/TalismanRed6:1,Allocates Blade Barrier
+enchantMods,Allocates Blade Master,2,2,Standard:2,Rare:2,Amulets/TalismanBlack2:1;Amulets/TalismanWhite6:1,Allocates Blade Master
+enchantMods,Allocates Burning Brutality,2,2,Standard:2,Rare:2,Amulets/TalismanWhite6:1;Amulets/TalismanRed3:1,Allocates Burning Brutality
+enchantMods,Allocates Champion of the Cause,2,2,Standard:2,Rare:1;Unique:1,Amulets/Amulet5:1;Amulets/PresenceOfChayula:1,Allocates Champion of the Cause
+enchantMods,Allocates Crackling Speed,2,2,Standard:2,Rare:2,Amulets/TalismanWhite5:1;Amulets/TalismanBlack3:1,Allocates Crackling Speed
+enchantMods,Allocates Defiled Forces,2,2,Standard:2,Unique:1;Rare:1,Amulets/ShapersPresence:1;Amulets/TalismanWhite2:1,Allocates Defiled Forces
+enchantMods,Allocates Depth Perception,2,2,Standard:2,Rare:2,Amulets/Amulet7:1;Amulets/TalismanWhite3:1,Allocates Depth Perception
+enchantMods,Allocates Disciple of the Slaughter,2,2,Standard:2,Unique:1;Rare:1,Amulets/Malachai's BrillianceAmulet:1;Amulets/TalismanRed4:1,Allocates Disciple of the Slaughter
+enchantMods,Allocates Discipline and Training,2,2,Standard:2,Unique:1;Rare:1,Amulets/Amulet36:1;Amulets/TalismanWhite4:1,Allocates Discipline and Training
+enchantMods,Allocates Divine Fury,2,2,Standard:2,Rare:2,Amulets/TalismanRed1:1;Amulets/TalismanWhite5:1,Allocates Divine Fury
+enchantMods,Allocates Elemental Focus,2,2,Standard:2,Unique:1;Rare:1,Amulets/WhispersofInfinity:1;Amulets/TalismanRed6:1,Allocates Elemental Focus
+enchantMods,Allocates Essence Infusion,2,2,Solo Self-Found:1;Standard:1,Rare:2,Amulets/TalismanBlack4:1;Amulets/Amulet4:1,Allocates Essence Infusion
+enchantMods,Allocates Ethereal Feast,2,2,Standard:2,Rare:2,Amulets/TalismanWhite8:2,Allocates Ethereal Feast
+enchantMods,Allocates Exceptional Performance,2,2,Standard:2,Rare:2,Amulets/Amulet7:1;Amulets/TalismanWhite7:1,Allocates Exceptional Performance
+enchantMods,Allocates Explosive Impact,2,2,Standard:2,Rare:2,Amulets/TalismanRed7:1;Amulets/TalismanBlack3:1,Allocates Explosive Impact
+enchantMods,Allocates Fearsome Force,2,2,Standard:2,Rare:2,Amulets/Amulet4:1;Amulets/TalismanRed1:1,Allocates Fearsome Force
+enchantMods,Allocates Fire Walker,2,2,Standard:2,Rare:2,Amulets/BluePearlAmulet:1;Amulets/TalismanWhite6:1,Allocates Fire Walker
+enchantMods,Allocates Fury Bolts,2,2,Standard:2,Rare:2,Amulets/CitrineAmulet:2,Allocates Fury Bolts
+enchantMods,Allocates Goliath,2,2,Standard:2,Rare:2,Amulets/TalismanBlack3:1;Amulets/NewTalisman3:1,Allocates Goliath
+enchantMods,Allocates High Explosives,2,2,Standard:2,Rare:2,Amulets/TalismanWhite8:1;Amulets/DireClawTalisman:1,Allocates High Explosives
+enchantMods,Allocates Hired Killer,2,2,Standard:2,Rare:2,Amulets/CitrineAmulet:1;Amulets/TalismanWhite5:1,Allocates Hired Killer
+enchantMods,Allocates Infused,2,2,Standard:2,Rare:2,Amulets/TalismanBlack2:1;Amulets/TalismanWhite3:1,Allocates Infused
+enchantMods,Allocates Merciless Skewering,2,2,Standard:2,Rare:2,Amulets/BluePearlAmulet:1;Amulets/Amulet7:1,Allocates Merciless Skewering
+enchantMods,Allocates Overcharged,2,2,Standard:2,Unique:1;Rare:1,Amulets/AssassinUnique:1;Amulets/Amulet7:1,Allocates Overcharged
+enchantMods,Allocates Perfectionist,2,2,Standard:2,Rare:2,Amulets/Amulet7:1;Amulets/TalismanWhite3:1,Allocates Perfectionist
+enchantMods,Allocates Ravenous Horde,2,2,Standard:2,Rare:1;Unique:1,Amulets/CitrineAmulet:1;Amulets/ThePrimordialChain:1,Allocates Ravenous Horde
+enchantMods,Allocates Resourcefulness,2,2,Standard:2,Rare:2,Amulets/TalismanBlack6:1;Amulets/TalismanWhite5:1,Allocates Resourcefulness
+enchantMods,Allocates Saboteur,2,2,Standard:2,Unique:2,Armours/Helmets:2,Allocates Saboteur
+enchantMods,Allocates Sanctum of Thought,2,2,Standard:2,Rare:2,Amulets/TurquoiseAmulet:1;Amulets/TalismanWhite2:1,Allocates Sanctum of Thought
+enchantMods,Allocates Searing Heat,2,2,Standard:2,Rare:2,Amulets/TalismanWhite6:1;Amulets/TalismanWhite4:1,Allocates Searing Heat
+enchantMods,Allocates Shamanistic Fury,2,2,Standard:2,Rare:2,Amulets/TalismanBlack6:1;Amulets/NewTalisman2:1,Allocates Shamanistic Fury
+enchantMods,Allocates Sione's Ambition,2,2,Standard:2,Unique:2,Amulets/YokeOfSuffering:2,Allocates Sione's Ambition
+enchantMods,Allocates Testudo,2,2,Standard:2,Unique:1;Rare:1,Amulets/Anvil:1;Amulets/TalismanBlack6:1,Allocates Testudo
+enchantMods,Allocates Utmost Intellect,2,2,Standard:2,Rare:2,Amulets/NewTalisman3:2,Allocates Utmost Intellect
+enchantMods,Allocates Wandslinger,2,2,Hardcore:1;Standard:1,Rare:2,Amulets/NewTalisman3:1;Amulets/Amulet7:1,Allocates Wandslinger
+enchantMods,Allocates Watchtowers,2,2,Standard:2,Rare:1;Unique:1,Belts/SoulcordBelt:1;Amulets/Quid:1,Allocates Watchtowers
+enchantMods,Allocates Way of the Warrior,2,2,Standard:2,Rare:2,Amulets/TalismanWhite3:1;Amulets/NewTalisman2:1,Allocates Way of the Warrior
+enchantMods,Allocates Whirling Barrier,2,2,Standard:2,Rare:2,Amulets/TalismanWhite1:1;Amulets/TalismanWhite3:1,Allocates Whirling Barrier
+enchantMods,"Allocates Wood, Stone, and Spell",2,2,Allflame:1;Standard:1,Unique:2,Amulets/MasterOfGems:1;Amulets/Malachai's BrillianceAmulet:1,"Allocates Wood, Stone, and Spell"
+enchantMods,Anger has #% increased Mana Reservation Efficiency,2,2,Standard:2,Unique:1;Rare:1,Armours/Helmets:2,Anger has 30% increased Mana Reservation Efficiency
+enchantMods,Arc deals #% increased Damage for each time it has Chained,2,2,Solo Self-Found:1;Standard:1,Rare:2,Armours/Helmets:2,Arc deals 8% increased Damage for each time it has Chained
+enchantMods,Arcanist Brand has #% increased Cast Speed,2,2,Standard:2,Rare:2,Armours/Helmets:2,Arcanist Brand has 12% increased Cast Speed
+enchantMods,Bane deals #% increased Damage,2,2,Solo Self-Found:2,Rare:2,Armours/Helmets:2,Bane deals 40% increased Damage
+enchantMods,Bane has #% increased Area of Effect,2,2,Solo Self-Found:1;Standard:1,Unique:1;Rare:1,Armours/Helmets:2,Bane has 24% increased Area of Effect
+enchantMods,Delirium Reward Type: Labyrinth Items,2,3,Standard:2,Rare:1;Magic:1,Maps/Atlas2Maps:2,Delirium Reward Type: Labyrinth Items
+enchantMods,Delirium Reward Type: Scarabs,2,2,Standard:2,Normal:1;Rare:1,Maps/Atlas2Maps:2,Delirium Reward Type: Scarabs
+enchantMods,Detonate Dead has a #% chance to detonate an additional corpse,2,2,Standard:2,Rare:2,Armours/Helmets:2,Detonate Dead has a 45% chance to detonate an additional corpse
+enchantMods,Discipline has #% increased Mana Reservation Efficiency,2,2,Standard:2,Rare:2,Armours/Helmets:2,Discipline has 30% increased Mana Reservation Efficiency
+enchantMods,General's Cry has # to maximum number of Mirage Warriors,2,2,Standard:2,Unique:2,Armours/Helmets:2,General's Cry has +1 to maximum number of Mirage Warriors
+enchantMods,Grants # to Maximum Life per #% Quality,2,2,Standard:2,Unique:1;Rare:1,Armours/BodyArmours:2,Grants +1 to Maximum Life per 2% Quality
+enchantMods,Haste has #% increased Mana Reservation Efficiency,2,2,Standard:2,Rare:2,Armours/Helmets:2,Haste has 20% increased Mana Reservation Efficiency
+enchantMods,Herald of Ice has #% increased Mana Reservation Efficiency,2,2,Standard:2,Unique:1;Rare:1,Armours/Helmets:2,Herald of Ice has 60% increased Mana Reservation Efficiency
+enchantMods,Herald of Purity has #% increased Mana Reservation Efficiency,2,2,Standard:2,Rare:2,Armours/Helmets:2,Herald of Purity has 50% increased Mana Reservation Efficiency
+enchantMods,Incinerate has # to maximum stages,2,2,Standard:2,Unique:1;Rare:1,Armours/Helmets:2,Incinerate has +2 to maximum stages
+enchantMods,Lightning Strike pierces # additional Targets,2,2,Standard:2,Rare:2,Armours/Helmets:2,Lightning Strike pierces 2 additional Targets
+enchantMods,Lightning Trap Damage Penetrates #% Lightning Resistance,2,2,Standard:2,Rare:2,Armours/Helmets:2,Lightning Trap Damage Penetrates 10% Lightning Resistance
+enchantMods,Minions summoned by Your Scout Towers inflict Malediction on Hit,2,2,Standard:2,Rare:2,Rings/Ring6:1;Rings/AmethystRing:1,Minions summoned by Your Scout Towers inflict Malediction on Hit
+enchantMods,Molten Strike fires # additional Projectiles,2,2,Solo Self-Found:1;Standard:1,Rare:2,Armours/Helmets:2,Molten Strike fires 2 additional Projectiles
+enchantMods,Plague Bearer Buff grants #% to Poison Damage over Time Multiplier while Infecting,2,2,Standard:2,Rare:2,Armours/Helmets:2,Plague Bearer Buff grants +12% to Poison Damage over Time Multiplier while Infecting
+enchantMods,Purity of Elements has #% increased Mana Reservation Efficiency,2,2,Standard:2,Unique:1;Rare:1,Armours/Helmets:2,Purity of Elements has 30% increased Mana Reservation Efficiency
+enchantMods,Quality does not increase Defences,2,2,Standard:2,Unique:1;Rare:1,Armours/BodyArmours:2,Quality does not increase Defences
+enchantMods,Raised Spectres have #% increased Damage,2,2,Standard:2,Rare:2,Armours/Helmets:2,Raised Spectres have 25% increased Damage
+enchantMods,Regenerate #% of Life per second if you were Hit Recently,2,2,Solo Self-Found:1;Standard:1,Rare:2,Armours/Boots:2,Regenerate 2% of Life per second if you were Hit Recently
+enchantMods,Scourge Arrow has #% chance to Poison per Stage,2,2,Solo Self-Found:1;Standard:1,Rare:2,Armours/Helmets:2,Scourge Arrow has 8% chance to Poison per Stage
+enchantMods,Seismic Trap releases an additional Wave,2,2,Standard:2,Rare:2,Armours/Helmets:2,Seismic Trap releases an additional Wave
+enchantMods,Siege Ballista has #% increased Attack Speed,2,2,Standard:2,Rare:2,Armours/Helmets:2,Siege Ballista has 10% increased Attack Speed
+enchantMods,Summoned Skitterbots have #% increased Area of Effect,2,2,Solo Self-Found:1;Standard:1,Rare:2,Armours/Helmets:2,Summoned Skitterbots have 90% increased Area of Effect
+enchantMods,Toxic Rain fires # additional Arrow,2,2,Standard:2,Unique:1;Rare:1,Armours/Helmets:2,Toxic Rain fires 1 additional Arrow
+enchantMods,Trigger Word of Light when you take a Critical Strike,2,2,Solo Self-Found:1;Standard:1,Rare:2,Armours/Gloves:2,Trigger Word of Light when you take a Critical Strike
+enchantMods,Trigger Word of Thunder on Kill,2,2,Solo Self-Found:1;Standard:1,Rare:2,Armours/Gloves:2,Trigger Word of Thunder on Kill
+enchantMods,Trigger Word of the Grave when your Skills or Minions Kill,2,2,Solo Self-Found:2,Rare:2,Armours/Gloves:2,Trigger Word of the Grave when your Skills or Minions Kill
+enchantMods,Used when an adjacent Flask is used,2,2,Standard:2,Magic:1;Unique:1,Flasks/diamond:1;Flasks/PhantomBlood:1,Used when an adjacent Flask is used
+enchantMods,Wintertide Brand has #% increased Chill Effect,2,2,Solo Self-Found:1;Standard:1,Rare:2,Armours/Helmets:2,Wintertide Brand has 40% increased Chill Effect
+enchantMods,You take #% reduced Extra Damage from Critical Strikes if you've taken a Critical Strike Recently,2,2,Standard:2,Rare:2,Armours/Boots:2,You take 8% reduced Extra Damage from Critical Strikes if you've taken a Critical Strike Recently
+enchantMods,Your Chilling Towers deal #% increased Damage,2,2,Solo Self-Found:1;Standard:1,Rare:2,Rings/Ring6:1;Rings/SapphireRuby:1,Your Chilling Towers deal 25% increased Damage
+enchantMods,Your Scout Towers have #% increased Range,2,2,Allflame:1;Standard:1,Rare:1;Unique:1,Rings/AmethystRing:1;Rings/TheHungryLoop:1,Your Scout Towers have 25% increased Range
+enchantMods,# metres to Discharge radius,1,1,Hardcore:1,Rare:1,Armours/Helmets:1,+0.3 metres to Discharge radius
+enchantMods,# to Maximum Blood Charges,1,1,Standard:1,Unique:1,Armours/Helmets:1,+1 to Maximum Blood Charges
+enchantMods,# to Maximum number of Bladestorms at a time,1,1,Standard:1,Unique:1,Armours/Helmets:1,+1 to Maximum number of Bladestorms at a time
+enchantMods,# to maximum Blade Flurry stages,1,1,Standard:1,Rare:1,Armours/Helmets:1,+1 to maximum Blade Flurry stages
+enchantMods,# to maximum Sockets,1,1,Allflame:1,Magic:1,Armours/Gloves:1,-2 to maximum Sockets
+enchantMods,#% chance to Shock,1,1,Solo Self-Found:1,Rare:1,Weapons/OneHandWeapons:1,13% chance to Shock
+enchantMods,#% chance to Summon an additional Skeleton with Summon Skeletons,1,1,Standard:1,Rare:1,Armours/Helmets:1,40% chance to Summon an additional Skeleton with Summon Skeletons
+enchantMods,#% chance to Suppress Spell Damage if you've,1,1,Standard:1,Rare:1,Armours/Boots:1,+8% chance to Suppress Spell Damage if you've
+enchantMods,#% chance to Suppress Spell Damage while your Off Hand is empty,1,1,Standard:1,Rare:1,Weapons/OneHandWeapons:1,+71% chance to Suppress Spell Damage while your Off Hand is empty
+enchantMods,#% increased Ambush Cooldown Recovery Rate,1,1,Standard:1,Rare:1,Armours/Helmets:1,20% increased Ambush Cooldown Recovery Rate
+enchantMods,#% increased Ancestral Warchief Totem Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,40% increased Ancestral Warchief Totem Damage
+enchantMods,#% increased Arc Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,40% increased Arc Damage
+enchantMods,#% increased Area of Effect while you have Arcane Surge,1,1,Standard:1,Unique:1,Belts/Headhunter:1,15% increased Area of Effect while you have Arcane Surge
+enchantMods,#% increased Ball Lightning Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,24% increased Ball Lightning Area of Effect
+enchantMods,#% increased Ball Lightning Damage,1,1,Standard:1,Magic:1,Armours/Helmets:1,40% increased Ball Lightning Damage
+enchantMods,#% increased Blade Flurry Area of Effect,1,1,Standard:1,Unique:1,Armours/Helmets:1,24% increased Blade Flurry Area of Effect
+enchantMods,#% increased Blade Flurry Damage,1,1,Hardcore:1,Rare:1,Armours/Helmets:1,25% increased Blade Flurry Damage
+enchantMods,#% increased Blade Vortex Duration,1,1,Standard:1,Rare:1,Armours/Helmets:1,20% increased Blade Vortex Duration
+enchantMods,#% increased Bladefall Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,24% increased Bladefall Area of Effect
+enchantMods,#% increased Bladefall Critical Strike Chance,1,1,Standard:1,Rare:1,Armours/Helmets:1,60% increased Bladefall Critical Strike Chance
+enchantMods,#% increased Bodyswap Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,25% increased Bodyswap Damage
+enchantMods,#% increased Caustic Arrow Damage,1,1,Standard:1,Magic:1,Armours/Helmets:1,40% increased Caustic Arrow Damage
+enchantMods,#% increased Conductivity Curse Effect,1,1,Standard:1,Unique:1,Armours/Helmets:1,30% increased Conductivity Curse Effect
+enchantMods,#% increased Cremation Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,40% increased Cremation Damage
+enchantMods,#% increased Critical Strike Chance per #% Quality,1,1,Standard:1,Rare:1,Weapons/OneHandWeapons:1,1% increased Critical Strike Chance per 4% Quality
+enchantMods,#% increased Dark Bargain Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,25% increased Dark Bargain Damage
+enchantMods,#% increased Despair Curse Effect,1,1,Standard:1,Unique:1,Armours/Helmets:1,30% increased Despair Curse Effect
+enchantMods,#% increased Discharge Damage,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,25% increased Discharge Damage
+enchantMods,#% increased Double Strike Critical Strike Chance,1,1,Standard:1,Rare:1,Armours/Helmets:1,90% increased Double Strike Critical Strike Chance
+enchantMods,#% increased Double Strike Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,25% increased Double Strike Damage
+enchantMods,#% increased Dual Strike Attack Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,10% increased Dual Strike Attack Speed
+enchantMods,#% increased Dual Strike Damage,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,25% increased Dual Strike Damage
+enchantMods,#% increased Effect of the Buff granted by your Stone Golems,1,1,Standard:1,Rare:1,Armours/Helmets:1,150% increased Effect of the Buff granted by your Stone Golems
+enchantMods,#% increased Ethereal Knives Projectile Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,20% increased Ethereal Knives Projectile Speed
+enchantMods,#% increased Explicit Attribute Modifier magnitudes,1,1,Standard:1,Rare:1,Weapons/OneHandWeapons:1,8% increased Explicit Attribute Modifier magnitudes
+enchantMods,#% increased Explicit Caster Damage Modifier magnitudes,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,8% increased Explicit Caster Damage Modifier magnitudes
+enchantMods,#% increased Explicit Defence Modifier magnitudes,1,1,Standard:1,Rare:1,Armours/BodyArmours:1,8% increased Explicit Defence Modifier magnitudes
+enchantMods,#% increased Explicit Lightning Modifier magnitudes,1,1,Standard:1,Rare:1,Weapons/OneHandWeapons:1,8% increased Explicit Lightning Modifier magnitudes
+enchantMods,#% increased Explicit Mana Modifier magnitudes,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,8% increased Explicit Mana Modifier magnitudes
+enchantMods,#% increased Explicit Physical Modifier magnitudes,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,6% increased Explicit Physical Modifier magnitudes
+enchantMods,#% increased Eye of Winter Projectile Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,20% increased Eye of Winter Projectile Speed
+enchantMods,#% increased Fire Trap Burning Ground Duration,1,1,Standard:1,Rare:1,Armours/Helmets:1,30% increased Fire Trap Burning Ground Duration
+enchantMods,#% increased Fire Trap Damage,1,1,Standard:1,Normal:1,Armours/Helmets:1,40% increased Fire Trap Damage
+enchantMods,#% increased Firestorm Duration,1,1,Standard:1,Unique:1,Armours/Helmets:1,30% increased Firestorm Duration
+enchantMods,#% increased Firestorm explosion Area of Effect,1,1,Hardcore:1,Rare:1,Armours/Helmets:1,24% increased Firestorm explosion Area of Effect
+enchantMods,#% increased Flame Surge Damage with Hits and Ailments against Burning Enemies,1,1,Standard:1,Rare:1,Armours/Helmets:1,60% increased Flame Surge Damage with Hits and Ailments against Burning Enemies
+enchantMods,#% increased Flameblast Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,16% increased Flameblast Area of Effect
+enchantMods,#% increased Flameblast Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,25% increased Flameblast Damage
+enchantMods,#% increased Flicker Strike Damage per Frenzy Charge,1,1,Standard:1,Unique:1,Armours/Helmets:1,9% increased Flicker Strike Damage per Frenzy Charge
+enchantMods,#% increased Forbidden Rite Projectile Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,30% increased Forbidden Rite Projectile Speed
+enchantMods,#% increased Freezing Pulse Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,40% increased Freezing Pulse Damage
+enchantMods,#% increased Frost Blades Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,40% increased Frost Blades Damage
+enchantMods,#% increased Frost Blades Projectile Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,30% increased Frost Blades Projectile Speed
+enchantMods,#% increased Frost Bomb Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,16% increased Frost Bomb Area of Effect
+enchantMods,#% increased Galvanic Arrow Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,40% increased Galvanic Arrow Damage
+enchantMods,#% increased Glacial Cascade Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,25% increased Glacial Cascade Damage
+enchantMods,#% increased Heavy Strike Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,40% increased Heavy Strike Damage
+enchantMods,#% increased Holy Sweep Area of Effect,1,1,Standard:1,Unique:1,Armours/Helmets:1,24% increased Holy Sweep Area of Effect
+enchantMods,#% increased Holy Sweep Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,40% increased Holy Sweep Damage
+enchantMods,#% increased Ice Crash Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,16% increased Ice Crash Area of Effect
+enchantMods,#% increased Ice Shot Damage,1,1,Hardcore:1,Rare:1,Armours/Helmets:1,40% increased Ice Shot Damage
+enchantMods,#% increased Ice Trap Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,40% increased Ice Trap Damage
+enchantMods,#% increased Kinetic Blast Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,25% increased Kinetic Blast Damage
+enchantMods,#% increased Leap Slam Attack Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,10% increased Leap Slam Attack Speed
+enchantMods,#% increased Lightning Arrow Area of Effect,1,1,Solo Self-Found:1,Unique:1,Armours/Helmets:1,24% increased Lightning Arrow Area of Effect
+enchantMods,#% increased Lightning Strike Damage,1,1,Standard:1,Unique:1,Armours/Helmets:1,40% increased Lightning Strike Damage
+enchantMods,#% increased Lightning Warp Cast Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,12% increased Lightning Warp Cast Speed
+enchantMods,#% increased Melee Damage,1,1,Allflame:1,Magic:1,Armours/Gloves:1,20% increased Melee Damage
+enchantMods,#% increased Molten Strike Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,25% increased Molten Strike Damage
+enchantMods,#% increased Movement Speed,1,1,Allflame:1,Rare:1,Amulets/NewTalisman3:1,12% increased Movement Speed
+enchantMods,#% increased Power Siphon Damage,1,1,Standard:1,Normal:1,Armours/Helmets:1,40% increased Power Siphon Damage
+enchantMods,#% increased Rain of Arrows Attack Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,15% increased Rain of Arrows Attack Speed
+enchantMods,#% increased Reap Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,16% increased Reap Area of Effect
+enchantMods,#% increased Reave Radius,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,24% increased Reave Radius
+enchantMods,#% increased Rejuvenation Totem Aura Effect,1,1,Standard:1,Unique:1,Armours/Helmets:1,45% increased Rejuvenation Totem Aura Effect
+enchantMods,#% increased Righteous Fire Area of Effect,1,1,Standard:1,Magic:1,Armours/Helmets:1,24% increased Righteous Fire Area of Effect
+enchantMods,#% increased Rolling Magma Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,16% increased Rolling Magma Area of Effect
+enchantMods,#% increased Sentinel of Absolution Duration,1,1,Standard:1,Rare:1,Armours/Helmets:1,20% increased Sentinel of Absolution Duration
+enchantMods,#% increased Shield Crush Attack Speed,1,1,Standard:1,Unique:1,Armours/Helmets:1,15% increased Shield Crush Attack Speed
+enchantMods,#% increased Shockwave Totem Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,24% increased Shockwave Totem Area of Effect
+enchantMods,#% increased Spectral Shield Throw Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,25% increased Spectral Shield Throw Damage
+enchantMods,#% increased Spectral Throw Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,40% increased Spectral Throw Damage
+enchantMods,#% increased Static Strike Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,24% increased Static Strike Area of Effect
+enchantMods,#% increased Storm Call Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,24% increased Storm Call Area of Effect
+enchantMods,#% increased Storm Rain Damage,1,1,Solo Self-Found:1,Unique:1,Armours/Helmets:1,40% increased Storm Rain Damage
+enchantMods,#% increased Temporal Chains Curse Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,30% increased Temporal Chains Curse Effect
+enchantMods,#% increased Tornado Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,16% increased Tornado Area of Effect
+enchantMods,#% increased Tornado Shot Critical Strike Chance,1,1,Standard:1,Rare:1,Armours/Helmets:1,60% increased Tornado Shot Critical Strike Chance
+enchantMods,#% increased Unearth Cast Speed,1,1,Hardcore:1,Rare:1,Armours/Helmets:1,12% increased Unearth Cast Speed
+enchantMods,#% increased Viper Strike Damage,1,1,Standard:1,Unique:1,Armours/Helmets:1,40% increased Viper Strike Damage
+enchantMods,#% increased Volatile Dead Cast Speed,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,8% increased Volatile Dead Cast Speed
+enchantMods,#% increased Wild Strike Area of Effect,1,1,Hardcore:1,Rare:1,Armours/Helmets:1,24% increased Wild Strike Area of Effect
+enchantMods,#% reduced Monster Movement Speed,1,1,Standard:1,Normal:1,Maps/Atlas2Maps:1,30% reduced Monster Movement Speed
+enchantMods,#% reduced Spectral Throw Projectile Deceleration,1,1,Standard:1,Rare:1,Armours/Helmets:1,30% reduced Spectral Throw Projectile Deceleration
+enchantMods,#% to Stone Golem Elemental Resistances,1,1,Standard:1,Rare:1,Armours/Helmets:1,+36% to Stone Golem Elemental Resistances
+enchantMods,Adds # to # Lightning Damage,1,1,Solo Self-Found:1,Normal:1,Weapons/OneHandWeapons:1,Adds 2 to 28 Lightning Damage
+enchantMods,Adds # to # Lightning Damage if you haven't Killed Recently,1,1,Standard:1,Rare:1,Armours/Boots:1,Adds 1 to 56 Lightning Damage if you haven't Killed Recently
+enchantMods,Allocates Acuity,1,1,Standard:1,Rare:1,Amulets/TalismanBlack6:1,Allocates Acuity
+enchantMods,Allocates Adder's Touch,1,1,Standard:1,Rare:1,Amulets/TalismanBlack3:1,Allocates Adder's Touch
+enchantMods,Allocates Admonisher,1,1,Standard:1,Rare:1,Amulets/TalismanBlack5:1,Allocates Admonisher
+enchantMods,Allocates Agility,1,1,Standard:1,Rare:1,Amulets/TalismanWhite6:1,Allocates Agility
+enchantMods,Allocates Arcane Guarding,1,1,Standard:1,Rare:1,Amulets/TalismanWhite5:1,Allocates Arcane Guarding
+enchantMods,Allocates Arcane Will,1,1,Standard:1,Rare:1,Amulets/TalismanWhite3:1,Allocates Arcane Will
+enchantMods,Allocates Arcing Blows,1,1,Standard:1,Rare:1,Amulets/TalismanWhite7:1,Allocates Arcing Blows
+enchantMods,Allocates Art of the Gladiator,1,1,Standard:1,Rare:1,Amulets/TalismanWhite5:1,Allocates Art of the Gladiator
+enchantMods,Allocates As The Mountain,1,1,Standard:1,Unique:1,Amulets/Malachai's BrillianceAmulet:1,Allocates As The Mountain
+enchantMods,"Allocates Ash, Frost and Storm",1,1,Standard:1,Rare:1,Amulets/CitrineAmulet:1,"Allocates Ash, Frost and Storm"
+enchantMods,Allocates Aspect of the Lynx,1,1,Standard:1,Rare:1,Amulets/NewTalisman7:1,Allocates Aspect of the Lynx
+enchantMods,Allocates Atrophy,1,1,Standard:1,Rare:1,Amulets/TalismanRed8:1,Allocates Atrophy
+enchantMods,Allocates Backstabbing,1,1,Standard:1,Rare:1,Amulets/TalismanWhite1:1,Allocates Backstabbing
+enchantMods,Allocates Beef,1,1,Standard:1,Rare:1,Amulets/TalismanWhite6:1,Allocates Beef
+enchantMods,Allocates Berserking,1,1,Standard:1,Rare:1,Amulets/TalismanBlack3:1,Allocates Berserking
+enchantMods,Allocates Bladedancer,1,1,Standard:1,Rare:1,Amulets/Amulet7:1,Allocates Bladedancer
+enchantMods,Allocates Blood Drinker,1,1,Standard:1,Rare:1,Amulets/Amulet5:1,Allocates Blood Drinker
+enchantMods,Allocates Bloodletting,1,1,Standard:1,Rare:1,Amulets/TalismanWhite6:1,Allocates Bloodletting
+enchantMods,Allocates Brand Equity,1,1,Standard:1,Rare:1,Amulets/Amulet3:1,Allocates Brand Equity
+enchantMods,Allocates Brinkmanship,1,1,Standard:1,Rare:1,Amulets/TalismanRed6:1,Allocates Brinkmanship
+enchantMods,Allocates Cannibalistic Rite,1,1,Standard:1,Rare:1,Amulets/TalismanBlack6:1,Allocates Cannibalistic Rite
+enchantMods,Allocates Cleaving,1,1,Standard:1,Rare:1,Amulets/NewTalisman7:1,Allocates Cleaving
+enchantMods,Allocates Clever Construction,1,1,Standard:1,Rare:1,Amulets/TalismanBlack7:1,Allocates Clever Construction
+enchantMods,Allocates Cloth and Chain,1,1,Standard:1,Rare:1,Amulets/Amulet1:1,Allocates Cloth and Chain
+enchantMods,Allocates Constitution,1,1,Standard:1,Rare:1,Amulets/TurquoiseAmulet:1,Allocates Constitution
+enchantMods,Allocates Counterweight,1,1,Standard:1,Unique:1,Amulets/GlacierCacoonUpgrade:1,Allocates Counterweight
+enchantMods,Allocates Cruel Preparation,1,1,Standard:1,Rare:1,Amulets/DireClawTalisman:1,Allocates Cruel Preparation
+enchantMods,Allocates Crystal Skin,1,1,Standard:1,Rare:1,Amulets/TalismanRed4:1,Allocates Crystal Skin
+enchantMods,Allocates Dazzling Strikes,1,1,Standard:1,Rare:1,Amulets/NewTalisman3:1,Allocates Dazzling Strikes
+enchantMods,Allocates Deep Wisdom,1,1,Standard:1,Rare:1,Amulets/TalismanBlack5:1,Allocates Deep Wisdom
+enchantMods,Allocates Defiance,1,1,Standard:1,Rare:1,Amulets/TalismanWhite3:1,Allocates Defiance
+enchantMods,Allocates Destroyer,1,1,Standard:1,Rare:1,Amulets/TalismanBlack2:1,Allocates Destroyer
+enchantMods,Allocates Devotion,1,1,Standard:1,Unique:1,Amulets/MasterOfGems:1,Allocates Devotion
+enchantMods,Allocates Diamond Skin,1,1,Standard:1,Rare:1,Amulets/DireClawTalisman:1,Allocates Diamond Skin
+enchantMods,Allocates Dire Torment,1,1,Standard:1,Unique:1,Amulets/ElderChaos:1,Allocates Dire Torment
+enchantMods,Allocates Disciple of the Forbidden,1,1,Standard:1,Rare:1,Amulets/TalismanBlack4:1,Allocates Disciple of the Forbidden
+enchantMods,Allocates Discord Artisan,1,1,Standard:1,Rare:1,Amulets/TalismanWhite3:1,Allocates Discord Artisan
+enchantMods,Allocates Disemboweling,1,1,Standard:1,Rare:1,Amulets/Amulet4:1,Allocates Disemboweling
+enchantMods,Allocates Doom Cast,1,1,Standard:1,Rare:1,Amulets/TalismanWhite2:1,Allocates Doom Cast
+enchantMods,Allocates Essence Extraction,1,1,Standard:1,Rare:1,Amulets/TalismanBlack4:1,Allocates Essence Extraction
+enchantMods,Allocates Faith and Steel,1,1,Standard:1,Rare:1,Amulets/TalismanRed7:1,Allocates Faith and Steel
+enchantMods,Allocates Fangs of Frost,1,1,Standard:1,Rare:1,Amulets/TalismanRed7:1,Allocates Fangs of Frost
+enchantMods,Allocates Fatal Blade,1,1,Standard:1,Rare:1,Amulets/CitrineAmulet:1,Allocates Fatal Blade
+enchantMods,Allocates Fatal Toxins,1,1,Standard:1,Rare:1,Amulets/TalismanWhite6:1,Allocates Fatal Toxins
+enchantMods,Allocates Fending,1,1,Standard:1,Rare:1,Amulets/TalismanWhite5:1,Allocates Fending
+enchantMods,Allocates Field Medicine,1,1,Standard:1,Rare:1,Amulets/TalismanBlack5:1,Allocates Field Medicine
+enchantMods,Allocates Fingers of Frost,1,1,Standard:1,Rare:1,Amulets/TurquoiseAmulet:1,Allocates Fingers of Frost
+enchantMods,Allocates Force Shaper,1,1,Standard:1,Rare:1,Amulets/TalismanBlack6:1,Allocates Force Shaper
+enchantMods,Allocates Forces of Nature,1,1,Standard:1,Rare:1,Amulets/TalismanWhite5:1,Allocates Forces of Nature
+enchantMods,Allocates Forethought,1,1,Standard:1,Rare:1,Amulets/TalismanBlack2:1,Allocates Forethought
+enchantMods,Allocates Frost Walker,1,1,Solo Self-Found:1,Rare:1,Amulets/TalismanWhite5:1,Allocates Frost Walker
+enchantMods,Allocates Gladiator's Perseverance,1,1,Standard:1,Rare:1,Amulets/TalismanRed3:1,Allocates Gladiator's Perseverance
+enchantMods,Allocates Golem Commander,1,1,Standard:1,Rare:1,Amulets/NewTalisman7:1,Allocates Golem Commander
+enchantMods,Allocates Grave Intentions,1,1,Standard:1,Rare:1,Amulets/TalismanWhite1:1,Allocates Grave Intentions
+enchantMods,Allocates Harrier,1,1,Standard:1,Unique:1,Amulets/Amulet4Unique:1,Allocates Harrier
+enchantMods,Allocates Harvester of Foes,1,1,Standard:1,Rare:1,Amulets/BluePearlAmulet:1,Allocates Harvester of Foes
+enchantMods,Allocates Heart and Soul,1,1,Standard:1,Rare:1,Amulets/NewTalisman2:1,Allocates Heart and Soul
+enchantMods,Allocates Heart of Flame,1,1,Standard:1,Rare:1,Amulets/TalismanWhite1:1,Allocates Heart of Flame
+enchantMods,Allocates Heart of Ice,1,1,Standard:1,Rare:1,Amulets/TurquoiseAmulet:1,Allocates Heart of Ice
+enchantMods,Allocates Hearty,1,1,Standard:1,Rare:1,Amulets/TalismanWhite4:1,Allocates Hearty
+enchantMods,Allocates Hematophagy,1,1,Standard:1,Rare:1,Amulets/Amulet6:1,Allocates Hematophagy
+enchantMods,Allocates Herbalism,1,1,Standard:1,Rare:1,Amulets/TalismanRed1:1,Allocates Herbalism
+enchantMods,Allocates Hunter's Gambit,1,1,Standard:1,Rare:1,Amulets/NewTalisman3:1,Allocates Hunter's Gambit
+enchantMods,Allocates Incorporeal,1,1,Standard:1,Rare:1,Amulets/TalismanWhite2:1,Allocates Incorporeal
+enchantMods,Allocates Indiscriminate Revenge,1,1,Standard:1,Unique:1,Amulets/Amulet4Unique:1,Allocates Indiscriminate Revenge
+enchantMods,Allocates Inexorable,1,1,Standard:1,Unique:1,Amulets/Anvil:1,Allocates Inexorable
+enchantMods,Allocates Instability,1,1,Standard:1,Rare:1,Amulets/TalismanWhite2:1,Allocates Instability
+enchantMods,Allocates Ironwood,1,1,Standard:1,Rare:1,Amulets/TalismanWhite2:1,Allocates Ironwood
+enchantMods,Allocates Juggernaut,1,1,Standard:1,Rare:1,Amulets/TalismanRed4:1,Allocates Juggernaut
+enchantMods,Allocates Lava Lash,1,1,Standard:1,Rare:1,Amulets/Amulet7:1,Allocates Lava Lash
+enchantMods,Allocates Leadership,1,1,Standard:1,Rare:1,Amulets/TalismanRed6:1,Allocates Leadership
+enchantMods,Allocates Life Raker,1,1,Standard:1,Rare:1,Amulets/NewTalisman2:1,Allocates Life Raker
+enchantMods,Allocates Light of Divinity,1,1,Standard:1,Rare:1,Amulets/TalismanBlack2:1,Allocates Light of Divinity
+enchantMods,Allocates Lightning Walker,1,1,Standard:1,Rare:1,Amulets/TalismanWhite1:1,Allocates Lightning Walker
+enchantMods,Allocates Longshot,1,1,Standard:1,Rare:1,Amulets/NewTalisman3:1,Allocates Longshot
+enchantMods,Allocates Martial Experience,1,1,Standard:1,Rare:1,Amulets/TalismanWhite6:1,Allocates Martial Experience
+enchantMods,Allocates Master Sapper,1,1,Standard:1,Rare:1,Amulets/NewTalisman7:1,Allocates Master Sapper
+enchantMods,Allocates Master of Blades,1,1,Standard:1,Unique:1,Amulets/BiscosCollar:1,Allocates Master of Blades
+enchantMods,Allocates Master of the Arena,1,1,Standard:1,Rare:1,Amulets/MonkeyPawTalisman:1,Allocates Master of the Arena
+enchantMods,Allocates Melding,1,1,Standard:1,Rare:1,Amulets/TalismanWhite3:1,Allocates Melding
+enchantMods,Allocates Mind Drinker,1,1,Standard:1,Rare:1,Amulets/Amulet7:1,Allocates Mind Drinker
+enchantMods,Allocates Mystic Talents,1,1,Standard:1,Rare:1,Amulets/TalismanBlack2:1,Allocates Mystic Talents
+enchantMods,Allocates Nightstalker,1,1,Standard:1,Rare:1,Amulets/TalismanBlack7:1,Allocates Nightstalker
+enchantMods,Allocates One with the River,1,1,Standard:1,Rare:1,Amulets/TalismanWhite8:1,Allocates One with the River
+enchantMods,Allocates Overcharge,1,1,Standard:1,Unique:1,Amulets/MetamorphosisAmulet:1,Allocates Overcharge
+enchantMods,Allocates Overprepared,1,1,Standard:1,Rare:1,Amulets/TalismanWhite3:1,Allocates Overprepared
+enchantMods,Allocates Path of the Savant,1,1,Standard:1,Rare:1,Amulets/TalismanWhite8:1,Allocates Path of the Savant
+enchantMods,Allocates Physique,1,1,Standard:1,Rare:1,Amulets/TalismanWhite6:1,Allocates Physique
+enchantMods,Allocates Potency of Will,1,1,Standard:1,Rare:1,Amulets/NewTalisman3:1,Allocates Potency of Will
+enchantMods,Allocates Potent Connections,1,1,Standard:1,Rare:1,Amulets/DireClawTalisman:1,Allocates Potent Connections
+enchantMods,Allocates Prodigal Perfection,1,1,Solo Self-Found:1,Rare:1,Amulets/Amulet7:1,Allocates Prodigal Perfection
+enchantMods,Allocates Profane Chemistry,1,1,Standard:1,Unique:1,Amulets/Malachai's BrillianceAmulet:1,Allocates Profane Chemistry
+enchantMods,Allocates Purity of Flesh,1,1,Standard:1,Rare:1,Amulets/NewTalisman2:1,Allocates Purity of Flesh
+enchantMods,Allocates Razor's Edge,1,1,Standard:1,Rare:1,Amulets/MonkeyPawTalisman:1,Allocates Razor's Edge
+enchantMods,Allocates Replenishing Remedies,1,1,Standard:1,Rare:1,Amulets/TalismanWhite7:1,Allocates Replenishing Remedies
+enchantMods,Allocates Retribution,1,1,Solo Self-Found:1,Rare:1,Amulets/TalismanWhite7:1,Allocates Retribution
+enchantMods,Allocates Revenge of the Hunted,1,1,Standard:1,Rare:1,Amulets/TalismanRed3:1,Allocates Revenge of the Hunted
+enchantMods,Allocates Righteous Army,1,1,Standard:1,Rare:1,Amulets/TalismanWhite5:1,Allocates Righteous Army
+enchantMods,Allocates Righteous Decree,1,1,Standard:1,Unique:1,Amulets/PresenceOfChayula:1,Allocates Righteous Decree
+enchantMods,Allocates Robust,1,1,Standard:1,Rare:1,Amulets/MonkeyPawTalisman:1,Allocates Robust
+enchantMods,Allocates Safeguard,1,1,Standard:1,Rare:1,Amulets/TalismanWhite4:1,Allocates Safeguard
+enchantMods,Allocates Savagery,1,1,Standard:1,Rare:1,Amulets/TalismanWhite8:1,Allocates Savagery
+enchantMods,Allocates Season of Ice,1,1,Standard:1,Rare:1,Amulets/TalismanWhite6:1,Allocates Season of Ice
+enchantMods,Allocates Shaman's Dominion,1,1,Standard:1,Rare:1,Amulets/Amulet7:1,Allocates Shaman's Dominion
+enchantMods,Allocates Shaper,1,1,Standard:1,Rare:1,Amulets/TalismanRed3:1,Allocates Shaper
+enchantMods,Allocates Slaughter,1,1,Standard:1,Rare:1,Amulets/TalismanWhite8:1,Allocates Slaughter
+enchantMods,Allocates Sleight of Hand,1,1,Standard:1,Rare:1,Amulets/TalismanWhite8:1,Allocates Sleight of Hand
+enchantMods,Allocates Soul Siphon,1,1,Standard:1,Rare:1,Amulets/NewTalisman:1,Allocates Soul Siphon
+enchantMods,Allocates Soul Thief,1,1,Standard:1,Rare:1,Amulets/TalismanWhite4:1,Allocates Soul Thief
+enchantMods,Allocates Split Shot,1,1,Standard:1,Rare:1,Amulets/TalismanWhite6:1,Allocates Split Shot
+enchantMods,Allocates Steadfast,1,1,Standard:1,Rare:1,Amulets/TalismanRed8:1,Allocates Steadfast
+enchantMods,Allocates Storm Weaver,1,1,Standard:1,Unique:1,Amulets/Amulet37:1,Allocates Storm Weaver
+enchantMods,Allocates Strong Arm,1,1,Standard:1,Rare:1,Amulets/TalismanWhite6:1,Allocates Strong Arm
+enchantMods,Allocates Surveillance,1,1,Standard:1,Unique:1,Amulets/YokeOfSuffering:1,Allocates Surveillance
+enchantMods,Allocates Swift Venoms,1,1,Standard:1,Rare:1,Amulets/TalismanWhite5:1,Allocates Swift Venoms
+enchantMods,Allocates Throatseeker,1,1,Standard:1,Rare:1,Amulets/NewTalisman:1,Allocates Throatseeker
+enchantMods,Allocates Tireless,1,1,Standard:1,Rare:1,Amulets/TalismanWhite8:1,Allocates Tireless
+enchantMods,Allocates Tolerance,1,1,Standard:1,Rare:1,Amulets/NewTalisman7:1,Allocates Tolerance
+enchantMods,Allocates Tribal Fury,1,1,Standard:1,Unique:1,Amulets/Amulet36:1,Allocates Tribal Fury
+enchantMods,Allocates Trick Shot,1,1,Standard:1,Rare:1,Amulets/TalismanWhite8:1,Allocates Trick Shot
+enchantMods,Allocates Unnatural Calm,1,1,Standard:1,Rare:1,Amulets/TalismanBlack3:1,Allocates Unnatural Calm
+enchantMods,Allocates Unstable Munitions,1,1,Standard:1,Rare:1,Amulets/Amulet4:1,Allocates Unstable Munitions
+enchantMods,Allocates Utmost Swiftness,1,1,Standard:1,Rare:1,Amulets/AgateAmulet:1,Allocates Utmost Swiftness
+enchantMods,Allocates Vampirism,1,1,Standard:1,Rare:1,Amulets/Amulet3:1,Allocates Vampirism
+enchantMods,Allocates Vengeant Cascade,1,1,Standard:1,Rare:1,Amulets/TalismanBlack3:1,Allocates Vengeant Cascade
+enchantMods,Allocates Vigour,1,1,Standard:1,Unique:1,Amulets/MasterOfGems:1,Allocates Vigour
+enchantMods,Allocates Void Barrier,1,1,Standard:1,Rare:1,Amulets/TalismanWhite7:1,Allocates Void Barrier
+enchantMods,Allocates Weathered Hunter,1,1,Standard:1,Unique:1,Amulets/HinekorasSight:1,Allocates Weathered Hunter
+enchantMods,Allocates Whispers of Doom,1,1,Standard:1,Rare:1,Amulets/TurquoiseAmulet:1,Allocates Whispers of Doom
+enchantMods,Allocates Wild Hunger,1,1,Standard:1,SupporterFoil:1,Armours/Gloves:1,Allocates Wild Hunger
+enchantMods,Allocates Will of Blades,1,1,Standard:1,Rare:1,Amulets/TalismanWhite8:1,Allocates Will of Blades
+enchantMods,Allocates Window of Opportunity,1,1,Standard:1,Rare:1,Amulets/TalismanWhite2:1,Allocates Window of Opportunity
+enchantMods,Allocates Winter Spirit,1,1,Standard:1,Rare:1,Amulets/TalismanBlack3:1,Allocates Winter Spirit
+enchantMods,Allocates Wisdom of the Glade,1,1,Standard:1,Rare:1,Amulets/NewTalisman3:1,Allocates Wisdom of the Glade
+enchantMods,Allocates Wrecking Ball,1,1,Standard:1,Rare:1,Amulets/NewTalisman:1,Allocates Wrecking Ball
+enchantMods,Allocates Written in Blood,1,1,Standard:1,Rare:1,Amulets/TalismanBlack3:1,Allocates Written in Blood
+enchantMods,Ancestral Protector Totem deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Ancestral Protector Totem deals 40% increased Damage
+enchantMods,Arcane Cloak grants Life Regeneration equal to #% of Mana Spent per Second,1,1,Standard:1,Unique:1,Armours/Helmets:1,Arcane Cloak grants Life Regeneration equal to 15% of Mana Spent per Second
+enchantMods,Armageddon Brand Damage Penetrates #% of Branded Enemy's Fire Resistance,1,1,Standard:1,Rare:1,Armours/Helmets:1,Armageddon Brand Damage Penetrates 12% of Branded Enemy's Fire Resistance
+enchantMods,Artillery Ballista Projectiles fall in two perpendicular lines instead,1,1,Standard:1,Magic:1,Armours/Helmets:1,Artillery Ballista Projectiles fall in two perpendicular lines instead
+enchantMods,Attacks have #% chance to Maim on Hit,1,1,Allflame:1,Magic:1,Armours/Gloves:1,Attacks have 15% chance to Maim on Hit
+enchantMods,Attacks with Energy Blades Penetrate #% Lightning Resistance,1,1,Standard:1,Unique:1,Armours/Helmets:1,Attacks with Energy Blades Penetrate 12% Lightning Resistance
+enchantMods,Berserk has #% reduced Rage loss per second,1,1,Standard:1,Unique:1,Armours/Helmets:1,Berserk has 40% reduced Rage loss per second
+enchantMods,Blade Blast has #% increased Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,Blade Blast has 24% increased Area of Effect
+enchantMods,Bladefall has an additional Volley,1,1,Standard:1,Rare:1,Armours/Helmets:1,Bladefall has an additional Volley
+enchantMods,Blazing Salvo Projectiles land in a #% increased Area,1,1,Standard:1,Rare:1,Armours/Helmets:1,Blazing Salvo Projectiles land in a 20% increased Area
+enchantMods,Blight has #% increased Hinder Duration,1,1,Solo Self-Found:1,Unique:1,Armours/Helmets:1,Blight has 30% increased Hinder Duration
+enchantMods,Blink Arrow and Blink Arrow Clones have #% increased Attack Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,Blink Arrow and Blink Arrow Clones have 15% increased Attack Speed
+enchantMods,Blink Arrow has #% increased Cooldown Recovery Rate,1,1,Standard:1,Unique:1,Armours/Helmets:1,Blink Arrow has 30% increased Cooldown Recovery Rate
+enchantMods,Blood Rage grants additional #% chance to gain a Frenzy Charge on Kill,1,1,Standard:1,Rare:1,Armours/Helmets:1,Blood Rage grants additional 30% chance to gain a Frenzy Charge on Kill
+enchantMods,Blood Rage grants additional #% increased Attack Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,Blood Rage grants additional 12% increased Attack Speed
+enchantMods,Burning Arrow has #% chance to Ignite,1,1,Standard:1,Rare:1,Armours/Helmets:1,Burning Arrow has +20% chance to Ignite
+enchantMods,Cages created by Your Glacial Cage Towers are #% larger,1,1,Standard:1,Rare:1,Rings/TopazRuby:1,Cages created by Your Glacial Cage Towers are 20% larger
+enchantMods,Can have # additional Crafted Modifier,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,Can have 1 additional Crafted Modifier
+enchantMods,Chaos Golems deal #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Chaos Golems deal 25% increased Damage
+enchantMods,Charged Dash has # metres to radius of each Wave's last damage Area,1,1,Standard:1,Unique:1,Armours/Helmets:1,Charged Dash has +0.6 metres to radius of each Wave's last damage Area
+enchantMods,Clarity has #% increased Mana Reservation Efficiency,1,1,Hardcore:1,Rare:1,Armours/Helmets:1,Clarity has 40% increased Mana Reservation Efficiency
+enchantMods,Consecrated Path has #% increased teleport range,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,Consecrated Path has 10% increased teleport range
+enchantMods,Corrupting Fever deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Corrupting Fever deals 25% increased Damage
+enchantMods,Curse Enemies with Punishment on Hit,1,1,Standard:1,Rare:1,Weapons/OneHandWeapons:1,Curse Enemies with Punishment on Hit
+enchantMods,Delirium Reward Type: Expedition Items,1,1,Hardcore:1,Normal:1,Maps/Atlas2Maps:1,Delirium Reward Type: Expedition Items
+enchantMods,Delirium Reward Type: Miscellaneous Items,1,1,Standard:1,Normal:1,Maps/Atlas2Maps:1,Delirium Reward Type: Miscellaneous Items
+enchantMods,Divine Ire deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Divine Ire deals 25% increased Damage
+enchantMods,Dominating Blow can summon # additional Magic Sentinels of Dominance,1,1,Standard:1,Rare:1,Armours/Helmets:1,Dominating Blow can summon 2 additional Magic Sentinels of Dominance
+enchantMods,Dread Banner has #% increased Aura Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,Dread Banner has 25% increased Aura Effect
+enchantMods,Earthshatter has #% increased Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,Earthshatter has 24% increased Area of Effect
+enchantMods,Enduring Cry has #% increased Cooldown Recovery Rate,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,Enduring Cry has 20% increased Cooldown Recovery Rate
+enchantMods,Enemies Blinded by you have #% reduced Critical Strike Chance,1,1,Standard:1,Rare:1,Belts/AbyssBelt:1,Enemies Blinded by you have 30% reduced Critical Strike Chance
+enchantMods,Enemies Killed by your Hits are destroyed,1,1,Standard:1,Rare:1,Weapons/OneHandWeapons:1,Enemies Killed by your Hits are destroyed
+enchantMods,Energy Blades have #% increased Attack Speed,1,1,Standard:1,Unique:1,Armours/Helmets:1,Energy Blades have 15% increased Attack Speed
+enchantMods,Explosive Arrow has #% increased Area of Effect,1,1,Standard:1,Magic:1,Armours/Helmets:1,Explosive Arrow has 24% increased Area of Effect
+enchantMods,Explosive Concoction uses #% reduced Flask Charges,1,1,Standard:1,Rare:1,Armours/Helmets:1,Explosive Concoction uses 12% reduced Flask Charges
+enchantMods,Explosive Trap deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Explosive Trap deals 40% increased Damage
+enchantMods,Explosive Trap has #% increased Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,Explosive Trap has 24% increased Area of Effect
+enchantMods,Exsanguinate deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Exsanguinate deals 25% increased Damage
+enchantMods,Flame Dash has #% increased Cooldown Recovery Rate,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,Flame Dash has 20% increased Cooldown Recovery Rate
+enchantMods,Flame Golems have #% increased Damage,1,1,Standard:1,Unique:1,Armours/Helmets:1,Flame Golems have 25% increased Damage
+enchantMods,Flame Wall deals #% increased Damage,1,1,Standard:1,Unique:1,Armours/Helmets:1,Flame Wall deals 40% increased Damage
+enchantMods,Flamethrower Trap deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Flamethrower Trap deals 40% increased Damage
+enchantMods,Flicker Strike has #% increased Cooldown Recovery Rate,1,1,Standard:1,Rare:1,Armours/Helmets:1,Flicker Strike has 30% increased Cooldown Recovery Rate
+enchantMods,Forbidden Rite fires an additional Projectile,1,1,Standard:1,Unique:1,Armours/Helmets:1,Forbidden Rite fires an additional Projectile
+enchantMods,Frost Bomb has #% increased Debuff Duration,1,1,Standard:1,Rare:1,Armours/Helmets:1,Frost Bomb has 30% increased Debuff Duration
+enchantMods,Frost Shield has # to maximum Life per Stage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Frost Shield has +125 to maximum Life per Stage
+enchantMods,Frostblink has #% increased maximum travel distance,1,1,Standard:1,Rare:1,Armours/Helmets:1,Frostblink has 50% increased maximum travel distance
+enchantMods,Gain # Rage on Melee Hit,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,Gain 2 Rage on Melee Hit
+enchantMods,Gain #% of Maximum Life as Extra Armour,1,1,Allflame:1,Rare:1,Amulets/TalismanBlack6:1,Gain 15% of Maximum Life as Extra Armour
+enchantMods,General's Cry has #% increased Cooldown Recovery Rate,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,General's Cry has 20% increased Cooldown Recovery Rate
+enchantMods,Glacial Hammer has #% chance to Freeze,1,1,Standard:1,Rare:1,Armours/Helmets:1,Glacial Hammer has +30% chance to Freeze
+enchantMods,Grace has #% increased Mana Reservation Efficiency,1,1,Standard:1,Rare:1,Armours/Helmets:1,Grace has 30% increased Mana Reservation Efficiency
+enchantMods,Grants #% increased Accuracy per #% Quality,1,1,Standard:1,Rare:1,Weapons/TwoHandWeapons:1,Grants 1% increased Accuracy per 2% Quality
+enchantMods,Ground Slam has a #% increased angle,1,1,Standard:1,Rare:1,Armours/Helmets:1,Ground Slam has a 24% increased angle
+enchantMods,Has # White Sockets,1,1,Standard:1,Rare:1,Armours/BodyArmours:1,Has 2 White Sockets
+enchantMods,Has no Red Sockets,1,1,Standard:1,Rare:1,Weapons/OneHandWeapons:1,Has no Red Sockets
+enchantMods,Herald of Agony has #% increased Mana Reservation Efficiency,1,1,Standard:1,Rare:1,Armours/Helmets:1,Herald of Agony has 50% increased Mana Reservation Efficiency
+enchantMods,Herald of Ash has #% increased Mana Reservation Efficiency,1,1,Standard:1,Rare:1,Armours/Helmets:1,Herald of Ash has 40% increased Mana Reservation Efficiency
+enchantMods,Herald of Thunder has #% increased Mana Reservation Efficiency,1,1,Standard:1,Rare:1,Armours/Helmets:1,Herald of Thunder has 75% increased Mana Reservation Efficiency
+enchantMods,Ice Spear fires an additional Projectile,1,1,Standard:1,Rare:1,Armours/Helmets:1,Ice Spear fires an additional Projectile
+enchantMods,Icicle Mine deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Icicle Mine deals 25% increased Damage
+enchantMods,Icicle Mine has #% to Critical Strike Multiplier,1,1,Standard:1,Rare:1,Armours/Helmets:1,Icicle Mine has +30% to Critical Strike Multiplier
+enchantMods,Intimidating Cry has #% increased Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,Intimidating Cry has 16% increased Area of Effect
+enchantMods,Intimidating Cry has #% increased Cooldown Recovery Rate,1,1,Standard:1,Rare:1,Armours/Helmets:1,Intimidating Cry has 20% increased Cooldown Recovery Rate
+enchantMods,Kinetic Blast has a #% chance for an additional explosion,1,1,Standard:1,Rare:1,Armours/Helmets:1,Kinetic Blast has a 50% chance for an additional explosion
+enchantMods,Kinetic Bolt has #% increased Projectile Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,Kinetic Bolt has 30% increased Projectile Speed
+enchantMods,Lancing Steel deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Lancing Steel deals 40% increased Damage
+enchantMods,Malevolence has #% increased Mana Reservation Efficiency,1,1,Standard:1,Rare:1,Armours/Helmets:1,Malevolence has 20% increased Mana Reservation Efficiency
+enchantMods,Minions summoned by Your Summoning Towers have #% increased Life,1,1,Standard:1,Rare:1,Rings/Ring3:1,Minions summoned by Your Summoning Towers have 50% increased Life
+enchantMods,Mirror Arrow and Mirror Arrow Clones have #% increased Attack Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,Mirror Arrow and Mirror Arrow Clones have 15% increased Attack Speed
+enchantMods,Penance Brand deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Penance Brand deals 25% increased Damage
+enchantMods,Perforate deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Perforate deals 40% increased Damage
+enchantMods,Pestilent Strike has #% increased Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,Pestilent Strike has 24% increased Area of Effect
+enchantMods,Poisonous Concoction uses #% reduced Flask Charges,1,1,Standard:1,Rare:1,Armours/Helmets:1,Poisonous Concoction uses 12% reduced Flask Charges
+enchantMods,Power Siphon fires at up to # additional target,1,1,Standard:1,Rare:1,Armours/Helmets:1,Power Siphon fires at up to 1 additional target
+enchantMods,Purity of Lightning has #% increased Mana Reservation Efficiency,1,1,Standard:1,Rare:1,Armours/Helmets:1,Purity of Lightning has 40% increased Mana Reservation Efficiency
+enchantMods,Pyroclast Mine has #% increased Throwing Speed,1,1,Standard:1,Unique:1,Armours/Helmets:1,Pyroclast Mine has 15% increased Throwing Speed
+enchantMods,Rain of Arrows has #% chance to fire an additional sequence of arrows,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,Rain of Arrows has 10% chance to fire an additional sequence of arrows
+enchantMods,Reckoning has #% increased Cooldown Recovery Rate,1,1,Standard:1,Rare:1,Armours/Helmets:1,Reckoning has 30% increased Cooldown Recovery Rate
+enchantMods,Righteous Fire grants #% increased Spell Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Righteous Fire grants 30% increased Spell Damage
+enchantMods,Rune Blast teleports you to the detonated Rune if you have not detonated Runes in the past # seconds,1,1,Standard:1,Rare:1,Armours/Helmets:1,Rune Blast teleports you to the detonated Rune if you have not detonated Runes in the past 0.5 seconds
+enchantMods,Scourge Arrow deals #% increased Damage,1,1,Standard:1,Unique:1,Armours/Helmets:1,Scourge Arrow deals 40% increased Damage
+enchantMods,Seismic Trap has #% increased Skill Effect Duration,1,1,Standard:1,Unique:1,Armours/Helmets:1,Seismic Trap has 30% increased Skill Effect Duration
+enchantMods,Shrapnel Ballista Pierces # additional Targets,1,1,Standard:1,Rare:1,Armours/Helmets:1,Shrapnel Ballista Pierces 6 additional Targets
+enchantMods,Smite deals #% increased Damage,1,1,Standard:1,Unique:1,Armours/Helmets:1,Smite deals 40% increased Damage
+enchantMods,Smite has a #% chance for lightning to strike another target,1,1,Standard:1,Rare:1,Armours/Helmets:1,Smite has a 10% chance for lightning to strike another target
+enchantMods,Smoke Mine grants additional #% increased Movement Speed,1,1,Standard:1,Rare:1,Armours/Helmets:1,Smoke Mine grants additional 20% increased Movement Speed
+enchantMods,Sniper's Mark has #% increased Curse Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,Sniper's Mark has 20% increased Curse Effect
+enchantMods,Soulrend deals #% increased Damage,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,Soulrend deals 25% increased Damage
+enchantMods,Soulrend fires an additional Projectile,1,1,Standard:1,Unique:1,Armours/Helmets:1,Soulrend fires an additional Projectile
+enchantMods,Spectral Shield Throw fires # additional Shard Projectiles,1,1,Standard:1,Rare:1,Armours/Helmets:1,Spectral Shield Throw fires 3 additional Shard Projectiles
+enchantMods,Spirit Offering grants #% to Critical Strike Multiplier,1,1,Standard:1,Rare:1,Armours/Helmets:1,Spirit Offering grants +12% to Critical Strike Multiplier
+enchantMods,Split Arrow fires # additional Projectiles,1,1,Standard:1,Rare:1,Armours/Helmets:1,Split Arrow fires 3 additional Projectiles
+enchantMods,Static Strike has # maximum Beam Targets,1,1,Standard:1,Magic:1,Armours/Helmets:1,Static Strike has +2 maximum Beam Targets
+enchantMods,Stone Golems deal #% increased Damage,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,Stone Golems deal 25% increased Damage
+enchantMods,Storm Brand deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Storm Brand deals 40% increased Damage
+enchantMods,Summon Skitterbots has #% increased Mana Reservation Efficiency,1,1,Standard:1,Rare:1,Armours/Helmets:1,Summon Skitterbots has 45% increased Mana Reservation Efficiency
+enchantMods,Summoned Agony Crawler fires # additional Projectiles,1,1,Standard:1,Rare:1,Armours/Helmets:1,Summoned Agony Crawler fires 2 additional Projectiles
+enchantMods,Summoned Carrion Golems deal #% increased Damage,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,Summoned Carrion Golems deal 25% increased Damage
+enchantMods,Summoned Carrion Golems have #% to all Elemental Resistances,1,1,Standard:1,Rare:1,Armours/Helmets:1,Summoned Carrion Golems have +36% to all Elemental Resistances
+enchantMods,Summoned Holy Relics deal #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Summoned Holy Relics deal 40% increased Damage
+enchantMods,Summoned Holy Relics have #% increased Buff Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,Summoned Holy Relics have 100% increased Buff Effect
+enchantMods,Tempest Shield chains an additional # times,1,1,Standard:1,Rare:1,Armours/Helmets:1,Tempest Shield chains an additional 3 times
+enchantMods,Trigger Commandment of Blades on Hit,1,1,Standard:1,Rare:1,Armours/Gloves:1,Trigger Commandment of Blades on Hit
+enchantMods,Trigger Commandment of Winter when Hit,1,1,Standard:1,Unique:1,Armours/Gloves:1,Trigger Commandment of Winter when Hit
+enchantMods,Trigger Decree of Ire when Hit,1,1,Standard:1,Rare:1,Armours/Gloves:1,Trigger Decree of Ire when Hit
+enchantMods,Trigger Decree of War on Kill,1,1,Standard:1,Rare:1,Armours/Gloves:1,Trigger Decree of War on Kill
+enchantMods,Trigger Decree of the Tempest on Hit,1,1,Standard:1,Rare:1,Armours/Gloves:1,Trigger Decree of the Tempest on Hit
+enchantMods,Trigger Edict of Force on Hit,1,1,Standard:1,Rare:1,Armours/Gloves:1,Trigger Edict of Force on Hit
+enchantMods,Trigger Edict of Ire when Hit,1,1,Standard:1,Rare:1,Armours/Gloves:1,Trigger Edict of Ire when Hit
+enchantMods,Trigger Edict of Reflection when Hit,1,1,Solo Self-Found:1,Rare:1,Armours/Gloves:1,Trigger Edict of Reflection when Hit
+enchantMods,Trigger Level # Summon Spectral Wolf on Kill,1,1,Standard:1,Normal:1,Weapons/OneHandWeapons:1,Trigger Level 10 Summon Spectral Wolf on Kill
+enchantMods,Trigger Word of Blades on Hit,1,1,Standard:1,Unique:1,Armours/Gloves:1,Trigger Word of Blades on Hit
+enchantMods,Trigger Word of Frost on Kill,1,1,Standard:1,Rare:1,Armours/Gloves:1,Trigger Word of Frost on Kill
+enchantMods,Trigger Word of Reflection when Hit,1,1,Standard:1,Rare:1,Armours/Gloves:1,Trigger Word of Reflection when Hit
+enchantMods,Trigger Word of the Tempest on Hit,1,1,Solo Self-Found:1,Rare:1,Armours/Gloves:1,Trigger Word of the Tempest on Hit
+enchantMods,Used when you become Poisoned,1,1,Standard:1,Magic:1,Flasks/sprint:1,Used when you become Poisoned
+enchantMods,Used when you take a Savage Hit,1,1,Standard:1,Unique:1,Flasks/PhantomBlood:1,Used when you take a Savage Hit
+enchantMods,Vengeance has #% increased Cooldown Recovery Rate,1,1,Standard:1,Rare:1,Armours/Helmets:1,Vengeance has 30% increased Cooldown Recovery Rate
+enchantMods,Void Sphere has #% increased Cooldown Recovery Rate,1,1,Standard:1,Rare:1,Armours/Helmets:1,Void Sphere has 20% increased Cooldown Recovery Rate
+enchantMods,Vortex has #% increased Cooldown Recovery Rate,1,1,Standard:1,Unique:1,Armours/Helmets:1,Vortex has 30% increased Cooldown Recovery Rate
+enchantMods,Wild Strike's Beam Chains an additional # times,1,1,Standard:1,Rare:1,Armours/Helmets:1,Wild Strike's Beam Chains an additional 4 times
+enchantMods,Wintertide Brand deals #% increased Damage,1,1,Standard:1,Rare:1,Armours/Helmets:1,Wintertide Brand deals 25% increased Damage
+enchantMods,Wintertide Brand has # to maximum Stages,1,1,Solo Self-Found:1,Rare:1,Armours/Helmets:1,Wintertide Brand has +2 to maximum Stages
+enchantMods,Wither has #% increased Area of Effect,1,1,Standard:1,Rare:1,Armours/Helmets:1,Wither has 24% increased Area of Effect
+enchantMods,Wither has #% increased Duration,1,1,Standard:1,Rare:1,Armours/Helmets:1,Wither has 36% increased Duration
+enchantMods,Wrath has #% increased Mana Reservation Efficiency,1,1,Standard:1,Unique:1,Armours/Helmets:1,Wrath has 30% increased Mana Reservation Efficiency
+enchantMods,Your Arc Towers have #% chance to inflict Sap,1,1,Standard:1,Rare:1,Rings/AmethystRing:1,Your Arc Towers have 20% chance to inflict Sap
+enchantMods,Your Glacial Cage Towers have #% increased Duration,1,1,Standard:1,Rare:1,Rings/SapphireRuby:1,Your Glacial Cage Towers have 25% increased Duration
+enchantMods,Your Imbuing Towers have #% increased Effect,1,1,Standard:1,Rare:1,Rings/SapphireRuby:1,Your Imbuing Towers have 25% increased Effect
+enchantMods,Your Imbuing Towers have #% increased Range,1,1,Standard:1,Rare:1,Rings/MoonstoneRing:1,Your Imbuing Towers have 25% increased Range
+enchantMods,Your Meteor Towers deal #% increased Damage,1,1,Standard:1,Rare:1,Rings/TopazRuby:1,Your Meteor Towers deal 25% increased Damage
+enchantMods,Your Scout Towers summon an additional minion,1,1,Standard:1,Rare:1,Rings/SapphireRuby:1,Your Scout Towers summon an additional minion
+enchantMods,Your Seismic Towers deal #% increased Damage,1,1,Standard:1,Unique:1,Rings/BlackFlameFire:1,Your Seismic Towers deal 25% increased Damage
+enchantMods,Your Seismic Towers have an additional Cascade,1,1,Standard:1,Rare:1,Rings/TopazRuby:1,Your Seismic Towers have an additional Cascade
+enchantMods,Zealotry has #% increased Mana Reservation Efficiency,1,1,Hardcore:1,Rare:1,Armours/Helmets:1,Zealotry has 30% increased Mana Reservation Efficiency
+enchantMods,taken Spell Damage Recently,1,1,Standard:1,Rare:1,Armours/Boots:1,taken Spell Damage Recently
+runeMods,#% to [Resistances|Fire Resistance],1,1,Standard:1,Magic:1,Offhand/Foci:1,+14% to [Resistances|Fire Resistance]
+runeMods,[ShamanOnlyMods|Bonded]: # to maximum Life,1,1,Standard:1,Magic:1,Offhand/Foci:1,[ShamanOnlyMods|Bonded]: +20 to maximum Life
+runeMods,[ShamanOnlyMods|Bonded]: # to maximum Mana,1,1,Standard:1,Magic:1,Offhand/Foci:1,[ShamanOnlyMods|Bonded]: +20 to maximum Mana
+scourgeMods,#% to Fire Resistance,6,6,Standard:6,Unique:5;Rare:1,Armours/BodyArmours:4;Armours/Shields:1;Armours/Helmets:1,-27% to Fire Resistance
+scourgeMods,# to maximum Mana,2,2,Standard:2,Rare:1;Unique:1,Rings/TopazSapphire:1;Rings/Ring6Unique:1,-28 to maximum Mana
+scourgeMods,#% to Chaos Resistance,2,2,Standard:2,Unique:2,Armours/Shields:1;Rings/Ring6Unique:1,-25% to Chaos Resistance
+scourgeMods,#% to Cold Resistance,2,2,Standard:2,Unique:2,Armours/Boots:1;Armours/Helmets:1,+19% to Cold Resistance
+scourgeMods,# Dexterity Requirement,1,1,Standard:1,Unique:1,Armours/BodyArmours:1,+46 Dexterity Requirement
+scourgeMods,# Strength Requirement,1,1,Standard:1,Unique:1,Armours/Boots:1,+48 Strength Requirement
+scourgeMods,# to Dexterity,1,1,Standard:1,Rare:1,Armours/BodyArmours:1,+28 to Dexterity
+scourgeMods,# to maximum Life,1,1,Standard:1,Rare:1,Rings/TopazSapphire:1,+24 to maximum Life
+scourgeMods,# to maximum number of Raised Zombies,1,1,Standard:1,Rare:1,Armours/Boots:1,+1 to maximum number of Raised Zombies
+scourgeMods,#% increased Mana Regeneration Rate,1,1,Standard:1,Unique:1,Rings/Ring6Unique:1,33% increased Mana Regeneration Rate
+scourgeMods,#% increased Movement Speed,1,1,Standard:1,Rare:1,Armours/Boots:1,12% increased Movement Speed
+scourgeMods,#% reduced Attribute Requirements,1,1,Standard:1,Unique:1,Armours/BodyArmours:1,17% reduced Attribute Requirements
+scourgeMods,#% reduced Effect of Non-Damaging Ailments,1,1,Standard:1,Rare:1,Armours/Boots:1,53% reduced Effect of Non-Damaging Ailments
+scourgeMods,#% reduced Enemy Stun Threshold,1,1,Standard:1,Unique:1,Weapons/TwoHandWeapons:1,9% reduced Enemy Stun Threshold
+scourgeMods,#% reduced Energy Shield Recovery rate,1,1,Standard:1,Unique:1,Armours/BodyArmours:1,16% reduced Energy Shield Recovery rate
+scourgeMods,#% to Lightning Resistance,1,1,Standard:1,Unique:1,Rings/Ring6Unique:1,+30% to Lightning Resistance
+scourgeMods,Deal no Cold Damage,1,1,Standard:1,Unique:1,Weapons/TwoHandWeapons:1,Deal no Cold Damage
+scourgeMods,Nearby Enemies have #% to Fire Resistance,1,1,Standard:1,Unique:1,Armours/Helmets:1,Nearby Enemies have +9% to Fire Resistance
+scourgeMods,Nearby Enemies have #% to Lightning Resistance,1,1,Standard:1,Unique:1,Armours/Helmets:1,Nearby Enemies have +9% to Lightning Resistance
+scourgeMods,You cannot Recharge Energy Shield,1,1,Standard:1,Rare:1,Armours/Boots:1,You cannot Recharge Energy Shield
+ultimatumMods,FrostInfection,220,220,Hardcore:7;Standard:213,Currency:220,Maps/UltimatumTrialBase:220,FrostInfection
+ultimatumMods,Revenant,192,192,Hardcore:5;Solo Self-Found:1;Standard:186,Currency:192,Maps/UltimatumTrialBase:192,Revenant
+ultimatumMods,Sawblade,184,184,Hardcore:7;Standard:177,Currency:184,Maps/UltimatumTrialBase:184,Sawblade
+ultimatumMods,ChokingMiasma,180,180,Hardcore:4;Solo Self-Found:2;Standard:174,Currency:180,Maps/UltimatumTrialBase:180,ChokingMiasma
+ultimatumMods,Flamethrower,178,178,Hardcore:2;Standard:176,Currency:178,Maps/UltimatumTrialBase:178,Flamethrower
+ultimatumMods,EscalatingDamageTaken,174,174,Hardcore:5;Standard:169,Currency:174,Maps/UltimatumTrialBase:174,EscalatingDamageTaken
+ultimatumMods,StormcallerRunes,160,160,Hardcore:3;Solo Self-Found:1;Standard:156,Currency:160,Maps/UltimatumTrialBase:160,StormcallerRunes
+ultimatumMods,EscalatingMonsterSpeed,140,140,Hardcore:1;Standard:139,Currency:140,Maps/UltimatumTrialBase:140,EscalatingMonsterSpeed
+ultimatumMods,OverwhelmingMonsters,123,123,Standard:123,Currency:123,Maps/UltimatumTrialBase:123,OverwhelmingMonsters
+ultimatumMods,ResistantMonsters,123,123,Standard:123,Currency:123,Maps/UltimatumTrialBase:123,ResistantMonsters
+ultimatumMods,PrismaticMonsters,120,120,Standard:120,Currency:120,Maps/UltimatumTrialBase:120,PrismaticMonsters
+ultimatumMods,PhysicalTotem,104,104,Standard:104,Currency:104,Maps/UltimatumTrialBase:104,PhysicalTotem
+ultimatumMods,OccasionalImpotence,101,101,Hardcore:2;Standard:99,Currency:101,Maps/UltimatumTrialBase:101,OccasionalImpotence
+ultimatumMods,ShieldingMonsters,101,101,Standard:101,Currency:101,Maps/UltimatumTrialBase:101,ShieldingMonsters
+ultimatumMods,ChaoticTouch,99,99,Hardcore:1;Solo Self-Found:1;Standard:97,Currency:99,Maps/UltimatumTrialBase:99,ChaoticTouch
+ultimatumMods,ElementalTotem,99,99,Hardcore:2;Solo Self-Found:1;Standard:96,Currency:99,Maps/UltimatumTrialBase:99,ElementalTotem
+ultimatumMods,ReducedRecovery,98,98,Hardcore:2;Solo Self-Found:1;Standard:95,Currency:98,Maps/UltimatumTrialBase:98,ReducedRecovery
+ultimatumMods,LethalRareMonsters,96,96,Standard:96,Currency:96,Maps/UltimatumTrialBase:96,LethalRareMonsters
+ultimatumMods,LightningDamageFromMana,93,93,Hardcore:1;Standard:92,Currency:93,Maps/UltimatumTrialBase:93,LightningDamageFromMana
+ultimatumMods,SiphoningMonsters,92,92,Standard:92,Currency:92,Maps/UltimatumTrialBase:92,SiphoningMonsters
+ultimatumMods,HinderingFlasks,87,87,Hardcore:1;Standard:86,Currency:87,Maps/UltimatumTrialBase:87,HinderingFlasks
+ultimatumMods,LimitedFlasks,86,86,Hardcore:2;Standard:84,Currency:86,Maps/UltimatumTrialBase:86,LimitedFlasks
+ultimatumMods,DeadlyMonsters,85,85,Standard:85,Currency:85,Maps/UltimatumTrialBase:85,DeadlyMonsters
+ultimatumMods,PreciseMonsters,82,82,Standard:82,Currency:82,Maps/UltimatumTrialBase:82,PreciseMonsters
+ultimatumMods,SharedAuras,77,77,Standard:77,Currency:77,Maps/UltimatumTrialBase:77,SharedAuras
+ultimatumMods,DexterousMonsters,76,76,Standard:76,Currency:76,Maps/UltimatumTrialBase:76,DexterousMonsters
+ultimatumMods,LessenedReach,72,72,Hardcore:1;Standard:71,Currency:72,Maps/UltimatumTrialBase:72,LessenedReach
+ultimatumMods,UnstoppableMonsters,70,70,Standard:70,Currency:70,Maps/UltimatumTrialBase:70,UnstoppableMonsters
+ultimatumMods,LessCooldownRecovery,69,69,Hardcore:1;Standard:68,Currency:69,Maps/UltimatumTrialBase:69,LessCooldownRecovery
+ultimatumMods,CurseAilmentReflection,64,64,Standard:64,Currency:64,Maps/UltimatumTrialBase:64,CurseAilmentReflection
+ultimatumMods,SiphonedCharges,62,62,Hardcore:3;Standard:59,Currency:62,Maps/UltimatumTrialBase:62,SiphonedCharges
+ultimatumMods,BuffsExpireFaster,60,60,Hardcore:1;Standard:59,Currency:60,Maps/UltimatumTrialBase:60,BuffsExpireFaster
+ultimatumMods,UnluckyCrits,57,57,Standard:57,Currency:57,Maps/UltimatumTrialBase:57,UnluckyCrits
+ultimatumMods,RestlessDeadRuin,5,5,Hardcore:5,Currency:5,Maps/UltimatumTrialBase:5,RestlessDeadRuin
+ultimatumMods,MonsterAppliesRuin,4,4,Hardcore:2;Solo Self-Found:1;Standard:1,Currency:4,Maps/UltimatumTrialBase:4,MonsterAppliesRuin
+ultimatumMods,RestlessDead,1,1,Hardcore:1,Currency:1,Maps/UltimatumTrialBase:1,RestlessDead
+utilityMods,#% increased Movement Speed,323,323,Allflame:16;Hardcore:4;Solo Self-Found:42;Standard:261,Magic:165;Normal:145;Unique:13,Flasks/sprint:310;Flasks/Rotgut:13,40% increased Movement Speed
+utilityMods,#% increased Damage,223,223,Allflame:4;Hardcore:3;Solo Self-Found:17;Standard:199,Magic:81;Unique:75;Normal:67,Flasks/gold:148;Flasks/OverflowingChalice:43;Flasks/SorrowOfTheDivine:30,40% increased Damage
+utilityMods,# to Armour,216,216,Allflame:2;Hardcore:3;Solo Self-Found:16;Standard:195,Magic:108;Normal:68;Unique:40,Flasks/granite:176;Flasks/yFlask5:20;Flasks/BlockFlask:20,+1500 to Armour
+utilityMods,Onslaught,192,192,Allflame:1;Hardcore:4;Solo Self-Found:23;Standard:164,Magic:80;Unique:57;Normal:55,Flasks/silver:135;Flasks/KiarasDetermination:36;Flasks/VialofUnlife:21,Onslaught
+utilityMods,#% chance to Suppress Spell Damage,180,180,Allflame:4;Hardcore:5;Solo Self-Found:14;Standard:157,Magic:89;Normal:57;Unique:34,Flasks/phaseflask01:146;Flasks/PhantomBlood:32;Flasks/SoulCatcher:2,+10% chance to Suppress Spell Damage
+utilityMods,Phasing,180,180,Allflame:4;Hardcore:5;Solo Self-Found:14;Standard:157,Magic:89;Normal:57;Unique:34,Flasks/phaseflask01:146;Flasks/PhantomBlood:32;Flasks/SoulCatcher:2,Phasing
+utilityMods,#% increased Global Critical Strike Chance,167,167,Allflame:2;Hardcore:2;Solo Self-Found:15;Standard:148,Normal:80;Magic:77;Unique:10,Flasks/diamond:157;Flasks/GorgonsFlask:10,100% increased Global Critical Strike Chance
+utilityMods,#% more Armour,165,165,Allflame:1;Hardcore:4;Solo Self-Found:23;Standard:137,Magic:98;Normal:67,Flasks/stone:165,20% more Armour
+utilityMods,#% to Chaos Resistance,162,162,Allflame:1;Hardcore:4;Solo Self-Found:12;Standard:145,Magic:78;Normal:71;Unique:13,Flasks/Amethyst:149;Flasks/AtzirisPromise:11;Flasks/UberMavenFlask:2,+35% to Chaos Resistance
+utilityMods,#% more Evasion Rating,158,158,Allflame:2;Hardcore:3;Solo Self-Found:21;Standard:132,Normal:73;Magic:66;Unique:19,Flasks/stibnite:139;Flasks/WitchFireBrew:16;Flasks/Sin:3,20% more Evasion Rating
+utilityMods,# to Evasion Rating,146,146,Allflame:2;Hardcore:4;Solo Self-Found:13;Standard:127,Magic:92;Normal:54,Flasks/evasionflask01:146,+1500 to Evasion Rating
+utilityMods,#% to all Elemental Resistances,145,145,Allflame:3;Solo Self-Found:9;Standard:133,Normal:73;Magic:57;Unique:15,Flasks/bismuth:130;Flasks/TheWiseOak:15,+35% to all Elemental Resistances
+utilityMods,#% to Cold Resistance,127,127,Allflame:3;Hardcore:1;Solo Self-Found:4;Standard:119,Magic:63;Normal:57;Unique:7,Flasks/sapphire:120;Flasks/TasteOfHate:7,+40% to Cold Resistance
+utilityMods,#% to maximum Cold Resistance,127,127,Allflame:3;Hardcore:1;Solo Self-Found:4;Standard:119,Magic:63;Normal:57;Unique:7,Flasks/sapphire:120;Flasks/TasteOfHate:7,+5% to maximum Cold Resistance
+utilityMods,#% to Lightning Resistance,126,126,Allflame:5;Solo Self-Found:7;Standard:114,Normal:71;Magic:45;Unique:10,Flasks/topaz:116;Flasks/VinktarFlask:10,+40% to Lightning Resistance
+utilityMods,#% to maximum Lightning Resistance,126,126,Allflame:5;Solo Self-Found:7;Standard:114,Normal:71;Magic:45;Unique:10,Flasks/topaz:116;Flasks/VinktarFlask:10,+5% to maximum Lightning Resistance
+utilityMods,#% to Fire Resistance,118,118,Allflame:3;Solo Self-Found:4;Standard:111,Magic:55;Normal:54;Unique:9,Flasks/ruby:109;Flasks/CorusElixir:5;Flasks/ShapersFlask:4,+40% to Fire Resistance
+utilityMods,#% to maximum Fire Resistance,118,118,Allflame:3;Solo Self-Found:4;Standard:111,Magic:55;Normal:54;Unique:9,Flasks/ruby:109;Flasks/CorusElixir:5;Flasks/ShapersFlask:4,+5% to maximum Fire Resistance
+utilityMods,#% reduced Effect of Freeze on you,75,75,Allflame:1;Solo Self-Found:3;Standard:71,Normal:38;Magic:37,Flasks/aquamarine:75,60% reduced Effect of Freeze on you
+utilityMods,#% increased Stun Threshold,61,61,Solo Self-Found:4;Standard:57,Normal:36;Magic:25,Flasks/AntiStunFlask:61,30% increased Stun Threshold
+utilityMods,Cannot be Stunned if you've been Stunned during Effect,61,61,Solo Self-Found:4;Standard:57,Normal:36;Magic:25,Flasks/AntiStunFlask:61,Cannot be Stunned if you've been Stunned during Effect
+utilityMods,#% increased Rarity of Items found,25,25,Solo Self-Found:1;Standard:24,Magic:16;Normal:9,Flasks/GoldFlask:25,30% increased Rarity of Items found
+utilityMods,# to Ward,1,1,Standard:1,Unique:1,Flasks/AdaptationFlask03:1,+200 to Ward
+utilityMods,#% to [Resistances|Cold Resistance],1,1,Standard:1,Normal:1,Charms/Basetypes:1,+25% to [Resistances|Cold Resistance]
+utilityMods,#% to [Resistances|Fire Resistance],1,1,Standard:1,Magic:1,Charms/Basetypes:1,+25% to [Resistances|Fire Resistance]
+utilityMods,#% to [Resistances|Lightning Resistance],1,1,Standard:1,Normal:1,Charms/Basetypes:1,+25% to [Resistances|Lightning Resistance]
+veiledMods,Suffix#,34,34,Solo Self-Found:25;Standard:9,Rare:28;Unique:6,Weapons/TwoHandWeapons:7;Weapons/OneHandWeapons:6;Armours/BodyArmours:5,Suffix02
+veiledMods,Prefix#,33,34,Solo Self-Found:22;Standard:11,Rare:28;Unique:5,Weapons/OneHandWeapons:9;Armours/BodyArmours:8;Weapons/TwoHandWeapons:4,Prefix02
