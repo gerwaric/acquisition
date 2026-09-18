@@ -206,7 +206,8 @@ walk needs (the audit's finding 5); session C adds it above this detail.
   licence read then (the wiki is CC BY-NC 3.0; poedb states no terms and
   is unregistered). "A roll outside the base's current range" is data;
   calling it legacy is history the export does not carry — legacy is
-  parked with its research track.
+  never a field (C107); a unique's variant, a label its source prints,
+  is the parked candidate (`decisions/search.md`, "Parked").
 - **C99 (K5).** `count` carries its minimum and its maximum; `weight`
   and `weight2` differ in how a per-stat requirement gates a
   contribution (S57), and a weighted group translates only where that
