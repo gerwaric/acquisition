@@ -6,7 +6,9 @@ track per directory, and later where the design and the build point.
 It is evidence and working material, not deliberation and not rulings:
 a session that thinks out loud writes a numbered `brainstorming-notes/`
 note that cites a track by path; a ruling lands in `decisions/`. Nothing
-here is an authority for either.
+here is an authority for either — with one exception the registry cites:
+`DESIGN.md`, the binding contract detail of the search rulings until
+code takes each paragraph (owner, 2026-09-18).
 
 **Bootstrap:** load this file, then `DIGEST.md` — accepted 2026-09-17, the
 entry point in place of the track READMEs. Reach a README only to verify a
@@ -103,7 +105,7 @@ the two blind proposals it produced are
 `548ecc4f`)
 (`brainstorming-notes/26-search-review-by-fable.md`,
 `brainstorming-notes/27-search-review-by-astra.md`), and the reconciliation,
-`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the model page, the mechanism until built, the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17.
+`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the model page, the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17; its contract detail is `DESIGN.md`.
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search
