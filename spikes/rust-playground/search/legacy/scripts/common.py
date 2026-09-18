@@ -12,6 +12,7 @@ import datetime as dt
 import glob
 import hashlib
 import json
+import math
 import os
 import re
 import sqlite3
@@ -222,6 +223,45 @@ def variant_lines(entry, vi):
     return [t for t, vs, _ in entry.mods if vs is None or vi in vs]
 
 
+def variant_tagged_lines(entry, vi):
+    """As `variant_lines`, but (text, tags) — the `{tags:…}` prefix the catalyst rescale reads."""
+    return [(t, tg) for t, vs, tg in entry.mods if vs is None or vi in vs]
+
+
+# ---------------------------------------------------------------- selections
+#
+# Path of Building selects one variant, plus one more for each `Has Alt Variant…` header the entry
+# carries: `Item.lua` reads the headers at lines 752-762 and the choices at 774-783, and a mod line
+# is shown when any chosen variant lists it — `CheckModLineVariant`, lines 2139-2145, where an
+# untagged line (`not modLine.variantList`) is always shown. The choices are independent, so the
+# same variant may be chosen twice; `GetModLineVariantCount` (2148-2164) counts such a line twice
+# only under `Allow Duplicate Variants`, which no entry here carries, and a repeated choice
+# therefore shows exactly the lines of the distinct variants chosen. A selection is read here as
+# that set: a non-empty set of at most `selection_size` variants.
+
+
+def selection_size(entry):
+    """How many variants Path of Building lets be chosen at once: one, plus each alt-variant header."""
+    return 1 + sum(1 for h in entry.headers if h.startswith("Has Alt Variant"))
+
+
+def selections(entry):
+    """Every selection of the entry, as a tuple of 1-based variant indices, smallest first."""
+    import itertools
+    n = len(entry.labels)
+    k = min(selection_size(entry), n)
+    out = []
+    for size in range(1, k + 1):
+        out.extend(itertools.combinations(range(1, n + 1), size))
+    return out
+
+
+def selection_lines(entry, sel):
+    """The (text, tags) lines a selection shows: every line any chosen variant lists, plus the
+    untagged ones. A line the entry writes twice stays twice; the fit matches by cover."""
+    return [(t, tg) for t, vs, tg in entry.mods if vs is None or any(vi in vs for vi in sel)]
+
+
 # ---------------------------------------------------------------- numbers
 
 # A Path of Building range `(a-b)`, or a plain number, with the sign written against it. A bound may
@@ -257,6 +297,234 @@ def numbers_fit(item_specs, pob_specs):
     if len(item_specs) != len(pob_specs):
         return False
     return all(lo - 1e-9 <= v <= hi + 1e-9 for (v, _), (lo, hi) in zip(item_specs, pob_specs))
+
+
+RAW_TOKEN = re.compile(r"([-+]?)\((-?\d+(?:\.\d+)?)-(-?\d+(?:\.\d+)?)\)|([-+]?)(\d+(?:\.\d+)?)")
+
+
+def raw_numbers(text):
+    """The literal each token would be written as, in `tokenize` order; None for a range.
+
+    Path of Building substitutes a value back into the stripped line as it stood there, with a `+`
+    dropped and a `-` kept (`applyRange`, ItemTools.lua 101-112), so that is what is kept here.
+    """
+    out = []
+    for m in RAW_TOKEN.finditer(text):
+        if m.group(2) is not None:
+            out.append(None)
+        else:
+            sign = m.group(4) or ""
+            dash = sign == "-" and m.start() > 0 and text[m.start() - 1].isdigit()
+            out.append(("-" if (sign == "-" and not dash) else "") + m.group(5))
+    return out
+
+
+# ---------------------------------------------------------------- the catalyst rescale
+#
+# `src/Classes/Item.lua` lines 14-29 at POB_COMMIT, copied. Index i is one catalyst across the
+# three lists: the currency's name, the descriptor `ParseRaw` matches a `Quality (<descriptor>
+# Modifiers)` property against (lines 673-677), and the mod tags it scales.
+
+CATALYST_LIST = ["Abrasive", "Accelerating", "Dextral", "Fertile", "Imbued", "Intrinsic",
+                 "Noxious", "Prismatic", "Sinistral", "Tempering", "Turbulent", "Unstable"]
+CATALYST_DESCRIPTORS = ["Attack", "Speed", "Suffix", "Life and Mana", "Caster", "Attribute",
+                        "Physical and Chaos", "Resistance", "Prefix", "Defence", "Elemental",
+                        "Critical"]
+CATALYST_TAGS = [
+    ["attack"],
+    ["speed"],
+    ["suffix"],
+    ["life", "mana", "resource"],
+    ["caster"],
+    ["jewellery_attribute", "attribute"],
+    ["physical_damage", "chaos_damage"],
+    ["jewellery_resistance", "resistance"],
+    ["prefix"],
+    ["jewellery_defense", "defences", "armour", "evasion", "energyshield"],
+    ["jewellery_elemental", "elemental_damage"],
+    ["critical"],
+]
+
+# The items spell the kind as the game does; `catalystDescriptorList` spells two of them shorter,
+# so the map is by position: what an item's property shows on the left, the index above on the
+# right. `Elemental Damage` and `Physical and Chaos Damage` are the two that differ, and a
+# `Quality (Elemental Damage Modifiers)` property therefore sets no catalyst in Path of Building
+# itself (its test is equality, line 675).
+DESCRIPTOR_INDEX = {
+    "Attack": 0, "Speed": 1, "Suffix": 2, "Life and Mana": 3, "Caster": 4, "Attribute": 5,
+    "Physical and Chaos Damage": 6, "Resistance": 7, "Prefix": 8, "Defence": 9,
+    "Elemental Damage": 10, "Critical": 11,
+}
+# Sinistral and Dextral key on `prefix` and `suffix`, which `getCatalystScalar` takes from a mod
+# line's own flag rather than from `{tags:…}` (lines 48-53). No line of any unique file read here
+# carries either flag, so an item of those two kinds has nothing to match on and is counted apart.
+PREFIX_SUFFIX_INDEX = {2, 8}
+
+TAG_WORD = re.compile(r"[A-Za-z_]+")
+
+
+def catalyst_index(descriptor):
+    """The catalyst index an item's `Quality (<kind> Modifiers)` names, or None."""
+    return DESCRIPTOR_INDEX.get(descriptor)
+
+
+def line_scalar(text, tags, index, quality):
+    """`getCatalystScalar` (Item.lua 31-62) over a unique file's mod line: `(100+q)/100`, or 1.
+
+    1 when the line is marked unscalable (lines 32-34, and the ` - Unscalable Value` suffix
+    ParseRaw strips at 1083-1085), when the line carries no `{tags:…}` (line 36), or when none of
+    its tags is one the catalyst scales.
+    """
+    if index is None:
+        return 1.0
+    if "unscalable" in tags or text.endswith(" - Unscalable Value"):
+        return 1.0
+    line_tags = set(TAG_WORD.findall(tags.get("tags", "")))
+    if not line_tags:
+        return 1.0
+    if not line_tags & set(CATALYST_TAGS[index]):
+        return 1.0
+    return (100 + (20 if quality is None else quality)) / 100
+
+
+# `data.modScalability` — `src/Data/ModScalability.lua`, loaded by `src/Modules/Data.lua` line 435.
+# Keyed by the mod line with every number replaced by `#`, it says per remaining `#` whether the
+# value scales and how the game formats it.
+MOD_SCALABILITY = os.path.join(POB, "src", "Data", "ModScalability.lua")
+MS_ROW = re.compile(r'^\t\["((?:[^"\\]|\\.)*)"\] = \{(.*)\},$')
+MS_ENTRY = re.compile(r'\{ isScalable = (true|false)(?:, formats = \{ ((?:"[^"]*"(?:, )?)+) \})? \}')
+# `applyRange`, ItemTools.lua 195-286: a format sets `precision` (a multiplier into the value the
+# game stores) and `displayPrecision` (decimals shown); the last format of a list wins.
+FORMAT_PRECISION = {
+    "divide_by_two_0dp": (2, 0), "divide_by_three": (3, None), "divide_by_four": (4, None),
+    "divide_by_five": (5, None), "divide_by_six": (6, None), "divide_by_ten_0dp": (10, 0),
+    "divide_by_ten_1dp": (10, 1), "divide_by_ten_1dp_if_required": (10, 1),
+    "divide_by_twelve": (12, None), "divide_by_fifteen_0dp": (15, 0), "divide_by_twenty": (20, None),
+    "divide_by_twenty_then_double_0dp": (10, 0), "divide_by_one_hundred": (100, None),
+    "divide_by_one_hundred_and_negate": (100, None), "divide_by_one_hundred_0dp": (100, 0),
+    "divide_by_one_hundred_1dp": (100, 1), "divide_by_one_hundred_2dp": (100, 2),
+    "divide_by_one_hundred_2dp_if_required": (100, 2), "divide_by_one_thousand": (1000, None),
+    "divide_by_ten_thousand_1dp": (10000, 1), "per_minute_to_per_second": (60, None),
+    "per_minute_to_per_second_0dp": (60, 0), "per_minute_to_per_second_1dp": (60, 1),
+    "per_minute_to_per_second_2dp": (60, 2), "per_minute_to_per_second_2dp_if_required": (60, 2),
+    "milliseconds_to_seconds": (1000, None), "milliseconds_to_seconds_halved": (1000, None),
+    "milliseconds_to_seconds_0dp": (1000, 0), "milliseconds_to_seconds_1dp": (1000, 1),
+    "milliseconds_to_seconds_2dp": (1000, 2), "milliseconds_to_seconds_2dp_if_required": (1000, 2),
+    "locations_to_metres": (10, 1), "deciseconds_to_seconds": (10, None),
+}
+DEFAULT_HIGH_PRECISION = 1  # `data.defaultHighPrecision`, Data.lua line 434
+_ms = None
+
+
+def mod_scalability():
+    """{line with every number as `#`: [(scales, precision, display precision), …]}."""
+    global _ms
+    if _ms is None:
+        _ms = {}
+        with open(MOD_SCALABILITY, encoding="utf-8", newline="\n") as fh:
+            for raw in fh:
+                m = MS_ROW.match(raw.replace("\r", "").rstrip("\n"))
+                if not m:
+                    continue
+                spec = []
+                for scalable, formats in MS_ENTRY.findall(m.group(2)):
+                    prec, disp = 1, None
+                    for name in re.findall(r'"([^"]*)"', formats or ""):
+                        if name in FORMAT_PRECISION:
+                            prec, disp = FORMAT_PRECISION[name]
+                    spec.append((scalable == "true", prec, disp))
+                _ms[m.group(1)] = spec
+    return _ms
+
+
+def _round_sym(v, dec=None):
+    """`roundSymmetric`, Common.lua 733-751: round half away from zero, at `dec` decimals."""
+    if dec is None:
+        return math.floor(v + 0.5) if v >= 0 else math.ceil(v - 0.5)
+    f = 10.0 ** dec
+    return (math.floor(v * f + 0.5) if v >= 0 else math.ceil(v * f - 0.5)) / f
+
+
+def format_value(value, scalar, precision, display_precision):
+    """`itemLib.formatValue` (ItemTools.lua 61-75) with no corrupted multiplier: into the stored
+    value, floor toward zero against the scalar (`floorSymmetric`, Common.lua 766-773), back."""
+    v = _round_sym(value * precision)
+    if scalar != 1:
+        v = math.trunc(v * scalar)
+    v = v / precision
+    if display_precision is not None:
+        return _round_sym(v, display_precision)
+    return _round_sym(v, min(2, math.floor(math.log10(precision) + 0.001)))
+
+
+def _substitute(template, values):
+    """The template with the `#` at each given position replaced by its literal."""
+    parts = template.split("#")
+    out = [parts[0]]
+    for i, part in enumerate(parts[1:]):
+        out.append(values.get(i, "#"))
+        out.append(part)
+    return "".join(out)
+
+
+def scalability_plan(text, specs):
+    """Per number: (scales, precision, display precision), as `findScalableLine` decides it.
+
+    `findScalableLine` (ItemTools.lua 121-186) substitutes values back into the stripped line, the
+    most first, and takes the first key `data.modScalability` holds; only a value written as a
+    fixed number can match a key's literal, so only those are substituted here. With no key, the
+    old method runs (lines 301-355): the first *n* numbers scale, *n* being the count of `(a-b)`
+    ranges or 1, at one decimal when the line writes one.
+    """
+    import itertools
+    template, _ = tokenize(text)
+    raws = raw_numbers(text)
+    ms = mod_scalability()
+    fixed = [i for i, r in enumerate(raws) if r is not None]
+    for size in range(len(fixed), 0, -1):
+        for combo in itertools.combinations(fixed, size):
+            spec = ms.get(_substitute(template, {i: raws[i] for i in combo}))
+            if spec is None:
+                continue
+            rest = [i for i in range(len(specs)) if i not in combo]
+            plan = [(False, 1, None)] * len(specs)
+            for pos, s in zip(rest, spec):
+                plan[pos] = s
+            return plan
+    spec = ms.get(template)
+    if spec is not None:
+        plan = [(False, 1, None)] * len(specs)
+        for pos, s in enumerate(spec):
+            if pos < len(plan):
+                plan[pos] = s
+        return plan
+    n = sum(1 for lo, hi in specs if lo != hi) or (1 if specs else 0)
+    dec = DEFAULT_HIGH_PRECISION if re.search(r"\d+\.\d", text) else 0
+    return [(i < n, -(10 ** dec), None) for i in range(len(specs))]
+
+
+def scale_line(text, tags, index, quality):
+    """(template, specs, scaled) for a variant line under an item's catalyst.
+
+    A negative precision marks the fallback path, whose arithmetic is `applyValueScalar`'s
+    (ItemTools.lua 37-57) rather than `formatValue`'s.
+    """
+    template, specs = tokenize(text)
+    scalar = line_scalar(text, tags, index, quality)
+    if scalar == 1.0 or not specs:
+        return template, specs, False
+    out = []
+    for (lo, hi), (scales, precision, display) in zip(specs, scalability_plan(text, specs)):
+        if not scales:
+            out.append((lo, hi))
+        elif precision < 0:
+            power = -precision
+            nudge = 0.001 if power == 1 else 0
+            out.append(tuple(math.floor(v * scalar * power + nudge) / power for v in (lo, hi)))
+        else:
+            out.append((format_value(lo, scalar, precision, display),
+                        format_value(hi, scalar, precision, display)))
+    return template, out, out != specs
 
 
 # ---------------------------------------------------------------- the stores

@@ -46,15 +46,17 @@ def main():
     rows = []
     shapes = collections.Counter()
     for e in ok:
+        size = common.selection_size(e)
         for i, label in enumerate(e.labels, 1):
-            lines = common.variant_lines(e, i)
+            lines = common.variant_tagged_lines(e, i)
             shape = label_shape(label)
             shapes[shape] += 1
             rows.append([e.file, e.index, e.name, e.base, i, label,
-                         "yes" if OLD.search(label) else "no", shape, len(lines)])
+                         "yes" if OLD.search(label) else "no", shape, len(lines), size,
+                         sum(1 for _, tags in lines if tags.get("tags"))])
     common.write_csv("pob-variants.csv",
                      ["file", "entry_index", "name", "base", "variant_index", "label", "old",
-                      "label_shape", "variant_lines"], rows)
+                      "label_shape", "variant_lines", "selection_size", "tagged_lines"], rows)
 
     rrows = [[e.file, e.index, e.name or "", e.refusal] for e in refused]
     common.write_csv("pob-parse-refusals.csv", ["file", "entry_index", "name", "refusal"], rrows)
@@ -96,6 +98,22 @@ def main():
     print("  the five commonest `Source:` values:")
     for v, c in src.most_common(5):
         print(f"    {c:5d}  {v}")
+    tagged, numbered, answered = set(), 0, 0
+    for e in ok:
+        for text, _, tags in e.mods:
+            if not tags.get("tags") or text in tagged:
+                continue
+            tagged.add(text)
+            specs = common.tokenize(text)[1]
+            if not specs:
+                continue
+            numbered += 1
+            if all(p[1] > 0 for p in common.scalability_plan(text, specs)):
+                answered += 1
+    print(f"  distinct mod lines carrying a `{{tags:…}}` prefix, which a catalyst may rescale: "
+          f"{len(tagged)}, of which {numbered} carry a number")
+    print(f"    their scaling is answered by `Data/ModScalability.lua` for {answered} and falls "
+          f"back to the old method for {numbered - answered}")
 
 
 if __name__ == "__main__":
