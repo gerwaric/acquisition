@@ -40,8 +40,10 @@ that it can also be encoded into other client interfaces such as a gui or tui.
    ask; composition is at least the site's (and, not, at-least-N-of) and
    extends across fields. Its stat keys and listing filters are not the
    target: the corpus's own lines are the vocabulary. A computed stat the
-   app can derive from lines is in reach; one needing game data the API
-   does not carry is stance 4's.*
+   app can derive from lines is in reach; so is one that needs game data
+   or a community convention the API does not carry, once that enters as
+   reviewed reference data (C68, C106); one that needs judgment is
+   stance 4's.*
 3. *"There are use cases when a specific modifier and/or value is
    needed on an item that has several other specific characteristics."*
    — the everyday question is one or more precise requirements among
@@ -49,8 +51,10 @@ that it can also be encoded into other client interfaces such as a gui or tui.
    never the advanced one. The seat questions under-sample it (the
    owner, S162: "My own examples also missed the mark on this"), so a
    model is held to it beyond them.
-4. *Game knowledge the API does not carry is the user's input*, never the
-   app's - e.g. what unique variants, modifiers, or values are legacy.
+4. *Judgment the API does not carry is the user's input, never the app's
+   — what is good, what it is worth, what to keep, and what is legacy.
+   Game data and community convention are not judgment; they enter as
+   reviewed reference data (C106).*
 5. Powerfully simple means that both the agent and the human can be maximally
    expressive in search with minimal cognition. This comes from being idiomatic
    and building on what agents and humans already know how to do, not from elegant

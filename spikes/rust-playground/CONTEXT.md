@@ -30,7 +30,7 @@ Only the **cross-cutting** decisions are here, because an agent must know them b
 | `decisions/plans.md` | Intent, plans, apply | C36, C37, C39, C40, C41, C42, C43, C44, C76, C77 |
 | `decisions/pricing.md` | Pricing: intent values, listing, reference data, price plans, import, render | C64, C65, C66, C67, C68, C69, C70, C71, C72, C73, C74, C75, C78, C80, C81 |
 | `decisions/frontends.md` | Frontends and output | C11, C13, C16, C52, C53 |
-| `decisions/search.md` | Item search: the crate, the line, the query, the answer, the basis, the trade boundary | C89, C90, C91, C92, C93, C94, C95, C96, C97, C98, C99, C100, C101, C102, C103, C104, C105 |
+| `decisions/search.md` | Item search: the crate, the line, the query, the answer, the basis, the trade boundary | C89, C90, C91, C92, C93, C94, C95, C96, C97, C98, C99, C100, C101, C102, C103, C104, C105, C106 |
 
 ### Cross-cutting
 
