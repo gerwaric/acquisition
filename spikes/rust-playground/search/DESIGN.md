@@ -94,6 +94,27 @@ walk needs (the audit's finding 5); session C adds it above this detail.
   each with the one read that closes it. The pattern classification of
   2026-09-17, which partitioned all 298, is withdrawn (the stage-5
   audit, finding 1); it is history at `3c4331f5`.
+- **C105 — the buckets of a count.** Known absence is not undecided
+  (C93): a stash item counted by character has no character and lands in
+  `none`; a readable base the class table lacks has a class that cannot
+  be established and lands in `undecided`. Each is printed only when
+  nonzero. A key an item holds several of (`line`, influence) puts the
+  item in several buckets, so for it only the first invariant holds; the
+  exact sum to the total holds for a key with one value per item (class,
+  league, tab, rarity), and the first counts test pins that case — ten
+  rare items by class: armour 6, weapon 3, undecided 1, total 10.
+  Beneath `undecided`, a tally by kind of reason — C93's closed list: a
+  body unread, a base the class table lacks, a price unresolved, a name
+  unbound — where it costs no undue complexity (owner, 2026-09-18: "If
+  we can bucket the undecided reasons by kind without undue complexity,
+  go ahead"). The tally is a diagnostic, not a partition: an item
+  undecided for two reasons counts under both, so it need not sum to the
+  bucket, whose count is the contract. Item-specific detail (which base)
+  shows on the item's row, never in the aggregate. A crossed table gains
+  at most one `none` and one `undecided` row or column per name, the
+  tally once per table. Open for the language reference: whether the
+  `none` and `undecided` buckets carry a pasteable selecting term as
+  C97's rows do.
 - **C96 — the realm scope.** The domain is stated outside the tree, shown
   resolved in the canonical request and answer, and never hoisted from a
   branch: `realm:pc or "# to maximum Life">=90` names pc and still admits
