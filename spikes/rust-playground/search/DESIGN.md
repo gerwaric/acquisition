@@ -122,7 +122,19 @@ walk needs (the audit's finding 5); session C adds it above this detail.
   problem without an `or` (Astra). An adapter may abbreviate an
   unambiguous positive realm restriction — `realm:pc` at the front of a
   plain query — into the scope; anything else is an error that names the
-  scope words.
+  scope words. That shorthand spells the scope; it is not a term.
+- **C96, C97 — realm is never a term, so a vocabulary row is selected
+  through the scope.** Owner, 2026-09-18: "Disallow realm as a search
+  term." A line selector carries no realm word. Under an all-realms
+  scope a term matches its line in every realm in scope; the vocabulary
+  still lists a template once per realm (C90's identity; counts and slot
+  ranges per realm), each row naming its realm, and the row's term with
+  the scope narrowed to that realm selects exactly that row — C97's "in
+  its realm". A condition that differs per realm inside one query is a
+  listed limit, its workaround two searches (parked with its trigger).
+  The error over a store holding more than one realm when none is named
+  stands as ruled (owner, 2026-09-18: "a search should error without a
+  realm named"); a store holding one realm has nothing to name.
 - **C98 (K4) — notification beside the check.** A long-lived frontend
   may listen for the daemon's job events and reload the moment a refresh
   lands, as the C++ app's signal did; that is responsiveness and is
