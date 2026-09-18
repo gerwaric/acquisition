@@ -7,11 +7,9 @@ Status: second pass complete — 2026-09-18
   not-old member** — the park's undecided case (C93), and the one count neither fix moved.
 - Following Path of Building on both counts — every variant an entry's `Has Alt Variant` header
   lets be chosen at once, and the catalyst's rescale of a tagged line — moves **70** rows, every
-  one `none` → `one`: **46** by the rescale, **24** by the selection, none by the pair; the strict
-  rule (one variant, nothing rescaled) still reproduces the first pass exactly. What is left of
-  `none` is drift, not structure: **513** of the 697 display a line no selection carries, 110 of
-  the 123 still on an alt-variant entry among them — 102 failing on one of the item's own implicits
-  — and no `none` row is out of range on a catalysed number, where 46 were.
+  one `none` → `one`: **46** by the rescale, **24** by the selection; the strict rule still
+  reproduces the first pass exactly. **513** of the 697 left at `none` display a line no selection
+  carries ("Why a unique fits no variant"; `REVIEW.md`, row 8).
 - The owner's Ashes of the Stars: 10 in the population — 6 `Current`, 4 `Pre 3.23.0`, none
   unfitted — and 1 foil counted apart. The three catalysed ones show `+19 to all Attributes`, which
   the `+20%` rescale of `+(10-16)` to `(12-19)` admits. None is `either`.
@@ -31,46 +29,15 @@ under the **strict** rule, one variant at a time with nothing rescaled, and unde
 a selection of variants rescaled by the item's catalyst; `arrays.py` censuses every other mod
 array, over every rarity. Per-item detail is the CSV, which carries both outcomes and what moved a
 row between them. Nothing here judges whether a line can still be made — that is the sources-read
-table, every claim of which cites a path in a clone at its commit (S178, R8). Definitions
-sharpened, none swapped:
+table, every claim of which cites a path in a clone at its commit (S178, R8).
 
-- **the fit pools implicit and explicit into one set** on each side, both ways, because the brief
-  states it over the two together (`Implicits: N` is parsed but unused), and lines match by cover,
-  not one to one;
-- **a number's sign is folded into its value**, so a displayed `-24% to Fire Resistance` and a
-  written `+(-25-50)%` reach one template; ranges written high to low (`(100-50)%`) are sorted; a
-  `-` straight after a digit is a range dash (`59-88`), not a sign;
-- **a header line is one Path of Building's own parser reads as one** (`src/Classes/Item.lua`
-  `ParseRaw`, lines 535-561, 660-860), and a base line is one `src/Data/Bases/*.lua` declares — an
-  entry may carry one base per variant, and a header may precede the base or be variant-tagged;
-- **catalyst quality** is a `properties` row named `Quality (<kind> Modifiers)`, again `Item.lua`
-  (lines 15, 673-677), so `Quality (Quantity)` on a map does not match;
-- **the frame type is a name, not an integer** in both stores: the population is `Unique`, and
-  `SupporterFoil`, which also carries `isRelic`, is counted apart;
-- **a selection is a non-empty set of at most one plus the entry's `Has Alt Variant…` headers**,
-  and a line belongs to it when any chosen variant lists it, an untagged line to every one
-  (`Item.lua` `CheckModLineVariant` 2139-2145; the headers at 752-762, the choices at 774-783). The
-  choices are independent, so a variant may be chosen twice, but a repeat shows nothing twice
-  without `Allow Duplicate Variants` (2148-2164), which no entry here carries;
-- **a line is rescaled when its `{tags:…}` prefix holds a tag the item's catalyst kind scales**
-  (`getCatalystScalar` 31-62, over the kind-to-tags table at 16-29, copied into `common.py`): each
-  scalable number is multiplied by `(100 + q) / 100` and floored **toward zero** at the line's
-  precision, as `itemLib.formatValue` does (`ItemTools.lua` 61-75, `floorSymmetric` `Common.lua`
-  766-773), and the item's own number is never un-scaled. A line with no `{tags:…}` never scales
-  (line 36), nor one written `{unscalable}` or ending ` - Unscalable Value` (32-34, 1083-1085), of
-  which the unique files hold none;
-- **which numbers scale, and at what precision, is `src/Data/ModScalability.lua`**, which
-  `findScalableLine` reaches by substituting values back into the line (`ItemTools.lua` 121-186,
-  289-295): of the 915 distinct tagged lines, 853 carry a number, and the table answers 848 of
-  them. The other 5 take the old method (301-355), scaling the first *n* numbers for *n* the count
-  of `(a-b)` ranges, or 1. Only a value written as a fixed number is substituted back here: a
-  range's stands for a roll, and never matches a key;
-- **the catalyst kind maps by position, not by spelling**: the items spell it as the game does
-  (`Elemental Damage`, `Physical and Chaos Damage`), `catalystDescriptorList` spells those two
-  shorter, and its test is equality (line 675) — so Path of Building itself sets no catalyst from a
-  `Quality (Elemental Damage Modifiers)` property. The two kinds keyed on `prefix` and `suffix`
-  read a mod line's own flag, not `{tags:…}` (48-53), and so have nothing to match on a unique's
-  line; no population item carries either kind.
+The rules the fit follows are documented where they run, each with the Path of Building lines it follows:
+`scripts/common.py` — which line is a header or a base, the sign folded into a number and ranges
+sorted, a selection on an alt-variant entry, the catalyst kind mapped by position, which lines and
+which numbers a catalyst rescales and how they round; `scripts/match.py` — the two-way fit by
+cover over implicit and explicit lines pooled, the frame types matched and counted apart. Nine
+definitions were sharpened from the briefs, none swapped; the list as prose is this page at
+`77bca830`.
 
 ## The numbers
 
@@ -132,20 +99,10 @@ header allows moves 24 rows, all of them `none` → `one`; the six Circle entrie
 as one of its own implicits (`13% increased Lightning Damage`), which no variant of the entry
 carries. The alt-variant shape is there in their explicit lines; the implicit sinks the fit first.
 
-| Entry | Variants / chosen at once | Items | Final outcome |
-| --- | --- | ---: | --- |
-| `ring.lua` #18 Circle of Fear | 7 / 2 | 26 | none 26 |
-| `ring.lua` #19 Circle of Guilt | 7 / 2 | 23 | none 23 |
-| `flask.lua` #13 Cinderswallow Urn | 18 / 2 | 21 | one 2, none 19 |
-| `ring.lua` #17 Circle of Anguish | 7 / 2 | 21 | none 21 |
-| `ring.lua` #21 Circle of Regret | 7 / 2 | 17 | none 17 |
-| `ring.lua` #20 Circle of Nostalgia | 7 / 2 | 14 | none 14 |
-| `jewel.lua` #178 Militant Faith | 20 / 3 | 12 | one 12 |
-| `jewel.lua` #79 Split Personality | 9 / 2 | 4 | one 4 |
-| `jewel.lua` #97 Might and Influence | 6 / 2 | 4 | one 4 |
-| `gloves.lua` #46 Tombfist | 11 / 4 | 3 | one 2, none 1 |
-| `ring.lua` #16 Circle of Ambition | 25 / 3 | 1 | none 1 |
-| `amulet.lua` #29 Eyes of the Greatwolf | 33 / 2 | 1 | none 1 |
+Per entry, items and final outcome: the six Circles (`ring.lua` #16–#21) 102, all `none`;
+Cinderswallow Urn 21 (`one` 2, `none` 19); Militant Faith 12, Split Personality 4 and Might and
+Influence 4, all `one`; Tombfist 3 (`one` 2, `none` 1); Eyes of the Greatwolf 1, `none`. `match.py`
+prints the table with variants and selection size; the rows are `data/unique-fit.csv` by `name`.
 
 ## The catalysed items
 
@@ -155,16 +112,12 @@ carries. The alt-variant shape is there in their explicit lines; the implicit si
 that fitted nothing now fit exactly one; the remaining 4 fail on a line no variant carries, never
 on a number. The six that fitted *unscaled* under the strict rule fit the same variant after the
 rescale, so it confirmed rather than reassigned them — though for one, Presence of Chayula, the
-entry carries no line its kind touches, and nothing of it was rescaled:
+entry carries no line its kind touches, and nothing of it was rescaled.
 
-| Row key | Item | Catalyst | Lines rescaled | Fits, strict → final |
-| --- | --- | --- | ---: | --- |
-| `2c6946b8e87b` | Astral Projector, Topaz Ring | Attribute +20% | 1 | `only` → `only` |
-| `d96cc8e4b6ce` | Dyadian Dawn, Heavy Belt | Resistance +4% | 2 | `Current` → `Current` |
-| `8cd23d45205c` | Le Heup of All, Iron Ring | Attribute +20% | 2 | `Current` → `Current` |
-| `e1f69b6dd103` | Mark of the Elder, Steel Ring | Attack +4% | 2 | `only` → `only` |
-| `953aeba68faf` | Presence of Chayula, Onyx Amulet | Attribute +5% | 0 | `only` → `only` |
-| `a0ca6bbb2a40` | The Torrent's Reclamation, Cloth Belt | Caster +20% | 1 | `Pre 3.16.0` → `Pre 3.16.0` |
+The six: Astral Projector, Mark of the Elder and Presence of Chayula (`only`); Dyadian Dawn and Le
+Heup of All (`Current`); The Torrent's Reclamation (`Pre 3.16.0`). `match.py` prints them with kind,
+quality and lines rescaled; in `data/unique-fit.csv` they are `catalyst_quality` yes with no
+`moved_by` and an outcome of `one`.
 
 ## The label-shape census
 
@@ -270,15 +223,10 @@ are under `PathOfBuilding/src/Data/`.
   against the same entry across the clone's history: separates an item Path of Building does not
   describe from a template that drifted.
 
-## Left out, and provenance
+## Provenance
 
-Cut, all restorable from the scripts: the full `Source:` value census (five printed), the
-`Upgrade:` chains, the `none` reasons by league, the icon-directory breakdown beyond the commonest,
-and — from this pass — the strict-to-final transition printed as a full four-by-four table (one
-cell of it is non-zero), the per-kind rescaled-line counts beyond the nine kinds listed, and the
-four catalysed items still `none`, which the CSV carries by `moved_by` and `none_reason`. This page
-still runs past the index's 12 KB; the next cut would be the *lacks* clause of each sources-read
-row, which is the reviewer's call.
+What each pass left out is named in its commit message (`1cf77994`, `77bca830`) and is restorable
+from the scripts; the page before text moved to the scripts and `REVIEW.md` is at `77bca830`.
 
 Every number above is printed by `variants.py`, `match.py` or `arrays.py`, which regenerate the
 four `data/` files byte for byte, checked twice; `arrays.py` and `data/other-arrays.csv` are
@@ -289,16 +237,6 @@ print numbers, and its dates and commits are citations.
 
 ## Review
 
-The reviewer's rows (2026-09-18, the session that wrote the briefs: first pass `f7ab0957`, second pass `5a89e710`); the text above is the runners', unedited. Rows 1–5 were written at the first pass (`1cf77994`) and their numbers are that pass's; a fate that the second pass changed says so.
-
-| # | Finding | Fate |
-| --- | --- | --- |
-| 1 | Acceptance checked by hand: the three scripts rerun and the four `data/` files are byte-identical; 4,020 + 229 + 767 + 761 = 5,777; the Ashes of the Stars rows reprinted as the table states; no `data/` file carries the account name. | holds |
-| 2 | The three catalysed Ashes of the Stars show `+19`, which is 16 at `+20%` rounded down — the top of `(10-16)`. The catalyst cross-count (46 of 152) is a floor on what rescaling would move, not a measure of it: no row was rescaled. | the owner asked for the rescale ("go ahead with both fixes including catalyst scaling"); the second pass ran it, row 7 |
-| 3 | Open questions 1 and 2 name a read that is already on this machine: `../trade-query/data/stats-2026-09-12.json` has an `ultimatum` group (63 entries, display names such as `Choking Miasma II`, ids `ultimatum.umod_<n>`) and a `veiled` group (20, `of the Veil`, `Catarina's Veiled`, ids `veiled.mod_<n>`). Neither is keyed by what the item gives (`FrostInfection`, `Suffix02`), so the questions stay open, narrower: what joins the API's `type` to a `umod`, and a slot id to a `veiled.mod`. | open, restated here |
-| 4 | "By rarity" in the arrays table counts lines, not items (`utilityMods` sums to its 3,225 lines); `enchantMods` sums to 2,939 of 2,948 lines and `veiledMods` to 67 of 68, so ten lines sit on items with no rarity the column names. | unlabelled unit; the CSV's `by_rarity` is the same |
-| 5 | The page is past the index's 12 KB (rule 3). Nothing was cut to fit: the sources-read *lacks* clauses the runner offered are the finding. | budget tripped, recorded in the index row; further past it after the second pass, same reason |
-| 6 | Second pass, acceptance checked by hand: scripts rerun, `data/` byte-identical; `other-arrays.csv`, `arrays.py`, this section and the two protected sections unchanged from `1cf77994`; the strict column is 4,020 / 229 / 767 / 761 with 171 either; the only off-diagonal cell is `none` → `one`, 70 rows, each with a `moved_by` (46 `catalyst`, 24 `selection`); scrub clean. | holds |
-| 7 | The rescale moved all 46 catalysed out-of-range rows and reassigned none of the six that had fitted unscaled. Its rounding is Path of Building's (`formatValue`, floor toward zero), not a rule GGG states anywhere on this machine; the owner's three Ashes of the Stars at `+19` agree with it, and no catalysed row is left out of range, which is the evidence it has. | stands; the game's own rounding is an open read |
-| 8 | The reviewer told the owner before the run that the selection fix would clear most of the 147; it cleared 24. The six Circle entries hold 102 of the rest, and each fails first on an implicit the entry does not list — 87 distinct lines over the 102 items (`unique-fit.csv`, `none_line`), against an entry that lists one implicit. The headline's "drift, not structure" does not describe these: the wording did not drift, the entry has no line to compare. Whether their explicit lines would fit a selection was not measured; a fit that sets implicits aside is a different rule, and a definition is the owner's. | the reviewer's estimate was wrong; the question is open, named here |
-| 9 | The runner found that Path of Building's own descriptor test (`Item.lua` 675, equality against `Elemental` and `Physical and Chaos`) sets no catalyst from the property as the game spells it; the rescale here maps by what the items show. | a finding about the source, recorded |
+Nine rows, split out under the index's rule 5: [`REVIEW.md`](REVIEW.md). Row 8 is the open one — the
+six Circle entries' 102 items fail on an implicit the entry does not list, and a fit that sets
+such implicits aside was not measured.

@@ -14,6 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import common  # noqa: E402
 from variants import OLD  # noqa: E402
 
+# Both stores give `frameTypeId` as a name, not an integer: the population is `Unique`, and
+# `SupporterFoil`, which also carries `isRelic`, is counted apart.
 FRAME_MATCHED = {"Unique"}
 FRAME_APART = {"SupporterFoil"}
 NAME_PREFIX = re.compile(r"^(?:<<[^>]*>>)+")
@@ -31,7 +33,10 @@ C = {name: i for i, name in enumerate(HEADER)}
 
 
 def displayed(item):
-    """The item's implicit and explicit lines — the pool the fit is measured over."""
+    """The item's implicit and explicit lines — the pool the fit is measured over.
+
+    The two arrays are pooled into one set on each side because the brief states the fit over
+    both together; an entry's `Implicits: N` header is parsed and not used."""
     out = []
     for array, texts, _ in common.mod_arrays(item):
         if array in FIT_ARRAYS:
