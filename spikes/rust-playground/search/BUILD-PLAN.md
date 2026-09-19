@@ -63,7 +63,8 @@ is provisional, this plan's later steps included.
 | 1 · the language | the `acquisition-search` crate (C89's edges in `tools/docs-check.sh` §5, each with a breaker; C47's lints); the tree and its JSON form; the parser over the whole query language; lowering; the canonical printer; every error the grammar defines, with its readings | the round-trip test; the corpus table; the holes table |
 | 2 · the derivation | a pure function, body and ingest columns in, the item out (C103): fields, displayed strings, lines as (kind, template, numbers) with slots and the ranged rule, and what could not be read, by collection | fixture tests; M2 against the census |
 | 3 · the store's read | C103's read, the revision, the coverage rows — **shown to the owner first** (below) | store tests, `REFRESH-SLICE.md`'s findings table as the checklist; the one-snapshot test; M1 |
-| 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verbs `acq search` and `acq show <id>` (the item as the deriver sees it: fields, place, every line with its kind, template and numbers, what was unread), their README tour lines, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the seat-1 acceptance rows; the refusal walk; the route property; M3, M4; then the seat |
+| 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verbs `acq search` and `acq show <id>` (the item as the deriver sees it: fields, place, every line with its kind, template and numbers, what was unread), their README tour lines, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the acceptance rows marked 4; the refusal walk; the route property; M3, M4 |
+| 5 · counts and the vocabulary | `--count`, `--cross`, `--sum` (C95); `none` and `undecided` buckets with routes (C105); `--count line[:text,…]` (C97) | AQ1; C105's two invariants pinned on a one-value key; the vocabulary's pasted term selects its row; M3 again; then the seat |
 
 **Step 1's evidence, in full**, since it is the step that runs first:
 
@@ -117,7 +118,14 @@ is provisional, this plan's later steps included.
 - *The limits register* (C102): S12, S52, S53, S107 each have a fixture
   that meets the limit and a test on the wording printed.
 
-## The first seat — after step 4
+## The first seat — after step 5
+
+After 5, not 4 (owner, 2026-09-19: "I'm ok delaying the seat for a good
+reason, especially if it's related to discovering the design and
+implementation"): the vocabulary is how a template is found without
+knowing it, it is the route to everything a `:` or `~` selector resolved
+to, and with `--sum` the seat exercises all six of the lines it revisits
+first.
 
 The owner, at a terminal, on his real store: `cargo build --workspace`,
 then `acq search`. It reads the store directly, as `acq tabs` does — no
@@ -137,41 +145,42 @@ acq search --realm pc '(rarity=rare base:ring) sum("# to maximum Life")>=90'
 acq search --realm pc 'undecided("# to maximum Life">=90)'
 acq search --realm all 'id:<a handle an answer printed>'
 acq show <an id an answer printed>
+acq search --realm pc 'rarity=rare base:ring' --count line:resist,life
+acq search --realm pc --count tab,league,rarity
+acq search --realm pc 'rarity=unique' --cross league,tab
 acq search --describe
 ```
 
 Composition whole (`and or not - ( ) holds undecided`); phrases and
 `text:`; `name` and `base` with `:` `=` `~`; `rarity`, `ilvl`, `is:`,
 `has:`; place (`league: tab: character: container:`); `id:`; `line(…)`
-whole, the shorthand, `sum(…)`; `--sort --desc --limit --json`.
+whole, the shorthand, `sum(…)`; `--sort --desc --limit --json`;
+`--count`, `--cross`, `--sum`, and the vocabulary.
 
 A row shows the lines the query touched (C100), so an item's other
 lines are read through `acq show <id>`, or by naming them in the query;
 `--fields` comes later. What is bounded with no route yet, each printed
-as a count and the unbuilt construct's name (rule 5): what a `:` or `~`
-selector resolved to, past the first few (the vocabulary, step 5); rows
+as a count and the unbuilt construct's name (rule 5): rows
 past `--limit` (a larger `--limit` serves; `--next` is step 10); the
 coverage list (`acq tabs` and `acq store characters` exist today;
 `--view locations` is step 10).
 
 What it refuses by name: `class:` (6), `pseudo.*` (7), `sockets` `links`
-`linked(…)` (8), `has:priced` and `price.*` (9), `--count` `--cross`
-`--sum` and the vocabulary (5), `--fields`, `--next`, `--explain`,
+`linked(…)` (8), `has:priced` and `price.*` (9), `--fields`, `--next`, `--explain`,
 `--context`, `--view locations`, `--print-request` `--request`
 `--rebind`, `show --against` (10).
 
-Of the six lines the seat revisits first (`decisions/search.md`,
-"Standing"), this seat exercises five — C91's ambiguity error, C92's
-binder and sort scalar, C93's undecided route, C98's basis as printed,
-C104's text — and C95's sum rule waits for step 5.
+It exercises all six of the lines the seat revisits first
+(`decisions/search.md`, "Standing"): C91's ambiguity error, C92's binder
+and sort scalar, C93's undecided route, C95's sum rule, C98's basis as
+printed, C104's text.
 
 ## After the seat — provisional, his to reorder
 
 | Step | Builds | Needs | Closes on |
 | --- | --- | --- | --- |
-| 5 · counts and the vocabulary | `--count`, `--cross`, `--sum` (C95); `none` and `undecided` buckets with routes (C105); `--count line[:text,…]` (C97) | 4 | AQ1; C105's two invariants pinned on a one-value key; the vocabulary's pasted term selects its row |
 | 6 · class | the class table as reference data, its source chosen under C106's admission test (`item-facts/data/class-evidence.csv` is where the read starts); `class:`; the reason *base not in the class table* | 4 | OQ1's slot, OQ5; C105's test as worded (ten rare items by class) |
-| 7 · computed values | the totals table (C94) after the coverage trial; `pseudo.total_res`; the sum-status table; then `pseudo.dps`, `pseudo.pdps` (C101) | 6 for the worked example | AQ2; the reference's worked example whole, every count as printed there |
+| 7 · computed values | the totals table (C94) after the coverage trial; `pseudo.total_res`; weights are decimals and a total is never rounded (the site's own `+94.5 total maximum Life` over `+90` life and `+9` Strength, `pseudo-stats/README.md`); the sum-status table; then `pseudo.dps`, `pseudo.pdps` (C101) | 6 for the worked example | AQ2; the reference's worked example whole, every count as printed there |
 | 8 · sockets | `sockets`, `links`, `sockets.<colour>`, `linked(…)` (C101); undecoded shapes counted unread (S16) | 4 | OQ3's socket reading |
 | 9 · price | the effective price joined read-only (C81, C100); the crate links `acquisition-plan`; the basis gains the intent revision; the reason *price unresolved* | 4 | OQ6: the item found with the owner's own price; a valuation asked for is a stated limit (C102) |
 | 10 · continuing and exchanging | `--next` refused across a changed basis; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | AQ3 whole; M5 |
@@ -237,7 +246,7 @@ that produced them.
 | --- | --- | --- |
 | M1 | the streaming body read: wall time and peak memory over the whole corpus | step 3 |
 | M2 | the deriver against the census: templates, counts, the ranged split, unread shapes | step 2 |
-| M3 | a CLI ask, process start to exit, `--json` to `/dev/null`, over the backup copy (its item count recorded), for every acceptance query built so far. Warm: the median of ten consecutive asks. First: the first ask after the copy is written, reported as seen — this machine's file cache is not controlled, so it is never the budget's number. Both profiles: the release build is judged against 500 ms, the debug build is what the seat feels | step 4 before the seat; again at 5, 7 and 9 as their queries land |
+| M3 | a CLI ask, process start to exit, `--json` to `/dev/null`, over the backup copy (its item count recorded), for every acceptance query built so far. Warm: the median of ten consecutive asks. First: the first ask after the copy is written, reported as seen — this machine's file cache is not controlled, so it is never the budget's number. Both profiles: the release build is judged against 500 ms, the debug build is what the seat feels | steps 4 and 5, before the seat; again at 7 and 9 as their queries land |
 | M4 | `~` over all displayed text (the reference: "its cost … is unmeasured") | step 4 |
 | M5 | a re-derive while a refresh is writing — a mock session over a fixture store | step 10 |
 | M6 | the totals coverage trial | step 7 |
@@ -320,8 +329,8 @@ One line each will do. 4 and 5 came from an outside review of this plan
    and removed, each row marked) at step 11, so the old verb can retire;
    `removed` alone waits for someone asking.
 
-4. **No spelling for a node forced true or false — wanted before step
-   1.** `--explain` prints "its transformed query" with one node forced
+4. **No spelling for a node forced true or false — ruled 2026-09-19:
+   `true()` and `false()`** (owner: "agree with recommendation"). `--explain` prints "its transformed query" with one node forced
    each way, inside a member group too; a bare word is an error and the
    printer never simplifies, so the tree needs a constant and the text a
    way to write it. Adding it later breaks nothing (an error becomes a
@@ -329,14 +338,24 @@ One line each will do. 4 and 5 came from an outside review of this plan
    node `{"const": true}` written `true()` and `false()` — the call
    shape `holds(…)` and `undecided(…)` already have, so no bare word
    gains a meaning.
-5. **What `name` and `base` mean, rarity by rarity — before step 2.** A
-   magic item has no name of its own: the game shows its type line,
-   `Seething Divine Life Flask of Staunching`, over the base
-   `Divine Life Flask`. Whether `name:seething` finds it decides
-   matches, so it is contract detail, not a spelling.
-   *Recommendation:* `name` is the header the player reads — the item's
-   own name where it has one, else its type line; `base` is the base
-   type; a phrase already tests both.
+5. **The header: `name`, the type line, `base` — before step 2.** GGG
+   gives every item three strings. Over the census's store copy (22,721
+   live items): every magic (2,423), normal (3,139), gem and currency
+   item has no name, and neither do 372 of 5,785 rares and 86 of 3,077
+   uniques (unidentified); the type line differs from the base on 2,399
+   magic items (the affix names — `Frigid Sage Wand of Craft` over
+   `Sage Wand` — which nothing else in the body carries, S52), 234
+   normal (`Superior …`), 172 unique and 97 rare (`Synthesised …`).
+   The draft's "`name` is its own name, else its type line" is
+   withdrawn on those numbers: it would make `name:` a second base
+   search over most of the corpus and empty `has:name` of meaning.
+   *Recommendation:* three text things, each what GGG gives — `name`
+   (absent where the item has none; absent is false, `-has:name` asks
+   for it), `typeline` (GGG's own word, `typeLine`; never `type`, which
+   on the trade site means the base), `base` — and a phrase tests all
+   three. The C++ app's pretty name (`name + " " + typeLine`, S24) is
+   not rebuilt: it joins two displayed rows, which a phrase never does,
+   and `name:x or typeline:x` says it.
 
 Observation, mine unless the owner wants it: C105's first test is
 worded with groupings above class (`armour`, `weapon`), which are the
