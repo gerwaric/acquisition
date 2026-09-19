@@ -63,8 +63,15 @@ is provisional, this plan's later steps included.
 | 1 · the language | the `acquisition-search` crate (C89's edges in `tools/docs-check.sh` §5, each with a breaker; C47's lints); the tree and its JSON form; the parser over the whole query language; lowering; the canonical printer; every error the grammar defines, with its readings | the round-trip test; the corpus table; the holes table |
 | 2 · the derivation | a pure function, body and ingest columns in, the item out (C103): fields, displayed strings, lines as (kind, template, numbers) with slots and the ranged rule, and what could not be read, by collection | fixture tests; M2 against the census |
 | 3 · the store's read | C103's read, the revision, the coverage rows — **shown to the owner first** (below) | store tests, `REFRESH-SLICE.md`'s findings table as the checklist; the one-snapshot test; M1 |
-| 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verbs `acq search` and `acq show <id>` (the item as the deriver sees it: fields, place, every line with its kind, template and numbers, what was unread), their README tour lines, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the acceptance rows marked 4; the refusal walk; the route property; M3, M4 |
-| 5 · counts and the vocabulary | `--count`, `--cross`, `--sum` (C95); `none` and `undecided` buckets with routes (C105); `--count line[:text,…]` (C97) | AQ1; C105's two invariants pinned on a one-value key; the vocabulary's pasted term selects its row; M3 again; then the seat |
+| 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verbs `acq search` and `acq show <id>` (the item as the deriver sees it: fields, place, every line with its kind, template and numbers, what was unread; the raw body on request, by a flag, as `DESIGN.md` promises of `show`), their README tour lines, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the acceptance rows marked 4; the refusal walk; the route property; M3, M4 |
+| 5 · counts and the vocabulary | `--count`, `--cross`, `--sum` (C95); `none` and `undecided` buckets with routes (C105); `--count line[:text,…]` (C97) | AQ1; C105's two invariants pinned on a one-value key; C95's sum over a fixture of three kinds — an item with the value, one lacking it (adds nothing, counted as lacking), one whose value is unread (the subtotal marked incomplete, never a total); the vocabulary's pasted term selects its row; M3 again; then the seat |
+
+**Before step 1, the reference is brought level with what was ruled
+here** — the escapes and the multi-row mod (gap 1), `true()` and
+`false()` (gap 4), the slotless check before lowering — in
+`search/DESIGN.md`, the owner approving the wording, since step 1's
+corpus is complete against that page and this file is deleted at the
+close. The plan keeps the pointer and the evidence, never the rule.
 
 **Step 1's evidence, in full**, since it is the step that runs first:
 
@@ -148,6 +155,7 @@ acq show <an id an answer printed>
 acq search --realm pc 'rarity=rare base:ring' --count line:resist,life
 acq search --realm pc --count tab,league,rarity
 acq search --realm pc 'rarity=unique' --cross league,tab
+acq search --realm pc 'rarity=currency' --count base --sum stack
 acq search --describe
 ```
 
@@ -216,8 +224,9 @@ evidence at step 1. Names are illustrative, as in the reference.
 
 Nothing, until step 11. It stays as built while the design can still
 cycle — the old verb is also a control the owner can run beside the new
-one. Step 11 retires, in one commit: the verb (`acq items show` becomes
-`acq show`), the MCP's substring tool, `Store::search`, and the
+one. Step 11 retires, in one commit: the verb (`acq items show` is
+already answered by `acq show <id>` with its raw flag, there since step
+4, so no inspection is lost), the MCP's substring tool, `Store::search`, and the
 `items_names` index it never used (S124, S136) — the README tour line,
 `CLI-REFERENCE.md` and `MCP-REFERENCE.md` regenerated. Retiring it needs
 the new verb to answer what `--removed` answers, which is gap 3 below.
@@ -356,6 +365,14 @@ One line each will do. 4 and 5 came from an outside review of this plan
    three. The C++ app's pretty name (`name + " " + typeLine`, S24) is
    not rebuilt: it joins two displayed rows, which a phrase never does,
    and `name:x or typeline:x` says it.
+
+6. **A wrong example in the totals detail — open, before step 7.**
+   `search/DESIGN.md` (C94, C95) says a row with no slot "contributes
+   its weight when the line is present, so the all-elemental line counts
+   three times". Two operations: `+20%` through `arg1` at weight 3 is
+   60; a no-slot row at weight 3 is 3. The same paragraph cites S49 for
+   the 0.5 weight, whose evidence is `pseudo-stats/README.md`'s life
+   capture. Wording proposed to the owner 2026-09-19; not applied.
 
 Observation, mine unless the owner wants it: C105's first test is
 worded with groupings above class (`armour`, `weapon`), which are the
