@@ -1,5 +1,7 @@
 # 10 — Item search: the consolidated forms and one worked example
 
+*Harvested 2026-09-19 into `search/DESIGN.md` (the language reference), which is the authority; this page is history as it stood, and says* filter *where the reference says* query.
+
 *Amended 2026-09-19 with the owner's changes (file 11): the `pseudo.` namespace, computed values in discovery, the `~` pattern match, the projection written `.<slot>`, what `text` searches, `arg1` for positions, underscored names, no `has:` on a computed value, and bare words refused.*
 
 The consensus of files 1–9 between Astra and Fable, for the owner's seat. It is **not harvested**: `decisions/search.md` and `search/DESIGN.md` are unchanged, and §8 lists what adopting this would touch. Flag and key names are the builder's; the shapes are the agreement. Field, total and class names are illustrative — `--describe` supplies the real ones.

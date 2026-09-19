@@ -7,8 +7,8 @@ It is evidence and working material, not deliberation and not rulings:
 a session that thinks out loud writes a numbered `brainstorming-notes/`
 note that cites a track by path; a ruling lands in `decisions/`. Nothing
 here is an authority for either — with one exception the registry cites:
-`DESIGN.md`, the binding contract detail of the search rulings until
-code takes each paragraph (owner, 2026-09-18).
+`DESIGN.md`, the language reference and the binding contract detail of
+the search rulings until code takes each paragraph (owner, 2026-09-18).
 
 **Bootstrap:** load this file, then `DIGEST.md` — accepted 2026-09-17, the
 entry point in place of the track READMEs. Reach a README only to verify a
@@ -106,7 +106,7 @@ the two blind proposals it produced are
 `548ecc4f`)
 (`brainstorming-notes/26-search-review-by-fable.md`,
 `brainstorming-notes/27-search-review-by-astra.md`), and the reconciliation,
-`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the model page, the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17; its contract detail is `DESIGN.md`. The stage-5 audit's session C (finding 5, the language reference) is open: `search-forms/` holds the design dialogue that chose the surface — files 10 and 11 are what the harvest reads; the audit's Fates row 5 says where it stands.
+`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the model page, the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17; its contract detail is `DESIGN.md`, which opens with the language reference — the surface on one page, an example per construct (the stage-5 audit's finding 5, harvested 2026-09-19). `search-forms/` is the design dialogue that chose that surface, history: files 10 and 11 are what was harvested, and the owner's words are whole in file 11.
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search

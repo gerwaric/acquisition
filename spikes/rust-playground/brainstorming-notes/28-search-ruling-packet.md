@@ -21,102 +21,20 @@ that changed a line's meaning recorded in §4, questions 6–9. The lines
 as drafted here — with their *checked* / *chosen here* / *ruled* marks
 and note 31's arrows — are history at `f20fbf11`; the standing of each
 line is the header of `decisions/search.md`. This note keeps what the
-registry cannot: the combined model on one page (§1), the owner's
-answers verbatim (§4), and Astra's check; the contract detail once kept
+registry cannot: the owner's answers verbatim (§4) and Astra's check
+(the combined model on one page, once §1, is `search/DESIGN.md`'s
+language reference); the contract detail once kept
 in §2b is `search/DESIGN.md`, binding until code takes it. Under
 decision 15 every line but the ruled ones is provisional until the
 owner's first seat at a surface he can use.
 
 ## 1. The combined model on one page
 
-No document holds the model these rulings describe: it is spread over
-seventeen rows and seven corrections. Note 22's own test is that the
-model and grammar fit one page, so here it is. Every sentence traces to
-a row or a K; what does not is marked **new**. This page is not a third
-proposal and is not harvested — the decisions are; the page is how to
-check that they cohere.
-
-**An item is what it displays, where it is, and what you said about
-it** (B). What it displays is a collection of **lines**, repeats kept;
-each line is one *occurrence* with a *kind*, a *template* and its *numbers* in order
-(row 1). Kind is the source array with the flags the line carries, both
-kept (Astra, row 1). Everything else a body holds is a *field* or a
-*flag* from a closed list, or is seen through `show`; there is no path
-into the body (row 10). Place — league, tab, character, container —
-comes from the store's columns and is asked like anything else; the
-**realm is the search's scope**, stated outside the conditions, printed
-back in every answer, never hoisted from a branch; naming none over a
-two-realm store is an error, and an all-realms scope is explicit (2e;
-owner, §4 question 6). Intent joins read-only: `priced`, the effective
-price (row 6, C81); an item's `note` is a fact from the body, not intent.
-
-**A term** is a thing and optionally a comparison; terms side by side
-are *and*; `-`, `or`, parentheses and `holds(…)` with a lower and upper
-bound compose across everything (row 2, K5). A comparison on a line
-binds **one occurrence** (2a). Conditions on several numbers of one
-line are one term, so they hold together on one occurrence (K1); a
-**ranged line** (`# to #`) names its numbers `low` and `high` and
-admits `avg` — `"Adds # to # Cold Damage" low>=12 high<=28` — and a
-comparison, sort or sum naming no slot on such a line is an error that
-lists the words (the owner's syntax, §4 question 7). A refinement is
-the old query, parenthesised, and a new term; `has:` asks presence on
-purpose (C91, C93). Socket colours are asked over the whole item or
-within one link group, every colour and count met by the same group
-(row 8, S59). The item's sum is asked for by name: `sum("…")`, or a
-shipped **total** whose definition is one reference table (2c, the
-withheld seed, K3). **Absent is false** and counted — claimed only when
-everything that could hold the thing was readable; **undecided** — an
-unread body, a base the class table lacks, an unresolved price, an
-unbound name — is counted apart, always with its reason (2b, K2;
-*chosen here*: undecided propagates, one of K2's two routes; widened
-past decode failure by the owner, §4 question 8).
-
-**One operation: ask** (B, row 6). The answer is one shape:
-
-```
-query    canonical text, and its tree in JSON
-basis    the snapshot answered from (K4)
-scope    items searched; realms, leagues; never fetched; oldest fetch; undecided
-terms    per term: resolved to; matched, failed, lacked, undecided; reached only together
-total    matches
-rows | counts | one item
-next     returned, total, the continuation (bound to the basis)
-```
-
-*Counts* are facets (one table per name), a crossed table, either with
-an optional summed thing (2d, K3); counting by `line` under the query in
-hand **is** the vocabulary read, each row carrying the term that selects
-it (row 3). *One item* with `--against` is the why-not. A trade URL
-translates in, a query translates out, each with a per-clause report
-and a remainder (row 5). There is no SQL surface (the owner,
-2026-09-17, §4 question 3); the derivation keeps a table shape — lines
-as rows, fields as columns, place by name — so an export can be added
-when a recorded question asks for it.
-
-### The concept inventory, and what it cost
-
-Astra's check asked for this and said plainly that subtracting A's 16
-from B's 11 would mislead. The combined model has **16**: item and its
-three parts · line as occurrence · kind (two coordinates) · name (field,
-total) · term and comparison · slot comparisons in one term ·
-composition with bounded `holds` · `sum` and the totals table · group
-binding for sockets · absent against undecided · place terms and the realm rule · ask and the one
-answer shape · the three views, with two count shapes and a sum · the
-vocabulary as counts by line · basis and continuation · the trade
-translation and its remainder.
-
-So it is **not simpler than B**; it is B's surface carrying A's
-precision. Gone from A: `any(collection, P)`, arithmetic and `if` on the
-surface, three-valued logic for absence, `select`/`order` clauses, the
-raw accessor, mandatory `in S`. Gone from B: user names (parked), the
-item-sum default, the mean inside `sum`, whole-item-only colours. What
-survives regardless of spelling, as Astra warned: occurrence binding,
-line summation, two summary shapes, group binding for sockets, decode
-failure.
-
-**Owed and not done here:** the mistake walk. It needs a seat making
-errors against a page, and neither review validates this combination.
-It is stage 6's first step, not a park (§3).
+Superseded 2026-09-19 by the language reference in `search/DESIGN.md`,
+which the registry's header now names as the one page. The model as it
+stood at the stage-5 harvest — the page, its concept inventory of 16
+and the mistake walk it owed — is this note at `3ef80173`; two paper
+walks have run since (`search/search-forms/`, files 6 and 7).
 
 ## 2. The lines — harvested
 

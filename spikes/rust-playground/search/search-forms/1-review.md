@@ -1,6 +1,6 @@
 My assessment is that **the search has a strong semantic foundation, but its interaction model is less mature than its rules for evaluating items**. Note 35 improves the proposed language substantially. I would keep much of it, but I would not treat the remaining work as choosing spellings and then writing examples. Several choices still affect how people form, revise, and trust a question.
 
-I read the audit, [note 35](/Users/tom/Development/GitHub/gerwaric/acquisition/spikes/rust-playground/brainstorming-notes/35-search-forms-table.md), the current contract, the research digest, and the human and agent findings. I also checked GGG’s published API reference. The assessment below is my design judgment, independent of whether a change fits the current project rulings.
+I read the audit, note 35 (at `a123e02a`), the current contract, the research digest, and the human and agent findings. I also checked GGG’s published API reference. The assessment below is my design judgment, independent of whether a change fits the current project rulings.
 
 What I particularly like:
 

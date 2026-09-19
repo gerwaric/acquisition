@@ -1,5 +1,7 @@
 # 11 — The owner's amendments to the consolidated page (2026-09-19)
 
+*Harvested 2026-09-19 into `search/DESIGN.md`; this file stays as the owner's words whole. Both open items closed at the harvest: the ranged line is ruled (the reference, *Slots*), and league as an adapter default is in the sticky-realm park (`decisions/search.md`).*
+
 After reading file 10 the owner asked four questions "around the edges"; the exchange produced nine changes, two open items and two things left as they were. File 10 carries the changes; this file records what was decided and why, with his words.
 
 ## Changed
