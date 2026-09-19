@@ -1,0 +1,286 @@
+# Item search — the build plan (stage 6)
+
+Status: draft for the owner's edit — 2026-09-19. Nothing is built until
+he has edited it. It is a brief: deleted at the slice's close and cited
+by hash, when the closed record (`SEARCH-SLICE.md`, in
+`PRICING-SLICE.md`'s mold) takes what survived.
+
+Authorities, not restated here: `decisions/search.md` (C89–C107),
+`search/DESIGN.md` (the language reference and the contract detail),
+`search/DIGEST.md` (the acceptance set, the limits register), note 23
+(row 6, decision 15). Under decision 15 everything after the first seat
+is provisional, this plan's later steps included.
+
+## How a partial build stays honest
+
+1. **The parser knows the whole language from step 1; the evaluator
+   knows part of it.** What is not built lives in one closed list in the
+   crate, each entry a construct of the reference and the step that
+   builds it. A request that uses one is refused before anything is
+   evaluated — `not built: pseudo.* (step 7)` — an error of its own kind,
+   never the unknown-name error, never undecided, never an empty answer.
+   `--describe` prints the same list. One test walks it: every construct
+   of the reference either evaluates or refuses by that name, and the
+   list the test walks is the list `--describe` prints.
+2. **Scope, basis and undecided are in the first answer or there is no
+   answer.** The first surface prints the scope block, the basis, the
+   four counts per term and the undecided items with their reasons. A
+   reason whose source is not built yet (a base the class table lacks, a
+   price unresolved) cannot occur, because the construct that needs it
+   is refused.
+3. **Tests pin the crate's boundary** — a request in, an answer out, as
+   JSON — and the CLI's `--json`; text is a function of JSON (C53).
+   Every count in a fixture answer is worked by hand first, as the
+   reference's worked example is.
+4. **A rule the reference does not state stops the step** and comes to
+   the owner if it changes what a user types; otherwise it is a row in
+   the slice record's observations. Three found while planning are at
+   the foot of this file.
+5. **The reference stays whole in `search/DESIGN.md` until the first
+   seat has ruled.** Module docs cite it by section and take no
+   paragraph before then: the seat reads that page and may reopen it,
+   and two copies would rot. *A choice — the header there says a
+   paragraph leaves when a module doc carries it; this delays the
+   carrying, not the rule.*
+6. **Whose store.** The agent tests on fixtures built through the
+   store's own ingest, and measures on a sqlite `.backup` copy under a
+   track's `raw/`, always with `ACQ_STORE_DIR` set. The owner's store is
+   opened only by the owner, at a terminal. No GGG traffic anywhere in
+   this plan; the one daemon is M5's, a mock session.
+
+## Steps to the first seat
+
+| Step | Builds | Closes on |
+| --- | --- | --- |
+| 1 · the language | the `acquisition-search` crate (C89's edges in `tools/docs-check.sh` §5, each with a breaker; C47's lints); the tree and its JSON form; the parser over the whole query language; lowering; the canonical printer; every error the grammar defines, with its readings | the round-trip test; the corpus table; the holes table |
+| 2 · the derivation | a pure function, body and ingest columns in, the item out (C103): fields, displayed strings, lines as (kind, template, numbers) with slots and the ranged rule, and what could not be read, by collection | fixture tests; M2 against the census |
+| 3 · the store's read | C103's read, the revision, the coverage rows — **shown to the owner first** (below) | store tests, `REFRESH-SLICE.md`'s findings table as the checklist; M1 |
+| 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verb `acq search`, its README tour line, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the seat-1 acceptance rows; the refusal walk; the route property; M3, M4; then the seat |
+
+**Step 1's evidence, in full**, since it is the step that runs first:
+
+- *Round trip.* Over a generated population of trees (proptest, already
+  a dev-dependency of the plan crate) and over the corpus: parsing the
+  printed text of any tree gives that tree; printing a parsed canonical
+  text gives that text; the JSON form survives the same trip; shorthand
+  lowers once (`"T">=90` prints as `line("T" arg1>=90)`).
+- *Invariant 1* as a test: the printer never reorders, flattens, merges,
+  deduplicates or simplifies — `(a b) c` and `a b c` stay two trees.
+- *The corpus* — one committed file of cases, each a text with its
+  canonical form or its error: every construct of the reference at least
+  once, every error the reference names with the readings it shows, and
+  the acceptance queries below. The table printed at the close maps
+  reference construct → case, so a construct with no case is visible.
+- *The holes table*: what the parser met that the reference does not
+  state, each marked *changes what a user types* (the owner's) or not
+  (an observation).
+- Names are not step 1's: the parser accepts `field op value` shapes and
+  the binder (step 4) knows the fields, so `mod(` stays an ordinary
+  unknown name as the reference says.
+
+**Steps 2–4, the evidence that is not obvious:**
+
+- *M2 is a differential, not a unit test.* The committed census
+  (`item-facts/data/mod-templates.csv`, 6,928 rows) was taken over three
+  inputs, so the census script is first re-run over one — the spike copy
+  of 2026-09-13 still in `item-facts/raw/` — and the Rust deriver over
+  that same copy must reproduce its templates, counts and ranged split,
+  or each difference is explained. It runs locally, never in the gate
+  (the input is `raw/`).
+- *The route property*: every route the answer prints, run as the
+  request it is, returns exactly the members it counted.
+- *Invariants 2, 3 and 6* as tests: a `:` or `~` selector prints back as
+  authored with its binding beside it; every corpus query is valid over
+  an empty store; a dump of every table is the same before and after a
+  search.
+- *The limits register* (C102): S12, S52, S53, S107 each have a fixture
+  that meets the limit and a test on the wording printed.
+
+## The first seat — after step 4
+
+The owner, at a terminal, on his real store: `cargo build --workspace`,
+then `acq search`. It reads the store directly, as `acq tabs` does — no
+daemon is started or spoken to. If his store holds more than one realm
+every search names `--realm` (C96); tiring of that is the sticky-realm
+park's trigger, and it is his to fire.
+
+What he can ask:
+
+```
+acq search --realm pc '"# to maximum Life">=90' --sort 'line("# to maximum Life").arg1' --desc --limit 10
+acq search --realm pc 'rarity=rare base:ring line(template:resistance is:fractured)'
+acq search --realm pc 'name="Ashes of the Stars"'
+acq search --realm pc 'line(template:explode) -is:corrupted tab:dump'
+acq search --realm pc 'line("Adds # to # Cold Damage" low>=15 high<=45)'
+acq search --realm pc '(rarity=rare base:ring) sum("# to maximum Life")>=90'
+acq search --realm pc 'undecided("# to maximum Life">=90)'
+acq search --realm all 'id:<a handle an answer printed>'
+acq search --describe
+```
+
+Composition whole (`and or not - ( ) holds undecided`); phrases and
+`text:`; `name` and `base` with `:` `=` `~`; `rarity`, `ilvl`, `is:`,
+`has:`; place (`league: tab: character: container:`); `id:`; `line(…)`
+whole, the shorthand, `sum(…)`; `--sort --desc --limit --json`.
+
+What it refuses by name: `class:` (6), `pseudo.*` (7), `sockets` `links`
+`linked(…)` (8), `has:priced` and `price.*` (9), `--count` `--cross`
+`--sum` and the vocabulary (5), `--fields`, `--next`, `--explain`,
+`--context`, `--view locations`, `--print-request` `--request`
+`--rebind`, `show --against` (10).
+
+Of the six lines the seat revisits first (`decisions/search.md`,
+"Standing"), this seat exercises five — C91's ambiguity error, C92's
+binder and sort scalar, C93's undecided route, C98's basis as printed,
+C104's text — and C95's sum rule waits for step 5.
+
+## After the seat — provisional, his to reorder
+
+| Step | Builds | Needs | Closes on |
+| --- | --- | --- | --- |
+| 5 · counts and the vocabulary | `--count`, `--cross`, `--sum` (C95); `none` and `undecided` buckets with routes (C105); `--count line[:text,…]` (C97) | 4 | AQ1; C105's two invariants pinned on a one-value key; the vocabulary's pasted term selects its row |
+| 6 · class | the class table as reference data, its source chosen under C106's admission test (`item-facts/data/class-evidence.csv` is where the read starts); `class:`; the reason *base not in the class table* | 4 | OQ1's slot, OQ5; C105's test as worded (ten rare items by class) |
+| 7 · computed values | the totals table (C94) after the coverage trial; `pseudo.total_res`; the sum-status table; then `pseudo.dps`, `pseudo.pdps` (C101) | 6 for the worked example | AQ2; the reference's worked example whole, every count as printed there |
+| 8 · sockets | `sockets`, `links`, `sockets.<colour>`, `linked(…)` (C101); undecoded shapes counted unread (S16) | 4 | OQ3's socket reading |
+| 9 · price | the effective price joined read-only (C81, C100); the crate links `acquisition-plan`; the basis gains the intent revision; the reason *price unresolved* | 4 | OQ6: the item found with the owner's own price; a valuation asked for is a stated limit (C102) |
+| 10 · continuing and exchanging | `--next` refused across a changed basis; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | AQ3 whole; M5 |
+| 11 · the close | the MCP tool over the same request, with an agent's seat as its own consumer (P2); `acq items search` retired (below); the closed record; this file deleted; `search/` shrunk; `DESIGN.md`'s paragraphs into module docs | all | AQ1–AQ5 driven through the MCP; the gate; the kill-list recheck |
+
+Not in this plan: the trade translation (C99, headed "Direction"). No
+acceptance question needs it; whether it is a step here or the next
+slice is the owner's call, best made after a seat.
+
+## The acceptance set as tests
+
+One test per question over a fixture store, through the crate's
+boundary, plus one CLI `--json` smoke each. The queries enter step 1's
+corpus, so that every question can be written in the language is
+evidence at step 1. Names are illustrative, as in the reference.
+
+| Id | The test asks | Green at |
+| --- | --- | --- |
+| OQ1 | `class:ring rarity=rare pseudo.total_res>=60`, rows showing the resist and attribute lines; refined: `line("T" is:fractured)` | line parts 4 · whole 7 |
+| OQ2 | `name="<a unique>"`: one item or a zero answer naming the scope, its lines whole with values, its place; nothing says legacy (C107) | 4 — and it fires the variant park |
+| OQ3 | a mod, a base, a unique, socket colours, each its own query | 4 · sockets 8 |
+| OQ4 | a staff by what is remembered of it (`class:`, `base:`, a phrase), item and tab; `--describe league` says place, never origin (S177) | `base:` 4 · `class:` 6 |
+| OQ5 | a level bracket across tabs: `reqlevel=..30`, `-has:reqlevel` (absence needs the requirements readable), counted by tab | 6, counts 5 — fires the category park |
+| OQ6 | the item found, `has:priced`, the price as the owner set it; no valuation | 9 |
+| OQ7 | one line across every tab and character, item and tab on each row; `--count tab` | rows 4 · count 5 |
+| AQ1 | `--count tab,league,rarity`: three tables, no rows | 5 |
+| AQ2 | `(<the OQ1 query>) pseudo.total_res>=60`: the old query parenthesised and one term | mechanism 4 (with `sum`) · as worded 7 |
+| AQ3 | each row names what matched; a zero answer names the scope searched; `show --against` | 4 · why-not 10 |
+| AQ4 | `id:<handle>`, every printed id accepted back (S198) | 4 |
+| AQ5 | `"# to maximum Life">=90` sorted: a count and a sorted list across every mod array | 4 |
+
+## What happens to `acq items search`
+
+Nothing, until step 11. It stays as built while the design can still
+cycle — the old verb is also a control the owner can run beside the new
+one. Step 11 retires, in one commit: the verb (`acq items show` becomes
+`acq show`), the MCP's substring tool, `Store::search`, and the
+`items_names` index it never used (S124, S136) — the README tour line,
+`CLI-REFERENCE.md` and `MCP-REFERENCE.md` regenerated. Retiring it needs
+the new verb to answer what `--removed` answers, which is gap 3 below.
+
+## Parks whose triggers the build fires
+
+| Park | Fired by | Then |
+| --- | --- | --- |
+| the totals coverage trial (`decisions/search.md`) | step 7, before the first recipe is accepted | one script over the census; the result decides the recipe's rows |
+| a grouping above class | step 6 reaching OQ5 | brought to the owner as an acceptance task before OQ5 counts as covered |
+| a unique's variant as a field (C107) | step 4 reaching OQ2 | the trigger reopens the question, not the build: brought to the owner with his Ashes of the Stars as the first test |
+| the digest's kill list | step 11, the last acceptance test written | recheck against the tests and the reference before any removal |
+| a persisted projection; the store's search-at-scale park | M3, only if a CLI ask exceeds 500 ms | reported with the numbers; it opens the experiment among the candidates, never persistence by default. The seat goes ahead: slow is not wrong |
+| pricing on the MCP (`decisions/frontends.md`) | step 11, the read model landed | the owner's call whether it is built then |
+| the sticky default realm | the owner's seat, not a step | his to fire |
+
+Every other park's trigger is a recorded question or an ask, which a
+seat may produce and a step cannot.
+
+## Measurements the build owes
+
+All on a `.backup` copy, recorded in the slice record with the command
+that produced them.
+
+| # | What | When |
+| --- | --- | --- |
+| M1 | the streaming body read: wall time and peak memory over the whole corpus | step 3 |
+| M2 | the deriver against the census: templates, counts, the ranged split, unread shapes | step 2 |
+| M3 | a CLI ask end to end, cold and warm, per acceptance query, against 500 ms | step 4, before the seat |
+| M4 | `~` over all displayed text (the reference: "its cost … is unmeasured") | step 4 |
+| M5 | a re-derive while a refresh is writing — a mock session over a fixture store | step 10 |
+| M6 | the totals coverage trial | step 7 |
+
+Not owed by this build: whether job events reach a client that did not
+submit the job (C98) — a resident client's question, the GUI's.
+
+## The store's read (C103) — the first showing
+
+Shown again at the top of step 3, with real signatures and the
+verification below done, before any of it is built. One public read
+beside the snapshot reads, in one read transaction:
+
+```
+header   revision · the account's identity · the realms the store holds
+         every live location in scope — realm, league, kind, id, parent,
+         name, listed_at, fetched_at (none = never fetched)
+items    streamed, one at a time, in a stable order:
+         id · realm · league · location kind and id · container ·
+         socketed_in · first_seen · last_seen · removed_at · the body as text
+scope    one realm or all · live, or live and removed
+```
+
+- League is joined as `read_items` joins it (S131): a character's items
+  take the character's current listing league, and a league-less
+  character's items are carried with no league — `none` in a count.
+- The body is handed over as text, unparsed. `Store::search` today turns
+  a body that does not parse into a silent null; here the search crate
+  parses, so that failure is an undecided reason on that item.
+- The deriver takes the body and a plain struct of those columns that
+  the search crate owns, so it names no store type (C103).
+- **The revision — the one choice in it.** (a) the highest
+  `responses.id`: no schema change, facts stay v7, and sitting at the
+  seat migrates nothing in the owner's store; (b) a stamped counter:
+  facts v8, a migration on first open. I recommend (a), provided step 3
+  first verifies that every path changing bodies, locations or
+  membership inserts its response row in the same transaction (the ids
+  are never reused today: no code deletes a response). If one path does
+  not, it comes back to the owner before anything is built.
+- Observation, no proposal: `Store::open` takes a write lock for a
+  moment on every open, as every store verb does today. Search inherits
+  it.
+
+## Gaps found while planning — rules the reference does not state
+
+Each changes what a user types. One line each will do.
+
+1. **A line break inside a template — blocks step 1.** 540 of the
+   census's 6,928 templates are one mod displayed over several rows
+   (`Monsters' Action Speed cannot be…` / `Monsters' Movement Speed…`).
+   The reference gives no way to type one exactly, and the printer must
+   be able to print every template or the round trip is not total. It
+   also leaves open whether a phrase sees such a mod as one displayed
+   string or one per row. *Recommendation:* inside quotes, `\n`, `\"`
+   and `\\` are the only escapes; a multi-row mod is one occurrence and
+   one template; a phrase tests each displayed row on its own, as "never
+   across two" reads. `template:words` already reaches across rows.
+2. **An apostrophe at a shell — does not block step 1 unless (c).** 306
+   templates carry one, and so does the reference's own
+   `name="Kaom's Heart"`, which cannot be typed plainly inside the
+   shell's single quotes. (a) nothing: the shell's `'\''`; (b) the
+   adapter reads the query from stdin or a file; (c) the language also
+   accepts `'…'` strings, printing `"…"`. *Recommendation:* (b) at step
+   4, and (c) left for the seat — adding it later breaks nothing.
+3. **The values of `membership` — does not block before step 4.** The
+   request carries it, the terminal synopsis has no word for it, and
+   `live` is the only value shown; `acq items search --removed` exists
+   today. *Recommendation:* `live` alone at the first seat; `all` (live
+   and removed, each row marked) at step 11, so the old verb can retire;
+   `removed` alone waits for someone asking.
+
+Observations, mine unless the owner wants them: C105's first test is
+worded with groupings above class (`armour`, `weapon`), which are the
+parked category — it will be pinned with class names and the same
+numbers. What `name` means for a magic item, whose displayed name is its
+type line with its affixes, is step 2's to propose and `--describe`'s
+to print.
