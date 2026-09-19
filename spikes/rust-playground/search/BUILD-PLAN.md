@@ -34,15 +34,23 @@ is provisional, this plan's later steps included.
    reference's worked example is.
 4. **A rule the reference does not state stops the step** and comes to
    the owner if it changes what a user types; otherwise it is a row in
-   the slice record's observations. Three found while planning are at
-   the foot of this file.
-5. **The reference stays whole in `search/DESIGN.md` until the first
+   the slice record's observations. A name the reference hands to the
+   builder — a flag, a key, a field's spelling — is not a gap: the
+   builder picks it and `--describe` or the help prints it. What a name
+   *means* — which items it matches — is. Those found while planning
+   are at the foot of this file.
+5. **An answer never prints a command the same build refuses.** A
+   block the reference bounds with a route to the whole (invariant 5)
+   prints that route only when it runs; until then it prints the count
+   left out and names the unbuilt construct. The route property's test
+   covers it: every command an answer prints parses and is not refused.
+6. **The reference stays whole in `search/DESIGN.md` until the first
    seat has ruled.** Module docs cite it by section and take no
    paragraph before then: the seat reads that page and may reopen it,
    and two copies would rot. The header there says a paragraph leaves
    when a module doc carries it; this delays the carrying, not the rule.
    Owner, 2026-09-19: "accepted".
-6. **Whose store.** The agent tests on fixtures built through the
+7. **Whose store.** The agent tests on fixtures built through the
    store's own ingest, and measures on a sqlite `.backup` copy under a
    track's `raw/`, always with `ACQ_STORE_DIR` set. The owner's store is
    opened only by the owner, at a terminal. No GGG traffic anywhere in
@@ -54,8 +62,8 @@ is provisional, this plan's later steps included.
 | --- | --- | --- |
 | 1 · the language | the `acquisition-search` crate (C89's edges in `tools/docs-check.sh` §5, each with a breaker; C47's lints); the tree and its JSON form; the parser over the whole query language; lowering; the canonical printer; every error the grammar defines, with its readings | the round-trip test; the corpus table; the holes table |
 | 2 · the derivation | a pure function, body and ingest columns in, the item out (C103): fields, displayed strings, lines as (kind, template, numbers) with slots and the ranged rule, and what could not be read, by collection | fixture tests; M2 against the census |
-| 3 · the store's read | C103's read, the revision, the coverage rows — **shown to the owner first** (below) | store tests, `REFRESH-SLICE.md`'s findings table as the checklist; M1 |
-| 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verb `acq search`, its README tour line, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the seat-1 acceptance rows; the refusal walk; the route property; M3, M4; then the seat |
+| 3 · the store's read | C103's read, the revision, the coverage rows — **shown to the owner first** (below) | store tests, `REFRESH-SLICE.md`'s findings table as the checklist; the one-snapshot test; M1 |
+| 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verbs `acq search` and `acq show <id>` (the item as the deriver sees it: fields, place, every line with its kind, template and numbers, what was unread), their README tour lines, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the seat-1 acceptance rows; the refusal walk; the route property; M3, M4; then the seat |
 
 **Step 1's evidence, in full**, since it is the step that runs first:
 
@@ -64,6 +72,12 @@ is provisional, this plan's later steps included.
   printed text of any tree gives that tree; printing a parsed canonical
   text gives that text; the JSON form survives the same trip; shorthand
   lowers once (`"T">=90` prints as `line("T" arg1>=90)`).
+- *A slotless comparison is checked before it lowers* (C92). A quoted
+  template states its own numbers, so the check is the parser's and
+  needs no corpus: one `#` lowers to `arg1`; several is the error that
+  lists them (`"Adds # to # Cold Damage">=20` offers `low`, `high`,
+  `avg`, `arg1`, `arg2`); none is an error; `sum("T")` and `--sort`
+  obey the same. Each is a corpus case.
 - *Invariant 1* as a test: the printer never reorders, flattens, merges,
   deduplicates or simplifies — `(a b) c` and `a b c` stay two trees.
 - *The corpus* — one committed file of cases, each a text with its
@@ -87,6 +101,13 @@ is provisional, this plan's later steps included.
   that same copy must reproduce its templates, counts and ranged split,
   or each difference is explained. It runs locally, never in the gate
   (the input is `raw/`).
+- *The one-snapshot test*, in process, no daemon: a second handle
+  records a fetch while a read is part-way through its items; the read's
+  revision, coverage rows and bodies all describe the state before it,
+  and the next read carries a higher revision and the change. Step 4
+  repeats it at the answer's boundary. A held corpus's invalidation is
+  tested when a consumer first holds one; the intent half arrives with
+  price (step 9).
 - *The route property*: every route the answer prints, run as the
   request it is, returns exactly the members it counted.
 - *Invariants 2, 3 and 6* as tests: a `:` or `~` selector prints back as
@@ -115,6 +136,7 @@ acq search --realm pc 'line("Adds # to # Cold Damage" low>=15 high<=45)'
 acq search --realm pc '(rarity=rare base:ring) sum("# to maximum Life")>=90'
 acq search --realm pc 'undecided("# to maximum Life">=90)'
 acq search --realm all 'id:<a handle an answer printed>'
+acq show <an id an answer printed>
 acq search --describe
 ```
 
@@ -122,6 +144,15 @@ Composition whole (`and or not - ( ) holds undecided`); phrases and
 `text:`; `name` and `base` with `:` `=` `~`; `rarity`, `ilvl`, `is:`,
 `has:`; place (`league: tab: character: container:`); `id:`; `line(…)`
 whole, the shorthand, `sum(…)`; `--sort --desc --limit --json`.
+
+A row shows the lines the query touched (C100), so an item's other
+lines are read through `acq show <id>`, or by naming them in the query;
+`--fields` comes later. What is bounded with no route yet, each printed
+as a count and the unbuilt construct's name (rule 5): what a `:` or `~`
+selector resolved to, past the first few (the vocabulary, step 5); rows
+past `--limit` (a larger `--limit` serves; `--next` is step 10); the
+coverage list (`acq tabs` and `acq store characters` exist today;
+`--view locations` is step 10).
 
 What it refuses by name: `class:` (6), `pseudo.*` (7), `sockets` `links`
 `linked(…)` (8), `has:priced` and `price.*` (9), `--count` `--cross`
@@ -159,15 +190,15 @@ evidence at step 1. Names are illustrative, as in the reference.
 
 | Id | The test asks | Green at |
 | --- | --- | --- |
-| OQ1 | `class:ring rarity=rare pseudo.total_res>=60`, rows showing the resist and attribute lines; refined: `line("T" is:fractured)` | line parts 4 · whole 7 |
-| OQ2 | `name="<a unique>"`: one item or a zero answer naming the scope, its lines whole with values, its place; nothing says legacy (C107) | 4 — and it fires the variant park |
+| OQ1 | `class:ring rarity=rare (line(template:resistance) or line(template:strength))`: the query names the lines it wants to see, so the rows show them; refined: `line("T" is:fractured)`. The fixture holds a ring with neither line, which must not appear | with `base:ring` 4 · as worded 6 |
+| OQ2 | `name="<a unique>"`: one item or a zero answer naming the scope, and its place; then `acq show <id>` for every line with its values, which is what the owner reads the version from; nothing says legacy (C107) | 4 — and it fires the variant park |
 | OQ3 | a mod, a base, a unique, socket colours, each its own query | 4 · sockets 8 |
 | OQ4 | a staff by what is remembered of it (`class:`, `base:`, a phrase), item and tab; `--describe league` says place, never origin (S177) | `base:` 4 · `class:` 6 |
-| OQ5 | a level bracket across tabs: `reqlevel=..30`, `-has:reqlevel` (absence needs the requirements readable), counted by tab | 6, counts 5 — fires the category park |
+| OQ5 | a level bracket across tabs, counted by tab: `(class:… or class:…) (reqlevel=..30 or -has:reqlevel)`. The fixture holds distractors the bracket alone admits — a low-level gem, a flask, a currency stack, which has no level requirement at all — and none may appear | askable 6, counts 5; **not covered** until the owner has ruled on the category park it fires |
 | OQ6 | the item found, `has:priced`, the price as the owner set it; no valuation | 9 |
 | OQ7 | one line across every tab and character, item and tab on each row; `--count tab` | rows 4 · count 5 |
 | AQ1 | `--count tab,league,rarity`: three tables, no rows | 5 |
-| AQ2 | `(<the OQ1 query>) pseudo.total_res>=60`: the old query parenthesised and one term | mechanism 4 (with `sum`) · as worded 7 |
+| AQ2 | `(<the OQ1 query>) pseudo.total_res>=60`: the old query parenthesised and one new term. The fixture holds an OQ1 match under 60, and the test fails unless it leaves | mechanism 4 (the new term a `sum`) · as worded 7 |
 | AQ3 | each row names what matched; a zero answer names the scope searched; `show --against` | 4 · why-not 10 |
 | AQ4 | `id:<handle>`, every printed id accepted back (S198) | 4 |
 | AQ5 | `"# to maximum Life">=90` sorted: a count and a sorted list across every mod array | 4 |
@@ -206,7 +237,7 @@ that produced them.
 | --- | --- | --- |
 | M1 | the streaming body read: wall time and peak memory over the whole corpus | step 3 |
 | M2 | the deriver against the census: templates, counts, the ranged split, unread shapes | step 2 |
-| M3 | a CLI ask end to end, cold and warm, per acceptance query, against 500 ms | step 4, before the seat |
+| M3 | a CLI ask, process start to exit, `--json` to `/dev/null`, over the backup copy (its item count recorded), for every acceptance query built so far. Warm: the median of ten consecutive asks. First: the first ask after the copy is written, reported as seen — this machine's file cache is not controlled, so it is never the budget's number. Both profiles: the release build is judged against 500 ms, the debug build is what the seat feels | step 4 before the seat; again at 5, 7 and 9 as their queries land |
 | M4 | `~` over all displayed text (the reference: "its cost … is unmeasured") | step 4 |
 | M5 | a re-derive while a refresh is writing — a mock session over a fixture store | step 10 |
 | M6 | the totals coverage trial | step 7 |
@@ -238,21 +269,27 @@ scope    one realm or all · live, or live and removed
   parses, so that failure is an undecided reason on that item.
 - The deriver takes the body and a plain struct of those columns that
   the search crate owns, so it names no store type (C103).
-- **The revision — the one choice in it.** (a) the highest
-  `responses.id`: no schema change, facts stay v7, and sitting at the
-  seat migrates nothing in the owner's store; (b) a stamped counter:
-  facts v8, a migration on first open. I recommend (a), provided step 3
-  first verifies that every path changing bodies, locations or
-  membership inserts its response row in the same transaction (the ids
-  are never reused today: no code deletes a response). If one path does
-  not, it comes back to the owner before anything is built.
+- **The revision — ruled 2026-09-19: the highest `responses.id`.** No
+  schema change, facts stay v7, and sitting at the seat migrates nothing
+  in the owner's store; a stamped counter (facts v8, a migration on
+  first open) stays the fallback. Owner: "I agree with (a)". Read before
+  he ruled: `record` is the one path that changes items, locations or
+  membership and it inserts its response row in the same transaction; a
+  refused body rolls back whole; `acq store import` goes through
+  `record`; `rebuild` rewrites only the derived columns, which this read
+  does not hand over; no code deletes a response. A schema migration
+  moves rows with no response, so the basis prints the facts version
+  beside the revision. Step 3 repeats the read line by line, and a path
+  that fails it comes back to the owner before anything is built.
 - Observation, no proposal: `Store::open` takes a write lock for a
   moment on every open, as every store verb does today. Search inherits
   it.
 
 ## Gaps found while planning — rules the reference does not state
 
-Each changes what a user types. One line each will do.
+Each changes what a user types, or which items what he types matches.
+One line each will do. 4 and 5 came from an outside review of this plan
+(2026-09-19).
 
 1. **A line break inside a template — ruled 2026-09-19.** 540 of the
    census's 6,928 templates are one mod displayed over several rows
@@ -283,9 +320,25 @@ Each changes what a user types. One line each will do.
    and removed, each row marked) at step 11, so the old verb can retire;
    `removed` alone waits for someone asking.
 
-Observations, mine unless the owner wants them: C105's first test is
+4. **No spelling for a node forced true or false — wanted before step
+   1.** `--explain` prints "its transformed query" with one node forced
+   each way, inside a member group too; a bare word is an error and the
+   printer never simplifies, so the tree needs a constant and the text a
+   way to write it. Adding it later breaks nothing (an error becomes a
+   query), but rule 1 wants the parser whole. *Recommendation:* a tree
+   node `{"const": true}` written `true()` and `false()` — the call
+   shape `holds(…)` and `undecided(…)` already have, so no bare word
+   gains a meaning.
+5. **What `name` and `base` mean, rarity by rarity — before step 2.** A
+   magic item has no name of its own: the game shows its type line,
+   `Seething Divine Life Flask of Staunching`, over the base
+   `Divine Life Flask`. Whether `name:seething` finds it decides
+   matches, so it is contract detail, not a spelling.
+   *Recommendation:* `name` is the header the player reads — the item's
+   own name where it has one, else its type line; `base` is the base
+   type; a phrase already tests both.
+
+Observation, mine unless the owner wants it: C105's first test is
 worded with groupings above class (`armour`, `weapon`), which are the
 parked category — it will be pinned with class names and the same
-numbers. What `name` means for a magic item, whose displayed name is its
-type line with its affixes, is step 2's to propose and `--describe`'s
-to print.
+numbers.
