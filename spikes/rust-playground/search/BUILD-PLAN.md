@@ -39,9 +39,9 @@ is provisional, this plan's later steps included.
 5. **The reference stays whole in `search/DESIGN.md` until the first
    seat has ruled.** Module docs cite it by section and take no
    paragraph before then: the seat reads that page and may reopen it,
-   and two copies would rot. *A choice — the header there says a
-   paragraph leaves when a module doc carries it; this delays the
-   carrying, not the rule.*
+   and two copies would rot. The header there says a paragraph leaves
+   when a module doc carries it; this delays the carrying, not the rule.
+   Owner, 2026-09-19: "accepted".
 6. **Whose store.** The agent tests on fixtures built through the
    store's own ingest, and measures on a sqlite `.backup` copy under a
    track's `raw/`, always with `ACQ_STORE_DIR` set. The owner's store is
@@ -254,7 +254,7 @@ scope    one realm or all · live, or live and removed
 
 Each changes what a user types. One line each will do.
 
-1. **A line break inside a template — blocks step 1.** 540 of the
+1. **A line break inside a template — ruled 2026-09-19.** 540 of the
    census's 6,928 templates are one mod displayed over several rows
    (`Monsters' Action Speed cannot be…` / `Monsters' Movement Speed…`).
    The reference gives no way to type one exactly, and the printer must
@@ -264,6 +264,11 @@ Each changes what a user types. One line each will do.
    and `\\` are the only escapes; a multi-row mod is one occurrence and
    one template; a phrase tests each displayed row on its own, as "never
    across two" reads. `template:words` already reaches across rows.
+   Owner: "understood. the two-line mods should contribute to relevant
+   pseudo-lines, but it makes sense they are a single occurence." So a
+   total's row (C94: template, kind, realm, slot, weight) may name a
+   multi-row template and one of its slots like any other, and M6's
+   coverage trial counts multi-row templates too.
 2. **An apostrophe at a shell — does not block step 1 unless (c).** 306
    templates carry one, and so does the reference's own
    `name="Kaom's Heart"`, which cannot be typed plainly inside the
