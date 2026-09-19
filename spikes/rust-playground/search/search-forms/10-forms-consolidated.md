@@ -1,6 +1,8 @@
 # 10 — Item search: the consolidated forms and one worked example
 
-The consensus of files 1–9 between Astra and Fable, for the owner's seat. It is **not harvested**: `decisions/search.md` and `search/DESIGN.md` are unchanged, and §6 lists what adopting this would touch. Flag and key names are the builder's; the shapes are the agreement. Field, total and class names are illustrative — `--describe` supplies the real ones.
+*Amended 2026-09-19 with the owner's changes (file 11): the `pseudo.` namespace, computed values in discovery, the `~` pattern match, the projection written `.<slot>`, what `text` searches, `arg1` for positions, underscored names, no `has:` on a computed value, and bare words refused.*
+
+The consensus of files 1–9 between Astra and Fable, for the owner's seat. It is **not harvested**: `decisions/search.md` and `search/DESIGN.md` are unchanged, and §8 lists what adopting this would touch. Flag and key names are the builder's; the shapes are the agreement. Field, total and class names are illustrative — `--describe` supplies the real ones.
 
 ## 1. Two values
 
@@ -18,6 +20,8 @@ acq search [--account A] --realm pc|xbox|sony|poe2|all ['<filter>']     no filte
                                               structured under --json
               --count line[:text,…]           the vocabulary: templates by kind, ranked, slot ranges,
                                               each with its exact selector; several texts in one call
+                                              (`~pattern` narrows too). Computed values whose name or
+                                              definition matches are listed beside them, marked computed.
               --context matches | corpus      corpus evaluates the EMPTY filter over the bound scope
                                               and prints that effective filter
               --view locations                the full coverage list the scope block summarises
@@ -39,10 +43,29 @@ COMPOSITION
                       established. Always decided itself; known absence does not satisfy it.
 
 ITEM-LEVEL
-  word  "a phrase"    text: substring, any case, over everything the item displays.
-                      Numbers are characters — "Level 1" also finds "Level 10".
-                      A bare word is never a name: `priced` is text, `has:priced` the field.
-  name:kaom   name="Kaom's Heart"      `:` contains · `=` whole value
+  "a phrase"          text: substring, any case, tested against each displayed string on its
+                      own, never across two: the name, the base, and every line as shown with
+                      its numbers — properties, requirements, every mod line; markup reduced
+                      to what the player sees. Numbers are characters — "Level 1" also finds
+                      "Level 10" — where template: sees only the #-form and never a number.
+                      Not searched: flavour text, description text, the note (its own field).
+                      A socketed gem is its own item, found by its own text, its place showing
+                      what it sits in; the parent's text does not include it.
+                      The row shows which string matched. A hit in what is readable is a match;
+                      no hit while part of the item is unread is undecided.
+  word                a bare word is an authoring error that shows its readings, never a guess:
+                        rare → rarity=rare · "rare"      ring → class:ring · "ring"
+                        life → "life" · line(template:life)
+                      Quotes are the deliberate signal for text. An adapter may offer a plain
+                      text box that wraps its input in text: — the filter itself never does.
+  name:kaom   name="Kaom's Heart"   name~"^Kaom"
+                                       `:` contains · `=` whole value · `~` pattern, on every text
+                                       thing. Rust regex syntax, unanchored, any case unless the
+                                       pattern says otherwise; a bad pattern is an authoring error.
+                                       Like `:`, a pattern is a continuing search: the answer lists
+                                       what it resolved to and never freezes it.
+  text:word   text~"pattern"           the explicit name of what a quoted phrase searches;
+                                       in a pattern ^ and $ are the ends of one displayed string
   rarity=rare   class:ring             closed set: `=` exact; `:` picks among legal values, listed
   ilvl>=84   ilvl=80..84               = > >= < <= ; a..b inclusive, a side may be blank
   has:x  -has:x                        presence; absence only when all that could hold x was readable
@@ -55,21 +78,35 @@ ITEM-LEVEL
 
 MEMBERS — conditions that hold together on one member
   line( … )      one displayed occurrence      linked( … )     one link group
-  line:    "T" (leading; means template="T")   template:words
+  line:    "T" (leading; means template="T")   template:words   template~"pattern"
            source=explicit   is:fractured   -is:crafted
-           #1 #2 …   and on a ranged line  low  high  avg        with = > >= < <= a..b
+           arg1 arg2 …   and on a ranged line  low  high  avg        with = > >= < <= a..b
   linked:  red green blue white (counts)   size
-  inside: and / or / - / ( ); a bare word is an error (no word changes meaning by depth)
+  inside: and / or / - / ( ); a bare word is an error here as everywhere
   a template typed with its numbers — line("+92 to maximum Life"), "+92 to maximum Life">=90 —
   is an error showing two readings: any value, or that value.
 
 VALUES
-  line(P).slot                   a projected value: what a comparison, a sum or a sort consumes
-  "T">=90    "T".avg>=20         shorthand; lowers at once to line("T" #1>=90), line("T" avg>=20)
+  line(P).<slot>                 a projected value: what a comparison, a sum or a sort consumes.
+                                 <slot> is one of the reserved slot words — arg1 arg2 arg3 … by position
+                                 (arg2 is the second # of the template, counting from 1);
+                                 low high avg on a ranged line — so: line(P).high  line(P).avg  line(P).arg1
+                                 A comparison on a projection means what it means inside the group:
+                                 line(P).avg>=20 lowers to line(P avg>=20). One meaning.
+  "T">=90    "T".avg>=20         shorthand; lowers at once to line("T" arg1>=90), line("T" avg>=20)
   "T" low>=15 high<=45           error: offers line("T" low>=15 high<=45) and "T".low>=15 "T".high<=45
-  sum("T")   sum(line(P).slot)   the item's sum
-  total-res                      a named total: reviewed rows, one meaning on every surface
-  dps   defence-pct              a derived field, its definition printed by --describe
+  sum("T")   sum(line(P).<slot>) the item's sum
+  pseudo.<name>                  a computed value: anything --describe prints a definition for.
+                                 One namespace for named totals (reviewed rows, one meaning on every
+                                 surface) and derived fields:  pseudo.total_res   pseudo.dps
+                                 pseudo.pdps   pseudo.defence_pct.   It means "computed here, from
+                                 this definition" — not "identical to the trade site's pseudo of a
+                                 similar name"; the translation report says where they correspond.
+  pseudo.cold_damage.avg>=30     a ranged computed value takes a slot word last
+                                 Names are words of letters, digits and underscores; a hyphen is
+                                 never part of a name, so `-` only ever means "not" or a minus sign.
+                                 has: does not apply to a computed value — an error offering
+                                 pseudo.total_res>0 ("has some") and undecided(pseudo.total_res).
   sockets  links  sockets.red    counts over the socket collection
   has:priced   price.amount  price.currency  price.lot
   --sort takes a value; a ranged value needs a slot; no satisfying occurrence sorts last either way.
@@ -77,11 +114,11 @@ VALUES
 
 **A sum's status.** One rule for named totals and item sums:
 
-| Situation | Value | `has:` | A comparison |
+| Situation | Value | A comparison | `undecided(…)` |
 | --- | --- | --- | --- |
-| contributors complete, including none | the number; zero when none | true | ordinary — matched or failed |
-| a required contribution cannot be established | incomplete subtotal | undecided | undecided |
-| the total has no definition for this realm | unavailable, with the reason | undecided | undecided |
+| contributors complete, including none | the number; zero when none | ordinary — matched or failed | false |
+| a required contribution cannot be established | incomplete subtotal | undecided | true |
+| the total has no definition for this realm | unavailable, with the reason | undecided | true |
 
 Absent is still false and never zero for a *line or property* the item lacks; a *sum* of nothing is an honest zero.
 
@@ -99,15 +136,15 @@ Seven pc items (Astra's scenario, file 3): rare rings r1 (life 95, res 65), r2 (
       { "field": "rarity", "op": "=", "value": "rare" },
       { "exists": "lines", "where": { "all": [
           { "attr": "template", "op": "=",  "value": "# to maximum Life" },
-          { "attr": "#1",       "op": ">=", "value": 90 } ] } },
-      { "value": { "total": "total-res" }, "op": ">=", "number": 60 } ] } },
+          { "attr": "arg1",       "op": ">=", "value": 90 } ] } },
+      { "value": { "pseudo": "total_res" }, "op": ">=", "number": 60 } ] } },
   "view":   { "rows": { "limit": 20 } } }
 ```
 
 **The answer at a terminal:**
 
 ```
-filter  league=Standard class=ring rarity=rare line("# to maximum Life" #1>=90) total-res>=60
+filter  league=Standard class=ring rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60
 scope   account A · pc · live · 7 items · 2 locations fetched (oldest 3d, newest 2h)
         1 never fetched · location list seen 2h ago                       more: --view locations
 basis   snapshot 41 · intent 12 · totals v1 · classes v3
@@ -115,25 +152,25 @@ terms   each term evaluated independently over live pc items in all leagues
   0    league=Standard                        7 matched
   1    class=ring                             6 matched · 1 undecided
   2    rarity=rare                            6 matched · 1 failed
-  3    line("# to maximum Life" #1>=90)       5 matched · 1 failed · 1 lacked · 1 reaches 90 only together
-  4    total-res>=60                          5 matched · 1 failed · 1 undecided
+  3    line("# to maximum Life" arg1>=90)       5 matched · 1 failed · 1 lacked · 1 reaches 90 only together
+  4    pseudo.total_res>=60                   5 matched · 1 failed · 1 undecided
 total   1 match · 2 undecided
 rows    r1  Two-Stone Ring · rare · Standard / Rings
-            +95 to maximum Life (explicit) · total-res 65
+            +95 to maximum Life (explicit) · pseudo.total_res 65
 next    1 of 1
 routes  (--routes prints all; one shown)
   term 3 failed, over the scope:
-    acq search --account A --realm pc 'line("# to maximum Life") -line("# to maximum Life" #1>=90)'
+    acq search --account A --realm pc 'line("# to maximum Life") -line("# to maximum Life" arg1>=90)'
 ```
 
-The two undecided items say why and what might help: r5 — *class: base not in the class table; a refresh will not help, a reference update may*; r6 — *total-res: implicit lines unread; a refresh may help*. These are hints, not guarantees.
+The two undecided items say why and what might help: r5 — *class: base not in the class table; a refresh will not help, a reference update may*; r6 — *pseudo.total_res: implicit lines unread; a refresh may help*. These are hints, not guarantees.
 
 **The same route under `--json`** — directly resubmittable, carrying its denominator and the basis it was counted at; run on a later basis it reports both counts:
 
 ```json
 { "count": 1, "counted_at": { "snapshot": 41 }, "denominator": "scope",
   "request": { "scope":  { "account": "A", "realm": "pc", "membership": "live" },
-               "filter": { "text": "line(\"# to maximum Life\") -line(\"# to maximum Life\" #1>=90)" },
+               "filter": { "text": "line(\"# to maximum Life\") -line(\"# to maximum Life\" arg1>=90)" },
                "view":   { "rows": {} } } }
 ```
 
@@ -173,10 +210,13 @@ Nothing here is ruled. If harvested, these are the rulings and contract paragrap
 
 - **C92** — the owner's spaced slot syntax (`"T" avg>15 high>=20`) gives way to the group `line("T" avg>15 high>=20)` and the one-bound `"T".avg>15`; the words `low`, `high`, `avg` and positional slots stay. Reason: whitespace should never bind conditions to an occurrence.
 - **C96** and its contract paragraph — the `realm:pc` front shorthand is removed; scope, with the account, lives in the bound request.
-- **C91, C104** — the travelling value splits into filter and bound request; bare words are always text; a standalone quotation is a phrase; two new ambiguity errors (and beside or; a template typed with numbers).
+- **C91, C104** — the travelling value splits into filter and bound request; a bare word is an authoring error showing its readings and a standalone quotation is a phrase (owner, file 11); two new ambiguity errors (and beside or; a template typed with numbers).
 - **C90, C97** — source and flags are attributes inside `line(…)`, not a prefix; discovery has three contexts (language, corpus, matches), text-narrowed, structured, bounded.
 - **C93** — the fourth undecided reason ("a name the search cannot bind") is retired in favour of three cases: unknown name is an authoring error; a valid selector nothing carries is a valid selection; only what cannot be established on an item is undecided. `undecided(…)` is new. Reasons carry a hint of what might resolve them.
 - **C94, C95** and their contract paragraph — a complete empty sum is a present zero and lands in matched or failed, never lacked.
+- **C94, C101** (owner, file 11) — named totals and derived fields share one namespace, `pseudo.<name>`: whatever `--describe` prints a definition for. It need not match the trade site's pseudo of a similar name.
+- **C91** (owner, file 11) — a third text-match strength, `~` pattern, beside `:` and `=`; `text` is the explicit name of what a quoted phrase searches.
+- **C97** (owner, file 11) — a text-narrowed vocabulary read also lists the computed values whose name or definition matches.
 - **C100** — counts carry routes with denominators; the zero-match block; the coverage summary; node paths.
 - **C105** — its open question closes: `none` routes by `-has:<key>`, `undecided` by `undecided(<key>)`, both as requests under the filter.
 - **C101** — `linked(…)`, `sockets.red`; one internal member node for lines and link groups, no general collection syntax in the text.
