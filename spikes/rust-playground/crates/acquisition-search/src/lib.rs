@@ -42,6 +42,8 @@
 //! - **C103, C90.** The deriver is [`mod@derive`]'s module doc; pinned by
 //!   `tests/derive.rs`, and set against the census over a real corpus by
 //!   `search/item-facts/scripts/m2-differential.py` (never in the gate).
+//!   The read that hands the deriver its facts is the store's, C108
+//!   (`acquisition-store/src/corpus.rs`).
 //! - **C104.** Pinned by `tests/language.rs`: the round trip over
 //!   generated trees and over the corpus (`tests/language.toml`), where
 //!   every construct of the reference has a case.

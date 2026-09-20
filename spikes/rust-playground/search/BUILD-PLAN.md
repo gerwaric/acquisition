@@ -299,20 +299,9 @@ scope    one realm or all · live, or live and removed
   moves rows with no response, so the basis prints the facts version
   beside the revision. Step 3 repeats the read line by line, and a path
   that fails it comes back to the owner before anything is built.
-- **At this step's close, C103 is split** (owner, 2026-09-19: "Yes, note
-  it please"). Its sentence on what the store gains is a second
-  decision: it binds the store where the rest binds the search crate,
-  the store's tests pin it where `tests/derive.rs` pins the rest, and
-  `decisions/store.md` — what the store's next agent reads — holds no
-  ruling on the search read today. The new entry goes there, written
-  from the code: the boundary (one read and a revision for search,
-  nothing more), the read's properties (one read transaction, league
-  joined as `read_items` joins it, bodies as text, the revision
-  advancing in the transaction that changes items, locations or
-  membership), *Pinned:* the store's tests, *Details:* the store's
-  module doc. C103 keeps the deriver and a pointer to it. The wording is
-  shown to the owner measured, as C103's trim was. Not before: nothing
-  is built, and C103 fits until the store's *Pinned:* arrives.
+- **At this step's close C103 was split** (owner, 2026-09-19: "Yes, note
+  it please"): what the store gains is C108, in `decisions/store.md`,
+  pinned by the store's tests; C103 keeps the deriver and a pointer.
 - **Which number is the revision is mechanism, not a registry line.**
   Its property is already C98's and `search/DESIGN.md`'s (the basis);
   the ruling above and its line-by-line verification are carried into
@@ -330,6 +319,7 @@ record's step ledger and its observations.
 | --- | --- | --- |
 | 1 · the language | `080a8581` | `acquisition-search`: the tree and its validity (`tree.rs`), the parser over the whole reference (`parse.rs`), the canonical printer (`print.rs`), the strict JSON form (`json.rs`), structured errors with stable kinds (`error.rs`). `tests/language.toml`: 133 cases over 86 constructs (123 over 82 at the step's commit; H1 and H2 added the rest) — every construct of the reference, every error the grammar defines with its readings, the acceptance queries — and `tests/language.rs` refuses a construct with no case. The round trip over generated trees (2,000 a run; 60,000 once, by hand), any finite number, and no text panics the parser (200,000 once). C89's edges in `tools/docs-check.sh` §5 with nine breaker cases: `tools/docs-check-breakers.sh`, 51 ok. The contract detail's sentences on the check and the lints left `DESIGN.md` for the crate doc. |
 | 2 · the derivation | `ef720323` | `derive.rs`: `derive(facts, body) -> Item`, pure and total — the header, `rarity` and `frameTypeId` as given, `ilvl`, `stackSize`, the note, every yes the body says; properties and requirements as displayed strings, name and values kept apart; lines as (source, flags, template, numbers) with `slot` and the ranged rule; `displayed()`, the rows a phrase will be tested against; and what could not be read, by part, the readable rest still derived. `tests/derive.rs`: 12 fixtures worked by hand and a property test that no text and no JSON panics it. M2 below: no unexplained difference. `template::typed` gained the thousands comma. |
+| 3 · the store's read | this commit | `acquisition-store/src/corpus.rs`: `Store::read_corpus` — the header (the revision, the account, the realms the file holds, the latest listing of each list in scope, every live location in scope with its `type`, `listed_at` and `fetched_at`) and then every live item at a live location, streamed to the caller's closure inside one read transaction, league joined as `read_items` joins it, the body as text — and `Store::revision`. Seven store tests, `REFRESH-SLICE.md`'s findings as the checklist: the one-snapshot test over two handles on one file (it fails when the snapshot is ended after the header — tried), the league join over a character the listing moved and a league-less one, live by full coordinate (one tab id under `pc` and `xbox`) in one realm or all, the revision through every write door, no derived column in the read or its order, a store with no account refused, and the header's coverage — a folder told from an unfetched tab, a retired tab's substash no live location (it fails without the exclusion — tried), an empty listing still seen. The revision's line-by-line read is that module's doc. C103's second decision is C108 (`decisions/store.md`), its wording approved by the owner (2026-09-20: "All is approved"). M1 below. |
 
 **Found by step 1's own tests, in the builder's code:** a computed value
 named alone (`pseudo.total_res`) was answered as a bare word; a whole
@@ -470,6 +460,68 @@ step's; D1 needed no code, the deriver carrying both, and D4 none.
   by fixtures alone: a wrong type under a known key, an element that is
   no line, a `displayMode` outside 0–4, a body that is not an object.
 - Sockets are step 8's and are not derived yet.
+
+### Step 3 — M1, and what the read met
+
+**M1** — `/usr/bin/time -l target/<profile>/examples/read-corpus
+search/item-facts/raw/spike-GERWARIC_7694-2026-09-13.db <mode>`
+(`crates/acquisition-store/examples/read-corpus.rs`), 2026-09-20: 22,721
+items, 29.9 MB of bodies, 3,509 live locations, 4 listings, revision
+1126 at facts v7; the file cache warm, the median of three runs, which
+lie within 9 ms of each other.
+
+| Mode | Release | Debug | Peak resident |
+| --- | ---: | ---: | ---: |
+| `stream`: each item dropped once counted | 36 ms | 94 ms | 8.7 MB |
+| `hold`: every item kept as text to the end | 37 ms | 96 ms | 51.7 MB |
+| `parse`: each body parsed as JSON, then dropped | 113 ms | 829 ms | 9.3 MB |
+
+The header is 6 ms of each release read (16 ms debug). It was 13 ms
+while the realms were read from `items` as well as from `tabs` and
+`characters`: a scan of the largest table for a value its locations
+already give — 4 ms without it, and 6 with the listings and the orphan
+exclusion the audit below added. With M2's 1.4 s to derive in a
+debug build, an ask at the seat's debug build is about 2 s before
+anything is evaluated; the release build is what 500 ms is judged
+against (M3).
+
+**Departures from the first showing, each the builder's.** No membership
+and no `removed_at`: removed items are not read until `all` is built
+(gap 3), and a read that handed them over would change under a prune
+with no response written (owner, 2026-09-20: retention starts as a verb,
+"which means we can think about triggers for that verb later rather than
+now"). The order is location kind and id, then realm, then item id:
+realm first sorted the whole corpus, bodies included (43 MB resident
+against 10 MB, 0.13 s against 0.04 s in the `sqlite3` shell). The realms
+are those the file has a tab or a character under (owner, 2026-09-20: `pc`, `xbox`,
+`sony` and `poe2` are "the full list").
+
+**An outside audit of the build (2026-09-20), each finding verified
+before it was taken.** All three are the header failing the reference's
+scope line — `1 never fetched · location list seen 2h ago`.
+
+| # | Finding | Verdict | Held by |
+| --- | --- | --- | --- |
+| 1 | A folder is a live row no fetch ever fills, and the header could not tell it from a tab never fetched (17 on this copy) | confirmed | `LocationRow::tab_type`, GGG's `type` verbatim as the snapshots carry it; the fixture's folder with a fetched child |
+| 2 | A substash whose tab a listing retired keeps its row (the planner's orphan report) and was listed as a live, never-fetched location. The builder had seen it and followed `read_tabs` without saying so | confirmed | excluded: a location is live with its parent (C54); the fixture, which fails without the exclusion |
+| 3 | A location's `listed_at` cannot say when a list was seen: an empty list has no rows, and a substash's is its parent's fetch | confirmed | `CorpusHeader::listings`, the bases the snapshots cite, read in the same transaction; the fixture's empty character listing |
+
+**Observations — the builder's.**
+
+- On this copy no character item's stamped league differs from its
+  character's listing league, and no character is league-less: the
+  league join is exercised by fixtures alone.
+- 6 of 22,727 item rows are removed, all at live characters; no tab or
+  character has been retired yet, so an item removed at a retired
+  location exists in fixtures alone.
+- Over its 12.8 days the file's logs weigh: `responses` 1,126 rows and
+  2.5 MB, `item_events` 22,751 rows (22,727 the first `added`) and
+  2.8 MB, `refused` 4 bodies and 135 KB, removed items 6.7 KB. Nothing
+  reads a response again but the latest listing per realm and league,
+  the v4 migration's re-stamp and now the highest id.
+- 2,926 of 3,427 live tabs have never been fetched, the 17 folders
+  apart, so "absent from a full refresh" is not a condition this
+  account's store can often state.
 
 ## Gaps found while planning — rules the reference did not state
 

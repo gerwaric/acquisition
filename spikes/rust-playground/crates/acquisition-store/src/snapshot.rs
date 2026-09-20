@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::annotations::{AnnotationRow, Annotations};
-use crate::{Store, TAB_ORDER_SQL};
+use crate::{Store, TAB_ORDER_KEYS};
 
 /// The per-account sync policy's annotation address (scope `"account"`,
 /// key `""`): the declaration of desired coverage and freshness. Its
@@ -296,7 +296,10 @@ impl Store {
 
     /// The one account identity the facts file records (`/profile` lands
     /// at every login) — the uuid intent is paired under.
-    fn account_identity(&self, tx: &rusqlite::Transaction) -> Result<(String, Option<String>)> {
+    pub(crate) fn account_identity(
+        &self,
+        tx: &rusqlite::Transaction,
+    ) -> Result<(String, Option<String>)> {
         let accounts: Vec<(String, Option<String>)> = {
             let mut stmt = tx.prepare("SELECT uuid, name FROM account")?;
             let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
@@ -399,7 +402,7 @@ fn read_tabs(tx: &rusqlite::Transaction, realm: &str, league: &str) -> Result<Ve
         let mut stmt = tx.prepare(&format!(
             "SELECT t.id, t.parent, COALESCE(t.name, ''), COALESCE(t.type, ''), t.idx, t.listed_at, t.listed_response, t.fetched_at, t.listed_json,
                     (SELECT count(*) FROM items i WHERE i.realm = t.realm AND i.league = t.league AND i.location_kind = 'stash' AND i.location_id = t.id AND i.removed_at IS NULL)
-               FROM tabs t WHERE t.realm = ?1 AND t.league = ?2 AND t.removed_at IS NULL {TAB_ORDER_SQL}"
+               FROM tabs t WHERE t.realm = ?1 AND t.league = ?2 AND t.removed_at IS NULL ORDER BY {TAB_ORDER_KEYS}"
         ))?;
         let rows = stmt.query_map([realm, league], |r| {
             Ok((

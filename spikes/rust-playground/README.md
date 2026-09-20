@@ -32,7 +32,9 @@ inventories and mechanisms live in the linked source documentation.
   connection policies. [Implementation](crates/acquisition-client/src/lib.rs);
   rulings: `decisions/daemon.md`.
 - `crates/acquisition-store` — shared facts, intent and world storage,
-  with neutral read snapshots. [Implementation](crates/acquisition-store/src/lib.rs)
+  with neutral read snapshots and the search read.
+  [Implementation](crates/acquisition-store/src/lib.rs),
+  [search read](crates/acquisition-store/src/corpus.rs)
   and [world](crates/acquisition-store/src/world.rs);
   rulings: `decisions/store.md`, `decisions/daemon.md`.
 - `crates/acquisition-plan` — offline refresh planning and pricing.

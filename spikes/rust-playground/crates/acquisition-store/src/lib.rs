@@ -666,6 +666,7 @@ pub struct Status {
 }
 
 pub mod annotations;
+pub mod corpus;
 pub mod index;
 pub mod jobs;
 pub mod snapshot;
@@ -674,6 +675,9 @@ pub use annotations::{
     AnnotationError, AnnotationRow, Annotations, IntentValue, Provenance, ValueError,
     annotations_path, check_value,
 };
+pub use corpus::{
+    CorpusHeader, CorpusItem, CorpusItems, ListingSeen, LocationRow, RealmScope, Revision,
+};
 pub use index::{AccountEntry, Index, Resolve, account_matches, account_path, index_path};
 pub use snapshot::{
     BUYOUT_KIND, CharacterSnapshot, ItemSnapshot, ListingBasis, PricingSnapshot, RefreshSnapshot,
@@ -681,9 +685,10 @@ pub use snapshot::{
 };
 pub use world::store_dir;
 
-/// Listing order shared by [`Store::tabs`] and [`Store::refresh_snapshot`]:
+/// Listing order shared by [`Store::tabs`], [`Store::refresh_snapshot`]
+/// and [`Store::read_corpus`] — the keys of an `ORDER BY` over `tabs t`:
 /// folder children after their folder, substashes after their tab.
-pub(crate) const TAB_ORDER_SQL: &str = "ORDER BY COALESCE((SELECT p.idx FROM tabs p WHERE p.realm = t.realm AND p.league = t.league AND p.id = t.parent), t.idx, 1000000),
+pub(crate) const TAB_ORDER_KEYS: &str = "COALESCE((SELECT p.idx FROM tabs p WHERE p.realm = t.realm AND p.league = t.league AND p.id = t.parent), t.idx, 1000000),
                        t.parent IS NOT NULL, COALESCE(t.idx, 0), t.name";
 
 pub fn now() -> i64 {
@@ -1690,7 +1695,7 @@ impl Store {
                     (SELECT count(*) FROM items i WHERE i.realm = t.realm AND i.league = t.league AND i.location_kind = 'stash' AND i.location_id = t.id AND i.removed_at IS NULL),
                     CASE WHEN t.fetched_at IS NULL THEN NULL
                          ELSE COALESCE(json_extract(t.json, '$.stash._split.items'), json_extract(t.json, '$._split.items')) END
-               FROM tabs t WHERE t.realm = ?1 AND t.league = ?2 AND t.removed_at IS NULL {TAB_ORDER_SQL}"
+               FROM tabs t WHERE t.realm = ?1 AND t.league = ?2 AND t.removed_at IS NULL ORDER BY {TAB_ORDER_KEYS}"
         ))?;
         let rows = stmt.query_map([realm, league], |r| {
             Ok(TabRow {
