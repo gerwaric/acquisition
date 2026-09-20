@@ -452,8 +452,6 @@ step's; D1 needed no code, the deriver carrying both, and D4 none.
   by fixtures alone: a wrong type under a known key, an element that is
   no line, a `displayMode` outside 0–4, a body that is not an object.
 - Sockets are step 8's and are not derived yet.
-- C103's registry entry is 788 bytes of 800, so it takes no *Pinned:*
-  pointer until the owner trims it; C90 carries the file.
 
 ## Gaps found while planning — rules the reference did not state
 
