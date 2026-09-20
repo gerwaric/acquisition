@@ -68,6 +68,7 @@ fn the_header_and_the_fields_are_what_ggg_gives() {
     assert_eq!(ring.rarity.as_deref(), Some("Rare"));
     assert_eq!(ring.frame.as_deref(), Some("Rare"));
     assert_eq!(ring.ilvl, Some(84));
+    assert_eq!(ring.item_level.as_deref(), Some("Item Level: 84"));
     assert_eq!(ring.stack, None);
     assert_eq!(ring.note.as_deref(), Some("~price 1 divine"));
     // every yes the body says, `influences` folded in, sorted; never a no
@@ -288,6 +289,7 @@ fn displayed_is_the_header_the_properties_and_every_line() {
             "Two-Stone Ring",
             "Two-Stone Ring",
             "Quality: +20%",
+            "Item Level: 84",
             "Requires Level 67, 159 Str",
             "+92 to maximum Life",
             "-27% to Chaos Resistance",
@@ -299,8 +301,8 @@ fn displayed_is_the_header_the_properties_and_every_line() {
     let wheres: Vec<Shown> = ring.displayed().map(|(w, _)| w).collect();
     assert_eq!(wheres[..3], [Shown::Name, Shown::Typeline, Shown::Base]);
     assert!(matches!(wheres[3], Shown::Property(p) if p.name == "Quality"));
-    assert_eq!(wheres[4], Shown::Requires);
-    assert!(matches!(wheres[5], Shown::Line(l) if l.numbers == [92.0]));
+    assert_eq!(wheres[4..6], [Shown::ItemLevel, Shown::Requires]);
+    assert!(matches!(wheres[6], Shown::Line(l) if l.numbers == [92.0]));
 }
 
 /// The reference, *Item-level*: an item with no name lacks it — known
@@ -318,6 +320,7 @@ fn an_empty_string_is_an_item_without_one() {
     assert_eq!(gem.frame.as_deref(), Some("Gem"));
     // GGG's 0: the game shows a gem no item level (owner, 2026-09-19)
     assert_eq!(gem.ilvl, None);
+    assert_eq!(gem.item_level, None);
     assert_eq!(gem.stack, Some(1));
     assert_eq!(gem.flags, ["corrupted", "identified"]);
     assert!(gem.unread.is_empty());
@@ -493,7 +496,7 @@ fn the_json_form() {
                 "container": "items", "socketed_in": null, "first_seen": 100, "last_seen": 200, "removed_at": null
             },
             "name": null, "typeline": "Ring", "base": null, "rarity": null, "frame": "Magic",
-            "ilvl": 3, "stack": null, "note": null,
+            "ilvl": 3, "item_level": "Item Level: 3", "stack": null, "note": null,
             "flags": ["identified"],
             "properties": [], "requirements": [], "requires": null,
             "lines": [{

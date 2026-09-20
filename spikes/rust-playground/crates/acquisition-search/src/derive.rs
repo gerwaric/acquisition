@@ -52,6 +52,8 @@
 //!   (`Level 67`, `159 Str`), and displayed as the one row the game, the
 //!   trade site and the C++ app show: `Requires Level 67, 159 Str` (owner,
 //!   2026-09-19). A phrase is tested against the row.
+//! - **The item level** is a field, `ilvl`, and a displayed string, `Item
+//!   Level: 84`, where the item has one (owner, 2026-09-19).
 //! - **Unread, by collection (C93).** What the deriver met and could not
 //!   read is an [`Unread`] naming the [`Part`] — never a panic (C47), never
 //!   a silent gap. The readable rest of the part is still derived, since a
@@ -105,6 +107,8 @@ pub struct Item {
     pub frame: Option<String>,
     /// GGG's `ilvl`; its 0 is absent.
     pub ilvl: Option<i64>,
+    /// The row it is displayed as: `Item Level: 84`.
+    pub item_level: Option<String>,
     /// GGG's `stackSize`.
     pub stack: Option<i64>,
     pub note: Option<String>,
@@ -177,6 +181,8 @@ pub enum Shown<'a> {
     Typeline,
     Base,
     Property(&'a Property),
+    /// The one row of [`Item::item_level`].
+    ItemLevel,
     /// The one row of [`Item::requires`].
     Requires,
     Line(&'a Line),
@@ -199,6 +205,7 @@ pub fn derive(facts: Facts, body: &str) -> Item {
         rarity: None,
         frame: None,
         ilvl: None,
+        item_level: None,
         stack: None,
         note: None,
         flags: Vec::new(),
@@ -227,6 +234,7 @@ pub fn derive(facts: Facts, body: &str) -> Item {
     item.note = item.text(&body, "note");
     // GGG's 0 is an item the game shows no level for: known absence
     item.ilvl = item.int(&body, "ilvl").filter(|ilvl| *ilvl != 0);
+    item.item_level = item.ilvl.map(|ilvl| format!("Item Level: {ilvl}"));
     item.stack = item.int(&body, "stackSize");
     item.read_flags(&body);
     for array in PROPERTY_ARRAYS {
@@ -275,8 +283,8 @@ impl Item {
     }
 
     /// Every displayed string a phrase is tested against, row by row (the
-    /// reference, *Item-level*): the header, each property, the
-    /// requirements' row, each row of each line. Never the flavour text,
+    /// reference, *Item-level*): the header, each property, the item
+    /// level, the requirements' row, each row of each line. Never the flavour text,
     /// the description or the note.
     pub fn displayed(&self) -> impl Iterator<Item = (Shown<'_>, &str)> {
         let header = [
@@ -290,12 +298,20 @@ impl Item {
             .properties
             .iter()
             .flat_map(|p| p.text.split('\n').map(move |row| (Shown::Property(p), row)));
+        let item_level = self
+            .item_level
+            .as_deref()
+            .map(|row| (Shown::ItemLevel, row));
         let requires = self.requires.as_deref().map(|row| (Shown::Requires, row));
         let lines = self
             .lines
             .iter()
             .flat_map(|l| l.rows().map(move |row| (Shown::Line(l), row)));
-        header.chain(properties).chain(requires).chain(lines)
+        header
+            .chain(properties)
+            .chain(item_level)
+            .chain(requires)
+            .chain(lines)
     }
 
     fn unread(&mut self, part: Part, problem: impl Into<String>) {

@@ -127,6 +127,8 @@ ITEM-LEVEL
                       its numbers — properties, requirements, every mod line; markup reduced
                       to what the player sees. Numbers are characters — "Level 1" also finds
                       "Level 10" — where template: sees only the #-form and never a number.
+                      The item level is displayed as the game and the trade site show it,
+                      "Item Level: 84", where the item has one (ilvl, below).
                       The requirements are one displayed string, the row the game shows:
                       "Requires Level 67, 159 Str"; each requirement is kept on its own beneath it.
                       Not searched: flavour text, description text, the note (its own field).
@@ -294,7 +296,9 @@ reasoning, in `search/search-forms/11-owner-amendments.md`):
   Level <N>"", then "I agree on the display row for requirements with
   each requirement kept separately." The C++ app builds the same row
   (`src/ui/itemtooltiptext.cpp`, name before value throughout); here
-  GGG's `displayMode` orders each, `159 Str`. Measured over the census's store copy
+  GGG's `displayMode` orders each, `159 Str`. On the item level, a
+  field only until then: "Let's make the item level a displayed string."
+  Measured over the census's store copy
   (22,721 live items): 8,297 carry no rarity, 7,903 an ilvl of 0, 457 a
   base skill of 2,251 lines.
 - The trade site's spelling of a line: "The trade site accepts "+# ...",
