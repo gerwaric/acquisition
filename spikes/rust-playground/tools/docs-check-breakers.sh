@@ -22,7 +22,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 scratch=$(mktemp -d "${TMPDIR:-/tmp}/acq-breakers.XXXXXX")
-files=(Cargo.toml Cargo.lock crates/acquisition-plan/Cargo.toml crates/acquisition-store/Cargo.toml crates/acquisition-cli/Cargo.toml crates/acquisition-mcp/Cargo.toml crates/acquisition-client/Cargo.toml crates/acquisition-daemon/Cargo.toml tools/docs-check.sh)
+files=(Cargo.toml Cargo.lock crates/acquisition-plan/Cargo.toml crates/acquisition-store/Cargo.toml crates/acquisition-search/Cargo.toml crates/acquisition-cli/Cargo.toml crates/acquisition-mcp/Cargo.toml crates/acquisition-client/Cargo.toml crates/acquisition-daemon/Cargo.toml tools/docs-check.sh)
 for f in "${files[@]}"; do mkdir -p "$scratch/keep/$(dirname "$f")"; cp "$f" "$scratch/keep/$f"; done
 restore() {
   local f
@@ -138,6 +138,25 @@ run_case 'plan links client directly'                            refuse 'acquisi
 run_case 'store links client directly (a cycle: Cargo refuses it first)' refuse 'cargo metadata failed' adddep crates/acquisition-store/Cargo.toml "$CP"
 run_case 'store links daemon directly (a cycle: Cargo refuses it first)' refuse 'cargo metadata failed' adddep crates/acquisition-store/Cargo.toml "$DP"
 run_case 'the store links tokio through a [dependencies.tokio] table' refuse 'acquisition-store      links tokio' adddep crates/acquisition-store/Cargo.toml 'workspace = true' '[dependencies.tokio]'
+
+echo '== the code: the search crate'"'"'s edges (C89)'
+SP='acquisition-search = { path = "../acquisition-search" }'
+search_links_what_c89_allows() {
+  adddep crates/acquisition-search/Cargo.toml 'acquisition-store = { path = "../acquisition-store" }'
+  adddep crates/acquisition-search/Cargo.toml 'acquisition-plan = { path = "../acquisition-plan" }'
+}
+run_case 'search links store and plan: what C89 allows'          pass   'ok      dependencies' search_links_what_c89_allows
+run_case 'search links daemon directly'                          refuse 'acquisition-search     links acquisition-daemon —' adddep crates/acquisition-search/Cargo.toml "$DP"
+run_case 'search links client directly'                          refuse 'acquisition-search     links acquisition-client —' adddep crates/acquisition-search/Cargo.toml "$CP"
+run_case 'search links an async runtime'                         refuse 'acquisition-search     links tokio' adddep crates/acquisition-search/Cargo.toml 'tokio.workspace = true'
+run_case 'search → helper → daemon'                              refuse 'acquisition-search → acquisition-helper → acquisition-daemon' member_links_helper acquisition-search "[dependencies]\n$DP\n"
+run_case 'daemon links search directly'                          refuse 'acquisition-daemon     links acquisition-search —' adddep crates/acquisition-daemon/Cargo.toml "$SP"
+run_case 'daemon → helper → search'                              refuse 'acquisition-daemon → acquisition-helper → acquisition-search' member_links_helper acquisition-daemon "[dependencies]\n$SP\n"
+run_case 'plan links search directly'                            refuse 'acquisition-plan       links acquisition-search —' adddep crates/acquisition-plan/Cargo.toml "$SP"
+# The rule refuses this while the search links no store (the build plan,
+# step 1); once it does (step 3) the edge is a cycle and the refusal is
+# Cargo's, as for the store's other upward edges above.
+run_case 'store links search directly'                           refuse 'acquisition-store      links acquisition-search —' adddep crates/acquisition-store/Cargo.toml "$SP"
 intent_in_client() { printf '// breaker: a client that reads intent\npub fn f() -> Option<u32> { let annotations_path = 1; Some(annotations_path) }\n' >crates/acquisition-client/src/zz_breaker.rs; }
 run_case 'the intent API named in client/src'                    refuse 'names the intent API' intent_in_client
 

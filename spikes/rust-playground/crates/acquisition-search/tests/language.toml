@@ -1,0 +1,688 @@
+# The language corpus (C104; search/BUILD-PLAN.md, step 1): every
+# construct of the reference (search/DESIGN.md, "The language reference")
+# at least once, every error the grammar defines with the readings it
+# shows, and the acceptance set's queries. `tests/language.rs` runs it and
+# refuses a construct of its list that has no case here.
+#
+# A case is a text and what it must give: `canonical`, the text it prints
+# back as (its tree must then print and parse to itself), or `error`, the
+# kind, with `readings` when the error shows them — exactly, in order. A
+# `[[value]]` is the same for what `--sort` and `--sum` take. Expectations
+# are written by hand from the reference, never pasted from the printer.
+# Literal strings ('''…''') throughout: a backslash here is a backslash.
+
+# ---- composition -----------------------------------------------------------
+
+[[case]]
+construct = "composition.empty"
+text = ''
+canonical = ''
+
+[[case]]
+construct = "composition.and"
+text = '''rarity=rare is:corrupted'''
+canonical = '''rarity=rare is:corrupted'''
+
+[[case]]
+construct = "composition.and"
+text = '''rarity=rare and is:corrupted AND ilvl>=84'''
+canonical = '''rarity=rare is:corrupted ilvl>=84'''
+
+[[case]]
+construct = "composition.or"
+text = '''class:ring or class:amulet or class:belt'''
+canonical = '''class:ring or class:amulet or class:belt'''
+
+[[case]]
+construct = "composition.not"
+text = '''not is:corrupted -has:note'''
+canonical = '''-is:corrupted -has:note'''
+
+[[case]]
+construct = "composition.not"
+text = '''--is:corrupted -(rarity=rare ilvl>=84)'''
+canonical = '''--is:corrupted -(rarity=rare ilvl>=84)'''
+
+[[case]]
+construct = "composition.parens"
+text = '''(rarity=rare is:corrupted) ilvl>=84'''
+canonical = '''(rarity=rare is:corrupted) ilvl>=84'''
+
+[[case]]
+construct = "composition.parens"
+text = '''(class:ring or class:amulet) rarity=rare'''
+canonical = '''(class:ring or class:amulet) rarity=rare'''
+
+# Parentheses are spelling for nesting: around one term they are nothing.
+[[case]]
+construct = "composition.parens"
+text = '''((rarity=rare)) (ilvl>=84)'''
+canonical = '''rarity=rare ilvl>=84'''
+
+# A refinement is the old query, parenthesised, and a new term (C91).
+[[case]]
+construct = "composition.refinement"
+text = '''(class:ring rarity=rare) pseudo.total_res>=60'''
+canonical = '''(class:ring rarity=rare) pseudo.total_res>=60'''
+
+[[case]]
+construct = "composition.mixed_and_or"
+text = '''rarity=rare is:corrupted or ilvl>=84'''
+error = "mixed_and_or"
+readings = ['''(rarity=rare is:corrupted) or ilvl>=84''', '''rarity=rare (is:corrupted or ilvl>=84)''']
+
+[[case]]
+construct = "composition.mixed_and_or"
+text = '''rarity=rare or is:corrupted ilvl>=84 or has:note'''
+error = "mixed_and_or"
+readings = ['''rarity=rare or (is:corrupted ilvl>=84) or has:note''', '''(rarity=rare or is:corrupted) (ilvl>=84 or has:note)''']
+
+[[case]]
+construct = "composition.holds"
+text = '''holds(rarity=rare, is:corrupted, ilvl>=84)>=2'''
+canonical = '''holds(rarity=rare, is:corrupted, ilvl>=84)>=2'''
+
+[[case]]
+construct = "composition.holds"
+text = '''holds(rarity=rare, is:corrupted, ilvl>=84)=2..3'''
+canonical = '''holds(rarity=rare, is:corrupted, ilvl>=84)=2..3'''
+
+[[case]]
+construct = "composition.holds"
+text = '''holds(rarity=rare, is:corrupted)=1'''
+canonical = '''holds(rarity=rare, is:corrupted)=1'''
+
+# A bound has one spelling: >1 is >=2, <3 is <=2, =..2 is <=2.
+[[case]]
+construct = "composition.holds"
+text = '''holds(rarity=rare, is:corrupted ilvl>=84, has:note or has:sockets)>1'''
+canonical = '''holds(rarity=rare, is:corrupted ilvl>=84, has:note or has:sockets)>=2'''
+
+[[case]]
+construct = "composition.holds"
+text = '''holds(rarity=rare, is:corrupted)=..1'''
+canonical = '''holds(rarity=rare, is:corrupted)<=1'''
+
+[[case]]
+construct = "composition.holds_needs_bound"
+text = '''holds(rarity=rare, is:corrupted)'''
+error = "holds_needs_bound"
+
+[[case]]
+construct = "composition.undecided_thing"
+text = '''undecided(class)'''
+canonical = '''undecided(class)'''
+
+[[case]]
+construct = "composition.undecided_thing"
+text = '''undecided(pseudo.total_res) or undecided(sum("# to maximum Life"))'''
+canonical = '''undecided(pseudo.total_res) or undecided(sum(line("# to maximum Life").arg1))'''
+
+[[case]]
+construct = "composition.undecided_term"
+text = '''undecided(pseudo.total_res>=60)'''
+canonical = '''undecided(pseudo.total_res>=60)'''
+
+[[case]]
+construct = "composition.undecided_term"
+text = '''undecided("# to maximum Life">=90)'''
+canonical = '''undecided(line("# to maximum Life" arg1>=90))'''
+
+[[case]]
+construct = "composition.constants"
+text = '''true() (false() or rarity=rare) line("# to maximum Life" true())'''
+canonical = '''true() (false() or rarity=rare) line("# to maximum Life" true())'''
+
+# ---- strings -----------------------------------------------------------------
+
+[[case]]
+construct = "strings.escapes"
+text = '''"she said \"no\"" name="back\\slash"'''
+canonical = '''"she said \"no\"" name="back\\slash"'''
+
+[[case]]
+construct = "strings.bad_escape"
+text = '''"tab\there"'''
+error = "bad_escape"
+
+[[case]]
+construct = "strings.unterminated"
+text = '''name="Kaom's Heart'''
+error = "unterminated_string"
+
+# A mod displayed over several rows is one occurrence with one template.
+[[case]]
+construct = "strings.multirow_template"
+text = '''line("Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value")'''
+canonical = '''line("Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value")'''
+
+# ---- item-level -----------------------------------------------------------------
+
+[[case]]
+construct = "item.phrase"
+text = '''"Level 1" "of Staunching"'''
+canonical = '''"Level 1" "of Staunching"'''
+
+[[case]]
+construct = "item.bare_word"
+text = '''rare'''
+error = "bare_word"
+readings = ['''"rare"''', '''line(template:rare)''']
+
+[[case]]
+construct = "item.bare_word"
+text = '''class:ring life'''
+error = "bare_word"
+readings = ['''"life"''', '''line(template:life)''']
+
+[[case]]
+construct = "item.contains"
+text = '''name:kaom'''
+canonical = '''name:kaom'''
+
+[[case]]
+construct = "item.whole"
+text = '''name="Kaom's Heart"'''
+canonical = '''name="Kaom's Heart"'''
+
+[[case]]
+construct = "item.pattern"
+text = '''name~"^Kaom"'''
+canonical = '''name~"^Kaom"'''
+
+# A pattern is always printed quoted, even when it is one plain word.
+[[case]]
+construct = "item.pattern"
+text = '''name~kaom'''
+canonical = '''name~"kaom"'''
+
+[[case]]
+construct = "item.header"
+text = '''typeline:staunching base="Divine Life Flask" -has:name'''
+canonical = '''typeline:staunching base="Divine Life Flask" -has:name'''
+
+# text: is the explicit name of what a quoted phrase searches.
+[[case]]
+construct = "item.text_field"
+text = '''text:word text~"^Adds \\d+"'''
+canonical = '''"word" text~"^Adds \\d+"'''
+
+[[case]]
+construct = "item.closed_set"
+text = '''rarity=rare class:ring'''
+canonical = '''rarity=rare class:ring'''
+
+[[case]]
+construct = "item.number"
+text = '''ilvl>=84 ilvl>80 ilvl<=86 ilvl<90 ilvl=85 quality>=-5 weight=1.5'''
+canonical = '''ilvl>=84 ilvl>80 ilvl<=86 ilvl<90 ilvl=85 quality>=-5 weight=1.5'''
+
+# A number has one spelling: 90.0 is 90, +5 is 5.
+[[case]]
+construct = "item.number"
+text = '''ilvl>=84.0 quality=+5'''
+canonical = '''ilvl>=84 quality=5'''
+
+[[case]]
+construct = "item.range"
+text = '''ilvl=80..84 ilvl=..84 ilvl=80..'''
+canonical = '''ilvl=80..84 ilvl=..84 ilvl=80..'''
+
+[[case]]
+construct = "item.range_needs_equals"
+text = '''ilvl>=80..84'''
+error = "range_needs_equals"
+
+[[case]]
+construct = "item.comparison_needs_number"
+text = '''ilvl>=high'''
+error = "comparison_needs_number"
+
+# Whitespace separates terms, so an operator sits against its name and value.
+[[case]]
+construct = "item.spaced_operator"
+text = '''ilvl >= 84'''
+error = "unexpected"
+
+# A value that is more than one plain word is quoted; the error offers it.
+[[case]]
+construct = "item.unquoted_value"
+text = '''tab:q-20'''
+error = "unexpected"
+readings = ['''"q-20"''']
+
+[[case]]
+construct = "item.unquoted_value"
+text = '''name:Kaom's Heart'''
+error = "unexpected"
+readings = ['''"Kaom's"''']
+
+[[case]]
+construct = "item.has"
+text = '''has:note -has:reqlevel'''
+canonical = '''has:note -has:reqlevel'''
+
+[[case]]
+construct = "item.is"
+text = '''is:corrupted -is:identified'''
+canonical = '''is:corrupted -is:identified'''
+
+[[case]]
+construct = "item.place"
+text = '''league:Standard tab:"$ dump 1" character:Tom_the_Witch container:equipment'''
+canonical = '''league:Standard tab:"$ dump 1" character:Tom_the_Witch container:equipment'''
+
+# A value that is all digits is a number; as text it is quoted and stays so.
+[[case]]
+construct = "item.place"
+text = '''tab:"12" tab:12'''
+canonical = '''tab:"12" tab:12'''
+
+[[case]]
+construct = "item.id"
+text = '''id:3fa94b0c77e1d2aa90b4 id:a7c1'''
+canonical = '''id:3fa94b0c77e1d2aa90b4 id:a7c1'''
+
+[[case]]
+construct = "item.realm_is_scope"
+text = '''realm:pc "# to maximum Life">=90'''
+error = "realm_is_scope"
+
+[[case]]
+construct = "item.realm_is_scope"
+text = '''-realm:pc'''
+error = "realm_is_scope"
+
+# mod( and stat( are ordinary unknown names, near names offered.
+[[case]]
+construct = "item.unknown_call"
+text = '''mod("# to maximum Life")'''
+error = "unknown_call"
+
+[[case]]
+construct = "item.unknown_call"
+text = '''lines("# to maximum Life")'''
+error = "unknown_call"
+readings = ['''line(''', '''linked(''']
+
+# ---- members --------------------------------------------------------------------
+
+[[case]]
+construct = "members.line"
+text = '''line("# to maximum Life" source=explicit -is:crafted arg1>=90)'''
+canonical = '''line("# to maximum Life" source=explicit -is:crafted arg1>=90)'''
+
+[[case]]
+construct = "members.line"
+text = '''line(template:resistance is:fractured)'''
+canonical = '''line(template:resistance is:fractured)'''
+
+[[case]]
+construct = "members.line"
+text = '''line("Adds # to # Cold Damage" low>=15 high<=45)'''
+canonical = '''line("Adds # to # Cold Damage" low>=15 high<=45)'''
+
+# The leading "T" means template="T", and prints as the bare "T" wherever it sits.
+[[case]]
+construct = "members.template_forms"
+text = '''line(template="# to maximum Life" arg1>=90) line(source=implicit "# to maximum Life")'''
+canonical = '''line("# to maximum Life" arg1>=90) line(source=implicit "# to maximum Life")'''
+
+[[case]]
+construct = "members.template_forms"
+text = '''line(template~"to (Fire|Cold) Resistance$" arg1>=30) line(template:"maximum life")'''
+canonical = '''line(template~"to (Fire|Cold) Resistance$" arg1>=30) line(template:"maximum life")'''
+
+[[case]]
+construct = "members.linked"
+text = '''linked(red>=3 green>=1) linked(size>=5 blue>=2)'''
+canonical = '''linked(red>=3 green>=1) linked(size>=5 blue>=2)'''
+
+[[case]]
+construct = "members.inside"
+text = '''line(("# to Strength" or "# to Dexterity") arg1>=40 not is:crafted)'''
+canonical = '''line(("# to Strength" or "# to Dexterity") arg1>=40 -is:crafted)'''
+
+[[case]]
+construct = "members.inside"
+text = '''line("# to maximum Life" is:crafted or is:fractured)'''
+error = "mixed_and_or"
+readings = ['''("# to maximum Life" is:crafted) or is:fractured''', '''"# to maximum Life" (is:crafted or is:fractured)''']
+
+[[case]]
+construct = "members.bare_word"
+text = '''line(life)'''
+error = "bare_word"
+readings = ['''template:life''']
+
+[[case]]
+construct = "members.empty"
+text = '''line()'''
+error = "empty_group"
+
+[[case]]
+construct = "members.not_inside_group"
+text = '''line("# to maximum Life" line("# to Strength"))'''
+error = "not_inside_group"
+
+[[case]]
+construct = "members.not_inside_group"
+text = '''line("# to maximum Life" has:note)'''
+error = "not_inside_group"
+
+[[case]]
+construct = "members.not_inside_group"
+text = '''linked("# to maximum Life")'''
+error = "not_inside_group"
+
+# A template typed with its numbers: any value, or that value.
+[[case]]
+construct = "members.template_with_numbers"
+text = '''line("+92 to maximum Life")'''
+error = "template_with_numbers"
+readings = ['''line("# to maximum Life")''', '''line("# to maximum Life" arg1=92)''']
+
+[[case]]
+construct = "members.template_with_numbers"
+text = '''"+92 to maximum Life">=90'''
+error = "template_with_numbers"
+readings = ['''line("# to maximum Life" arg1>=90)''', '''line("# to maximum Life" arg1=92 arg1>=90)''']
+
+[[case]]
+construct = "members.template_with_numbers"
+text = '''rarity=rare line("Adds 12 to 24 Cold Damage" source=explicit)'''
+error = "template_with_numbers"
+readings = ['''rarity=rare line("Adds # to # Cold Damage" source=explicit)''', '''rarity=rare line("Adds # to # Cold Damage" arg1=12 arg2=24 source=explicit)''']
+
+# Several typed numbers and no slot: the numbers are the error, and the
+# comparison is the author's once the template is right.
+[[case]]
+construct = "members.template_with_numbers"
+text = '''"Adds 12 to 24 Cold Damage">=20'''
+error = "template_with_numbers"
+readings = ['''line("Adds # to # Cold Damage")''', '''line("Adds # to # Cold Damage" arg1=12 arg2=24)''']
+
+# ---- slots -------------------------------------------------------------------------
+
+[[case]]
+construct = "slots.args"
+text = '''line("Adds # to # Cold Damage" arg1>=15 arg2<=45)'''
+canonical = '''line("Adds # to # Cold Damage" arg1>=15 arg2<=45)'''
+
+# Ranged: exactly one `# to #`; a further number keeps its position.
+[[case]]
+construct = "slots.ranged"
+text = '''line("# to # Added Physical Damage per # Armour or Evasion Rating on Shield" low>=1 high>=2 avg>=1.5 arg3<=20)'''
+canonical = '''line("# to # Added Physical Damage per # Armour or Evasion Rating on Shield" low>=1 high>=2 avg>=1.5 arg3<=20)'''
+
+[[case]]
+construct = "slots.not_ranged"
+text = '''line("# to maximum Life" low>=90)'''
+error = "slot_unknown"
+
+# Two `# to #`: not ranged; low, high or avg is an error that lists arg1 … arg4.
+[[case]]
+construct = "slots.two_pairs"
+text = '''line("Adds # to # Fire Damage and # to # Cold Damage" avg>=20)'''
+error = "slot_unknown"
+
+[[case]]
+construct = "slots.two_pairs"
+text = '''line("Adds # to # Fire Damage and # to # Cold Damage" arg4>=20)'''
+canonical = '''line("Adds # to # Fire Damage and # to # Cold Damage" arg4>=20)'''
+
+# (#-#) describes possible rolls and never reads `# to #`: positional only.
+[[case]]
+construct = "slots.paren_range"
+text = '''line("Bow: Adds (#-#) to (#-#) Cold Damage" arg3>=20)'''
+canonical = '''line("Bow: Adds (#-#) to (#-#) Cold Damage" arg3>=20)'''
+
+[[case]]
+construct = "slots.paren_range"
+text = '''line("Bow: Adds (#-#) to (#-#) Cold Damage" low>=20)'''
+error = "slot_unknown"
+
+[[case]]
+construct = "slots.beyond"
+text = '''line("# to maximum Life" arg2>=90)'''
+error = "slot_unknown"
+
+# A selector that is not one quoted template states no numbers: the evaluator's.
+[[case]]
+construct = "slots.unchecked_selector"
+text = '''line(template:resistance avg>=20 arg7>=1)'''
+canonical = '''line(template:resistance avg>=20 arg7>=1)'''
+
+# ---- values --------------------------------------------------------------------------
+
+[[case]]
+construct = "values.shorthand"
+text = '''"# to maximum Life">=90'''
+canonical = '''line("# to maximum Life" arg1>=90)'''
+
+[[case]]
+construct = "values.shorthand"
+text = '''"Adds # to # Cold Damage".avg>=20 "# to maximum Life"=80..99'''
+canonical = '''line("Adds # to # Cold Damage" avg>=20) line("# to maximum Life" arg1=80..99)'''
+
+# A comparison on a projection means what it means inside the group.
+[[case]]
+construct = "values.projection_lowers"
+text = '''line("Adds # to # Cold Damage" source=explicit).avg>=20'''
+canonical = '''line("Adds # to # Cold Damage" source=explicit avg>=20)'''
+
+[[case]]
+construct = "values.projection_lowers"
+text = '''line(template:resistance).arg1>=30 line("# to Strength" or "# to Dexterity").arg1>=40'''
+canonical = '''line(template:resistance arg1>=30) line(("# to Strength" or "# to Dexterity") arg1>=40)'''
+
+# With no slot named, the template's own #s decide before it lowers (C92).
+[[case]]
+construct = "values.slotless_several"
+text = '''"Adds # to # Cold Damage">=20'''
+error = "slot_missing"
+
+[[case]]
+construct = "values.slotless_none"
+text = '''"Cannot be Frozen">=1'''
+error = "slot_missing"
+
+[[case]]
+construct = "values.slots_outside_group"
+text = '''"Adds # to # Cold Damage" low>=15 high<=45'''
+error = "slot_outside_group"
+readings = ['''line("Adds # to # Cold Damage" low>=15 high<=45)''', '''"Adds # to # Cold Damage".low>=15 "Adds # to # Cold Damage".high<=45''']
+
+[[case]]
+construct = "values.slots_outside_group"
+text = '''rarity=rare arg1>=90'''
+error = "slot_outside_group"
+
+[[case]]
+construct = "values.group_shorthand"
+text = '''line("# to maximum Life">=90)'''
+error = "unexpected"
+readings = ['''"# to maximum Life" arg1>=…''']
+
+[[case]]
+construct = "values.sum"
+text = '''sum("# to maximum Life")>=120'''
+canonical = '''sum(line("# to maximum Life").arg1)>=120'''
+
+[[case]]
+construct = "values.sum"
+text = '''sum(line(template~"Level of all (Fire |Spell )?Skill Gems").arg1)>=2 sum(line("Adds # to # Cold Damage").avg)=20..40'''
+canonical = '''sum(line(template~"Level of all (Fire |Spell )?Skill Gems").arg1)>=2 sum(line("Adds # to # Cold Damage").avg)=20..40'''
+
+[[case]]
+construct = "values.sum_slotless"
+text = '''sum("Adds # to # Cold Damage")>=20'''
+error = "slot_missing"
+
+[[case]]
+construct = "values.sum_slotless"
+text = '''sum(line(template:resistance))>=60'''
+error = "slot_missing"
+
+[[case]]
+construct = "values.pseudo"
+text = '''pseudo.total_res>=60 pseudo.dps>=400.5 pseudo.pdps<300 pseudo.defence_pct=90..100'''
+canonical = '''pseudo.total_res>=60 pseudo.dps>=400.5 pseudo.pdps<300 pseudo.defence_pct=90..100'''
+
+# A ranged computed value takes a slot word last.
+[[case]]
+construct = "values.pseudo_slot"
+text = '''pseudo.cold_damage.avg>=30'''
+canonical = '''pseudo.cold_damage.avg>=30'''
+
+[[case]]
+construct = "values.pseudo_slot"
+text = '''pseudo.cold_damage.mean>=30'''
+error = "unexpected"
+
+[[case]]
+construct = "values.pseudo_needs_comparison"
+text = '''pseudo.total_res'''
+error = "unexpected"
+
+[[case]]
+construct = "values.pseudo_needs_comparison"
+text = '''pseudo.total_res:high'''
+error = "comparison_needs_number"
+
+# A hyphen is never part of a name, so `-` only ever means not, or a minus sign.
+[[case]]
+construct = "values.names"
+text = '''pseudo.total-res>=60'''
+error = "unexpected"
+
+[[case]]
+construct = "values.has_on_computed"
+text = '''has:pseudo.total_res'''
+error = "has_on_computed"
+readings = ['''pseudo.total_res>0''', '''undecided(pseudo.total_res)''']
+
+[[case]]
+construct = "values.sockets"
+text = '''sockets>=5 links=6 sockets.red>=2'''
+canonical = '''sockets>=5 links=6 sockets.red>=2'''
+
+[[case]]
+construct = "values.price"
+text = '''has:priced price.amount>=5 price.currency=chaos price.lot=1'''
+canonical = '''has:priced price.amount>=5 price.currency=chaos price.lot=1'''
+
+# ---- what --sort and --sum take ----------------------------------------------------------
+
+[[value]]
+construct = "sort.projection"
+text = '''line("Adds # to # Cold Damage").avg'''
+canonical = '''line("Adds # to # Cold Damage").avg'''
+
+[[value]]
+construct = "sort.projection"
+text = '''"Adds # to # Cold Damage".high'''
+canonical = '''line("Adds # to # Cold Damage").high'''
+
+# A value with no slot named takes the template's one number.
+[[value]]
+construct = "sort.slotless"
+text = '''"# to maximum Life"'''
+canonical = '''line("# to maximum Life").arg1'''
+
+# A ranged value needs a slot.
+[[value]]
+construct = "sort.slotless"
+text = '''line("Adds # to # Cold Damage")'''
+error = "slot_missing"
+
+[[value]]
+construct = "sort.field"
+text = '''price.amount'''
+canonical = '''price.amount'''
+
+[[value]]
+construct = "sort.computed"
+text = '''pseudo.cold_damage.avg'''
+canonical = '''pseudo.cold_damage.avg'''
+
+[[value]]
+construct = "sort.computed"
+text = '''sum("# to maximum Life")'''
+canonical = '''sum(line("# to maximum Life").arg1)'''
+
+# ---- the reference's worked example ---------------------------------------------------------
+
+[[case]]
+construct = "worked_example"
+text = '''league=Standard class=ring rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60'''
+canonical = '''league=Standard class=ring rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60'''
+
+# Its route: a request's query, never a fragment.
+[[case]]
+construct = "worked_example"
+text = '''line("# to maximum Life") -line("# to maximum Life" arg1>=90)'''
+canonical = '''line("# to maximum Life") -line("# to maximum Life" arg1>=90)'''
+
+# ---- the acceptance set (search/DIGEST.md; search/BUILD-PLAN.md) ------------------------------
+
+[[case]]
+construct = "acceptance.OQ1"
+text = '''class:ring rarity=rare (line(template:resistance) or line(template:strength))'''
+canonical = '''class:ring rarity=rare (line(template:resistance) or line(template:strength))'''
+
+[[case]]
+construct = "acceptance.OQ1"
+text = '''base:ring rarity=rare line("#% to Cold Resistance" is:fractured)'''
+canonical = '''base:ring rarity=rare line("#% to Cold Resistance" is:fractured)'''
+
+[[case]]
+construct = "acceptance.OQ2"
+text = '''name="Ashes of the Stars"'''
+canonical = '''name="Ashes of the Stars"'''
+
+[[case]]
+construct = "acceptance.OQ3"
+text = '''line(template:explode) or base:"Sadist Garb" or name="Kaom's Heart" or linked(red>=3 green>=1)'''
+canonical = '''line(template:explode) or base:"Sadist Garb" or name="Kaom's Heart" or linked(red>=3 green>=1)'''
+
+[[case]]
+construct = "acceptance.OQ4"
+text = '''class:staff "crucible"'''
+canonical = '''class:staff "crucible"'''
+
+[[case]]
+construct = "acceptance.OQ5"
+text = '''(class:boots or class:gloves or class:helmet) (reqlevel=..30 or -has:reqlevel)'''
+canonical = '''(class:boots or class:gloves or class:helmet) (reqlevel=..30 or -has:reqlevel)'''
+
+[[case]]
+construct = "acceptance.OQ6"
+text = '''name="Inpulsa's Broken Heart" has:priced'''
+canonical = '''name="Inpulsa's Broken Heart" has:priced'''
+
+[[case]]
+construct = "acceptance.OQ7"
+text = '''line("#% chance to Avoid Elemental Ailments")'''
+canonical = '''line("#% chance to Avoid Elemental Ailments")'''
+
+# AQ1 is a view over any query: the empty one (composition.empty) serves.
+[[case]]
+construct = "acceptance.AQ2"
+text = '''(class:ring rarity=rare (line(template:resistance) or line(template:strength))) pseudo.total_res>=60'''
+canonical = '''(class:ring rarity=rare (line(template:resistance) or line(template:strength))) pseudo.total_res>=60'''
+
+[[case]]
+construct = "acceptance.AQ3"
+text = '''undecided(class) or -line("# to maximum Life")'''
+canonical = '''undecided(class) or -line("# to maximum Life")'''
+
+[[case]]
+construct = "acceptance.AQ4"
+text = '''id:9d2f00c1b7a44e0e'''
+canonical = '''id:9d2f00c1b7a44e0e'''
+
+[[case]]
+construct = "acceptance.AQ5"
+text = '''"# to maximum Life">=90'''
+canonical = '''line("# to maximum Life" arg1>=90)'''

@@ -302,6 +302,63 @@ scope    one realm or all · live, or live and removed
   moment on every open, as every store verb does today. Search inherits
   it.
 
+## The record
+
+What was built, and what it met. At the close this is the closed
+record's step ledger and its observations.
+
+| Step | Commit | What landed |
+| --- | --- | --- |
+| 1 · the language | this commit | `acquisition-search`: the tree and its validity (`tree.rs`), the parser over the whole reference (`parse.rs`), the canonical printer (`print.rs`), the strict JSON form (`json.rs`), structured errors with stable kinds (`error.rs`). `tests/language.toml`: 123 cases over 82 constructs — every construct of the reference, every error the grammar defines with its readings, the acceptance queries — and `tests/language.rs` refuses a construct with no case. The round trip over generated trees (2,000 a run; 60,000 once, by hand), any finite number, and no text panics the parser (200,000 once). C89's edges in `tools/docs-check.sh` §5 with nine breaker cases: `tools/docs-check-breakers.sh`, 51 ok. The contract detail's sentences on the check and the lints left `DESIGN.md` for the crate doc. |
+
+**Found by step 1's own tests, in the builder's code:** a computed value
+named alone (`pseudo.total_res`) was answered as a bare word; a whole
+number between 9.0e18 and 2^63 printed as digits the parser read back as
+another tree (`Number::from_f64` now agrees with the parser at the edge
+of an i64, pinned); `ilvl >= 84`, `tab:q-20` and a template typed with
+two numbers each got a misleading error and now get their own.
+
+### The holes table — what the parser met that the reference does not state
+
+**Changes what a user types — the owner's.** None blocked step 1: each
+is built in the direction that breaks nothing if he rules the other way.
+
+| # | Hole | Built as | Recommendation |
+| --- | --- | --- | --- |
+| H1 | A phrase that is a template: `"# to maximum Life"` alone is a text search for a literal `#`. Over the census's store copy (22,721 items) no displayed string — name, type line, base, mod line, property — contains one, so it can never match | a phrase, silently matching nothing | an error that offers `line("# to maximum Life")`: no silent modes (C91) |
+| H2 | A sign before `#` in a quoted template (`"+# to maximum Life"`, as the game's own mod text and the C++ tables write it): the sign is carried in the number (C90), and 0 of the census's 6,928 templates start with `+#` | accepted, matching nothing | an error that offers the template without the sign |
+| H3 | Whitespace around an operator: `ilvl >= 84` | an error that says an operator sits against its name and value, since whitespace separates terms | keep |
+| H4 | A quoted value after `:` — `template:"maximum life"`, `tab:"$ dump 1"`; the reference shows only a bare word there | accepted; a value that is more than one plain word must be quoted, and the error offers it quoted | keep |
+| H5 | `AND`, `Or`, `NOT` | accepted in any case, printed as whitespace, `or`, `-` | keep |
+
+**Observations — the builder's.**
+
+- Parentheses are spelling for nesting and nothing else: `(a) b` is
+  `a b`, and a JSON tree holding a group of one is refused ("a group of
+  one is its member"); only the root may be empty, the empty query.
+- Canonical spellings the reference leaves open: and is whitespace, not
+  is `-`; `text:x` prints as the phrase `"x"`; a pattern is always
+  quoted; `sum("T")` prints lowered, `sum(line("T").arg1)`; a `holds`
+  bound is `>=n`, `<=n`, `=n` or `=a..b` (`>1` is `>=2`); `90.0` is `90`.
+- A quoted template means `template=` anywhere in a line's group, not
+  only leading, and prints as the bare `"T"` where it sits (never
+  reordered). Two in one and-group is valid and matches nothing.
+- The slot checks run when a group selects exactly one quoted template
+  at its own level; a template inside an or, under a not, or selected by
+  `:` or `~` states no numbers, and its slots are the evaluator's.
+- Not checked here: that a `~` pattern compiles (no regex dependency
+  yet — the binder's, step 4); that a field, flag, class or computed
+  value exists (the binder's). A bare word's readings are the two the
+  grammar knows, `"word"` and `line(template:word)`; the closed-set
+  readings (`rarity=rare`) arrive with the binder's vocabulary.
+- The JSON keys beyond the worked example's: `holds` with `min`/`max`,
+  `undecided` with `thing` or `term`, `const`, `has`, `is`, a range as
+  `{from, to}`, `sum` and a projection as `{lines, slot}`. Reading is
+  strict: an unknown or missing key is an error naming its path.
+- The wire reads an extreme float (1e122) to within one unit in the
+  last place (serde_json without `float_roundtrip`); the text is exact
+  for every finite number, and no typed bound is near that.
+
 ## Gaps found while planning — rules the reference did not state
 
 Each changes what a user types, or which items what he types matches.

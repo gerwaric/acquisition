@@ -38,6 +38,10 @@ inventories and mechanisms live in the linked source documentation.
 - `crates/acquisition-plan` — offline refresh planning and pricing.
   [Implementation](crates/acquisition-plan/src/lib.rs);
   rulings: `decisions/plans.md`, `decisions/pricing.md`.
+- `crates/acquisition-search` — item search over the store's read API;
+  so far the query language, its text and its tree.
+  [Implementation](crates/acquisition-search/src/lib.rs);
+  rulings: `decisions/search.md`.
 - `crates/acquisition-cli` — `acq`, clap and rendering.
   [Entry point](crates/acquisition-cli/src/main.rs); generated help:
   `CLI-REFERENCE.md`; rulings: `decisions/frontends.md`.

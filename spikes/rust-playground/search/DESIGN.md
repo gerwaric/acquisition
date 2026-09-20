@@ -395,13 +395,7 @@ since none has a trigger yet. Meeting one is a listed limit (C102).
 
 - **C89, C103 — the check and the store.** `Store::search` and its
   `items_names` index (S124, serving no read) become deletable once the
-  search answers what they answer (S136). When the crate exists, the
-  rules and the printed summary in `tools/docs-check.sh` §5 gain: search
-  links store and plan only, never daemon, client, HTTP or an async
-  runtime; daemon ∌ search; plan ∌ search — each with a breaker case in
-  `tools/docs-check-breakers.sh`, so the new rule is proven to refuse
-  before it is trusted. The crate adopts the store's
-  `unwrap_used`/`expect_used` denial (C47). The store's bulk read joins
+  search answers what they answer (S136). The store's bulk read joins
   location the way `read_items` does (S131), never `items.league` alone.
 - **C90, C102.** Twins stay one line (S52, S72), and binding occurrences
   stops them being summed by accident. A template that resolves to

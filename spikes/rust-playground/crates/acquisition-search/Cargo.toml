@@ -1,0 +1,14 @@
+[package]
+name = "acquisition-search"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+# the tests' only: proptest generates the trees the round trip runs over,
+# toml reads the language corpus (`tests/language.toml`)
+proptest = "1.11.0"
+toml.workspace = true

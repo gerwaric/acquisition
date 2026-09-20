@@ -192,7 +192,11 @@ fi
 # the contract does (§2.1); the planner links the protocol crate and the
 # store, never the daemon or the client (§2.1: every path it took from
 # core was the wire's or the vocabulary's, so a planner that links the
-# daemon again has grown a third door).
+# daemon again has grown a third door); the search crate links the store,
+# and the planner once a query reads the effective price, never the
+# daemon, the client, a frontend, an HTTP client or an async runtime, and
+# neither the daemon nor the planner links it — a plan takes item ids,
+# never a query, and a search edit recompiles no daemon (C89).
 #
 # One graph, from Cargo: the `resolve` section of `cargo metadata
 # --all-features` — every package Cargo resolves for this workspace with
@@ -410,15 +414,17 @@ only_self() {  # only_self <package> <why>: no other member reaches it, at any d
 # The frontends are named here; a new one (the GUI, a queue TUI) is added
 # to the daemon's list when its package exists — the reverse direction,
 # that nothing links the daemon, needs no list.
-forbid acquisition-daemon 'the daemon links protocol and store, never the client crate, the planner or a frontend (C1, C39)' \
-  acquisition-client acquisition-plan acquisition-cli acquisition-mcp
+forbid acquisition-daemon 'the daemon links protocol and store, never the client crate, the planner, the search or a frontend (C1, C39, C89)' \
+  acquisition-client acquisition-plan acquisition-search acquisition-cli acquisition-mcp
 only_self acquisition-daemon 'no package but acquisition-daemon names the daemon — a frontend is never in-process with it, and the client never embeds it (C1, C13, C82)'
 forbid acquisition-client 'the client links protocol, store and tokio, never the daemon or the planner (C1, §2.1)' \
   acquisition-daemon acquisition-plan
-forbid acquisition-plan  'the planner links protocol and store, never the daemon or the client (C39, §2.1)' \
-  acquisition-daemon acquisition-client
-forbid acquisition-store 'the store links no daemon, no client, no protocol and no HTTP client (C41; the split, §2.1)' \
-  acquisition-daemon acquisition-client acquisition-protocol acquisition-plan reqwest tokio
+forbid acquisition-plan  'the planner links protocol and store, never the daemon, the client or the search (C39, C89, §2.1)' \
+  acquisition-daemon acquisition-client acquisition-search
+forbid acquisition-search 'the search links the store, and the planner once a query reads the effective price — never the daemon, the client, a frontend, an HTTP client or an async runtime (C89)' \
+  acquisition-daemon acquisition-client acquisition-cli acquisition-mcp reqwest tokio
+forbid acquisition-store 'the store links no daemon, no client, no protocol, no planner, no search and no HTTP client (C41, C89; the split, §2.1)' \
+  acquisition-daemon acquisition-client acquisition-protocol acquisition-plan acquisition-search reqwest tokio
 allow acquisition-protocol normal serde serde_json
 allow acquisition-protocol dev    serde serde_json
 allow acquisition-protocol build  sha2
@@ -427,7 +433,7 @@ if grep -rqE 'Annotations|annotations_path' crates/acquisition-daemon/src crates
   fail=1; edge_bad=1
 fi
 if ((edge_bad == 0)); then
-  echo 'ok      dependencies  daemon ∌ client/planner/frontend, nothing ∌ daemon but itself, client ∌ daemon/planner, planner ∌ daemon/client, store ∌ daemon/client/protocol/HTTP, daemon/protocol/client ∌ intent API, protocol = serde only (C1, C34, C39, C41, §2.1)'
+  echo 'ok      dependencies  daemon ∌ client/planner/search/frontend, nothing ∌ daemon but itself, client ∌ daemon/planner, planner ∌ daemon/client/search, search ∌ daemon/client/frontend/HTTP/async, store ∌ daemon/client/protocol/search/HTTP, daemon/protocol/client ∌ intent API, protocol = serde only (C1, C34, C39, C41, C89, §2.1)'
 fi
 
 # ---- 6. the brainstorming notes -----------------------------------------

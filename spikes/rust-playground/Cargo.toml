@@ -6,6 +6,7 @@ members = [
     "crates/acquisition-daemon",
     "crates/acquisition-store",
     "crates/acquisition-plan",
+    "crates/acquisition-search",
     "crates/acquisition-cli",
     "crates/acquisition-mcp",
 ]

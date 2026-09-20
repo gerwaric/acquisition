@@ -90,6 +90,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "acquisition-search"
+version = "0.0.1"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "toml",
+]
+
+[[package]]
 name = "acquisition-store"
 version = "0.0.1"
 dependencies = [
