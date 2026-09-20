@@ -8,7 +8,8 @@
 //! `(a b) c` and `a b c` stay two texts for two trees.
 //!
 //! Spelling, as printed: and is whitespace, not is `-`; a phrase is
-//! `"…"`; inside `line( … )` the template selector is the bare `"T"`; a
+//! `"…"`, unless it holds a `#`, when it is `text:"…#…"` — a bare quoted
+//! string with a `#` is a template; inside `line( … )` the template selector is the bare `"T"`; a
 //! text value is bare when it is one plain word and quoted otherwise; a
 //! pattern is always quoted; a `holds` bound is `>=n`, `<=n`, `=n` or
 //! `=a..b`.
@@ -113,7 +114,7 @@ fn term(node: &Node, out: &mut String) {
             field,
             op: Op::Contains,
             value: Value::Text(phrase),
-        } if field == "text" => quoted(phrase, out),
+        } if field == "text" && !phrase.contains('#') => quoted(phrase, out),
         Node::Test { field, op, value } => test(field, *op, value, out),
         Node::Has(name) => {
             out.push_str("has:");

@@ -17,6 +17,12 @@
 //! decided by the template's own `#`s **before** it lowers (C92): one is
 //! `arg1`, several is the error that lists them, none is an error.
 //!
+//! A quoted string with a `#` in it is a template, never a phrase: alone it
+//! is `line("T")`, the item carries the line (and `-"T"`, it does not).
+//! In a quoted template a `+` before a `#` is spelling, as the game and the
+//! trade site write a line, and is dropped — the sign is the number's
+//! (C90); a `-` there is an error that offers the comparison.
+//!
 //! There are no silent modes: a bare word, `a b or c` unparenthesised, a
 //! template typed with its numbers, and slot words outside their group are
 //! each an error that shows its readings, and every reading is a text this
@@ -119,8 +125,9 @@ struct Parser<'a> {
 struct Item {
     node: Node,
     start: usize,
-    /// A bare `"…"`: what slot words may wrongly follow.
-    plain_phrase: bool,
+    /// The text of a bare `"…"` — a phrase, or a template alone: what slot
+    /// words may wrongly follow.
+    quoted: Option<String>,
 }
 
 impl<'a> Parser<'a> {
@@ -463,12 +470,10 @@ impl<'a> Parser<'a> {
         };
         let err =
             tree::slot_outside_group(word).at(items[first].start, items[first].start + word.len());
-        let after_phrase =
-            first > 0 && items[first - 1].plain_phrase && conns.get(first - 1) == Some(&Conn::And);
-        let Some(Node::Test {
-            value: Value::Text(template),
-            ..
-        }) = after_phrase.then(|| &items[first - 1].node)
+        let after_quoted = first > 0 && conns.get(first - 1) == Some(&Conn::And);
+        let Some(template) = after_quoted
+            .then(|| items[first - 1].quoted.as_deref())
+            .flatten()
         else {
             return Err(err);
         };
@@ -502,14 +507,31 @@ impl<'a> Parser<'a> {
 
     fn item(&mut self) -> Result<Item, LanguageError> {
         let start = self.pos;
-        let plain_phrase = self.peek() == Some('"');
+        let opens_quoted = self.peek() == Some('"');
         let node = self.term()?;
-        let plain_phrase = plain_phrase
-            && matches!(&node, Node::Test { field, op: Op::Contains, .. } if field == "text");
+        let quoted = match &node {
+            Node::Test {
+                field,
+                op: Op::Contains,
+                value: Value::Text(phrase),
+            } if opens_quoted && field == "text" => Some(phrase.clone()),
+            Node::Members {
+                of: Collection::Lines,
+                where_,
+            } if opens_quoted => match where_.as_ref() {
+                Member::Test {
+                    attr,
+                    op: Op::Eq,
+                    value: Value::Text(template),
+                } if attr == "template" => Some(template.clone()),
+                _ => None,
+            },
+            _ => None,
+        };
         Ok(Item {
             node,
             start,
-            plain_phrase,
+            quoted,
         })
     }
 
@@ -675,6 +697,15 @@ impl<'a> Parser<'a> {
             None
         };
         if named_slot.is_none() && !self.at_op() {
+            if text.contains('#') {
+                // A quoted string with a # in it is a template, never a
+                // phrase: alone it means the item carries the line.
+                let template = template::unsigned(&text).map_err(|e| e.at(start, self.pos))?;
+                return Ok(Node::Members {
+                    of: Collection::Lines,
+                    where_: Box::new(template_test(&template)),
+                });
+            }
             if text.is_empty() {
                 return Err(self.error(
                     ErrorKind::Unexpected,
@@ -684,6 +715,7 @@ impl<'a> Parser<'a> {
             }
             return Ok(phrase(&text));
         }
+        let text = template::unsigned(&text).map_err(|e| e.at(start, self.pos))?;
         let slot = match named_slot {
             Some(slot) => slot,
             None => match slotless(&text) {
@@ -963,6 +995,7 @@ impl<'a> Parser<'a> {
         let start = self.pos;
         if self.peek() == Some('"') {
             let text = self.string()?;
+            let text = template::unsigned(&text).map_err(|e| e.at(start, self.pos))?;
             let lines = Box::new(template_test(&text));
             return self.projection(lines, Some(&text), context, start);
         }
@@ -1024,6 +1057,7 @@ impl<'a> Parser<'a> {
         self.skip_ws();
         let (lines, quoted) = if self.peek() == Some('"') {
             let text = self.string()?;
+            let text = template::unsigned(&text).map_err(|e| e.at(start, self.pos))?;
             (template_test(&text), Some(text))
         } else {
             let at = self.pos;
@@ -1133,6 +1167,7 @@ impl<'a> Parser<'a> {
                     start,
                 ));
             }
+            let text = template::unsigned(&text).map_err(|e| e.at(start, self.pos))?;
             if self.at_op() || self.peek() == Some('.') {
                 let slot = slotless(&text).unwrap_or("arg1");
                 return Err(self
@@ -1193,7 +1228,13 @@ impl<'a> Parser<'a> {
             }
             return Ok(Member::Is(self.dotted(at)?.to_string()));
         }
-        let value = self.value(op)?;
+        let value = match self.value(op)? {
+            // `template="T"` is the bare "T" spelled out: the same spelling rule.
+            Value::Text(template) if name == "template" && op == Op::Eq => {
+                Value::Text(template::unsigned(&template).map_err(|e| e.at(start, self.pos))?)
+            }
+            other => other,
+        };
         Ok(Member::Test {
             attr: name.to_string(),
             op,

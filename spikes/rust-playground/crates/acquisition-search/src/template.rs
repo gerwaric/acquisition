@@ -113,6 +113,61 @@ pub(crate) fn check_slot(template: &str, slot: &str) -> Result<(), LanguageError
     Err(LanguageError::new(ErrorKind::SlotUnknown, message))
 }
 
+/// Where a sign sits directly before a `#`: `+# to maximum Life`, as the
+/// game and the trade site write it. A `+` or `-` straight after a `#`, a
+/// digit or a `)` is a range dash — `(#-#)` — never a sign.
+fn signs(template: &str) -> Vec<(usize, char)> {
+    let chars: Vec<(usize, char)> = template.char_indices().collect();
+    let mut found = Vec::new();
+    for (i, &(at, c)) in chars.iter().enumerate() {
+        let before_hash = chars.get(i + 1).is_some_and(|&(_, next)| next == '#');
+        let dash = i > 0 && matches!(chars[i - 1].1, '#' | ')' | '0'..='9');
+        if (c == '+' || c == '-') && before_hash && !dash {
+            found.push((at, c));
+        }
+    }
+    found
+}
+
+/// A quoted template as the tree holds it (C90: the sign is carried in the
+/// number, so a line's identity has none). A `+` before a `#` is spelling
+/// and is dropped — the trade site's `+# to maximum Life` names the line
+/// `# to maximum Life`. A `-` there is not spelling: it says the value is
+/// negative, which a comparison says, so it is the error that offers one.
+pub(crate) fn unsigned(template: &str) -> Result<String, LanguageError> {
+    let signs = signs(template);
+    let bare: String = template
+        .char_indices()
+        .filter(|(at, _)| !signs.iter().any(|(s, _)| s == at))
+        .map(|(_, c)| c)
+        .collect();
+    let negative: Vec<String> = signs
+        .iter()
+        .filter(|(_, c)| *c == '-')
+        .map(|(at, _)| format!("arg{}<0", template[..*at].matches('#').count() + 1))
+        .collect();
+    if negative.is_empty() {
+        return Ok(bare);
+    }
+    let quoted = crate::print::quoted_text(&bare);
+    Err(LanguageError::new(
+        ErrorKind::SignedTemplate,
+        format!("the sign is the number's, never the template's: \"{template}\" is the line {quoted} with a negative value"),
+    )
+    .with_readings(vec![format!("line({quoted} {})", negative.join(" "))]))
+}
+
+/// What a tree may hold: a template with no sign before a `#`.
+pub(crate) fn check_unsigned(template: &str) -> Result<(), LanguageError> {
+    if signs(template).is_empty() {
+        return Ok(());
+    }
+    Err(LanguageError::new(
+        ErrorKind::Tree,
+        format!("\"{template}\": a tree holds a template without the sign before its #"),
+    ))
+}
+
 /// A template typed with its numbers (`"+92 to maximum Life"`): no real
 /// template carries a digit, so this is the author showing a line as the
 /// game displayed it. The error's two readings are the caller's to print.

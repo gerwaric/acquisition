@@ -156,12 +156,67 @@ construct = "strings.multirow_template"
 text = '''line("Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value")'''
 canonical = '''line("Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value")'''
 
+# A `+` before a `#` is spelling, as the game and the trade site write a
+# line: the sign is the number's (C90), so the template has none.
+[[case]]
+construct = "strings.template_sign"
+text = '''"+# to maximum Life">=90 line("+#% to Fire Resistance" source=explicit) line(template="+# to Strength")'''
+canonical = '''line("# to maximum Life" arg1>=90) line("#% to Fire Resistance" source=explicit) line("# to Strength")'''
+
+[[case]]
+construct = "strings.template_sign"
+text = '''sum("+# to maximum Life")>=120 "Adds +# to +# Cold Damage".avg>=20'''
+canonical = '''sum(line("# to maximum Life").arg1)>=120 line("Adds # to # Cold Damage" avg>=20)'''
+
+# A dash after a `#` or a `)` is a range dash, never a sign.
+[[case]]
+construct = "strings.template_sign"
+text = '''line("Bow: Adds (#-#) to (#-#) Cold Damage") line("#-# Lightning Damage")'''
+canonical = '''line("Bow: Adds (#-#) to (#-#) Cold Damage") line("#-# Lightning Damage")'''
+
+# A `-` there is not spelling: it says the value is negative, which a comparison says.
+[[case]]
+construct = "strings.template_negative"
+text = '''"-#% to Fire Resistance"'''
+error = "signed_template"
+readings = ['''line("#% to Fire Resistance" arg1<0)''']
+
+[[case]]
+construct = "strings.template_negative"
+text = '''line("Adds # to -# Cold Damage" source=explicit)'''
+error = "signed_template"
+readings = ['''line("Adds # to # Cold Damage" arg2<0)''']
+
 # ---- item-level -----------------------------------------------------------------
 
 [[case]]
 construct = "item.phrase"
 text = '''"Level 1" "of Staunching"'''
 canonical = '''"Level 1" "of Staunching"'''
+
+# A quoted string with a # in it is a template, never a phrase: alone it
+# means the item carries the line, whatever its numbers — and its negation,
+# the item does not.
+[[case]]
+construct = "item.template_alone"
+text = '''"# to maximum Life"'''
+canonical = '''line("# to maximum Life")'''
+
+[[case]]
+construct = "item.template_alone"
+text = '''rarity=rare -"+#% to Chaos Resistance" ("# to Strength" or "# to Dexterity")'''
+canonical = '''rarity=rare -line("#% to Chaos Resistance") (line("# to Strength") or line("# to Dexterity"))'''
+
+[[case]]
+construct = "item.template_alone"
+text = '''undecided("# to maximum Life") holds("# to Strength", "# to Dexterity", "# to Intelligence")>=2'''
+canonical = '''undecided(line("# to maximum Life")) holds(line("# to Strength"), line("# to Dexterity"), line("# to Intelligence"))>=2'''
+
+# text:"…#…" searches for a literal #, and keeps that spelling.
+[[case]]
+construct = "item.literal_hash"
+text = '''text:"#1 of 3" text:"no hash"'''
+canonical = '''text:"#1 of 3" "no hash"'''
 
 [[case]]
 construct = "item.bare_word"
@@ -660,6 +715,11 @@ canonical = '''(class:boots or class:gloves or class:helmet) (reqlevel=..30 or -
 construct = "acceptance.OQ6"
 text = '''name="Inpulsa's Broken Heart" has:priced'''
 canonical = '''name="Inpulsa's Broken Heart" has:priced'''
+
+[[case]]
+construct = "acceptance.OQ7"
+text = '''"+#% chance to Avoid Elemental Ailments"'''
+canonical = '''line("#% chance to Avoid Elemental Ailments")'''
 
 [[case]]
 construct = "acceptance.OQ7"

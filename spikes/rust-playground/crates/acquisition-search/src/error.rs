@@ -15,6 +15,10 @@ pub enum ErrorKind {
     MixedAndOr,
     /// A template typed with its numbers: any value, or that value.
     TemplateWithNumbers,
+    /// `-#` in a quoted template: the sign is the number's (C90), so a
+    /// negative value is asked for by a comparison. (`+#` is spelling, and
+    /// is dropped.)
+    SignedTemplate,
     /// A comparison, sort or sum names no slot on a template with several
     /// numbers, or with none (C92): the slots are listed.
     SlotMissing,

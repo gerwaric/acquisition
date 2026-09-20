@@ -533,6 +533,9 @@ fn check_member(member: &Member) -> Result<(), LanguageError> {
         Member::Is(name) => check_plain_name(name),
         Member::Test { attr, op, value } => {
             check_plain_name(attr)?;
+            if let (true, Op::Eq, Value::Text(template)) = (attr == "template", op, value) {
+                template::check_unsigned(template)?;
+            }
             if attr == "has" || attr == "is" {
                 return Err(invalid(
                     ErrorKind::Tree,

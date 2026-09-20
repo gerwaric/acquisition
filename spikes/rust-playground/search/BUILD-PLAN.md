@@ -309,7 +309,7 @@ record's step ledger and its observations.
 
 | Step | Commit | What landed |
 | --- | --- | --- |
-| 1 · the language | `080a8581` | `acquisition-search`: the tree and its validity (`tree.rs`), the parser over the whole reference (`parse.rs`), the canonical printer (`print.rs`), the strict JSON form (`json.rs`), structured errors with stable kinds (`error.rs`). `tests/language.toml`: 123 cases over 82 constructs — every construct of the reference, every error the grammar defines with its readings, the acceptance queries — and `tests/language.rs` refuses a construct with no case. The round trip over generated trees (2,000 a run; 60,000 once, by hand), any finite number, and no text panics the parser (200,000 once). C89's edges in `tools/docs-check.sh` §5 with nine breaker cases: `tools/docs-check-breakers.sh`, 51 ok. The contract detail's sentences on the check and the lints left `DESIGN.md` for the crate doc. |
+| 1 · the language | `080a8581` | `acquisition-search`: the tree and its validity (`tree.rs`), the parser over the whole reference (`parse.rs`), the canonical printer (`print.rs`), the strict JSON form (`json.rs`), structured errors with stable kinds (`error.rs`). `tests/language.toml`: 133 cases over 86 constructs (123 over 82 at the step's commit; H1 and H2 added the rest) — every construct of the reference, every error the grammar defines with its readings, the acceptance queries — and `tests/language.rs` refuses a construct with no case. The round trip over generated trees (2,000 a run; 60,000 once, by hand), any finite number, and no text panics the parser (200,000 once). C89's edges in `tools/docs-check.sh` §5 with nine breaker cases: `tools/docs-check-breakers.sh`, 51 ok. The contract detail's sentences on the check and the lints left `DESIGN.md` for the crate doc. |
 
 **Found by step 1's own tests, in the builder's code:** a computed value
 named alone (`pseudo.total_res`) was answered as a bare word; a whole
@@ -325,16 +325,17 @@ is built in the direction that breaks nothing if he rules the other way.
 
 | # | Hole | Built as | Recommendation |
 | --- | --- | --- | --- |
-| H1 | A phrase that is a template: `"# to maximum Life"` alone is a text search for a literal `#`. Over the census's store copy (22,721 items) no displayed string — name, type line, base, mod line, property — contains one, so it can never match | a phrase, silently matching nothing | an error that offers `line("# to maximum Life")`: no silent modes (C91) |
-| H2 | A sign before `#` in a quoted template (`"+# to maximum Life"`, as the game's own mod text and the C++ tables write it): the sign is carried in the number (C90), and 0 of the census's 6,928 templates start with `+#` | accepted, matching nothing | an error that offers the template without the sign |
+| H1 | A phrase that is a template: `"# to maximum Life"` alone was a text search for a literal `#`. Over the census's store copy (22,721 items) no displayed string — name, type line, base, mod line, property — contains one, so it could never match | **ruled 2026-09-19: a template alone means the line** (the reference, *Item-level*); `text:"…#…"` keeps the literal search | — |
+| H2 | A sign before `#` in a quoted template (`"+# to maximum Life"`, as the game, the C++ tables and the trade site write it): the sign is carried in the number (C90), and 0 of the census's 6,928 templates start with `+#` | **ruled 2026-09-19: `+#` is spelling and is dropped; `-#` is an error offering `argN<0`** (the reference, *Strings*) | — |
 | H3 | Whitespace around an operator: `ilvl >= 84` | an error that says an operator sits against its name and value, since whitespace separates terms | keep |
 | H4 | A quoted value after `:` — `template:"maximum life"`, `tab:"$ dump 1"`; the reference shows only a bare word there | accepted; a value that is more than one plain word must be quoted, and the error offers it quoted | keep |
 | H5 | `AND`, `Or`, `NOT` | accepted in any case, printed as whitespace, `or`, `-` | keep |
 
 H3, H4 and H5 stand as built (owner, 2026-09-19: "Otherwise I accept
-your recommendations"). H1 and H2 are open: the trade site writes
-`+# to maximum Life`, and people and agents will type what it writes.
-Measured over its stat texts (`trade-query/data/stats-2026-09-12.json`,
+your recommendations"). H1 and H2 were ruled the same day, his words in
+the reference, and built in the commit after step 1's: the trade site
+writes `+# to maximum Life`, and people and agents will type what it
+writes. Measured over its stat texts (`trade-query/data/stats-2026-09-12.json`,
 13,707 outside `pseudo`): 1,048 carry `+#` and none `-#`; typed as the
 site writes them 0 name a census template, with the sign dropped 359 do
 (the rest are lines this corpus does not hold); only 3 sign-free forms

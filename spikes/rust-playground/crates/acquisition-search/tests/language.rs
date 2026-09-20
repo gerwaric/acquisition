@@ -51,8 +51,12 @@ const CONSTRUCTS: &[&str] = &[
     "strings.bad_escape",
     "strings.unterminated",
     "strings.multirow_template",
+    "strings.template_sign",
+    "strings.template_negative",
     // Item-level
     "item.phrase",
+    "item.template_alone",
+    "item.literal_hash",
     "item.bare_word",
     "item.contains",
     "item.whole",
@@ -344,6 +348,10 @@ fn c104_a_tree_the_language_cannot_say_is_refused() {
             { "attr": "template", "op": "=", "value": "# to maximum Life" },
             { "attr": "low", "op": ">=", "value": 90 } ] } }),
         serde_json::json!({ "exists": "lines", "where": { "attr": "template", "op": "=", "value": "+92 to maximum Life" } }),
+        // a sign before a # is spelling, which a tree never holds
+        serde_json::json!({ "exists": "lines", "where": { "any": [
+            { "attr": "template", "op": "=", "value": "+# to maximum Life" },
+            { "is": "crafted" } ] } }),
         // a comparison on a projection lowers into the group: a tree never holds it
         serde_json::json!({ "value": { "lines": { "attr": "template", "op": "=", "value": "# to maximum Life" }, "slot": "arg1" }, "op": ">=", "number": 90 }),
     ];

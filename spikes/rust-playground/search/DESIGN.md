@@ -113,6 +113,13 @@ STRINGS
                         line("Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value")
                       A phrase tests each displayed row on its own; template:words reaches across
                       rows; a total's row may name such a template like any other.
+  "+# …"              in a quoted template a + before a # is spelling, as the game and the trade
+                      site write a line, and is dropped: the sign is the number's (C90).
+                        "+# to maximum Life">=90  →  line("# to maximum Life" arg1>=90)
+                      A - there is not spelling — it says the value is negative — so it is an error
+                      offering the comparison: line("#% to Fire Resistance" arg1<0). A dash after a
+                      # or a ) is a range dash, (#-#), never a sign. #% needs nothing: the % is the
+                      template's.
 
 ITEM-LEVEL
   "a phrase"          text: substring, any case, tested against each displayed string on its
@@ -125,6 +132,10 @@ ITEM-LEVEL
                       what it sits in; the parent's text does not include it.
                       The row shows which string matched. A hit in what is readable is a match;
                       no hit while part of the item is unread is undecided.
+  "T"                 a quoted string with a # in it is a template, never a phrase: alone it means
+                      line("T") — the item carries the line, whatever its numbers.
+                        "# to maximum Life"      -"+#% to Chaos Resistance"   (the item has no such line)
+                      text:"…#…" searches for a literal #.
   word                a bare word is an authoring error that shows its readings, never a guess:
                         rare → rarity=rare · "rare"      ring → class:ring · "ring"
                         life → "life" · line(template:life)
@@ -261,6 +272,13 @@ reasoning, in `search/search-forms/11-owner-amendments.md`):
   add something like type line to the search in addition to name and
   base?" — the C++ app's pretty name, the two joined, is a rendering,
   never a field.
+- The trade site's spelling of a line: "The trade site accepts "+# ...",
+  "#% ...", and "+#% ...", so our grammar should accept those because
+  agents and humans will expect it." On a template alone meaning the
+  line: "users may want to search for the presence of the line without a
+  value constraint", and on its negation: "critical for some builds.
+  allow." No displayed string on the census's store copy holds a `#` (0
+  of 22,721 items), so the phrase reading it replaces could never match.
 - The ranged line. On the shield line: "average is of the first two
   numbers". On `(#-#)`: "real items will only ever have 'Adds # to # Cold
   Damager'. The ranges-of-range are the underlying mods that allow the
