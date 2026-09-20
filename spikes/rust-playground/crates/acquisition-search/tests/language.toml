@@ -269,14 +269,14 @@ canonical = '''rarity=rare class:ring'''
 
 [[case]]
 construct = "item.number"
-text = '''ilvl>=84 ilvl>80 ilvl<=86 ilvl<90 ilvl=85 quality>=-5 weight=1.5'''
-canonical = '''ilvl>=84 ilvl>80 ilvl<=86 ilvl<90 ilvl=85 quality>=-5 weight=1.5'''
+text = '''ilvl>=84 ilvl>80 ilvl<=86 ilvl<90 ilvl=85 stack>=-5 stack=1.5'''
+canonical = '''ilvl>=84 ilvl>80 ilvl<=86 ilvl<90 ilvl=85 stack>=-5 stack=1.5'''
 
 # A number has one spelling: 90.0 is 90, +5 is 5.
 [[case]]
 construct = "item.number"
-text = '''ilvl>=84.0 quality=+5'''
-canonical = '''ilvl>=84 quality=5'''
+text = '''ilvl>=84.0 stack=+5'''
+canonical = '''ilvl>=84 stack=5'''
 
 [[case]]
 construct = "item.range"

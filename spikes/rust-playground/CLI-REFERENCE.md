@@ -18,6 +18,8 @@ Commands:
   accounts      Accounts this machine has logged into (the store's index; no daemon)
   tabs          Tabs of a league, from the shared store (no daemon round-trip)
   items         Items in the shared store
+  search        Search the items the store holds (no daemon): a query over every live item of one realm, answered with the canonical query, the scope searched, the basis, each term's counts over the scope — matched, failed, lacked, undecided (C93) — the total, and the rows with the lines the query touched. Every count has a route: the command that returns exactly its members. `--json` is the answer whole, the query as text and as tree; a failure is `{"error", "kind", "readings"}`. `--describe` prints the language, and what this build refuses by name
+  show          One live item as the search derives it (no daemon): its fields, its place, every line with its kind, template and numbers, and what could not be read; `--json` the same, structured. `--body` adds the body as the store holds it, which is still there when deriving could not read it
   store         The shared store itself (what the daemon writes; every frontend reads)
   stashes       List stash tabs for a league: a second rate-limit policy, paced in parallel with the character routes
   stash         Fetch one stash tab (or one substash of a map/unique tab)
@@ -214,6 +216,55 @@ Arguments:
   <ID>  
 
 Options:
+  -h, --help               Print help
+```
+
+## `acq search`
+
+```text
+Search the items the store holds (no daemon): a query over every live item of one realm, answered with the canonical query, the scope searched, the basis, each term's counts over the scope — matched, failed, lacked, undecided (C93) — the total, and the rows with the lines the query touched. Every count has a route: the command that returns exactly its members. `--json` is the answer whole, the query as text and as tree; a failure is `{"error", "kind", "readings"}`. `--describe` prints the language, and what this build refuses by name
+
+Usage: acq search [OPTIONS] [QUERY]
+
+Arguments:
+  [QUERY]  The query (`acq search --describe` prints the language). None: every item in scope
+
+Options:
+      --realm <REALM>        The realm searched: pc, xbox, sony, poe2, or all. Over a store holding one realm it may be omitted and the answer prints it; over several, a search names one (C96)
+      --query-file <FILE|->  Read the query from a file, or from stdin with `-`: a query with an apostrophe needs no shell quoting this way
+      --sort <VALUE>         Order the rows by a value: `ilvl`, `stack`, `'line("T").arg1'`, `'sum("T")'`. A line's scalar is its largest satisfying occurrence; an item with none sorts last either way (C92)
+      --desc                 Largest first
+      --limit <LIMIT>        How many rows to return; the rest are counted [default: 20]
+      --routes               Print every count's route — the command that returns exactly its members — instead of the first few
+      --describe [<NAME,…>]  The language as this build knows it: fields, what a line has, operators, closed value sets, slots, what is not built and the limits stated; or only the entries named (`--describe league,line`)
+      --count <KEY,…>        Not built (step 5): counts by key, one table each
+      --cross <KEY,KEY>      Not built (step 5): one crossed table
+      --sum <VALUE>          Not built (step 5): one summed value beside a count
+      --fields <NAME,…>      Not built (step 10): the caller names a row's fields
+      --next <TOKEN>         Not built (step 10): continue an answer past its limit
+      --explain <PATH>       Not built (step 10): one node forced true and forced false
+      --context <WHICH>      Not built (step 10): matches | corpus
+      --view <WHAT>          Not built (step 10): `locations`, the full coverage list
+      --print-request        Not built (step 10): print the request as JSON without running it
+      --request <FILE|->     Not built (step 10): run a request read from a file
+      --rebind               Not built (step 10): run another account's request deliberately
+  -h, --help                 Print help
+```
+
+## `acq show`
+
+```text
+One live item as the search derives it (no daemon): its fields, its place, every line with its kind, template and numbers, and what could not be read; `--json` the same, structured. `--body` adds the body as the store holds it, which is still there when deriving could not read it
+
+Usage: acq show [OPTIONS] <ID>
+
+Arguments:
+  <ID>  An item's id, whole, as an answer printed it
+
+Options:
+      --body               Also print the body as the store holds it, verbatim
+      --against <QUERY>    Not built (step 10): why the item does or does not match a query
+      --basis <BASIS>      Not built (step 10): the item as a named basis held it
   -h, --help               Print help
 ```
 

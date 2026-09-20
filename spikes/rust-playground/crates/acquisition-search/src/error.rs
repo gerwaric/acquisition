@@ -52,6 +52,20 @@ pub enum ErrorKind {
     Unexpected,
     /// A tree that arrived as JSON and is not one the language can say.
     Tree,
+    /// A field, a flag, a line attribute or a `--describe` name the
+    /// language does not know: near names offered, never a guess.
+    UnknownName,
+    /// A value outside a closed set: the legal values offered.
+    UnknownValue,
+    /// An operator or a value the named thing does not take: `ilvl:84`,
+    /// `rarity>=rare`.
+    OperatorMismatch,
+    /// A `~` pattern that does not compile.
+    BadPattern,
+    /// A construct of the reference this build does not evaluate yet: an
+    /// error of its own, never the unknown-name error, never undecided,
+    /// never an empty answer (the build plan, rule 1).
+    NotBuilt,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -98,3 +112,105 @@ impl std::fmt::Display for LanguageError {
 }
 
 impl std::error::Error for LanguageError {}
+
+/// What a search or a show can fail with (C47, C11): an authoring error,
+/// a scope the request cannot be run over, or the store's own failure.
+#[derive(Debug)]
+pub enum SearchError {
+    Language(LanguageError),
+    /// The scope or the item named, not the query: a stable kind, a
+    /// message, and what may be typed instead.
+    Scope {
+        kind: &'static str,
+        message: String,
+        offers: Vec<String>,
+    },
+    Store(anyhow::Error),
+}
+
+impl SearchError {
+    pub(crate) fn scope(kind: &'static str, message: impl Into<String>) -> SearchError {
+        SearchError::Scope {
+            kind,
+            message: message.into(),
+            offers: Vec::new(),
+        }
+    }
+
+    pub(crate) fn with_offers(mut self, offered: Vec<String>) -> SearchError {
+        if let SearchError::Scope { offers, .. } = &mut self {
+            *offers = offered;
+        }
+        self
+    }
+
+    pub(crate) fn store(e: anyhow::Error) -> SearchError {
+        SearchError::Store(e)
+    }
+
+    /// The stable kind: an authoring error's own, a scope error's, or
+    /// `store`.
+    pub fn kind(&self) -> String {
+        match self {
+            SearchError::Language(e) => serde_json::to_value(e.kind)
+                .ok()
+                .and_then(|k| k.as_str().map(str::to_string))
+                .unwrap_or_default(),
+            SearchError::Scope { kind, .. } => kind.to_string(),
+            SearchError::Store(_) => "store".to_string(),
+        }
+    }
+
+    /// The failure as `--json` prints it (C11): `error`, `kind`, and what
+    /// the author may have meant.
+    pub fn to_json(&self) -> serde_json::Value {
+        let mut out = serde_json::json!({ "error": self.to_string(), "kind": self.kind() });
+        match self {
+            SearchError::Language(e) => {
+                out["error"] = serde_json::json!(e.message);
+                if !e.readings.is_empty() {
+                    out["readings"] = serde_json::json!(e.readings);
+                }
+                if let Some((start, end)) = e.span {
+                    out["span"] = serde_json::json!([start, end]);
+                }
+            }
+            SearchError::Scope {
+                message, offers, ..
+            } => {
+                out["error"] = serde_json::json!(message);
+                if !offers.is_empty() {
+                    out["readings"] = serde_json::json!(offers);
+                }
+            }
+            SearchError::Store(_) => {}
+        }
+        out
+    }
+}
+
+impl From<LanguageError> for SearchError {
+    fn from(e: LanguageError) -> SearchError {
+        SearchError::Language(e)
+    }
+}
+
+impl std::fmt::Display for SearchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SearchError::Language(e) => write!(f, "{e}"),
+            SearchError::Scope {
+                message, offers, ..
+            } => {
+                write!(f, "{message}")?;
+                for (i, offer) in offers.iter().enumerate() {
+                    write!(f, "{}{offer}", if i == 0 { " — " } else { " · " })?;
+                }
+                Ok(())
+            }
+            SearchError::Store(e) => write!(f, "{e:#}"),
+        }
+    }
+}
+
+impl std::error::Error for SearchError {}

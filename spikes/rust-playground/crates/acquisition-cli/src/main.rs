@@ -4,6 +4,7 @@ mod price_cmd;
 #[cfg(test)]
 mod real_scale_fixture;
 mod reference_cmd;
+mod search_cmd;
 mod shop_cmd;
 mod store_cmd;
 
@@ -221,6 +222,22 @@ enum Cmd {
         #[command(subcommand)]
         cmd: ItemsCmd,
     },
+    /// Search the items the store holds (no daemon): a query over every
+    /// live item of one realm, answered with the canonical query, the
+    /// scope searched, the basis, each term's counts over the scope —
+    /// matched, failed, lacked, undecided (C93) — the total, and the rows
+    /// with the lines the query touched. Every count has a route: the
+    /// command that returns exactly its members. `--json` is the answer
+    /// whole, the query as text and as tree; a failure is `{"error",
+    /// "kind", "readings"}`. `--describe` prints the language, and what
+    /// this build refuses by name.
+    Search(Box<search_cmd::SearchArgs>),
+    /// One live item as the search derives it (no daemon): its fields, its
+    /// place, every line with its kind, template and numbers, and what
+    /// could not be read; `--json` the same, structured. `--body` adds the
+    /// body as the store holds it, which is still there when deriving
+    /// could not read it.
+    Show(search_cmd::ShowArgs),
     /// The shared store itself (what the daemon writes; every frontend reads).
     Store {
         #[command(subcommand)]
@@ -825,6 +842,8 @@ async fn run(cli: Cli) -> Result<()> {
             } => store_cmd::search(&text, realm, league.as_deref(), removed, limit, cli.json),
             ItemsCmd::Show { id } => store_cmd::show(&id, cli.json),
         },
+        Cmd::Search(args) => search_cmd::search(*args, cli.json),
+        Cmd::Show(args) => search_cmd::show_item(args, cli.json),
         Cmd::Store { cmd } => match cmd {
             StoreCmd::Status => store_cmd::status(cli.json),
             StoreCmd::Characters { realm, league } => {

@@ -7,9 +7,8 @@
 //!
 //! # As built
 //!
-//! The language (the build plan, step 1) — a query's text and its tree,
-//! each printing to the other — and the derivation (step 2), the item a
-//! query will be asked of. Nothing evaluates yet.
+//! The language (the build plan, step 1), the derivation (step 2) and the
+//! first surface (step 4): a request in, an answer out.
 //!
 //! - [`tree`] — the query tree (C91): one typed value, and [`check`], what
 //!   a tree must satisfy to be one the language can say.
@@ -22,15 +21,28 @@
 //!   reorders, flattens, merges, deduplicates or simplifies.
 //! - [`json`] — the tree's JSON form, read strictly (C104: the text is
 //!   carried on every seat; the tree is accepted and always returned).
-//! - [`error`] — authoring errors with stable kinds (C47, C11).
+//! - [`error`] — authoring errors with stable kinds (C47, C11), and what a
+//!   search can fail with beside them.
 //! - [`mod@derive`] — one item's body and ingest facts in, the item out
 //!   (C103, C90): fields, displayed strings, lines as kind, template and
 //!   numbers with their slots, and what could not be read, by collection.
+//! - [`mod@bind`] — the names: fields, closed sets, what a line has; near
+//!   names; and the one closed list of what is not built, refused by name.
+//! - [`corpus`] — every live item of a scope, derived from one snapshot of
+//!   the store's read (C108) and held with its basis (C98).
+//! - `eval` — a term asked of an item: matched, failed, lacked or
+//!   undecided, witnesses, sums, the sort scalar, the together count
+//!   (C92, C93).
+//! - [`mod@answer`] — the request and the answer (C100, C96): scope, basis,
+//!   every term's counts with a route each, the total, the rows, the zero
+//!   block.
+//! - [`mod@describe`] — the language as this build knows it (C97), and the
+//!   limits it states (C102). [`mod@show`] — one item as the deriver sees it.
 //!
 //! The parser knows the grammar and no field, class or computed value by
 //! name: a name is the binder's to know, so validity never depends on a
-//! corpus (invariant 3). What the evaluator does not yet build it will
-//! refuse by name (the build plan, "How a partial build stays honest").
+//! corpus (invariant 3). What the evaluator does not yet build is refused
+//! by name (the build plan, "How a partial build stays honest").
 //!
 //! # Decisions as recorded
 //!
@@ -44,6 +56,13 @@
 //!   `search/item-facts/scripts/m2-differential.py` (never in the gate).
 //!   The read that hands the deriver its facts is the store's, C108
 //!   (`acquisition-store/src/corpus.rs`).
+//! - **C91, C92, C93, C96, C98, C100, C102.** The binder, evaluation, the
+//!   held corpus and the answer are their modules' docs; pinned at the
+//!   crate's boundary — a request in, an answer out, as JSON — by
+//!   `tests/answer.rs` (the reference's worked example reduced to what is
+//!   built, the route property, invariants 2 and 6), `tests/acceptance.rs`
+//!   (the acceptance set's rows green at step 4, the limits' wording) and
+//!   `tests/refusal.rs` (the refusal walk, invariant 3).
 //! - **C104.** Pinned by `tests/language.rs`: the round trip over
 //!   generated trees and over the corpus (`tests/language.toml`), where
 //!   every construct of the reference has a case.
@@ -52,17 +71,28 @@
 // structured error, never a panic. Tests may unwrap.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod answer;
+pub mod bind;
+pub mod corpus;
 pub mod derive;
+pub mod describe;
 pub mod error;
+mod eval;
 pub mod json;
 pub mod parse;
 pub mod print;
+pub mod show;
 mod template;
 pub mod tree;
 
+pub use answer::{Answer, Request, answer};
+pub use bind::{NOT_BUILT, NotBuilt, Query, bind, not_built, parse_query};
+pub use corpus::{Basis, Corpus, Realm};
 pub use derive::{Facts, Item, Line, Part, Property, Shown, Unread, derive};
-pub use error::{ErrorKind, LanguageError};
+pub use describe::{Describe, describe};
+pub use error::{ErrorKind, LanguageError, SearchError};
 pub use json::{from_json, to_json};
 pub use parse::{parse, parse_value};
 pub use print::{print, print_value};
+pub use show::show;
 pub use tree::{Collection, Member, Node, Number, Op, Probe, Value, ValueRef, check};

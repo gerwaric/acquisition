@@ -320,6 +320,7 @@ record's step ledger and its observations.
 | 1 · the language | `080a8581` | `acquisition-search`: the tree and its validity (`tree.rs`), the parser over the whole reference (`parse.rs`), the canonical printer (`print.rs`), the strict JSON form (`json.rs`), structured errors with stable kinds (`error.rs`). `tests/language.toml`: 133 cases over 86 constructs (123 over 82 at the step's commit; H1 and H2 added the rest) — every construct of the reference, every error the grammar defines with its readings, the acceptance queries — and `tests/language.rs` refuses a construct with no case. The round trip over generated trees (2,000 a run; 60,000 once, by hand), any finite number, and no text panics the parser (200,000 once). C89's edges in `tools/docs-check.sh` §5 with nine breaker cases: `tools/docs-check-breakers.sh`, 51 ok. The contract detail's sentences on the check and the lints left `DESIGN.md` for the crate doc. |
 | 2 · the derivation | `ef720323` | `derive.rs`: `derive(facts, body) -> Item`, pure and total — the header, `rarity` and `frameTypeId` as given, `ilvl`, `stackSize`, the note, every yes the body says; properties and requirements as displayed strings, name and values kept apart; lines as (source, flags, template, numbers) with `slot` and the ranged rule; `displayed()`, the rows a phrase will be tested against; and what could not be read, by part, the readable rest still derived. `tests/derive.rs`: 12 fixtures worked by hand and a property test that no text and no JSON panics it. M2 below: no unexplained difference. `template::typed` gained the thousands comma. |
 | 3 · the store's read | `c0a8f918` | `acquisition-store/src/corpus.rs`: `Store::read_corpus` — the header (the revision, the account, the realms the file holds, the latest listing of each list in scope, every live location in scope with its `type`, `listed_at` and `fetched_at`) and then every live item at a live location, streamed to the caller's closure inside one read transaction, league joined as `read_items` joins it, the body as text — and `Store::revision`. Seven store tests, `REFRESH-SLICE.md`'s findings as the checklist: the one-snapshot test over two handles on one file (it fails when the snapshot is ended after the header — tried), the league join over a character the listing moved and a league-less one, live by full coordinate (one tab id under `pc` and `xbox`) in one realm or all, the revision through every write door, no derived column in the read or its order, a store with no account refused, and the header's coverage — a folder told from an unfetched tab, a retired tab's substash no live location (it fails without the exclusion — tried), an empty listing still seen. The revision's line-by-line read is that module's doc. C103's second decision is C108 (`decisions/store.md`), its wording approved by the owner (2026-09-20: "All is approved"). M1 below. |
+| 4 · the first surface | — | `acquisition-search` links the store (C89) and gains `bind.rs` (the vocabulary as closed lists, near names, the one list of what is not built, a bare word's closed-set readings), `corpus.rs` (every live item of a scope derived from one `read_corpus`, held with its basis, its places and the coverage the scope block states), `eval.rs` (matched, failed, lacked, undecided; witnesses; three-valued composition and the `holds` interval; sums with their status; the sort scalar; the together count), `answer.rs` (the request and the answer: a route on every count that is not zero, what a `:` or `~` selector resolved to, rows with what matched, the zero block), `describe.rs`, `show.rs`. The CLI gains `acq search` and `acq show` (`search_cmd.rs`), text rendered from the value `--json` prints, the flags of steps 5 and 10 refused by name; README tour lines; `CLI-REFERENCE.md` regenerated. Tests at the crate's boundary, every count worked by hand first: `tests/answer.rs` (the worked example reduced, the route property, invariants 2 and 6, C93's composition, C92's scalar, C96's scope, C98 at the answer's boundary), `tests/acceptance.rs` (OQ1–OQ4, OQ7, AQ2–AQ5 as far as step 4 builds them; S12, S52 and S107 by their wording), `tests/refusal.rs` (the walk over `language.toml`, invariant 3, S53), and the CLI's `tests/search_json.rs`. Three mutants tried, each caught: unread beating a witness, a line's failed route as `-term`, not-undecided as true. M3 and M4 below. |
 
 **Found by step 1's own tests, in the builder's code:** a computed value
 named alone (`pseudo.total_res`) was answered as a bare word; a whole
@@ -531,6 +532,94 @@ scope line — `1 never fetched · location list seen 2h ago`.
   grows with every request. It is one of the costs the retention park's
   size trigger would see first (`decisions/store.md`, "Parked").
 
+### Step 4 — M3, M4, and what the first surface met
+
+**M3, M4** — `python3 search/item-facts/scripts/m3-ask.py
+search/item-facts/raw/spike-GERWARIC_7694-2026-09-13.db`, after the three
+builds its header names, 2026-09-20. The script writes a fresh `.backup`
+of the copy under `raw/m3/`, wraps it as a store directory
+(`crates/acquisition-search/examples/copy-as-store.rs`) and asks through
+`acq --json search --realm pc … > /dev/null` under `ACQ_PROVIDER=mock`
+and `ACQ_STORE_DIR`: 22,623 live pc items of the copy's 22,721 (the rest
+are poe2's), revision 1126, facts v7. First: 418 ms, the empty query,
+release. Warm, the median of ten, in ms:
+
+| Ask | Release | Debug |
+| --- | ---: | ---: |
+| the empty query | 254 | 1,645 |
+| OQ1 (`base:ring` for the class) | 267 | 1,972 |
+| OQ1 refined by a fractured line | 262 | 1,808 |
+| OQ2 `name="…"` | 254 | 1,644 |
+| OQ3 a mod · a base | 259 · 253 | 1,750 · 1,646 |
+| OQ4 a base and a phrase | 264 | 1,878 |
+| OQ7 one line everywhere | 255 | 1,653 |
+| AQ2 OQ1 and a `sum` over `template:resistance` | 271 | 2,060 |
+| AQ5 life at 90, sorted | 256 | 1,661 |
+| M4 a phrase · `text~"explo(de\|sion)s?"` · `text~"^adds [0-9]+ to [0-9]+"` | 261 · 262 · 260 | 1,809 · 1,801 · 1,729 |
+
+Every release ask is under 500 ms, so the persisted-projection park's
+trigger does not fire. An ask is its load: the empty query, which
+evaluates nothing, is 254 ms, the dearest query adds 17 ms, and `~` over
+every displayed string of every item adds 8 ms (M4). The debug build is
+1.6 to 2.1 s, which is what the seat feels behind the README's alias.
+
+**Holes — each changes what a user types or which items it matches, so
+they are the owner's.** None blocked the step: each is built in the
+direction that breaks least if he rules the other way.
+
+| # | Hole | Built as | Recommendation |
+| --- | --- | --- | --- |
+| B1 | The case of `=` on text. The reference gives any case to a phrase, `:` and `~`, and says nothing of `=`; `rarity=rare` must find GGG's `Rare`, so `=` is any-case on a closed set already | every text comparison is any-case: `name="kaom's heart"` finds `Kaom's Heart`, and a quoted template finds its line however its capitals were typed | keep: one rule, and tightening later removes matches where loosening only adds them |
+| B2 | Which words `is:`, `source=` and a line's `is:` take. Invariant 3 forbids asking the corpus, and the deriver's lists are open (a key GGG adds is read the day it appears) | closed lists in `bind.rs`, GGG's spellings in any case, as the census copy holds them (measured 2026-09-20: 25 item flags with the four influences, 10 sources, 3 line flags); an unknown word is an authoring error with the near ones. A flag GGG adds is derived and shown by `acq show`, and cannot be asked for until the list gains it | keep; the differential (`m2-differential.py`) is where a word outside the list would first be seen, and nothing checks that yet |
+| B3 | `tab:` on an item in a substash | tests the substash's name and its tab's, so `tab:maps` finds a map; a folder's name is no part of it | keep; a `folder:` field is an addition if asked for |
+| B4 | What `id:` matches. The reference: "any id an answer printed", and a row prints its place's id beside its own | the item's id, or its tab's, substash's or character's, whole; `:` and `=` mean the same. `acq show` takes an item's id alone and says what a location's id is, with the search that lists it | keep |
+| B5 | What `--sort` takes | a number: `ilvl`, `stack`, `line(P).<slot>`, `sum( … )`; a text field is an error that says so | keep until someone sorts by name |
+| B6 | A bare word's readings. The reference shows two for `rare` (`rarity=rare · "rare"`) and the parser has offered `"rare" · line(template:rare)` since step 1 | the closed-set readings first, the parser's two after: three for `rare` | keep: a third valid reading costs a line |
+| B7 | Failed against lacked on a line's group — both false, so no answer's members move, only how the false are split | the selector is the group without its slot comparisons: an item with no occurrence the selector picks lacked it; one with such an occurrence and none satisfying the whole failed. A group comparing no slot never fails | keep |
+| B8 | Gap 2, as this plan recommended | (b): `--query-file <file\|->`; a route is printed shell-quoted, an apostrophe as `'\''`. (c) is untouched | the seat's |
+
+**Observations — the builder's.**
+
+- The walk found two cases of step 1's corpus using fields the builder
+  had invented (`quality`, `weight`), which no step builds and no list
+  could refuse; they now say `stack`. `reqlevel` (OQ5's) is the
+  reference's, from its contract detail, and joined the not-built list at
+  step 6, where OQ5 becomes askable.
+- Three of the builder's hand counts were wrong before the code was: the
+  order of a row's lines (by source word, step 2's observation), four
+  resistance templates counted as five, and a suggestion ranked by a rule
+  the builder had not read closely — a typed `Resistances` did not share
+  a word with `Resistance`. The first two were the tests'; the third was
+  the code's, and sharing a word now holds either way round.
+- The text was changed by its first sight of the real copy, which no
+  fixture had shown: the routes printed by default were the largest and
+  least useful (8,600 items that are not rare), so the default is now the
+  undecided and together routes, and each term's matched route when the
+  total is zero, with `--routes` for all; a template over several rows
+  broke the layout and prints its `\n`; ten resolved values ran off the
+  line, so the text lists five and the JSON ten.
+- `acq show` first loaded and derived the whole corpus to show one item;
+  it is one pass of the read now, deriving the one row it finds, and what
+  an item is socketed in is given by id, which `show` takes in turn.
+- Nothing on the copy is unread, so every undecided outcome — a term's,
+  a sum's, the root's — is exercised by fixtures alone, as at step 2.
+- A line whose `flags` could not be read is still a witness, with no
+  flags: `-is:crafted` inside its group would match it. The part is
+  marked unread, which matters only where there is no witness.
+- The scope says `in all leagues`; a league is a term, and the owner's
+  seat forgetting it is the default-league park's trigger, not a step's.
+- Linking the store turned two of C89's breaker cases over, as step 1's
+  own comment said it would: the case adding the store added a key twice,
+  and the store linking the search became a cycle Cargo refuses before
+  the rule is asked. Both say so now (`tools/docs-check-breakers.sh`, 51
+  ok). The breakers are not in the gate, so nothing but running them by
+  hand would have shown it.
+- `Folder` has its fourth consumer, as step 3 said it would
+  (`corpus.rs`, `is_folder`).
+- Over the copy, `name="Ashes of the Stars"` finds ten, which is the
+  variant park's first test (below, "Parks whose triggers the build
+  fires"): step 4 has reached OQ2, and the question is the owner's.
+
 ## Gaps found while planning — rules the reference did not state
 
 Each changes what a user types, or which items what he types matches.
@@ -547,13 +636,15 @@ evidence.
    shell's single quotes. (a) nothing: the shell's `'\''`; (b) the
    adapter reads the query from stdin or a file; (c) the language also
    accepts `'…'` strings, printing `"…"`. *Recommendation:* (b) at step
-   4, and (c) left for the seat — adding it later breaks nothing.
+   4, and (c) left for the seat — adding it later breaks nothing. Built
+   so at step 4 (hole B8).
 3. **The values of `membership` — open; does not block before step 4.**
    The request carries it, the terminal synopsis has no word for it,
    and `live` is the only value shown; `acq items search --removed`
    exists today. *Recommendation:* `live` alone at the first seat; `all`
    (live and removed, each row marked) at step 11, so the old verb can
-   retire; `removed` alone waits for someone asking.
+   retire; `removed` alone waits for someone asking. Step 4 builds `live`
+   alone, which is all the store's read hands over.
 4. **A node forced true or false — ruled; the reference, *Composition*.**
 5. **The header: `name`, `typeline`, `base` — ruled; the reference,
    *Item-level*.** Over the census's store copy (22,721 live items):

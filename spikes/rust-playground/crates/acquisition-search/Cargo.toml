@@ -4,6 +4,12 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+# C89: the store, and nothing else of the workspace until a query reads the
+# effective price
+acquisition-store = { path = "../acquisition-store" }
+anyhow.workspace = true
+# `~`, and every other text comparison: one any-case matcher (bind.rs)
+regex = "1"
 serde.workspace = true
 serde_json.workspace = true
 
@@ -11,4 +17,7 @@ serde_json.workspace = true
 # the tests' only: proptest generates the trees the round trip runs over,
 # toml reads the language corpus (`tests/language.toml`)
 proptest = "1.11.0"
+# invariant 6's dump of every table; the store's own version and features,
+# so the test build links the one SQLite the store does (C84)
+rusqlite = { version = "0.32", features = ["bundled", "hooks"] }
 toml.workspace = true

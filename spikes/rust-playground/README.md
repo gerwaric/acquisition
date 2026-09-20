@@ -40,9 +40,9 @@ inventories and mechanisms live in the linked source documentation.
 - `crates/acquisition-plan` — offline refresh planning and pricing.
   [Implementation](crates/acquisition-plan/src/lib.rs);
   rulings: `decisions/plans.md`, `decisions/pricing.md`.
-- `crates/acquisition-search` — item search over the store's read API;
-  so far the query language, its text and its tree, and the derivation
-  of an item from its stored body.
+- `crates/acquisition-search` — item search over the store's read API:
+  the query language, the derivation of an item from its stored body,
+  and the answer to a request.
   [Implementation](crates/acquisition-search/src/lib.rs);
   rulings: `decisions/search.md`.
 - `crates/acquisition-cli` — `acq`, clap and rendering.
@@ -100,6 +100,9 @@ acq shop render [--size N] [--template FILE] [--page N] [--expand]   # forum pag
 # the store — no daemon, no network
 acq tabs [--league L] [--realm R]   # tab tree and live item counts
 acq store characters [--realm R] [--league L]   # character locations, ages and live items
+acq search [--realm R] ['<query>'] [--sort V [--desc]] [--limit N] [--routes]   # item search: scope, basis, counts per term, rows
+acq search --describe [name,…]   # the query language, and what is not built yet
+acq show <id> [--body]   # one item as the search derives it; the stored body on request
 acq items search <text> [--removed] | show <id>   # substring search; one item verbatim
 acq store status | events [--hours N] | refused [id]   # counts; ingest events; malformed bodies
 acq store import <snapshot.json> | rebuild   # replay a retired-pull snapshot; re-extract columns
