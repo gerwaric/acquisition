@@ -62,7 +62,7 @@ is provisional, this plan's later steps included.
 | --- | --- | --- |
 | 1 · the language | the `acquisition-search` crate (C89's edges in `tools/docs-check.sh` §5, each with a breaker; C47's lints); the tree and its JSON form; the parser over the whole query language; lowering; the canonical printer; every error the grammar defines, with its readings | the round-trip test; the corpus table; the holes table |
 | 2 · the derivation | a pure function, body and ingest columns in, the item out (C103): fields, displayed strings, lines as (kind, template, numbers) with slots and the ranged rule, and what could not be read, by collection | fixture tests; M2 against the census |
-| 3 · the store's read | C103's read, the revision, the coverage rows — **shown to the owner first** (below) | store tests, `REFRESH-SLICE.md`'s findings table as the checklist; the one-snapshot test; M1 |
+| 3 · the store's read | C103's read, the revision, the coverage rows — **shown to the owner first** (below) | store tests, `REFRESH-SLICE.md`'s findings table as the checklist; the one-snapshot test; M1; C103's second decision given its own entry (below) |
 | 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verbs `acq search` and `acq show <id>` (the item as the deriver sees it: fields, place, every line with its kind, template and numbers, what was unread; `--json` the same, structured; the stored body on request by a flag, which still works when deriving fails — the reference's `acq show`), their README tour lines, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the acceptance rows marked 4; the refusal walk; the route property; M3, M4 |
 | 5 · counts and the vocabulary | `--count`, `--cross`, `--sum` (C95); `none` and `undecided` buckets with routes (C105); `--count line[:text,…]` (C97) | AQ1; C105's two invariants pinned on a one-value key; C95's sum over a fixture of three kinds — an item with the value, one lacking it (adds nothing, counted as lacking), one whose value is unread (the subtotal marked incomplete, never a total); the vocabulary's pasted term selects its row; M3 again; then the seat |
 
@@ -299,6 +299,24 @@ scope    one realm or all · live, or live and removed
   moves rows with no response, so the basis prints the facts version
   beside the revision. Step 3 repeats the read line by line, and a path
   that fails it comes back to the owner before anything is built.
+- **At this step's close, C103 is split** (owner, 2026-09-19: "Yes, note
+  it please"). Its sentence on what the store gains is a second
+  decision: it binds the store where the rest binds the search crate,
+  the store's tests pin it where `tests/derive.rs` pins the rest, and
+  `decisions/store.md` — what the store's next agent reads — holds no
+  ruling on the search read today. The new entry goes there, written
+  from the code: the boundary (one read and a revision for search,
+  nothing more), the read's properties (one read transaction, league
+  joined as `read_items` joins it, bodies as text, the revision
+  advancing in the transaction that changes items, locations or
+  membership), *Pinned:* the store's tests, *Details:* the store's
+  module doc. C103 keeps the deriver and a pointer to it. The wording is
+  shown to the owner measured, as C103's trim was. Not before: nothing
+  is built, and C103 fits until the store's *Pinned:* arrives.
+- **Which number is the revision is mechanism, not a registry line.**
+  Its property is already C98's and `search/DESIGN.md`'s (the basis);
+  the ruling above and its line-by-line verification are carried into
+  the store's module doc under the decision id when the read is built.
 - Observation, no proposal: `Store::open` takes a write lock for a
   moment on every open, as every store verb does today. Search inherits
   it.
