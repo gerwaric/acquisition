@@ -76,7 +76,9 @@ acq search [--account A] [--realm pc|xbox|sony|poe2|all] ['<query>']    no query
    explain    --explain <path>                literal substitution of one node (below: Explain)
    exchange   --print-request                 print the request as JSON; does not run it
               --request <file|->   --rebind
-acq show <id> [--against '<query>'] [--basis B]
+acq show <id> [--against '<query>'] [--basis B]      the item as the search derives it — its lines and values,
+                                                     its place, what was unread; --json the same, structured;
+                                                     the stored body on request, and still when deriving fails
 ```
 
 ```
@@ -102,10 +104,19 @@ COMPOSITION
   undecided(x)        x a thing or a term: true when its value / its truth cannot be
                       established. Always decided itself; known absence does not satisfy it.
                         undecided(class)     undecided(pseudo.total_res>=60)
+  true()  false()     always true, always false: what --explain prints for a forced node.
+                      Legal wherever a term is, inside a member group too.
+
+STRINGS
+  "…"                 inside quotes  \"  \\  \n  are the only escapes. \n is the row break of a mod
+                      displayed over several rows; such a mod is one occurrence with one template:
+                        line("Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value")
+                      A phrase tests each displayed row on its own; template:words reaches across
+                      rows; a total's row may name such a template like any other.
 
 ITEM-LEVEL
   "a phrase"          text: substring, any case, tested against each displayed string on its
-                      own, never across two: the name, the base, and every line as shown with
+                      own, never across two: the name, the type line, the base, and every line as shown with
                       its numbers — properties, requirements, every mod line; markup reduced
                       to what the player sees. Numbers are characters — "Level 1" also finds
                       "Level 10" — where template: sees only the #-form and never a number.
@@ -119,6 +130,15 @@ ITEM-LEVEL
                         life → "life" · line(template:life)
                       Quotes are the deliberate signal for text. An adapter may offer a plain
                       text box that wraps its input in text: — the query itself never does.
+  name  typeline  base                 the header: three text things, each what GGG gives (name, typeLine,
+                                       baseType) under the normalisation every displayed string gets. An
+                                       item with no name — a magic or normal item, an unidentified rare —
+                                       lacks it: known absence, so name: is false and -has:name finds it;
+                                       an unread body is undecided. typeline carries what the base does
+                                       not, a magic item's affix names among it:
+                                         typeline:staunching     base="Divine Life Flask"
+                                       A renderer may print name and type line together; that never
+                                       changes what the fields mean, and a phrase never matches across them.
   name:kaom   name="Kaom's Heart"   name~"^Kaom"
                                        `:` contains · `=` whole value · `~` pattern, on every text
                                        thing. Rust regex syntax, unanchored, any case unless the
@@ -170,6 +190,9 @@ VALUES
                                  A comparison on a projection means what it means inside the group:
                                  line(P).avg>=20 lowers to line(P avg>=20). One meaning.
   "T">=90    "T".avg>=20         shorthand; lowers at once to line("T" arg1>=90), line("T" avg>=20)
+                                 With no slot named, the template's own #s decide before it lowers:
+                                 one # is arg1; several is the error that lists them; none is an
+                                 error. sum("T") and --sort obey the same.
   "T" low>=15 high<=45           error: offers line("T" low>=15 high<=45) and "T".low>=15 "T".high<=45
   sum("T")   sum(line(P).<slot>) the item's sum
   pseudo.<name>                  a computed value: anything --describe prints a definition for.
@@ -231,6 +254,13 @@ reasoning, in `search/search-forms/11-owner-amendments.md`):
 - Bare words: "I approve your proposed rule on bare words." It is C91's
   own rule, and it passes the break-later test in the right direction —
   allowing bare words later breaks nothing, forbidding them later would.
+- A mod displayed over several rows: "the two-line mods should
+  contribute to relevant pseudo-lines, but it makes sense they are a
+  single occurence." On `true()` and `false()`: "agree with
+  recommendation". On the header, asking for the third field: "should we
+  add something like type line to the search in addition to name and
+  base?" — the C++ app's pretty name, the two joined, is a rendering,
+  never a field.
 - The ranged line. On the shield line: "average is of the first two
   numbers". On `(#-#)`: "real items will only ever have 'Adds # to # Cold
   Damager'. The ranges-of-range are the underlying mods that allow the
@@ -430,16 +460,22 @@ since none has a trigger yet. Meeting one is a listed limit (C102).
   is undecided (Astra's reading, accepted). A readable line absent from a
   recipe is not an unknown contributor: the recipe answers its declared
   definition. A total's row: template, kind (source and flag) where it
-  matters, realm, slot or none, weight. A row with no slot contributes
-  its weight when the line is present, so the all-elemental line counts
-  three times into "# total Resistances" as the site does; a total whose
+  matters, realm, slot or none, weight. For each matching line
+  occurrence, a row with a slot contributes that slot's value multiplied
+  by its weight: an all-elemental resistance line with `arg1` = 20 and
+  weight 3 contributes 60 to `pseudo.total_res`
+  (`search/cpp-search/data/pseudomods.toml`, "+#% total Resistance",
+  which lists that template three times). A row without a slot
+  contributes its weight per matching occurrence; weight 1 counts
+  occurrences; a total whose
   rows are ranged lines sums low with low and high with high and is a
   ranged value taking `low`, `high`, `avg`. The site's 298 pseudo stats
   by the mechanism each needs, per entry with the input that admits it
   (`search/pseudo-stats/`, 2026-09-18): 123 a field or property the
   private item carries (63 of them by an attested sibling, flagged);
   36 a weighted sum (the C++ app's 35 tables, S29, plus the site's own
-  `pseudoMods` line proving a 0.5 weight, S49); 15 a ranged total; 14
+  `pseudoMods` line proving a 0.5 weight — `+94.5 total maximum Life`
+  over `+90` life and `+9` Strength, `search/pseudo-stats/README.md`); 15 a ranged total; 14
   needing the mod behind the line (S52; one crafted modifier renders as
   two lines); 1 a count of lines; 0 computed; and **109 unresolved**,
   each with the one read that closes it. The pattern classification of

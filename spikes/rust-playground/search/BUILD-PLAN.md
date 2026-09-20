@@ -63,15 +63,14 @@ is provisional, this plan's later steps included.
 | 1 · the language | the `acquisition-search` crate (C89's edges in `tools/docs-check.sh` §5, each with a breaker; C47's lints); the tree and its JSON form; the parser over the whole query language; lowering; the canonical printer; every error the grammar defines, with its readings | the round-trip test; the corpus table; the holes table |
 | 2 · the derivation | a pure function, body and ingest columns in, the item out (C103): fields, displayed strings, lines as (kind, template, numbers) with slots and the ranged rule, and what could not be read, by collection | fixture tests; M2 against the census |
 | 3 · the store's read | C103's read, the revision, the coverage rows — **shown to the owner first** (below) | store tests, `REFRESH-SLICE.md`'s findings table as the checklist; the one-snapshot test; M1 |
-| 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verbs `acq search` and `acq show <id>` (the item as the deriver sees it: fields, place, every line with its kind, template and numbers, what was unread; the raw body on request, by a flag, as `DESIGN.md` promises of `show`), their README tour lines, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the acceptance rows marked 4; the refusal walk; the route property; M3, M4 |
+| 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verbs `acq search` and `acq show <id>` (the item as the deriver sees it: fields, place, every line with its kind, template and numbers, what was unread; `--json` the same, structured; the stored body on request by a flag, which still works when deriving fails — the reference's `acq show`), their README tour lines, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the acceptance rows marked 4; the refusal walk; the route property; M3, M4 |
 | 5 · counts and the vocabulary | `--count`, `--cross`, `--sum` (C95); `none` and `undecided` buckets with routes (C105); `--count line[:text,…]` (C97) | AQ1; C105's two invariants pinned on a one-value key; C95's sum over a fixture of three kinds — an item with the value, one lacking it (adds nothing, counted as lacking), one whose value is unread (the subtotal marked incomplete, never a total); the vocabulary's pasted term selects its row; M3 again; then the seat |
 
-**Before step 1, the reference is brought level with what was ruled
-here** — the escapes and the multi-row mod (gap 1), `true()` and
-`false()` (gap 4), the slotless check before lowering — in
-`search/DESIGN.md`, the owner approving the wording, since step 1's
-corpus is complete against that page and this file is deleted at the
-close. The plan keeps the pointer and the evidence, never the rule.
+**The reference was brought level with what was ruled here before step
+1** (2026-09-19, the owner approving the wording), since step 1's corpus
+is complete against that page and this file is deleted at the close. A
+gap ruled below keeps its evidence here and its rule in
+`search/DESIGN.md`.
 
 **Step 1's evidence, in full**, since it is the step that runs first:
 
@@ -188,7 +187,7 @@ printed, C104's text.
 | Step | Builds | Needs | Closes on |
 | --- | --- | --- | --- |
 | 6 · class | the class table as reference data, its source chosen under C106's admission test (`item-facts/data/class-evidence.csv` is where the read starts); `class:`; the reason *base not in the class table* | 4 | OQ1's slot, OQ5; C105's test as worded (ten rare items by class) |
-| 7 · computed values | the totals table (C94) after the coverage trial; `pseudo.total_res`; weights are decimals and a total is never rounded (the site's own `+94.5 total maximum Life` over `+90` life and `+9` Strength, `pseudo-stats/README.md`); the sum-status table; then `pseudo.dps`, `pseudo.pdps` (C101) | 6 for the worked example | AQ2; the reference's worked example whole, every count as printed there |
+| 7 · computed values | the totals table (C94) after the coverage trial; `pseudo.total_res`; a weight may be a fraction (the site's own `+94.5 total maximum Life` over `+90` life and `+9` Strength, `pseudo-stats/README.md`), and whether a total is ever rounded is shown to the owner first (gap 6); the sum-status table; then `pseudo.dps`, `pseudo.pdps` (C101) | 6 for the worked example | AQ2; the reference's worked example whole, every count as printed there |
 | 8 · sockets | `sockets`, `links`, `sockets.<colour>`, `linked(…)` (C101); undecoded shapes counted unread (S16) | 4 | OQ3's socket reading |
 | 9 · price | the effective price joined read-only (C81, C100); the crate links `acquisition-plan`; the basis gains the intent revision; the reason *price unresolved* | 4 | OQ6: the item found with the owner's own price; a valuation asked for is a stated limit (C102) |
 | 10 · continuing and exchanging | `--next` refused across a changed basis; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | AQ3 whole; M5 |
@@ -303,76 +302,44 @@ scope    one realm or all · live, or live and removed
   moment on every open, as every store verb does today. Search inherits
   it.
 
-## Gaps found while planning — rules the reference does not state
+## Gaps found while planning — rules the reference did not state
 
 Each changes what a user types, or which items what he types matches.
-One line each will do. 4 and 5 came from an outside review of this plan
-(2026-09-19).
+4, 5 and 6 came from an outside review of this plan (2026-09-19). Ruled
+ones are in `search/DESIGN.md`'s reference; what stays here is the
+evidence.
 
-1. **A line break inside a template — ruled 2026-09-19.** 540 of the
-   census's 6,928 templates are one mod displayed over several rows
-   (`Monsters' Action Speed cannot be…` / `Monsters' Movement Speed…`).
-   The reference gives no way to type one exactly, and the printer must
-   be able to print every template or the round trip is not total. It
-   also leaves open whether a phrase sees such a mod as one displayed
-   string or one per row. *Recommendation:* inside quotes, `\n`, `\"`
-   and `\\` are the only escapes; a multi-row mod is one occurrence and
-   one template; a phrase tests each displayed row on its own, as "never
-   across two" reads. `template:words` already reaches across rows.
-   Owner: "understood. the two-line mods should contribute to relevant
-   pseudo-lines, but it makes sense they are a single occurence." So a
-   total's row (C94: template, kind, realm, slot, weight) may name a
-   multi-row template and one of its slots like any other, and M6's
-   coverage trial counts multi-row templates too.
-2. **An apostrophe at a shell — does not block step 1 unless (c).** 306
-   templates carry one, and so does the reference's own
+1. **A line break inside a template — ruled; the reference, *Strings*.**
+   540 of the census's 6,928 templates are one mod displayed over
+   several rows. M6's coverage trial counts such templates too.
+2. **An apostrophe at a shell — open; does not block step 1 unless
+   (c).** 306 templates carry one, and so does the reference's own
    `name="Kaom's Heart"`, which cannot be typed plainly inside the
    shell's single quotes. (a) nothing: the shell's `'\''`; (b) the
    adapter reads the query from stdin or a file; (c) the language also
    accepts `'…'` strings, printing `"…"`. *Recommendation:* (b) at step
    4, and (c) left for the seat — adding it later breaks nothing.
-3. **The values of `membership` — does not block before step 4.** The
-   request carries it, the terminal synopsis has no word for it, and
-   `live` is the only value shown; `acq items search --removed` exists
-   today. *Recommendation:* `live` alone at the first seat; `all` (live
-   and removed, each row marked) at step 11, so the old verb can retire;
-   `removed` alone waits for someone asking.
-
-4. **No spelling for a node forced true or false — ruled 2026-09-19:
-   `true()` and `false()`** (owner: "agree with recommendation"). `--explain` prints "its transformed query" with one node forced
-   each way, inside a member group too; a bare word is an error and the
-   printer never simplifies, so the tree needs a constant and the text a
-   way to write it. Adding it later breaks nothing (an error becomes a
-   query), but rule 1 wants the parser whole. *Recommendation:* a tree
-   node `{"const": true}` written `true()` and `false()` — the call
-   shape `holds(…)` and `undecided(…)` already have, so no bare word
-   gains a meaning.
-5. **The header: `name`, the type line, `base` — before step 2.** GGG
-   gives every item three strings. Over the census's store copy (22,721
-   live items): every magic (2,423), normal (3,139), gem and currency
-   item has no name, and neither do 372 of 5,785 rares and 86 of 3,077
-   uniques (unidentified); the type line differs from the base on 2,399
-   magic items (the affix names — `Frigid Sage Wand of Craft` over
-   `Sage Wand` — which nothing else in the body carries, S52), 234
-   normal (`Superior …`), 172 unique and 97 rare (`Synthesised …`).
-   The draft's "`name` is its own name, else its type line" is
-   withdrawn on those numbers: it would make `name:` a second base
-   search over most of the corpus and empty `has:name` of meaning.
-   *Recommendation:* three text things, each what GGG gives — `name`
-   (absent where the item has none; absent is false, `-has:name` asks
-   for it), `typeline` (GGG's own word, `typeLine`; never `type`, which
-   on the trade site means the base), `base` — and a phrase tests all
-   three. The C++ app's pretty name (`name + " " + typeLine`, S24) is
-   not rebuilt: it joins two displayed rows, which a phrase never does,
-   and `name:x or typeline:x` says it.
-
-6. **A wrong example in the totals detail — open, before step 7.**
-   `search/DESIGN.md` (C94, C95) says a row with no slot "contributes
-   its weight when the line is present, so the all-elemental line counts
-   three times". Two operations: `+20%` through `arg1` at weight 3 is
-   60; a no-slot row at weight 3 is 3. The same paragraph cites S49 for
-   the 0.5 weight, whose evidence is `pseudo-stats/README.md`'s life
-   capture. Wording proposed to the owner 2026-09-19; not applied.
+3. **The values of `membership` — open; does not block before step 4.**
+   The request carries it, the terminal synopsis has no word for it,
+   and `live` is the only value shown; `acq items search --removed`
+   exists today. *Recommendation:* `live` alone at the first seat; `all`
+   (live and removed, each row marked) at step 11, so the old verb can
+   retire; `removed` alone waits for someone asking.
+4. **A node forced true or false — ruled; the reference, *Composition*.**
+5. **The header: `name`, `typeline`, `base` — ruled; the reference,
+   *Item-level*.** Over the census's store copy (22,721 live items):
+   every magic (2,423), normal (3,139), gem and currency item has no
+   name, nor do 372 of 5,785 rares and 86 of 3,077 uniques; the type
+   line differs from the base on 2,399 magic items (the affix names),
+   234 normal (`Superior …`), 172 unique and 97 rare (`Synthesised …`).
+   The draft's "its own name, else its type line" was withdrawn on
+   those numbers.
+6. **The totals example — ruled; the contract detail, C94, C95.** The
+   sum's example now cites the C++ app's table and no longer names the
+   site's unresolved count (`# total Resistances`,
+   `pseudo-stats/data/pseudo-classes.csv`). Whether a fractional total
+   is ever rounded is step 7's to show the owner: the one capture
+   printed `+94.5`.
 
 Observation, mine unless the owner wants it: C105's first test is
 worded with groupings above class (`armour`, `weapon`), which are the
