@@ -617,3 +617,104 @@ fn c92_parentheses_never_change_whether_the_together_count_applies() {
         );
     }
 }
+
+/// The build plan's rule 5 against step 1's slot check (the fourth audit of
+/// step 4, finding 1): a slot the quoted template does not have is an
+/// authoring error wherever the template sits among the group's conjuncts,
+/// so no answer can print a route the same build refuses — and a generated
+/// route is checked before it is offered, whatever folding made of it.
+#[test]
+fn rule_5_no_group_is_accepted_whose_route_would_be_refused() {
+    let s = one_tab(vec![ring(
+        "r",
+        json!({ "explicitMods": ["+20 to maximum Life"] }),
+    )]);
+    let corpus = load(&s, Some("pc"));
+    for query in [
+        r##"line(("# to maximum Life" source=explicit) arg3>=0)"##,
+        r##"line("# to maximum Life" source=explicit arg3>=0)"##,
+        r##"line((("# to maximum Life") (source=explicit)) low>=0)"##,
+        r##"sum(line(("# to maximum Life" source=explicit)).arg3)>=0"##,
+    ] {
+        assert_eq!(
+            ask(&corpus, query).unwrap_err().to_json()["kind"],
+            "slot_unknown",
+            "{query}"
+        );
+    }
+    // a template under an or states no numbers: the evaluator's, as step 1
+    // says — and folding one into the selector's and must offer no route
+    // the checker refuses
+    for query in [
+        r##"line(("# to maximum Life" or "# to Strength") arg3>=0)"##,
+        r##"line(("# to maximum Life" or false()) arg3>=0)"##,
+    ] {
+        let a = as_json(&ask(&corpus, query).unwrap());
+        routes_partition(&corpus, query, &["r"]);
+        if let Some(request) = a["terms"][0]["together"].get("request") {
+            answer(&corpus, &serde_json::from_value(request.clone()).unwrap()).unwrap();
+        }
+    }
+}
+
+/// The zero block reads the group as the rest of the answer does (the
+/// fourth audit, finding 2): a selector that picked occurrences resolved
+/// to something, whatever a template test inside it would find alone.
+#[test]
+fn a_selector_that_resolved_to_something_is_never_said_to_resolve_to_nothing() {
+    let s = one_tab(vec![ring(
+        "r",
+        json!({ "explicitMods": ["+20 to maximum Life"] }),
+    )]);
+    let corpus = load(&s, Some("pc"));
+    for query in [
+        "line(template:absent or (template:life arg1>=90))",
+        "line(-template:absent arg1>=90)",
+        "sum(line(template:life).arg1)>=90",
+    ] {
+        let a = as_json(&ask(&corpus, query).unwrap());
+        assert_eq!(a["total"]["matched"], 0, "{query}");
+        assert_eq!(a["zero"]["resolved_to_nothing"], json!([]), "{query}");
+    }
+    // one that picked nothing is said so, inside a sum too, with what
+    // shares its words
+    for query in [
+        "line(template:lifes arg1>=90)",
+        "sum(line(template:lifes).arg1)>=90",
+    ] {
+        let a = as_json(&ask(&corpus, query).unwrap());
+        let nothing = &a["zero"]["resolved_to_nothing"];
+        assert_eq!(nothing[0]["of"], "template", "{query}");
+        assert_eq!(
+            nothing[0]["suggestions"][0]["term"], "line(\"# to maximum Life\")",
+            "{query}"
+        );
+    }
+}
+
+/// A number that could not be read is no known absence in the order either
+/// (the fourth audit, finding 3): the row says incomplete, as
+/// `undecided(ilvl)` says of the same item.
+#[test]
+fn c93_sorting_by_an_unread_number_says_unread_not_absent() {
+    let s = one_tab(vec![
+        ring("odd", json!({ "ilvl": "unread" })),
+        item("none", "", "Chaos Orb", "Currency", json!({ "ilvl": 0 })),
+        ring("has", json!({})),
+    ]);
+    let corpus = load(&s, Some("pc"));
+    let request =
+        serde_json::from_value(json!({ "view": { "rows": { "sort": "ilvl" } } })).unwrap();
+    let a = as_json(&answer(&corpus, &request).unwrap());
+    let sorts: Vec<(&str, &Value)> = a["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| (r["id"].as_str().unwrap(), &r["sort"]))
+        .collect();
+    assert_eq!(sorts[0], ("has", &json!({ "value": 84 })));
+    assert!(sorts.contains(&("odd", &json!({ "status": "incomplete" }))));
+    assert!(sorts.contains(&("none", &json!({ "status": "no satisfying occurrence" }))));
+    assert_eq!(of(&corpus, "odd", "undecided(ilvl)"), (1, 0));
+    assert_eq!(of(&corpus, "none", "undecided(ilvl)"), (0, 0));
+}

@@ -969,20 +969,8 @@ pub(crate) fn selector(whole: &Member) -> Member {
 pub(crate) fn group(whole: &Member) -> Result<Group, LanguageError> {
     let selector_tree = selector(whole);
     let bound = member(whole)?;
-    // the group's conjuncts, through every nested and and a doubled not:
-    // `"T" (source=explicit arg1>=90)` is `"T" source=explicit arg1>=90`
-    fn conjuncts<'a>(member: &'a Member, out: &mut Vec<&'a Member>) {
-        match member {
-            Member::All(children) => children.iter().for_each(|c| conjuncts(c, out)),
-            Member::Not(inner) => match inner.as_ref() {
-                Member::Not(twice) => conjuncts(twice, out),
-                _ => out.push(member),
-            },
-            other => out.push(other),
-        }
-    }
     let mut all = Vec::new();
-    conjuncts(whole, &mut all);
+    crate::template::conjuncts(whole, &mut all);
     let slotted: Vec<&Member> = all.into_iter().filter(|c| has_slot(c)).collect();
     let together = match slotted.as_slice() {
         [
@@ -998,6 +986,17 @@ pub(crate) fn group(whole: &Member) -> Result<Group, LanguageError> {
         }),
         _ => None,
     };
+    // a route is a query this build runs (the plan's rule 5): the together
+    // route sums the selector's slot, and a selector folding has reshaped
+    // may name a template that slot is not one of. Where the checker would
+    // refuse that sum the count is not applicable, never a refused route.
+    let together = together.filter(|lower| {
+        tree::check(&Node::Undecided(Probe::Thing(ValueRef::Sum {
+            lines: Box::new(selector_tree.clone()),
+            slot: lower.slot.clone(),
+        })))
+        .is_ok()
+    });
     Ok(Group {
         selector: member(&selector_tree)?,
         selects_only: !has_slot(whole),

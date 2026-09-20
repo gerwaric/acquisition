@@ -751,7 +751,8 @@ pub(crate) enum Scalar {
     Value(f64),
     /// No satisfying occurrence, or the item lacks the field.
     None,
-    /// What was readable, which is not the answer: a sum with a possible
+    /// What was readable, which is not the answer: a field that could not
+    /// be read; a sum with a possible
     /// contributor unread is a subtotal, never a total, and a largest
     /// occurrence is not the largest while an unread source the group
     /// admits, or an occurrence it may select, could hold a larger one. No
@@ -761,7 +762,12 @@ pub(crate) enum Scalar {
 
 pub(crate) fn scalar(key: &SortKey, held: &Held) -> Scalar {
     match key {
-        SortKey::Number(thing) => number(held, *thing).map_or(Scalar::None, Scalar::Value),
+        SortKey::Number(thing) => match number(held, *thing) {
+            Some(n) => Scalar::Value(n),
+            // unread is not absent (C93): `undecided(ilvl)` says the same
+            None if !unread_for(held, *thing).is_empty() => Scalar::Incomplete(None),
+            None => Scalar::None,
+        },
         SortKey::Projection { group, slot } => {
             let largest = satisfying(held, &group.whole)
                 .filter_map(|line| line.slot(slot))

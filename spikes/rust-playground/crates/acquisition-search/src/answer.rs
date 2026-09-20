@@ -35,8 +35,9 @@
 //!   limit they are counted, and the way on is a larger limit until
 //!   `--next` is built.
 //! - **A zero total** prints, in place of rows: the selectors that
-//!   resolved to nothing in this scope, each with the values sharing its
-//!   words — a suggestion to type, never a match made for the author
+//!   resolved to nothing in this scope — a group's bound selector picked
+//!   no occurrence, a field's term matched no item — each with the values
+//!   sharing its words — a suggestion to type, never a match made for the author
 //!   (S107: never fuzzy-matched); and the root's undecided route.
 //! - **Membership is `live`**: the store's read hands over no removed item
 //!   (the build plan, gap 3).
@@ -412,6 +413,9 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
     let n_terms = query.terms.len();
     let mut tallies = vec![[0usize; 4]; n_terms];
     let mut together = vec![0usize; n_terms];
+    // whether a group's selector picked any occurrence in the scope: what
+    // the zero block means by a selector that resolved to nothing
+    let mut picked = vec![false; n_terms];
     let mut carried: Vec<Option<HashMap<String, usize>>> = query
         .terms
         .iter()
@@ -431,6 +435,11 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                 && eval::together(held, group)
             {
                 together[i] += 1;
+            }
+            if !picked[i]
+                && let Atom::Lines(group) | Atom::Sum { group, .. } = &term.atom
+            {
+                picked[i] = eval::selected(held, group).next().is_some();
             }
             if let Some(carried) = &mut carried[i] {
                 for value in resolved_values(term, held, outcome) {
@@ -595,8 +604,14 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
             .terms
             .iter()
             .enumerate()
-            .filter(|(i, _)| tallies[*i][Outcome::Matched as usize] == 0)
-            .filter_map(|(_, term)| nothing(corpus, term))
+            .filter_map(|(i, term)| {
+                nothing(
+                    corpus,
+                    term,
+                    picked[i],
+                    tallies[i][Outcome::Matched as usize],
+                )
+            })
             .collect(),
         said: S107,
         undecided: count(n_undecided, root_undecided.as_ref()),
@@ -829,10 +844,44 @@ fn words(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// A term no item matched whose selector nothing in scope carries at
-/// all, with the values sharing its words. Exact execution, tolerant
-/// suggestion: nothing here is matched for the author (S107).
-fn nothing(corpus: &Corpus, term: &Term) -> Option<Nothing> {
+/// A term whose selector nothing in scope carries, with the values
+/// sharing its words. Exact execution, tolerant suggestion: nothing here
+/// is matched for the author (S107). A group is read as the rest of the
+/// answer reads it — by its bound selector, a `sum`'s too — so one that
+/// picked any occurrence resolved to something, whatever a template test
+/// inside it would find alone; a field's term carried nothing when no item
+/// matched it.
+fn nothing(corpus: &Corpus, term: &Term, picked: bool, matched: usize) -> Option<Nothing> {
+    let of_group = |where_: &Member| {
+        if picked {
+            return None;
+        }
+        let mut tests = Vec::new();
+        template_tests(where_, &mut tests);
+        let wanted: Vec<String> = tests
+            .into_iter()
+            .filter(|(op, _)| *op != Op::Match)
+            .map(|(_, text)| text)
+            .collect();
+        if wanted.is_empty() {
+            return None;
+        }
+        let mut templates: HashMap<String, usize> = HashMap::new();
+        for held in &corpus.items {
+            let mut seen: Vec<&str> = held
+                .item
+                .lines
+                .iter()
+                .map(|l| l.template.as_str())
+                .collect();
+            seen.sort_unstable();
+            seen.dedup();
+            for template in seen {
+                *templates.entry(template.to_string()).or_default() += 1;
+            }
+        }
+        Some(("template".to_string(), wanted.join(" "), templates))
+    };
     let (of, wanted, values): (String, String, HashMap<String, usize>) =
         match (&term.node, &term.atom) {
             (
@@ -841,37 +890,14 @@ fn nothing(corpus: &Corpus, term: &Term) -> Option<Nothing> {
                     where_,
                 },
                 Atom::Lines(_),
-            ) => {
-                let mut tests = Vec::new();
-                template_tests(where_, &mut tests);
-                let (op, wanted) = tests.into_iter().find(|(op, _)| *op != Op::Match)?;
-                let alone = Atom::Lines(
-                    bind::group(&Member::Test {
-                        attr: "template".to_string(),
-                        op,
-                        value: Value::Text(wanted.clone()),
-                    })
-                    .ok()?,
-                );
-                let mut templates: HashMap<String, usize> = HashMap::new();
-                for held in &corpus.items {
-                    if eval::outcome(&alone, held, &[]) == Outcome::Matched {
-                        return None;
-                    }
-                    let mut seen: Vec<&str> = held
-                        .item
-                        .lines
-                        .iter()
-                        .map(|l| l.template.as_str())
-                        .collect();
-                    seen.sort_unstable();
-                    seen.dedup();
-                    for template in seen {
-                        *templates.entry(template.to_string()).or_default() += 1;
-                    }
-                }
-                ("template".to_string(), wanted, templates)
-            }
+            ) => of_group(where_)?,
+            (
+                Node::Compare {
+                    value: ValueRef::Sum { lines, .. },
+                    ..
+                },
+                Atom::Sum { .. },
+            ) => of_group(lines)?,
             (
                 Node::Test {
                     field,
@@ -879,7 +905,7 @@ fn nothing(corpus: &Corpus, term: &Term) -> Option<Nothing> {
                     value: Value::Text(wanted),
                 },
                 Atom::Text { thing, .. },
-            ) if *thing != Thing::Text => {
+            ) if *thing != Thing::Text && matched == 0 => {
                 let mut values: HashMap<String, usize> = HashMap::new();
                 for held in &corpus.items {
                     for value in eval::texts(held, *thing) {

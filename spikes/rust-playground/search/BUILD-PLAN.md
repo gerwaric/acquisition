@@ -587,7 +587,7 @@ direction that breaks least if he rules the other way.
 | B7 | Failed against lacked on a line's group — both false, so no answer's members move, only how the false are split | the selector is the group without its slot comparisons: an item with no occurrence the selector picks lacked it; one with such an occurrence and none satisfying the whole failed. A group comparing no slot never fails | keep |
 | B9 | A query that starts with `-`, the language's not, at a terminal, where it is a flag: `acq search -is:corrupted` is clap's error, and `-has:note` would be read as `-h` (audit finding 1) | it goes after `--`, as every route prints it and the verb's help says: `acq search --realm pc -- '-is:corrupted'` | keep: accepting a leading hyphen as the query would turn a mistyped flag into a query |
 | B10 | The order of an item whose largest occurrence is not established (the second audit, finding 3). C92 gives no scalar to an item with no satisfying occurrence; it says nothing of one that has a readable occurrence and an unread source the group admits | it sorts last either way, as an incomplete sum does, the readable value shown with `incomplete` beside it. A term is another matter: a readable 95 is a witness to `>=90` still | keep: an order that may be wrong is worse than a place at the end that says why |
-| B11 | Whether parentheses may change what is an error. Step 1 checks a slot against a quoted template only at the group's own level (its observations), so a nested template takes any slot word and the evaluator finds no such number | as step 1 built it: never a wrong answer, a missing error | the seat's: checking through nested ands, as the together bound is now found, is a small change to `template::selected` |
+| B11 | Whether parentheses may change what is an error. Step 1 checked a slot against a quoted template only at the group's own level, so a nested template took any slot word — and the answer then printed a route the build refuses (the fourth audit, finding 1) | the check reads the group's conjuncts, through nested ands: the tighter reading, which the owner's own test prefers — allowing a query later breaks nothing, forbidding one later would. A template under an or or a not states no numbers still, as step 1 says | keep |
 | B8 | Gap 2, as this plan recommended | (b): `--query-file <file\|->`; a route is printed shell-quoted, an apostrophe as `'\''`. (c) is untouched | the seat's |
 
 **An outside audit of the build at `28606ed4` (2026-09-20), each finding
@@ -636,14 +636,19 @@ counts against routes ran over 2,000 generated queries.
 | 1 | An occurrence the group may select, and which names no such number, left a value open: over one line `Cannot be Frozen` with an unread `crafted`, `sum(… .arg1)=0` was undecided and `undecided(… .arg1)` matched, though either reading of the flag gives a complete zero and no occurrence. And binding `undecided( … )` of a value threw its slot away, a sum and a projection made one probe | confirmed | an open occurrence counts only where it names the slot — in a sum, in the largest, and in the together count, which had the same fault and was not in the finding; `undecided( … )` of a value binds as `--sort` does and is open exactly when the value would sort as incomplete, one function for both (`eval.rs`, `scalar`) |
 | 2 | Parentheses changed whether the together count applies: the bound was looked for among the group's immediate members | confirmed: the third time one fault — a meaning read off the syntax (source eligibility, the selector, now this) | the bound is the one comparison among the group's conjuncts, through every nested and and a doubled not; four spellings pinned to one count, one route and one selector, and four shapes that are no single lower bound pinned as not applicable |
 
-After it the builder walked every function that reads a group's tree.
-The rest recurse. One reads by position still, and it is step 1's,
-stated there: the parser checks a slot against a quoted template only
-where the template sits at the group's own level, so
-`line(("# to maximum Life" source=explicit) arg3>=5)` is accepted where
-`line("# to maximum Life" source=explicit arg3>=5)` is an error. It
-matches nothing either way, so no answer is wrong; parentheses change
-what is an error, which is the owner's to weigh (B11).
+After it the builder walked every function that reads a group's tree,
+found the rest recursing and one reading by position — step 1's slot
+check — and recorded it as never a wrong answer, only a missing error.
+The fourth audit showed that record wrong.
+
+**A fourth audit, of the fixes at `b2b8d5fb` (2026-09-20)**: both
+third-round fixes held, no defect found in `show`, three more.
+
+| # | Finding | Verdict | Held by |
+| --- | --- | --- | --- |
+| 1 | B11 breaks rule 5: `line(("# to maximum Life" source=explicit) arg3>=0)` was accepted, counted one item together, and printed a route — `sum(line("# to maximum Life" source=explicit).arg3)>=0` — that the same build refuses | confirmed; the builder's note of the round before was wrong | the slot check reads the group's conjuncts, one function with the together bound's (`template::conjuncts`), so the query is step 1's `slot_unknown` however it is parenthesised; and the together route is checked before it is offered, since folding can bring a template to the selector's and that the whole holds under an or — `("T" or false()) arg3>=0`, found while fixing, and caught only by that guard |
+| 2 | The zero block said a group resolved to nothing while the terms block listed what it resolved to: `nothing()` took the group's first template test and asked it alone, out of its and, or and not. A `sum`'s selector was never diagnosed | confirmed: the fourth reading of a group's meaning kept apart from the others | resolved to nothing is the bound selector picking no occurrence in the scope, a `sum`'s too; a field's term is as before |
+| 3 | Sorting by an unread number said `no satisfying occurrence`, a known absence, where `undecided(ilvl)` said unread of the same item | confirmed | `Scalar::Incomplete` for a field that could not be read |
 
 **Observations — the builder's.**
 

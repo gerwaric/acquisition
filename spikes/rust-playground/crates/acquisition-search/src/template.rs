@@ -6,30 +6,39 @@
 use crate::error::{ErrorKind, LanguageError};
 use crate::tree::{Member, Op, Value, arg_index};
 
-/// The quoted template a line group selects, when it selects exactly one
-/// at its own level: the group is `"T"` alone, or an and whose members
-/// include one `"T"`. A template inside an or, or under a not, selects no
+/// The group's conjuncts: what must all hold on one occurrence, through
+/// every nested and and a doubled not — `"T" (source=explicit arg1>=90)`
+/// is `"T" source=explicit arg1>=90`. The one reading of a group's and that
+/// the slot check here, the together bound and the selector share, so
+/// that parentheses never change which of them applies.
+pub(crate) fn conjuncts<'a>(member: &'a Member, out: &mut Vec<&'a Member>) {
+    match member {
+        Member::All(children) => children.iter().for_each(|c| conjuncts(c, out)),
+        Member::Not(inner) => match inner.as_ref() {
+            Member::Not(twice) => conjuncts(twice, out),
+            _ => out.push(member),
+        },
+        other => out.push(other),
+    }
+}
+
+/// The quoted template a line group selects, when exactly one is among
+/// its conjuncts. A template inside an or, or under a not, selects no
 /// single line and is left to the evaluator.
 pub(crate) fn selected(where_: &Member) -> Option<&str> {
-    fn quoted(member: &Member) -> Option<&str> {
-        match member {
-            Member::Test {
-                attr,
-                op: Op::Eq,
-                value: Value::Text(t),
-            } if attr == "template" => Some(t),
-            _ => None,
-        }
-    }
-    match where_ {
-        Member::All(children) => {
-            let mut found = children.iter().filter_map(quoted);
-            match (found.next(), found.next()) {
-                (Some(t), None) => Some(t),
-                _ => None,
-            }
-        }
-        other => quoted(other),
+    let mut all = Vec::new();
+    conjuncts(where_, &mut all);
+    let mut found = all.into_iter().filter_map(|member| match member {
+        Member::Test {
+            attr,
+            op: Op::Eq,
+            value: Value::Text(t),
+        } if attr == "template" => Some(t.as_str()),
+        _ => None,
+    });
+    match (found.next(), found.next()) {
+        (Some(t), None) => Some(t),
+        _ => None,
     }
 }
 
