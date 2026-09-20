@@ -311,6 +311,7 @@ record's step ledger and its observations.
 | Step | Commit | What landed |
 | --- | --- | --- |
 | 1 · the language | `080a8581` | `acquisition-search`: the tree and its validity (`tree.rs`), the parser over the whole reference (`parse.rs`), the canonical printer (`print.rs`), the strict JSON form (`json.rs`), structured errors with stable kinds (`error.rs`). `tests/language.toml`: 133 cases over 86 constructs (123 over 82 at the step's commit; H1 and H2 added the rest) — every construct of the reference, every error the grammar defines with its readings, the acceptance queries — and `tests/language.rs` refuses a construct with no case. The round trip over generated trees (2,000 a run; 60,000 once, by hand), any finite number, and no text panics the parser (200,000 once). C89's edges in `tools/docs-check.sh` §5 with nine breaker cases: `tools/docs-check-breakers.sh`, 51 ok. The contract detail's sentences on the check and the lints left `DESIGN.md` for the crate doc. |
+| 2 · the derivation | this commit | `derive.rs`: `derive(facts, body) -> Item`, pure and total — the header, `rarity` and `frameTypeId` as given, `ilvl`, `stackSize`, the note, every yes the body says; properties and requirements as displayed strings, name and values kept apart; lines as (source, flags, template, numbers) with `slot` and the ranged rule; `displayed()`, the rows a phrase will be tested against; and what could not be read, by part, the readable rest still derived. `tests/derive.rs`: 12 fixtures worked by hand and a property test that no text and no JSON panics it. M2 below: no unexplained difference. `template::typed` gained the thousands comma. |
 
 **Found by step 1's own tests, in the builder's code:** a computed value
 named alone (`pseudo.total_res`) was answered as a bare word; a whole
@@ -370,6 +371,86 @@ needs nothing: the `%` is part of a template here as there.
 - The wire reads an extreme float (1e122) to within one unit in the
   last place (serde_json without `float_roundtrip`); the text is exact
   for every finite number, and no typed bound is near that.
+
+### Step 2 — M2, and what the deriver met
+
+**M2** — `python3 search/item-facts/scripts/m2-differential.py`, after
+`cargo build --workspace`; input the live items of
+`item-facts/raw/spike-GERWARIC_7694-2026-09-13.db` (22,721), 2026-09-19.
+The script re-runs the census's own template rule over that one input,
+hands the same rows to the deriver
+(`crates/acquisition-search/examples/derive-census.rs`), applies each
+departure below to the census's side with its own code, and compares
+every (array, template) row: items, lines, flags, how many numbers, and
+whether the ranged rule takes it (`ranged-split.py`'s cases A and B).
+
+| | Census rule | Deriver |
+| --- | ---: | ---: |
+| templates / lines, all arrays | 6,476 / 88,128 | 6,407 / 84,199 |
+| `explicitMods` | 5,304 / 72,868 | 5,278 / 72,506 |
+| `implicitMods` | 446 / 6,050 | 440 / 6,050 |
+| `utilityMods` | 26 / 2,911 | 23 / 2,911 |
+| `ultimatumMods` | 34 / 3,567 | none: not lines |
+| enchant, crucible, scourge, veiled, bonded, rune | 666 / 2,732 | the same |
+| unexplained differences | | **0** |
+| items with anything unread | | **0** of 22,721 |
+| ranged (one `# to #`): rows / lines | | 195 / 3,584 — 180 the pair alone, 15 with a further number; 2 rows with two pairs, 378 with several numbers and no pair, 166 `(#-#)`, none of them ranged |
+
+The departures, each counted by the script (lines whose template moved /
+census templates touched):
+
+| Departure | Count | Why |
+| --- | ---: | --- |
+| `ultimatumMods` is no source of lines | 3,567 lines | its elements are ids with a tier (`FrostInfection`, 3); the same item's `explicitMods` already displays them (`Blistering Cold III`) on all 539 items, with two lines more on 315. A candidate ground-truth claim |
+| an empty line displays nothing | 362 lines | the spacer rows of an essence's description |
+| a row break `\r\n` is `\n` | 407 / 256 | the reference's strings escape `\n` alone, so a template holding a CR could never be typed |
+| `<style>{Display}` reduced, nested | 478 / 359 | markup the digest does not name (S4 knows the brackets): a divination card's reward, `<uniqueitem>{Staff}`, `<size:31>{…}`; 821 tags, each followed by its brace. A candidate ground-truth claim |
+| `[Tag|Display]` and `[Display]` reduced | 265 / 61 | S4, C90 |
+| `1,500` is one number | 1 / 1 | read as 1 and 500 it is a wrong value, silently; the template is `#x Vivid Crystallised Lifeforce` |
+
+The differential caught two misreadings in the builder's code before any
+fixture did: those 362 empty lines became lines with an empty template,
+and a heist trinket's `Any Heist member can equip this item.` —
+`displayMode` 3, one empty value, no `{0}` — was counted unread on 135
+items. Deriving took 1.4 s for the 22,721 in a debug build, the parse
+included; M1 is step 3's.
+
+**Holes — they change which items a query matches, so they are the
+owner's.** None blocked step 2: the deriver reads and does not interpret
+(`derive.rs`, "As built"), so each fact is carried as GGG gives it and
+the rule that gives a name its meaning is the binder's, step 4. D1 and
+D2 want a ruling before step 4 binds `rarity` and `ilvl`.
+
+| # | Hole | Built as | Recommendation |
+| --- | --- | --- | --- |
+| D1 | `rarity` on an item whose body carries none: 8,297 of 22,721 — gems 5,747, currency 1,720, cards 490, normal-frame 339, a quest item. `frameTypeId` is on every item and differs from `rarity` on 7 (foils; one currency item marked normal). This plan's own seat line `rarity=currency` assumes the frame answers | both carried as given, `rarity` and `frame` | `rarity` is GGG's where given, else the frame, so `gem`, `currency`, `divinationcard` are values of the closed set and `--count rarity` has no `none` a third of the corpus sits in; `frame` stays a field for the foil |
+| D2 | `ilvl` is 0 on 7,903 items (every gem and card, most currency): the game shows them no item level | 0, as given | 0 is absent: `ilvl<=10` should not return every gem, and `-has:ilvl` finds them |
+| D3 | A vaal gem's base skill sits under `hybrid` — 2,251 lines and its properties on 457 items — and is displayed on the item. Neither a line nor a phrase reaches it | not read | read its lines as a source of their own, `hybrid`, and its properties as displayed strings; adding it later breaks nothing |
+| D4 | The other property-shaped arrays: `nextLevelRequirements` (265 items), `supportGemRequirements` (19), `weaponRequirements` (6), and `gemTabs`, `grantedSkills` on poe2 (42, 4) | not read; `properties`, `additionalProperties` and `requirements` are | leave until a question needs one; `nextLevelRequirements` as text would make `"Level 21"` find a level-20 gem |
+| D5 | A requirement as a displayed string: GGG gives a name and a value, the game shows `Requires Level 67, 159 Str` | each its own string, the name without a colon: `Level 67`, `159 Str`; a property keeps it: `Quality: +20%`. From the builder's knowledge of the tooltip, no capture checked | keep |
+
+**Observations — the builder's.**
+
+- S12 as built: a veiled line keeps the census's template (`Suffix#`)
+  and carries no number, so it names no slot and a value query never
+  matches it; its text shows the placeholder as given.
+- A line names a slot only while its numbers are its template's `#`s, so
+  a displayed literal `#` (none in this corpus) costs the line its slots
+  and nothing else.
+- The source word is the array's key without `Mods`, whatever GGG adds
+  (`enchant`, `utility`, `crucible`, `scourge`, `veiled`, `bonded`,
+  `rune` seen); a flag is any key the line's `flags` sets true, and an
+  item's `is:` words are every top-level true and the true keys of
+  `influences`, as GGG spells them (`abyssJewel`, `duplicated`,
+  `isRelic`). The language's spellings of all three are the binder's.
+- Lines are ordered by source word, then as the body orders them, so the
+  order never depends on how a JSON map was held.
+- Nothing was unread on this corpus, so C93's unread path is exercised
+  by fixtures alone: a wrong type under a known key, an element that is
+  no line, a `displayMode` outside 0–4, a body that is not an object.
+- Sockets are step 8's and are not derived yet.
+- C103's registry entry is 788 bytes of 800, so it takes no *Pinned:*
+  pointer until the owner trims it; C90 carries the file.
 
 ## Gaps found while planning — rules the reference did not state
 

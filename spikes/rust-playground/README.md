@@ -39,7 +39,8 @@ inventories and mechanisms live in the linked source documentation.
   [Implementation](crates/acquisition-plan/src/lib.rs);
   rulings: `decisions/plans.md`, `decisions/pricing.md`.
 - `crates/acquisition-search` — item search over the store's read API;
-  so far the query language, its text and its tree.
+  so far the query language, its text and its tree, and the derivation
+  of an item from its stored body.
   [Implementation](crates/acquisition-search/src/lib.rs);
   rulings: `decisions/search.md`.
 - `crates/acquisition-cli` — `acq`, clap and rendering.

@@ -184,7 +184,8 @@ pub(crate) fn check_typed(template: &str) -> Result<(), LanguageError> {
 
 /// The template of a displayed string and the numbers taken out of it, in
 /// order, the sign carried in the number (C90). A sign straight after a
-/// digit or a `#` is a range dash, never a sign: `59-88` is `#-#`.
+/// digit or a `#` is a range dash, never a sign: `59-88` is `#-#`. A
+/// thousands comma is part of its number: `1,500x` is `#x`.
 pub(crate) fn typed(text: &str) -> (String, Vec<f64>) {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::new();
@@ -202,13 +203,20 @@ pub(crate) fn typed(text: &str) -> (String, Vec<f64>) {
             while chars.get(i).is_some_and(char::is_ascii_digit) {
                 i += 1;
             }
+            // `1,500` is one number: a comma, then exactly three digits
+            while chars.get(i) == Some(&',')
+                && (1..=3).all(|n| chars.get(i + n).is_some_and(char::is_ascii_digit))
+                && !chars.get(i + 4).is_some_and(char::is_ascii_digit)
+            {
+                i += 4;
+            }
             if chars.get(i) == Some(&'.') && chars.get(i + 1).is_some_and(char::is_ascii_digit) {
                 i += 1;
                 while chars.get(i).is_some_and(char::is_ascii_digit) {
                     i += 1;
                 }
             }
-            let literal: String = chars[start..i].iter().collect();
+            let literal: String = chars[start..i].iter().filter(|c| **c != ',').collect();
             numbers.push(literal.parse().unwrap_or(0.0));
             out.push('#');
         } else {

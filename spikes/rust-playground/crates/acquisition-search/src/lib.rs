@@ -7,8 +7,9 @@
 //!
 //! # As built
 //!
-//! The language, and nothing else yet (the build plan, step 1): a query's
-//! text and its tree, each printing to the other.
+//! The language (the build plan, step 1) — a query's text and its tree,
+//! each printing to the other — and the derivation (step 2), the item a
+//! query will be asked of. Nothing evaluates yet.
 //!
 //! - [`tree`] — the query tree (C91): one typed value, and [`check`], what
 //!   a tree must satisfy to be one the language can say.
@@ -22,12 +23,14 @@
 //! - [`json`] — the tree's JSON form, read strictly (C104: the text is
 //!   carried on every seat; the tree is accepted and always returned).
 //! - [`error`] — authoring errors with stable kinds (C47, C11).
+//! - [`mod@derive`] — one item's body and ingest facts in, the item out
+//!   (C103, C90): fields, displayed strings, lines as kind, template and
+//!   numbers with their slots, and what could not be read, by collection.
 //!
 //! The parser knows the grammar and no field, class or computed value by
 //! name: a name is the binder's to know, so validity never depends on a
-//! corpus (invariant 3). Nothing here evaluates; what the evaluator does
-//! not yet build it will refuse by name (the build plan, "How a partial
-//! build stays honest").
+//! corpus (invariant 3). What the evaluator does not yet build it will
+//! refuse by name (the build plan, "How a partial build stays honest").
 //!
 //! # Decisions as recorded
 //!
@@ -36,6 +39,9 @@
 //!   client or an async runtime, and the daemon and the planner never link
 //!   it. `tools/docs-check.sh` §5 refuses each edge, and
 //!   `tools/docs-check-breakers.sh` proves it refuses.
+//! - **C103, C90.** The deriver is [`mod@derive`]'s module doc; pinned by
+//!   `tests/derive.rs`, and set against the census over a real corpus by
+//!   `search/item-facts/scripts/m2-differential.py` (never in the gate).
 //! - **C104.** Pinned by `tests/language.rs`: the round trip over
 //!   generated trees and over the corpus (`tests/language.toml`), where
 //!   every construct of the reference has a case.
@@ -44,6 +50,7 @@
 // structured error, never a panic. Tests may unwrap.
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
+pub mod derive;
 pub mod error;
 pub mod json;
 pub mod parse;
@@ -51,6 +58,7 @@ pub mod print;
 mod template;
 pub mod tree;
 
+pub use derive::{Facts, Item, Line, Part, Property, Shown, Unread, derive};
 pub use error::{ErrorKind, LanguageError};
 pub use json::{from_json, to_json};
 pub use parse::{parse, parse_value};
