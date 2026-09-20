@@ -460,14 +460,20 @@ fn what_could_not_be_read_is_named_by_collection() {
             &Part::Lines("enchant".into()),
             &Part::Lines("explicit".into()),
             &Part::Lines("explicit".into()),
-            &Part::Lines("explicit".into()),
+            // the line was read and is a witness to its text; its flags
+            // were not, and it says so itself
+            &Part::Flags("explicit".into()),
         ]
     );
+    let level = it.lines.iter().find(|l| l.text == "+1 to Level").unwrap();
+    assert!(level.flags_unread && level.flags.is_empty());
+    assert!(it.lines.iter().filter(|l| l.flags_unread).count() == 1);
     assert_eq!(
         it.unread[5].problem,
         "`explicitMods[1]` is a number, not a line"
     );
-    assert_eq!(it.unread_in(&Part::Lines("explicit".into())).count(), 3);
+    assert_eq!(it.unread_in(&Part::Lines("explicit".into())).count(), 2);
+    assert_eq!(it.unread_in(&Part::Flags("explicit".into())).count(), 1);
     assert_eq!(it.unread_in(&Part::Lines("implicit".into())).count(), 0);
 
     for body in ["not json", "[1, 2]", "", "null"] {

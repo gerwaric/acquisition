@@ -56,7 +56,8 @@ fn base() -> std::path::PathBuf {
 
 /// Two fetched tabs and one never fetched: `kaom`, a unique whose name
 /// holds an apostrophe; `r1` with 95 life; `r2` with 20 and 75; `r3`
-/// whose implicit array is unread.
+/// whose implicit array is unread; `plain`, with no life line, so that a
+/// route starting with the language's `-` is printed.
 fn seed(base: &Path) {
     let mock = base.join("mock");
     std::fs::create_dir_all(&mock).unwrap();
@@ -117,6 +118,7 @@ fn seed(base: &Path) {
         json!({ "stash": { "id": "t2", "name": "Dump", "type": "PremiumStash", "items": [
             item("kaom", "Kaom's Heart", "Glorious Plate", "Unique", json!({ "explicitMods": ["+500 to maximum Life"] })),
             item("r3", "Hex Band", "Two-Stone Ring", "Rare", json!({ "implicitMods": "unreadable", "explicitMods": ["+40 to maximum Life"] })),
+            item("plain", "Dull Turn", "Iron Ring", "Rare", json!({ "explicitMods": ["+20 to maximum Mana"] })),
         ] } }),
         30,
     );
@@ -155,7 +157,7 @@ fn c53_search_json_is_the_answer_whole_and_the_text_is_a_function_of_it() {
     );
     assert_eq!(
         (&a["scope"]["items"], &a["scope"]["never_fetched"]),
-        (&json!(4), &json!(1))
+        (&json!(5), &json!(1))
     );
     let term = &a["terms"][0];
     // kaom and r1; r2 holds 20 and 75; r3's 40 sits beside an unread array
@@ -163,10 +165,11 @@ fn c53_search_json_is_the_answer_whole_and_the_text_is_a_function_of_it() {
         (
             &term["matched"]["count"],
             &term["failed"]["count"],
+            &term["lacked"]["count"],
             &term["undecided"]["count"],
             &term["together"]["count"]
         ),
-        (&json!(2), &json!(1), &json!(1), &json!(1))
+        (&json!(2), &json!(1), &json!(1), &json!(1), &json!(1))
     );
     let ids: Vec<&str> = a["rows"]
         .as_array()
@@ -181,14 +184,14 @@ fn c53_search_json_is_the_answer_whole_and_the_text_is_a_function_of_it() {
     let shown = text(&acq(&base, &["search", "--realm", "pc", LIFE, "--routes"]));
     for needle in [
         "query   line(\"# to maximum Life\" arg1>=90)",
-        "scope   account Alice#1234 · pc · live · 4 items · 2 locations fetched",
+        "scope   account Alice#1234 · pc · live · 5 items · 2 locations fetched",
         "1 never fetched",
         "--view locations, not built (step 10)",
         &format!(
             "basis   snapshot {} · facts v",
             a["basis"]["snapshot"]["response"]
         ),
-        "2 matched · 1 failed · 1 undecided · 1 reaches 90 only together",
+        "2 matched · 1 failed · 1 lacked · 1 undecided · 1 reaches 90 only together",
         "total   2 matches · 1 undecided",
         "Kaom's Heart Glorious Plate · unique · Standard / Dump",
         "+500 to maximum Life (explicit)",
@@ -231,8 +234,14 @@ fn c53_search_json_is_the_answer_whole_and_the_text_is_a_function_of_it() {
         routed += 1;
     }
     assert_eq!(
-        routed, 5,
-        "matched, failed, undecided, together, and the root's undecided:\n{shown}"
+        routed, 6,
+        "matched, failed, lacked, undecided, together, and the root's undecided:\n{shown}"
+    );
+    // the lacked route starts with the language's not, which a terminal
+    // reads as a flag: it is printed after `--`, and it ran above
+    assert!(
+        shown.contains(r##"--realm pc -- '-line("# to maximum Life")'"##),
+        "{shown}"
     );
 }
 
@@ -302,7 +311,7 @@ fn a_query_with_an_apostrophe_is_read_from_stdin_and_routed_shell_quoted() {
         &base,
         &["search", "--query-file", "/dev/stdin", "--routes"],
     ));
-    assert!(shown.contains("total   4 matches"), "{shown}");
+    assert!(shown.contains("total   5 matches"), "{shown}");
     let shown = {
         let mut child = command(&base, &["search", "--query-file", "-", "--routes"])
             .stdin(Stdio::piped())

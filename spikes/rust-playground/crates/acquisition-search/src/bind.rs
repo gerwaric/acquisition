@@ -222,35 +222,7 @@ pub(crate) const FRAMES: &[&str] = &[
     "supporterfoil",
 ];
 
-/// Every yes an item's body says (`derive`, "As built"): the top-level
-/// booleans and the keys of `influences`, as GGG spells them.
-pub(crate) const ITEM_FLAGS: &[&str] = &[
-    "abyssJewel",
-    "corrupted",
-    "crusader",
-    "delve",
-    "duplicated",
-    "elder",
-    "fractured",
-    "hunter",
-    "identified",
-    "isRelic",
-    "memoryItem",
-    "mutated",
-    "redeemer",
-    "replica",
-    "searing",
-    "shaper",
-    "split",
-    "support",
-    "synthesised",
-    "tangled",
-    "unmodifiable",
-    "unmodifiableExceptChaos",
-    "veiled",
-    "vestigial",
-    "warlord",
-];
+pub(crate) use crate::derive::ITEM_FLAGS;
 
 /// A line's source: its array's key without `Mods`, and `hybrid`.
 pub(crate) const SOURCES: &[&str] = &[
@@ -494,9 +466,6 @@ pub(crate) struct Group {
     pub selector_tree: Member,
     /// True when the group compares no slot: the selector is the whole.
     pub selects_only: bool,
-    /// The sources an occurrence may come from, when the group's own and
-    /// says so: an unread array elsewhere then leaves the group decided.
-    pub sources: Option<Vec<&'static str>>,
     pub together: Option<LowerBound>,
 }
 
@@ -978,20 +947,11 @@ pub(crate) fn group(whole: &Member) -> Result<Group, LanguageError> {
         }),
         _ => None,
     };
-    let sources = match &bound {
-        BMember::Source(sources) => Some(sources.clone()),
-        BMember::All(children) => children.iter().find_map(|c| match c {
-            BMember::Source(sources) => Some(sources.clone()),
-            _ => None,
-        }),
-        _ => None,
-    };
     Ok(Group {
         selector: member(&selector_tree)?,
         selects_only: !has_slot(whole),
         whole: bound,
         selector_tree,
-        sources,
         together,
     })
 }

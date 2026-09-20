@@ -37,7 +37,9 @@ use crate::store_cmd::{self, ago};
 #[derive(clap::Args)]
 pub struct SearchArgs {
     /// The query (`acq search --describe` prints the language). None:
-    /// every item in scope.
+    /// every item in scope. One that starts with `-`, the language's not,
+    /// goes after `--`, as every route prints it: `acq search --realm pc
+    /// -- '-is:corrupted'`.
     pub query: Option<String>,
     /// The realm searched: pc, xbox, sony, poe2, or all. Over a store
     /// holding one realm it may be omitted and the answer prints it; over
@@ -423,6 +425,10 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                     }
                     Evidence::Shown { part, text } => format!("{text} ({part})"),
                     Evidence::Value { name, value } => format!("{name} {}", number(value)),
+                    Evidence::Undecided { path, term, reason } => format!(
+                        "term {path} {term} is undecided: {} unread — {}; {}",
+                        reason.unread, reason.problem, reason.hint
+                    ),
                 });
             }
         }

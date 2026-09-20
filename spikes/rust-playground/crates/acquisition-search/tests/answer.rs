@@ -284,7 +284,7 @@ fn invariant_2_a_selector_is_printed_as_authored_with_its_binding_beside_it() {
     );
     assert_eq!(
         terms[1]["resolved"],
-        json!({ "of": "template", "values": [{ "value": "#% to Fire Resistance", "items": 6 }], "more": 0 })
+        json!({ "of": "template", "values": [{ "value": "#% to Fire Resistance", "items": 7 }], "more": 0 })
     );
     // `ra` picks `rare` among the legal values and no other
     assert_eq!(

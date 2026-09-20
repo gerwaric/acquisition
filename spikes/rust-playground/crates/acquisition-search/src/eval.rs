@@ -11,15 +11,27 @@
 //!   the thing and the comparison is false), lacked (known absence), and
 //!   undecided. The tree sees three values: failed and lacked are both
 //!   false.
-//! - **A readable hit is a witness; absence needs everything readable.**
-//!   A term is undecided only when it found no witness *and* something
-//!   that could have held one is unread: for a field, its own key or the
-//!   body; for a phrase, anything at all; for a line's group, the body or
-//!   a source of lines the group's own `source=` does not rule out.
+//! - **A readable hit is a witness; absence needs everything readable
+//!   that could have held the thing — and nothing else.** A term is
+//!   undecided only when it found no witness *and* the evidence it needs
+//!   is unread: for a field, its own key or the body; for an item's flag,
+//!   its key, and `influences` for the flags that live there; for a
+//!   phrase, what holds a displayed string; for a line's group, the body,
+//!   a source of lines the group admits, `hybrid` when it admits that
+//!   source, and — where the group asks a flag — an occurrence whose own
+//!   flags are unread. Which sources a group admits is what it means,
+//!   never where its parentheses sit: the group is asked with its source
+//!   tests answered and everything else unknown.
+//! - **A line's group is three-valued on each occurrence**, as the item's
+//!   tree is on each item: `-is:crafted` is undecided on a line whose flags
+//!   could not be read, never true. A sum over occurrences that may or may
+//!   not be selected is incomplete, and they establish no together count.
 //! - **Outcomes are computed for every term on every item, and nothing
 //!   else is**: what a row shows ([`evidence`]) and why an item is
 //!   undecided ([`reasons`]) are worked out only for the items an answer
-//!   prints.
+//!   prints. An `undecided( … )` that matched shows the reasons of what it
+//!   asked about, so an undecided count's route returns its members with
+//!   why.
 //! - **A sum** adds the named slot over the occurrences that satisfy its
 //!   group; an occurrence that names no such slot adds nothing; a sum of
 //!   nothing is zero; with a possible contributor unread it is an
@@ -92,6 +104,13 @@ pub enum Evidence {
         name: String,
         value: serde_json::Value,
     },
+    /// Why the term an `undecided( … )` asked about is open on this item.
+    Undecided {
+        path: String,
+        term: String,
+        #[serde(flatten)]
+        reason: Reason,
+    },
 }
 
 pub(crate) fn number_json(n: f64) -> serde_json::Value {
@@ -128,8 +147,23 @@ fn body_key(thing: Thing) -> Option<&'static str> {
 
 fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
     match (thing, body_key(thing)) {
-        // a phrase may sit anywhere: anything unread leaves it open
-        (Thing::Text, _) => held.item.unread.iter().collect(),
+        // a phrase may sit in any displayed string: what holds one leaves
+        // it open, and a flag or a stack size holds none
+        (Thing::Text, _) => held
+            .item
+            .unread
+            .iter()
+            .filter(|u| match &u.part {
+                Part::Body | Part::Properties(_) | Part::Lines(_) => true,
+                Part::Field(key) => {
+                    matches!(
+                        key.as_str(),
+                        "name" | "typeLine" | "baseType" | "ilvl" | "hybrid"
+                    )
+                }
+                Part::Flags(_) => false,
+            })
+            .collect(),
         (_, Some(key)) => held
             .item
             .unread
@@ -146,7 +180,7 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
 
 /// The text values a thing has on this item: none when it lacks it, two
 /// for an item in a substash (the substash's name and its tab's).
-fn texts(held: &Held, thing: Thing) -> Vec<&str> {
+pub(crate) fn texts(held: &Held, thing: Thing) -> Vec<&str> {
     let item = &held.item;
     let place = &held.place;
     fn one(value: &Option<String>) -> Vec<&str> {
@@ -200,31 +234,100 @@ fn shown_part(shown: Shown<'_>) -> String {
 
 // ---- a line's group ---------------------------------------------------------------------
 
-pub(crate) fn member_holds(member: &BMember, line: &Line) -> bool {
-    match member {
-        BMember::All(children) => children.iter().all(|c| member_holds(c, line)),
-        BMember::Any(children) => children.iter().any(|c| member_holds(c, line)),
-        BMember::Not(inner) => !member_holds(inner, line),
-        BMember::Const(value) => *value,
-        BMember::Template(test) => test.holds(&line.template),
-        BMember::Source(sources) => sources.contains(&line.source.as_str()),
-        BMember::Slot { word, test } => line.slot(word).is_some_and(|n| test.holds(n)),
-        BMember::Is(flag) => line.flags.iter().any(|f| f == flag),
+fn all_of(each: impl Iterator<Item = Truth>) -> Truth {
+    let each: Vec<Truth> = each.collect();
+    if each.contains(&Truth::False) {
+        Truth::False
+    } else if each.contains(&Truth::Undecided) {
+        Truth::Undecided
+    } else {
+        Truth::True
     }
 }
 
-/// What stops this group claiming an absence on this item.
+fn any_of(each: impl Iterator<Item = Truth>) -> Truth {
+    let each: Vec<Truth> = each.collect();
+    if each.contains(&Truth::True) {
+        Truth::True
+    } else if each.contains(&Truth::Undecided) {
+        Truth::Undecided
+    } else {
+        Truth::False
+    }
+}
+
+fn negated(truth: Truth) -> Truth {
+    match truth {
+        Truth::True => Truth::False,
+        Truth::False => Truth::True,
+        Truth::Undecided => Truth::Undecided,
+    }
+}
+
+fn sure(value: bool) -> Truth {
+    if value { Truth::True } else { Truth::False }
+}
+
+/// One node of a group asked of one occurrence. Three-valued: a flag the
+/// line could not read is unknown, never a no (C93), so `-is:crafted` is
+/// undecided on a line whose flags are unread and composes as the item's
+/// tree does.
+pub(crate) fn member_truth(member: &BMember, line: &Line) -> Truth {
+    match member {
+        BMember::All(children) => all_of(children.iter().map(|c| member_truth(c, line))),
+        BMember::Any(children) => any_of(children.iter().map(|c| member_truth(c, line))),
+        BMember::Not(inner) => negated(member_truth(inner, line)),
+        BMember::Const(value) => sure(*value),
+        BMember::Template(test) => sure(test.holds(&line.template)),
+        BMember::Source(sources) => sure(sources.contains(&line.source.as_str())),
+        BMember::Slot { word, test } => sure(line.slot(word).is_some_and(|n| test.holds(n))),
+        BMember::Is(flag) if line.flags.iter().any(|f| f == flag) => Truth::True,
+        BMember::Is(_) => {
+            if line.flags_unread {
+                Truth::Undecided
+            } else {
+                Truth::False
+            }
+        }
+    }
+}
+
+pub(crate) fn member_holds(member: &BMember, line: &Line) -> bool {
+    member_truth(member, line) == Truth::True
+}
+
+/// Whether an occurrence from `source` could satisfy the group: the group
+/// asked with its source tests answered and everything else unknown. By
+/// meaning, never by where the test sits — `(source=explicit "T") arg1>=90`
+/// rules the implicit array out exactly as `source=explicit "T" arg1>=90`
+/// does.
+fn admits(member: &BMember, source: &str) -> bool {
+    fn asked(member: &BMember, source: &str) -> Truth {
+        match member {
+            BMember::All(children) => all_of(children.iter().map(|c| asked(c, source))),
+            BMember::Any(children) => any_of(children.iter().map(|c| asked(c, source))),
+            BMember::Not(inner) => negated(asked(inner, source)),
+            BMember::Const(value) => sure(*value),
+            BMember::Source(sources) => sure(sources.contains(&source)),
+            BMember::Template(_) | BMember::Slot { .. } | BMember::Is(_) => Truth::Undecided,
+        }
+    }
+    asked(member, source) != Truth::False
+}
+
+/// What stops this group claiming an absence on this item: the body, a
+/// source of lines the group admits, and `hybrid` — a vaal gem's base
+/// skill, whose lines are the source `hybrid` — when it admits that.
 fn unread_lines<'a>(held: &'a Held, group: &Group) -> Vec<&'a Unread> {
     held.item
         .unread
         .iter()
         .filter(|u| match &u.part {
             Part::Body => true,
-            Part::Lines(source) => group
-                .sources
-                .as_ref()
-                .is_none_or(|sources| sources.contains(&source.as_str())),
-            _ => false,
+            Part::Lines(source) => admits(&group.whole, source),
+            Part::Field(key) => key == "hybrid" && admits(&group.whole, "hybrid"),
+            // a line's flags: the occurrence itself says so (`member_truth`)
+            Part::Flags(_) | Part::Properties(_) => false,
         })
         .collect()
 }
@@ -236,24 +339,44 @@ fn satisfying<'a>(held: &'a Held, member: &'a BMember) -> impl Iterator<Item = &
         .filter(move |l| member_holds(member, l))
 }
 
+/// Whether some occurrence leaves `member` open: its flags are unread and
+/// the group asks about one.
+fn open_on_a_line(held: &Held, member: &BMember) -> bool {
+    held.item
+        .lines
+        .iter()
+        .any(|l| member_truth(member, l) == Truth::Undecided)
+}
+
 /// A sum and whether every possible contributor was readable.
 pub(crate) fn sum(held: &Held, group: &Group, slot: &str) -> (f64, bool) {
     let total = satisfying(held, &group.whole)
         .filter_map(|line| line.slot(slot))
         .sum();
-    (total, unread_lines(held, group).is_empty())
+    let complete = unread_lines(held, group).is_empty() && !open_on_a_line(held, &group.whole);
+    (total, complete)
 }
 
 /// C92's together count, asked of an item the group failed on: no
 /// occurrence meets the lower bound and the sum of the selected ones does.
+/// An occurrence that may or may not be selected establishes nothing.
 pub(crate) fn together(held: &Held, group: &Group) -> bool {
     let Some(lower) = &group.together else {
         return false;
     };
+    if open_on_a_line(held, &group.selector) {
+        return false;
+    }
     let total: f64 = satisfying(held, &group.selector)
         .filter_map(|line| line.slot(&lower.slot))
         .sum();
     NumTest::Cmp(lower.op, lower.bound.as_f64()).holds(total)
+}
+
+/// The occurrences a group's selector picks on this item: what the
+/// selector resolved to here, whatever its comparisons then made of them.
+pub(crate) fn selected<'a>(held: &'a Held, group: &'a Group) -> impl Iterator<Item = &'a Line> {
+    satisfying(held, &group.selector)
 }
 
 // ---- outcomes ---------------------------------------------------------------------------------
@@ -279,7 +402,7 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
         } => decided(
             held.item.displayed().any(|(_, row)| test.holds(row)),
             true,
-            !held.item.unread.is_empty(),
+            !unread_for(held, Thing::Text).is_empty(),
         ),
         Atom::Text { thing, test } => {
             let values = texts(held, *thing);
@@ -325,8 +448,14 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
         ),
         Atom::Lines(group) => decided(
             satisfying(held, &group.whole).next().is_some(),
-            satisfying(held, &group.selector).next().is_some() && !group.selects_only,
-            !unread_lines(held, group).is_empty(),
+            // an occurrence that may be selected is no known absence
+            !group.selects_only
+                && held
+                    .item
+                    .lines
+                    .iter()
+                    .any(|l| member_truth(&group.selector, l) != Truth::False),
+            !unread_lines(held, group).is_empty() || open_on_a_line(held, &group.whole),
         ),
         Atom::Sum { group, slot, test } => match sum(held, group, slot) {
             (total, true) => decided(test.holds(total), true, false),
@@ -335,7 +464,9 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
         Atom::Undecided(probe) => {
             let open = match probe {
                 BProbe::Field(thing) => !unread_for(held, *thing).is_empty(),
-                BProbe::Lines(group) => !unread_lines(held, group).is_empty(),
+                BProbe::Lines(group) => {
+                    !unread_lines(held, group).is_empty() || open_on_a_line(held, &group.whole)
+                }
                 BProbe::Term(inner) => truth(inner, earlier) == Truth::Undecided,
             };
             decided(open, true, false)
@@ -343,13 +474,17 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
     }
 }
 
+/// What stops an item's flag being a no: its own key, and `influences`
+/// for the flags that live there — never for `corrupted`.
 fn unread_flag<'a>(held: &'a Held, flag: &str) -> Vec<&'a Unread> {
     held.item
         .unread
         .iter()
         .filter(|u| match &u.part {
             Part::Body => true,
-            Part::Field(key) => key == flag || key == "influences",
+            Part::Field(key) => {
+                key == flag || (key == "influences" && crate::derive::INFLUENCES.contains(&flag))
+            }
             _ => false,
         })
         .collect()
@@ -444,7 +579,15 @@ fn line_evidence(line: &Line) -> Evidence {
 
 /// What a row shows of a term that matched on its item. The header and
 /// the place are on every row already, so a term on them shows nothing.
-pub(crate) fn evidence(term: &Term, held: &Held) -> Vec<Evidence> {
+/// An `undecided( … )` that matched shows why — the reasons of what it
+/// asked about — so the route of an undecided count returns its members
+/// with their reasons, however many there are.
+pub(crate) fn evidence(
+    terms: &[Term],
+    term: &Term,
+    held: &Held,
+    outcomes: &[Outcome],
+) -> Vec<Evidence> {
     const MOST: usize = 3;
     match &term.atom {
         Atom::Text {
@@ -495,22 +638,65 @@ pub(crate) fn evidence(term: &Term, held: &Held) -> Vec<Evidence> {
             .chain(satisfying(held, &group.whole).map(line_evidence))
             .collect()
         }
+        Atom::Undecided(BProbe::Term(inner)) => {
+            let mut blamed = Vec::new();
+            blame(inner, outcomes, &mut blamed);
+            blamed
+                .into_iter()
+                .filter_map(|i| terms.get(i))
+                .flat_map(|asked| {
+                    reasons(&asked.atom, held)
+                        .into_iter()
+                        .map(|reason| Evidence::Undecided {
+                            path: asked.path.clone(),
+                            term: crate::print::print(&asked.node),
+                            reason,
+                        })
+                })
+                .collect()
+        }
+        Atom::Undecided(_) => reasons(&term.atom, held)
+            .into_iter()
+            .map(|reason| Evidence::Undecided {
+                path: term.path.clone(),
+                term: crate::print::print(&term.node),
+                reason,
+            })
+            .collect(),
         _ => Vec::new(),
+    }
+}
+
+/// What left a term open on an item.
+fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<&'a Unread> {
+    let of_group = |group: &Group| {
+        let mut unread = unread_lines(held, group);
+        if open_on_a_line(held, &group.whole) {
+            unread.extend(
+                held.item
+                    .unread
+                    .iter()
+                    .filter(|u| matches!(&u.part, Part::Flags(_))),
+            );
+        }
+        unread
+    };
+    match atom {
+        Atom::Text { thing, .. }
+        | Atom::Closed { thing, .. }
+        | Atom::Number { thing, .. }
+        | Atom::Has(thing)
+        | Atom::Undecided(BProbe::Field(thing)) => unread_for(held, *thing),
+        Atom::Is(flag) => unread_flag(held, flag),
+        Atom::Lines(group) | Atom::Sum { group, .. } => of_group(group),
+        Atom::Undecided(BProbe::Lines(group)) => of_group(group),
+        Atom::Id(_) | Atom::Const(_) | Atom::Undecided(BProbe::Term(_)) => Vec::new(),
     }
 }
 
 /// Why a term is undecided on an item.
 pub(crate) fn reasons(atom: &Atom, held: &Held) -> Vec<Reason> {
-    let unread = match atom {
-        Atom::Text { thing, .. }
-        | Atom::Closed { thing, .. }
-        | Atom::Number { thing, .. }
-        | Atom::Has(thing) => unread_for(held, *thing),
-        Atom::Is(flag) => unread_flag(held, flag),
-        Atom::Lines(group) | Atom::Sum { group, .. } => unread_lines(held, group),
-        Atom::Id(_) | Atom::Const(_) | Atom::Undecided(_) => Vec::new(),
-    };
-    unread
+    unread_of(atom, held)
         .into_iter()
         .map(|u| Reason {
             unread: match &u.part {
@@ -518,6 +704,7 @@ pub(crate) fn reasons(atom: &Atom, held: &Held) -> Vec<Reason> {
                 Part::Field(key) => format!("`{key}`"),
                 Part::Properties(array) => format!("`{array}`"),
                 Part::Lines(source) => format!("{source} lines"),
+                Part::Flags(source) => format!("the flags of {source} lines"),
             },
             problem: u.problem.clone(),
             hint: UNREAD_HINT,

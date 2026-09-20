@@ -54,6 +54,12 @@
 //!   2026-09-19). A phrase is tested against the row.
 //! - **The item level** is a field, `ilvl`, and a displayed string, `Item
 //!   Level: 84`, where the item has one (owner, 2026-09-19).
+//! - **A yes or no that is neither** is unread, never a no (C93): a key
+//!   of [`ITEM_FLAGS`] or of `influences` whose value is no boolean is
+//!   unread under that key, and a line whose `flags` is no object, or
+//!   holds a value that is no boolean, says so itself
+//!   ([`Line::flags_unread`]) — its text is a witness all the same, its
+//!   flags are not.
 //! - **Unread, by collection (C93).** What the deriver met and could not
 //!   read is an [`Unread`] naming the [`Part`] — never a panic (C47), never
 //!   a silent gap. The readable rest of the part is still derived, since a
@@ -144,6 +150,10 @@ pub struct Line {
     pub source: String,
     /// The flags the body sets on the line: `crafted`, `fractured`, …
     pub flags: Vec<String>,
+    /// The line's flags could not all be read: one named in `flags` is a
+    /// yes, and any other is unknown, never a no.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub flags_unread: bool,
     pub template: String,
     #[serde(serialize_with = "whole_numbers")]
     pub numbers: Vec<f64>,
@@ -172,6 +182,9 @@ pub enum Part {
     Properties(String),
     /// A source of lines, by its word.
     Lines(String),
+    /// The flags of a line of that source: its text was read, so it
+    /// hides no line and no displayed string — only what `is:` asks of it.
+    Flags(String),
 }
 
 /// Where a displayed string sits on its item.
@@ -187,6 +200,44 @@ pub enum Shown<'a> {
     Requires,
     Line(&'a Line),
 }
+
+/// Every yes an item's body is known to say: the top-level booleans and
+/// the keys of `influences`, as GGG spells them, as the census of
+/// 2026-09-13 met them (22,721 items). The language's `is:` words
+/// (`bind`), and the keys whose value must be a boolean to be read.
+pub const ITEM_FLAGS: &[&str] = &[
+    "abyssJewel",
+    "corrupted",
+    "crusader",
+    "delve",
+    "duplicated",
+    "elder",
+    "fractured",
+    "hunter",
+    "identified",
+    "isRelic",
+    "memoryItem",
+    "mutated",
+    "redeemer",
+    "replica",
+    "searing",
+    "shaper",
+    "split",
+    "support",
+    "synthesised",
+    "tangled",
+    "unmodifiable",
+    "unmodifiableExceptChaos",
+    "veiled",
+    "vestigial",
+    "warlord",
+];
+
+/// The flags `influences` holds; `shaper` and `elder` are top-level keys
+/// too.
+pub const INFLUENCES: &[&str] = &[
+    "crusader", "elder", "hunter", "redeemer", "shaper", "warlord",
+];
 
 /// The arrays read as properties; `hybrid.properties` joins them.
 const PROPERTY_ARRAYS: [&str; 2] = ["properties", "additionalProperties"];
@@ -359,6 +410,15 @@ impl Item {
             .filter(|(_, value)| **value == Value::Bool(true))
             .map(|(key, _)| key.clone())
             .collect();
+        for key in ITEM_FLAGS {
+            match body.get(*key) {
+                None | Some(Value::Null | Value::Bool(_)) => {}
+                Some(other) => self.unread(
+                    Part::Field(key.to_string()),
+                    format!("`{key}` is {}, not yes or no", json_kind(other)),
+                ),
+            }
+        }
         match body.get("influences") {
             None | Some(Value::Null) => {}
             Some(Value::Object(influences)) => {
@@ -432,9 +492,20 @@ impl Item {
                     continue;
                 }
             };
+            let mut flags_unread = false;
             let flags = match flags {
                 None | Some(Value::Null) => Vec::new(),
                 Some(Value::Object(flags)) => {
+                    for (flag, value) in flags {
+                        if !value.is_boolean() && !value.is_null() {
+                            flags_unread = true;
+                            let problem = format!(
+                                "{at}: `flags.{flag}` is {}, not yes or no",
+                                json_kind(value)
+                            );
+                            self.unread(Part::Flags(source.to_string()), problem);
+                        }
+                    }
                     let mut set: Vec<String> = flags
                         .iter()
                         .filter(|(_, v)| **v == Value::Bool(true))
@@ -443,10 +514,11 @@ impl Item {
                     set.sort();
                     set
                 }
-                // the text is a witness all the same; its kind is not whole
+                // the text is a witness all the same; its flags are not
                 Some(other) => {
+                    flags_unread = true;
                     let problem = format!("{at}: `flags` is {}, not an object", json_kind(other));
-                    self.unread(part(), problem);
+                    self.unread(Part::Flags(source.to_string()), problem);
                     Vec::new()
                 }
             };
@@ -462,6 +534,7 @@ impl Item {
             self.lines.push(Line {
                 source: source.to_string(),
                 flags,
+                flags_unread,
                 template,
                 numbers,
                 text,

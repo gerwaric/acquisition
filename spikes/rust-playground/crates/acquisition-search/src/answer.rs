@@ -19,13 +19,16 @@
 //!   the scope, not appended to the query that counted them.
 //! - **The routes of a term**: matched is the term; undecided is
 //!   `undecided(term)`; lacked is `-has:<field>`, or `-line(<selector>)`;
-//!   failed is `has:<field> -term`, or `line(<selector>) -term`; a term
+//!   failed is `has:<field> -term`, or `line(<selector>) -term` — with
+//!   `or undecided(line(<selector>))` where the selector asks a flag, which
+//!   an occurrence with unread flags leaves open; a term
 //!   that cannot lack fails by `-term`. The together count's is the failed
 //!   route and the selector's sum against the bound.
 //! - **A `:` or `~` selector is printed as authored with what it resolved
-//!   to beside it** (invariant 2): the values, or the templates, its
-//!   matched items carry, the ten most carried listed and the rest
-//!   counted. The route to the rest is the vocabulary read, which is not
+//!   to beside it** (invariant 2): the values its matched items carry,
+//!   or — for a line's group, a `sum`'s too — the templates its selector
+//!   picks over the scope, whatever its comparisons then make of them; the
+//!   ten most carried listed and the rest counted. The route to the rest is the vocabulary read, which is not
 //!   built (rule 5 of the plan: the count, and the construct's name).
 //! - **Rows** are the matching items in the store's stable order, or by
 //!   the sort scalar with items that have none last either way; past the
@@ -424,18 +427,15 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
             let outcome = eval::outcome(&term.atom, held, &outcomes);
             outcomes.push(outcome);
             tallies[i][outcome as usize] += 1;
-            match (&term.atom, outcome) {
-                (Atom::Lines(group), Outcome::Failed) if eval::together(held, group) => {
-                    together[i] += 1;
+            if let (Atom::Lines(group), Outcome::Failed) = (&term.atom, outcome)
+                && eval::together(held, group)
+            {
+                together[i] += 1;
+            }
+            if let Some(carried) = &mut carried[i] {
+                for value in resolved_values(term, held, outcome) {
+                    *carried.entry(value).or_default() += 1;
                 }
-                (_, Outcome::Matched) => {
-                    if let Some(carried) = &mut carried[i] {
-                        for value in resolved_values(term, held) {
-                            *carried.entry(value).or_default() += 1;
-                        }
-                    }
-                }
-                _ => {}
             }
         }
         match eval::truth(&query.bound, &outcomes) {
@@ -567,7 +567,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                         Touched {
                             path: term.path.clone(),
                             term: print::print(&term.node),
-                            shows: eval::evidence(term, held),
+                            shows: eval::evidence(&query.terms, term, held, outcomes),
                         }
                     })
                     .filter(|t| !t.shows.is_empty())
@@ -669,6 +669,15 @@ fn not(node: Node) -> Node {
     Node::Not(Box::new(node))
 }
 
+fn asks_a_flag(member: &Member) -> bool {
+    match member {
+        Member::All(children) | Member::Any(children) => children.iter().any(asks_a_flag),
+        Member::Not(inner) => asks_a_flag(inner),
+        Member::Is(_) => true,
+        Member::Test { .. } | Member::Const(_) => false,
+    }
+}
+
 fn routes(term: &Term) -> Routes {
     let node = term.node.clone();
     let undecided = Node::Undecided(Probe::Term(Box::new(node.clone())));
@@ -679,7 +688,19 @@ fn routes(term: &Term) -> Routes {
                 of: Collection::Lines,
                 where_: Box::new(group.selector_tree.clone()),
             };
-            let failed = Node::All(vec![selected.clone(), not(node.clone())]);
+            // a selector that asks a flag may be open on an occurrence whose
+            // flags are unread: such an item did not lack the line, so the
+            // failed route admits it, and stays as short as the reference's
+            // wherever no flag is asked
+            let picked = if asks_a_flag(&group.selector_tree) {
+                Node::Any(vec![
+                    selected.clone(),
+                    Node::Undecided(Probe::Term(Box::new(selected.clone()))),
+                ])
+            } else {
+                selected.clone()
+            };
+            let failed = Node::All(vec![picked, not(node.clone())]);
             let together = group.together.clone().map(|lower| {
                 let sum = Node::Compare {
                     value: ValueRef::Sum {
@@ -736,8 +757,17 @@ fn template_tests(member: &Member, out: &mut Vec<(Op, String)>) {
     }
 }
 
-/// What a term's `:` or `~` selector ranges over, when it has one.
+/// What a term's `:` or `~` selector ranges over, when it has one: a
+/// field, or the templates of a line's group — a `sum`'s group too.
 fn resolves(term: &Term) -> Option<String> {
+    let of_group = |where_: &Member| {
+        let mut tests = Vec::new();
+        template_tests(where_, &mut tests);
+        tests
+            .iter()
+            .any(|(op, _)| matches!(op, Op::Contains | Op::Match))
+            .then(|| "template".to_string())
+    };
     match &term.node {
         Node::Test {
             field,
@@ -756,61 +786,38 @@ fn resolves(term: &Term) -> Option<String> {
         Node::Members {
             of: Collection::Lines,
             where_,
-        } => {
-            let mut tests = Vec::new();
-            template_tests(where_, &mut tests);
-            tests
-                .iter()
-                .any(|(op, _)| matches!(op, Op::Contains | Op::Match))
-                .then(|| "template".to_string())
-        }
+        } => of_group(where_),
+        Node::Compare {
+            value: ValueRef::Sum { lines, .. },
+            ..
+        } => of_group(lines),
         _ => None,
     }
 }
 
-/// The values a matched item carries under the term's selector.
-fn resolved_values(term: &Term, held: &Held) -> Vec<String> {
+/// What the term's selector resolved to on this item. A group's is what
+/// its selector picks, whatever its comparisons then make of it: `20%
+/// to Fire Resistance` is a line `template:resistance arg1>=60` resolved
+/// to, and its value failed. A field's is the value that matched.
+fn resolved_values(term: &Term, held: &Held, outcome: Outcome) -> Vec<String> {
     let mut values: Vec<String> = match &term.atom {
-        Atom::Lines(group) => held
-            .item
-            .lines
-            .iter()
-            .filter(|l| eval::member_holds(&group.whole, l))
+        Atom::Lines(group) | Atom::Sum { group, .. } => eval::selected(held, group)
             .map(|l| l.template.clone())
             .collect(),
-        Atom::Text { thing, test } => item_texts(held, *thing)
+        Atom::Text { thing, test } if outcome == Outcome::Matched => eval::texts(held, *thing)
             .into_iter()
             .filter(|v| test.holds(v))
+            .map(str::to_string)
             .collect(),
-        Atom::Closed { thing, .. } => item_texts(held, *thing),
+        Atom::Closed { thing, .. } if outcome == Outcome::Matched => eval::texts(held, *thing)
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
         _ => Vec::new(),
     };
     values.sort();
     values.dedup();
     values
-}
-
-fn item_texts(held: &Held, thing: Thing) -> Vec<String> {
-    let place = &held.place;
-    let one = |v: &Option<String>| v.iter().cloned().collect::<Vec<String>>();
-    match thing {
-        Thing::Name => one(&held.item.name),
-        Thing::Typeline => one(&held.item.typeline),
-        Thing::Base => one(&held.item.base),
-        Thing::Note => one(&held.item.note),
-        Thing::Rarity => one(&held.item.rarity),
-        Thing::Frame => one(&held.item.frame),
-        Thing::League => one(&place.league),
-        Thing::Container => one(&place.container),
-        Thing::Tab if place.kind == "stash" => place
-            .name
-            .iter()
-            .cloned()
-            .chain(place.parent.as_ref().and_then(|p| p.name.clone()))
-            .collect(),
-        Thing::Character if place.kind == "character" => one(&place.name),
-        _ => Vec::new(),
-    }
 }
 
 // ---- a selector nothing carries ------------------------------------------------------------------
@@ -875,8 +882,8 @@ fn nothing(corpus: &Corpus, term: &Term) -> Option<Nothing> {
             ) if *thing != Thing::Text => {
                 let mut values: HashMap<String, usize> = HashMap::new();
                 for held in &corpus.items {
-                    for value in item_texts(held, *thing) {
-                        *values.entry(value).or_default() += 1;
+                    for value in eval::texts(held, *thing) {
+                        *values.entry(value.to_string()).or_default() += 1;
                     }
                 }
                 (field.clone(), wanted.clone(), values)
@@ -947,10 +954,11 @@ impl Route {
         if let Some(realm) = &scope.realm {
             out.push_str(&format!(" --realm {}", realm.as_str()));
         }
-        out.push(' ');
-        out.push_str(&shell_quoted(
-            self.request.query.text.as_deref().unwrap_or_default(),
-        ));
+        let query = self.request.query.text.as_deref().unwrap_or_default();
+        // `-` is the language's not and a terminal's flag: a query that
+        // starts with one goes after `--`, or `-has:note` is read as `-h`
+        out.push_str(if query.starts_with('-') { " -- " } else { " " });
+        out.push_str(&shell_quoted(query));
         out
     }
 }

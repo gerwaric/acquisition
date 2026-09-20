@@ -576,7 +576,42 @@ direction that breaks least if he rules the other way.
 | B5 | What `--sort` takes | a number: `ilvl`, `stack`, `line(P).<slot>`, `sum( … )`; a text field is an error that says so | keep until someone sorts by name |
 | B6 | A bare word's readings. The reference shows two for `rare` (`rarity=rare · "rare"`) and the parser has offered `"rare" · line(template:rare)` since step 1 | the closed-set readings first, the parser's two after: three for `rare` | keep: a third valid reading costs a line |
 | B7 | Failed against lacked on a line's group — both false, so no answer's members move, only how the false are split | the selector is the group without its slot comparisons: an item with no occurrence the selector picks lacked it; one with such an occurrence and none satisfying the whole failed. A group comparing no slot never fails | keep |
+| B9 | A query that starts with `-`, the language's not, at a terminal, where it is a flag: `acq search -is:corrupted` is clap's error, and `-has:note` would be read as `-h` (audit finding 1) | it goes after `--`, as every route prints it and the verb's help says: `acq search --realm pc -- '-is:corrupted'` | keep: accepting a leading hyphen as the query would turn a mistyped flag into a query |
 | B8 | Gap 2, as this plan recommended | (b): `--query-file <file\|->`; a route is printed shell-quoted, an apostrophe as `'\''`. (c) is untouched | the seat's |
+
+**An outside audit of the build at `28606ed4` (2026-09-20), each finding
+reproduced with a fixture of the builder's own before it was taken.**
+Verdict of the audit: keep step 4 open. It stays open until the owner
+has ruled on finding 7 and on B1–B9 (finding 8).
+
+| # | Finding | Verdict | Held by |
+| --- | --- | --- | --- |
+| 1 | A route whose query starts with `-` is refused by clap, exit 2: every `-has:`, `-is:` and `-line(…)` route, which is most lacked and many failed ones — the plan's rule 5 broken. The CLI's route test had not met one: its fixture had no lacked count | confirmed | the query after `--` (B9); `tests/search_json.rs` runs a lacked route through a shell, and fails without the separator — tried |
+| 2 | A flag that could not be read answered as a no: a line with unread `flags` matched `-is:crafted`; `"corrupted": "unread"` matched `-is:corrupted`; and `"corrupted": false` beside an unread `influences` was undecided. The builder had recorded the line's case as an observation and called it harmless; it was a false match against C93 | confirmed, and wider: half of it was step 2's deriver, which recorded no unread at all for a flag's value that is no boolean | the deriver: `ITEM_FLAGS` values checked, `Line::flags_unread`, `Part::Flags`; the evaluator: a line's group three-valued on each occurrence, a flag's own key and `influences` for the six that live there, a phrase left open only by what holds a displayed string. `tests/unread.rs`; M2 rerun, 0 unexplained and 0 unread |
+| 3 | An unread `hybrid` was read as the absence of hybrid lines: `-line(source=hybrid)` admitted the item | confirmed | `unread_lines`; `tests/unread.rs`, which fails without it — tried |
+| 4 | Parentheses changed an outcome: `source=explicit` ruled the unread implicit array out only as an immediate member of the group's and | confirmed | which sources a group admits is asked of its meaning — the group with its source tests answered and all else unknown (`eval.rs`, `admits`); five spellings pinned against three that must stay open |
+| 5 | What a selector resolved to was filtered by the group's comparisons, so a template whose value failed was not listed, and a `sum`'s selector resolved to nothing | confirmed | resolved by the group's selector over the scope, a `sum`'s too; the worked example's count moved from 6 to 7 for that reason |
+| 6 | Following an undecided route returned the members without their reasons, so past the ten listed there was no way to them | confirmed | an `undecided( … )` that matched shows the reasons of what it asked about (`Evidence::Undecided`); pinned over twelve items |
+| 7 | The basis names the account and not the store, against C98's words; two stores of one account gave equal bases and `is_current` said yes across them | confirmed — and the owner's: which identity names a store (its path, the world's id of C83, an id the file carries) is the basis as the contract, one of the six lines the seat revisits first | open |
+| 8 | Rule 4 says an unstated rule that changes what a user types stops the step, and the record listed eight such holes and said none blocked | narrowed: the step was built as steps 1 and 2 were — in the direction that breaks least, the holes brought to the owner at the close, said before building — but a recommendation is no ruling, and the step is not closed until each is ruled and the reference carries it | open: B1–B9 |
+| — | `eval::texts` and `answer::item_texts` were one accessor written twice | confirmed | one, in `eval.rs` |
+
+Fixing finding 2 opened an edge of its own, closed in the same change: a
+group whose selector asks a flag can fail on an item whose occurrence
+leaves the selector open, and the failed route `line(S) -term` would not
+return it. For such a group the route is `(line(S) or
+undecided(line(S))) -term`; elsewhere it stays as short as the
+reference's. One mutant per fix was tried, and each is caught by the
+test that names it.
+
+M3 was run again on the fixed build on battery in low power mode, where
+it says nothing comparable: step 3's unchanged read binary took 83 ms
+where M1 had 36, the empty query 525 where M3 had 254 — 2.3 and 2.1
+times, so no regression shows, and the table above stands until step 5
+measures again on mains. In that power state a release ask is 530 to
+590 ms, over the 500 ms line: the power state is one more thing M3 does
+not control, and whether it counts toward the park's trigger is the
+owner's.
 
 **Observations — the builder's.**
 
@@ -603,9 +638,6 @@ direction that breaks least if he rules the other way.
   an item is socketed in is given by id, which `show` takes in turn.
 - Nothing on the copy is unread, so every undecided outcome — a term's,
   a sum's, the root's — is exercised by fixtures alone, as at step 2.
-- A line whose `flags` could not be read is still a witness, with no
-  flags: `-is:crafted` inside its group would match it. The part is
-  marked unread, which matters only where there is no witness.
 - The scope says `in all leagues`; a league is a term, and the owner's
   seat forgetting it is the default-league park's trigger, not a step's.
 - Linking the store turned two of C89's breaker cases over, as step 1's
