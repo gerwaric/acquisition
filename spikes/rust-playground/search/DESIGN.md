@@ -90,7 +90,7 @@ acq search --realm pc 'class:ring' --count line:resist,life    the vocabulary ri
 ```
 
 Computed values in the vocabulary read — owner, 2026-09-19: "agreed and
-we will see what this does to implememtation, but it's always easier to
+we will see what this does to implementation, but it's always easier to
 cut stuff out than add it in".
 
 ### The query
@@ -233,7 +233,8 @@ VALUES
 Absent is still false and never zero for a *line or property* the item
 lacks (C93); a *sum* of nothing is an honest zero.
 
-**The owner's words on the query** (2026-09-19; whole, with the
+**The owner's words on the query** (2026-09-19, verbatim but for
+spelling; whole, with the
 reasoning, in `search/search-forms/11-owner-amendments.md`):
 
 - `line(…)` keeps its name over `stat(…)` and `mod(…)` — the word says
@@ -267,7 +268,7 @@ reasoning, in `search/search-forms/11-owner-amendments.md`):
   allowing bare words later breaks nothing, forbidding them later would.
 - A mod displayed over several rows: "the two-line mods should
   contribute to relevant pseudo-lines, but it makes sense they are a
-  single occurence." On `true()` and `false()`: "agree with
+  single occurrence." On `true()` and `false()`: "agree with
   recommendation". On the header, asking for the third field: "should we
   add something like type line to the search in addition to name and
   base?" — the C++ app's pretty name, the two joined, is a rendering,
