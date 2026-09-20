@@ -522,6 +522,14 @@ scope line — `1 never fetched · location list seen 2h ago`.
 - 2,926 of 3,427 live tabs have never been fetched, the 17 folders
   apart, so "absent from a full refresh" is not a condition this
   account's store can often state.
+- `Folder` is now a word four consumers know — the planner, pricing, the
+  CLI's counts and, from step 4, search — each comparing GGG's `type`
+  for itself. The read followed that precedent; the store saying it once
+  is a small change if a fifth arrives or one of them gets it wrong.
+- The header's listings are read by a scan of `responses`, which has no
+  index on `endpoint`: nothing at 1,126 rows, unmeasured beyond, and it
+  grows with every request. It is one of the costs the retention park's
+  size trigger would see first (`decisions/store.md`, "Parked").
 
 ## Gaps found while planning — rules the reference did not state
 
