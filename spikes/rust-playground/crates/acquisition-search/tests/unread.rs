@@ -123,7 +123,12 @@ fn c93_a_line_with_unread_flags_is_no_witness_that_it_is_not_crafted() {
             .contains("`flags.crafted` is a string, not yes or no")
     );
     let shown = serde_json::to_value(show(&s, "one", false).unwrap()).unwrap();
-    assert_eq!(shown["lines"][0]["flags_unread"], true);
+    // a readable object names the flag it could not read; an unreadable
+    // one leaves every flag open
+    assert_eq!(shown["lines"][0]["flags_unknown"], json!(["crafted"]));
+    assert!(shown["lines"][0].get("flags_unread").is_none());
+    let whole = serde_json::to_value(show(&s, "whole", false).unwrap()).unwrap();
+    assert_eq!(whole["lines"][0]["flags_unread"], true);
     assert_eq!(shown["item"]["unread"][0]["part"], "flags");
     assert!(
         serde_json::to_value(show(&s, "plain", false).unwrap()).unwrap()["lines"][0]
@@ -316,4 +321,166 @@ fn c93_an_undecided_route_carries_the_reasons_to_its_rows() {
         by_thing["rows"][0]["matched"][0]["shows"][0]["undecided"]["unread"],
         "implicit lines"
     );
+}
+
+/// A flag a readable object says no to is a no, whatever sits beside it:
+/// uncertainty is a flag's own, on a line and in `influences`.
+#[test]
+fn c93_an_unread_flag_never_erases_the_known_no_beside_it() {
+    let s = one_tab(vec![ring(
+        "f",
+        json!({
+            "influences": { "shaper": false, "hunter": "unread" },
+            "explicitMods": [{ "description": "+50 to maximum Life", "flags": { "crafted": false, "fractured": "unread" } }],
+        }),
+    )]);
+    let corpus = load(&s, Some("pc"));
+    assert_eq!(of(&corpus, "f", "line(template:life -is:crafted)"), (1, 0));
+    assert_eq!(of(&corpus, "f", "line(template:life is:crafted)"), (0, 0));
+    assert_eq!(
+        of(&corpus, "f", "line(template:life -is:fractured)"),
+        (0, 1)
+    );
+    assert_eq!(of(&corpus, "f", "-is:shaper"), (1, 0));
+    assert_eq!(of(&corpus, "f", "-is:hunter"), (0, 1));
+    assert_eq!(of(&corpus, "f", "-is:corrupted"), (1, 0));
+    let shown = serde_json::to_value(show(&s, "f", false).unwrap()).unwrap();
+    assert_eq!(shown["lines"][0]["flags_unknown"], json!(["fractured"]));
+    assert!(shown["lines"][0].get("flags_unread").is_none());
+    assert_eq!(
+        shown["item"]["unread"][0],
+        json!({ "part": "field", "of": "influences.hunter", "problem": "`influences.hunter` is a string, not yes or no" })
+    );
+}
+
+/// A group's selector is what it means, never where its comparisons sit
+/// (the second audit of step 4, finding 1): a nested comparison takes no
+/// restriction with it, so the lacked route returns what it counted and
+/// the resolved list is the unnested query's.
+#[test]
+fn c92_a_selector_is_the_groups_meaning_wherever_its_comparisons_sit() {
+    let s = one_tab(vec![
+        ring("open", json!({ "implicitMods": "unread" })),
+        ring(
+            "both",
+            json!({ "explicitMods": ["+20 to maximum Life", "+80% to Cold Resistance"] }),
+        ),
+        ring(
+            "high",
+            json!({ "implicitMods": ["+95 to maximum Life"], "explicitMods": ["+10 to maximum Life"] }),
+        ),
+        ring("only", json!({ "explicitMods": ["+20 to maximum Life"] })),
+    ]);
+    let corpus = load(&s, Some("pc"));
+    let scope = ["both", "high", "only", "open"];
+    for query in [
+        "line(template:life (source=explicit arg1>=90))",
+        "line((template:life arg1>=60) source=explicit)",
+        "line(template:life -(arg1>=90 source=implicit))",
+        "line((template:life arg1>=60) or (template:resistance arg1>=90))",
+        "line(-(template:life arg1<=50))",
+    ] {
+        routes_partition(&corpus, query, &scope);
+    }
+    // `open` has no explicit line and an unread implicit array, which the
+    // group rules out: it lacked the line, and the route says so of it
+    let a = as_json(&ask(&corpus, "line(template:life (source=explicit arg1>=90))").unwrap());
+    assert_eq!(
+        (
+            &a["terms"][0]["failed"]["count"],
+            &a["terms"][0]["lacked"]["count"]
+        ),
+        (&json!(3), &json!(1))
+    );
+    assert_eq!(
+        a["terms"][0]["lacked"]["request"]["query"]["text"],
+        "-line(template:life source=explicit)"
+    );
+    let nested = as_json(&ask(&corpus, "line((template:life arg1>=60) source=explicit)").unwrap());
+    let flat = as_json(&ask(&corpus, "line(template:life arg1>=60 source=explicit)").unwrap());
+    assert_eq!(nested["terms"][0]["resolved"], flat["terms"][0]["resolved"]);
+    assert_eq!(
+        flat["terms"][0]["resolved"]["values"],
+        json!([{ "value": "# to maximum Life", "items": 3 }])
+    );
+    // under a not a comparison is favoured as false: `only`'s one line is a
+    // life line of 20, which other numbers would have let through, so the
+    // item failed the group and did not lack it. The routes cannot tell —
+    // they are made from the selector, so a wrong one stays consistent with
+    // itself — and the split is stated by hand.
+    let negated = as_json(&ask(&corpus, "line(-(template:life arg1<=50))").unwrap());
+    let term = &negated["terms"][0];
+    assert_eq!(
+        (&term["failed"]["count"], &term["lacked"]["count"]),
+        (&json!(1), &json!(0))
+    );
+    assert_eq!(
+        term["failed"]["request"]["query"]["text"],
+        "line(true()) -line(-(template:life arg1<=50))"
+    );
+    let request = serde_json::from_value(term["failed"]["request"].clone()).unwrap();
+    assert_eq!(ids(&as_json(&answer(&corpus, &request).unwrap())), ["only"]);
+    // the ordinary group's selector is as short as the reference's
+    let plain = as_json(&ask(&corpus, "\"+# to maximum Life\">=90").unwrap());
+    assert_eq!(
+        plain["terms"][0]["failed"]["request"]["query"]["text"],
+        "line(\"# to maximum Life\") -line(\"# to maximum Life\" arg1>=90)"
+    );
+}
+
+/// C92: a largest occurrence is the largest only when nothing unread could
+/// hold a larger one — an occurrence the group may select, or a source it
+/// admits. What was readable is shown, its status beside it, and the item
+/// has no place in the order.
+#[test]
+fn c92_a_sort_scalar_that_is_not_established_says_so_and_sorts_last() {
+    let open = json!({ "description": "+95 to maximum Life", "flags": "unread" });
+    let s = one_tab(vec![
+        ring(
+            "may",
+            json!({ "explicitMods": ["+20 to maximum Life", open] }),
+        ),
+        ring(
+            "low",
+            json!({ "explicitMods": ["+30 to maximum Life", { "description": "+10 to maximum Life", "flags": "unread" }] }),
+        ),
+        ring("sure", json!({ "explicitMods": ["+25 to maximum Life"] })),
+        ring(
+            "src",
+            json!({ "implicitMods": "unread", "explicitMods": ["+99 to maximum Life"] }),
+        ),
+    ]);
+    let corpus = load(&s, Some("pc"));
+    let sorted = |sort: &str| {
+        let request =
+            serde_json::from_value(json!({ "view": { "rows": { "sort": sort, "desc": true } } }))
+                .unwrap();
+        let a = as_json(&answer(&corpus, &request).unwrap());
+        let rows: Vec<(String, Value)> = a["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| (r["id"].as_str().unwrap().to_string(), r["sort"].clone()))
+            .collect();
+        rows
+    };
+    // `may`'s 95 may be uncrafted; `low`'s open 10 cannot pass its 30
+    assert_eq!(
+        sorted("line(template:life -is:crafted).arg1"),
+        [
+            ("low".to_string(), json!({ "value": 30 })),
+            ("sure".to_string(), json!({ "value": 25 })),
+            (
+                "may".to_string(),
+                json!({ "value": 20, "status": "incomplete" })
+            ),
+            (
+                "src".to_string(),
+                json!({ "value": 99, "status": "incomplete" })
+            ),
+        ]
+    );
+    // a group that rules the unread source out has its largest established
+    let explicit = sorted("line(template:life source=explicit).arg1");
+    assert_eq!(explicit[0], ("src".to_string(), json!({ "value": 99 })));
 }

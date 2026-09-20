@@ -308,7 +308,7 @@ pub struct Touched {
 pub struct Sorted {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<Json>,
-    /// `no satisfying occurrence`, or `incomplete`, with the subtotal.
+    /// `no satisfying occurrence`, or `incomplete` beside what was readable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<&'static str>,
 }
@@ -582,7 +582,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                         status: Some("no satisfying occurrence"),
                     },
                     Scalar::Incomplete(n) => Sorted {
-                        value: Some(eval::number_json(n)),
+                        value: n.map(eval::number_json),
                         status: Some("incomplete"),
                     },
                 }),

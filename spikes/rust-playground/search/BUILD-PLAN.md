@@ -541,27 +541,36 @@ of the copy under `raw/m3/`, wraps it as a store directory
 (`crates/acquisition-search/examples/copy-as-store.rs`) and asks through
 `acq --json search --realm pc … > /dev/null` under `ACQ_PROVIDER=mock`
 and `ACQ_STORE_DIR`: 22,623 live pc items of the copy's 22,721 (the rest
-are poe2's), revision 1126, facts v7. First: 418 ms, the empty query,
-release. Warm, the median of ten, in ms:
+are poe2's), revision 1126, facts v7. Twice: the build at `28606ed4`,
+first ask 418 ms, and the build the two audits below left, first ask
+270 ms. Warm, the median of ten, in ms:
 
-| Ask | Release | Debug |
-| --- | ---: | ---: |
-| the empty query | 254 | 1,645 |
-| OQ1 (`base:ring` for the class) | 267 | 1,972 |
-| OQ1 refined by a fractured line | 262 | 1,808 |
-| OQ2 `name="…"` | 254 | 1,644 |
-| OQ3 a mod · a base | 259 · 253 | 1,750 · 1,646 |
-| OQ4 a base and a phrase | 264 | 1,878 |
-| OQ7 one line everywhere | 255 | 1,653 |
-| AQ2 OQ1 and a `sum` over `template:resistance` | 271 | 2,060 |
-| AQ5 life at 90, sorted | 256 | 1,661 |
-| M4 a phrase · `text~"explo(de\|sion)s?"` · `text~"^adds [0-9]+ to [0-9]+"` | 261 · 262 · 260 | 1,809 · 1,801 · 1,729 |
+| Ask | Release at `28606ed4` | Release, audited | Debug, audited |
+| --- | ---: | ---: | ---: |
+| the empty query | 254 | 268 | 1,727 |
+| OQ1 (`base:ring` for the class) | 267 | 287 | 2,192 |
+| OQ1 refined by a fractured line | 262 | 283 | 1,998 |
+| OQ2 `name="…"` | 254 | 269 | 1,733 |
+| OQ3 a mod · a base | 259 · 253 | 276 · 270 | 1,892 · 1,732 |
+| OQ4 a base and a phrase | 264 | 281 | 1,969 |
+| OQ7 one line everywhere | 255 | 271 | 1,741 |
+| AQ2 OQ1 and a `sum` over `template:resistance` | 271 | 297 | 2,427 |
+| AQ5 life at 90, sorted | 256 | 284 | 1,818 |
+| M4 a phrase · `text~"explo(de\|sion)s?"` · `text~"^adds [0-9]+ to [0-9]+"` | 261 · 262 · 260 | 277 · 277 · 275 | 1,893 · 1,895 · 1,817 |
 
 Every release ask is under 500 ms, so the persisted-projection park's
 trigger does not fire. An ask is its load: the empty query, which
-evaluates nothing, is 254 ms, the dearest query adds 17 ms, and `~` over
-every displayed string of every item adds 8 ms (M4). The debug build is
-1.6 to 2.1 s, which is what the seat feels behind the README's alias.
+evaluates nothing, is 268 ms, the dearest query adds 29 ms, and `~` over
+every displayed string of every item adds 9 ms (M4). The debug build is
+1.7 to 2.4 s, which is what the seat feels behind the README's alias.
+
+What the audits' fixes cost was measured apart, the two release binaries
+asked in turn on the same copy in the same minutes (the pre-fix one built
+from a worktree at `28606ed4`), the median of eleven: the empty query 257
+against 269 ms, OQ1 277 against 295, AQ2 277 against 301, a flag asked
+inside a group 262 against 293, `~` over all text 264 against 279 — 12
+to 31 ms, five to twelve in a hundred, the deriver's flag checks in every
+ask and the three-valued group in those that have one.
 
 **Holes — each changes what a user types or which items it matches, so
 they are the owner's.** None blocked the step: each is built in the
@@ -577,12 +586,13 @@ direction that breaks least if he rules the other way.
 | B6 | A bare word's readings. The reference shows two for `rare` (`rarity=rare · "rare"`) and the parser has offered `"rare" · line(template:rare)` since step 1 | the closed-set readings first, the parser's two after: three for `rare` | keep: a third valid reading costs a line |
 | B7 | Failed against lacked on a line's group — both false, so no answer's members move, only how the false are split | the selector is the group without its slot comparisons: an item with no occurrence the selector picks lacked it; one with such an occurrence and none satisfying the whole failed. A group comparing no slot never fails | keep |
 | B9 | A query that starts with `-`, the language's not, at a terminal, where it is a flag: `acq search -is:corrupted` is clap's error, and `-has:note` would be read as `-h` (audit finding 1) | it goes after `--`, as every route prints it and the verb's help says: `acq search --realm pc -- '-is:corrupted'` | keep: accepting a leading hyphen as the query would turn a mistyped flag into a query |
+| B10 | The order of an item whose largest occurrence is not established (the second audit, finding 3). C92 gives no scalar to an item with no satisfying occurrence; it says nothing of one that has a readable occurrence and an unread source the group admits | it sorts last either way, as an incomplete sum does, the readable value shown with `incomplete` beside it. A term is another matter: a readable 95 is a witness to `>=90` still | keep: an order that may be wrong is worse than a place at the end that says why |
 | B8 | Gap 2, as this plan recommended | (b): `--query-file <file\|->`; a route is printed shell-quoted, an apostrophe as `'\''`. (c) is untouched | the seat's |
 
 **An outside audit of the build at `28606ed4` (2026-09-20), each finding
 reproduced with a fixture of the builder's own before it was taken.**
 Verdict of the audit: keep step 4 open. It stays open until the owner
-has ruled on finding 7 and on B1–B9 (finding 8).
+has ruled on finding 7 and on B1–B10 (finding 8).
 
 | # | Finding | Verdict | Held by |
 | --- | --- | --- | --- |
@@ -604,14 +614,17 @@ undecided(line(S))) -term`; elsewhere it stays as short as the
 reference's. One mutant per fix was tried, and each is caught by the
 test that names it.
 
-M3 was run again on the fixed build on battery in low power mode, where
-it says nothing comparable: step 3's unchanged read binary took 83 ms
-where M1 had 36, the empty query 525 where M3 had 254 — 2.3 and 2.1
-times, so no regression shows, and the table above stands until step 5
-measures again on mains. In that power state a release ask is 530 to
-590 ms, over the 500 ms line: the power state is one more thing M3 does
-not control, and whether it counts toward the park's trigger is the
-owner's.
+**A second audit, of the fixes at `ed1b5446` (2026-09-20), each finding
+reproduced before it was taken.** Findings 7 and 8 of the first stand as
+it left them.
+
+| # | Finding | Verdict | Held by |
+| --- | --- | --- | --- |
+| 1 | The selector dropped a whole member of the group's and when any comparison sat inside it, its template and source restrictions with it: a lacked count of 1 whose route returned 0, and a nested group resolving to templates the unnested one did not | confirmed: the first audit's finding 4 over again — source eligibility had been moved from syntax to meaning and the selector left behind, the second of the six places the builder had said he trusted least | the selector is the group with each comparison taken as favourably as it can be — true, or false under a not — and folded (`bind.rs`, `selector`), so the ordinary route is still the reference's. Five nested spellings in the route property. A mutant that ignored the not survived the routes, which are made from the selector and stay consistent with a wrong one; the failed-against-lacked split of one item is stated by hand for that reason — then caught |
+| 2 | An unread flag erased the known no beside it: with `{"crafted": false, "fractured": "unread"}`, `-is:crafted` was undecided, and `{"shaper": false, "hunter": "unread"}` left `-is:shaper` open | confirmed: the first fix was per object and had to be per flag | `Line::flags_unknown` names the flags of a readable object that could not be read, `flags_unread` is the object itself; an influence is unread under `influences.<flag>` |
+| 3 | The sort scalar ignored an occurrence the group may select: 20 shown as the largest beside an open 95 | confirmed, and wider — a source the group admits and could not read may hold a larger one too, which the first build had as well | `Scalar::Incomplete`: what was readable, its status, no place in the order (B10). An open occurrence that cannot pass the largest changes nothing, pinned |
+| 4 | `DERIVATION` stayed 1 though the same malformed body now derives to another item — against the rule written on the constant | confirmed | 2 |
+| 5 | The timing note claimed more than it had: an unchanged reader running slower shows the machine changed, never that the evaluator had not | confirmed — and the builder's cause was wrong as well as unproven. The slowdown was put down to battery and low power mode because that was found first; on the same battery in the same mode, an hour on, the pre-fix binary ran at the morning's 257 ms. What slowed the machine is not known | the two builds measured against each other, above; the claim that a release ask is over 500 ms in that power state is withdrawn |
 
 **Observations — the builder's.**
 

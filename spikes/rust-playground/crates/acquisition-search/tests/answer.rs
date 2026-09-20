@@ -226,6 +226,10 @@ fn the_route_property_every_count_routes_to_exactly_its_members() {
         r##"line(template:life source=implicit) name:r2 has:note -has:ilvl is:identified "two-stone""##,
         r##"line("# to maximum Life" (arg1>=100 or arg1<=20))"##,
         r##"character:mover league:hard ilvl=80..86 id:t2 true() false()"##,
+        // comparisons nested where a selector by syntax would lose them
+        r##"line(template:life (source=explicit arg1>=90))"##,
+        r##"line((template:life arg1>=96) or (template:resistance arg1>=65))"##,
+        r##"line(template:life -(arg1>=90 source=implicit))"##,
     ] {
         let a = as_json(&ask(&corpus, text).unwrap());
         for term in a["terms"].as_array().unwrap() {
@@ -414,13 +418,15 @@ fn c92_the_sort_scalar_and_an_item_without_one_last_either_way() {
     };
     let down = sorted(true);
     let order: Vec<&str> = down.iter().map(|(id, _)| id.as_str()).collect();
-    // r3 100; r1, r5, r6 95 in the store's order; r2's largest is 75; r7 has none
-    assert_eq!(order, ["r3", "r1", "r5", "r6", "r2", "r7"]);
-    assert_eq!(down[4].1, json!({ "value": 75 }));
+    // r3 100; r1 and r5 95 in the store's order; r2's largest is 75; r6's
+    // 95 is no largest while its implicit array is unread; r7 has none
+    assert_eq!(order, ["r3", "r1", "r5", "r2", "r6", "r7"]);
+    assert_eq!(down[3].1, json!({ "value": 75 }));
+    assert_eq!(down[4].1, json!({ "value": 95, "status": "incomplete" }));
     assert_eq!(down[5].1, json!({ "status": "no satisfying occurrence" }));
     let up = sorted(false);
     let order: Vec<&str> = up.iter().map(|(id, _)| id.as_str()).collect();
-    assert_eq!(order, ["r2", "r1", "r5", "r6", "r3", "r7"]);
+    assert_eq!(order, ["r2", "r1", "r5", "r3", "r6", "r7"]);
 
     // the limit counts what it leaves out, and names no command this build refuses
     let request = serde_json::from_value(json!({ "view": { "rows": { "limit": 2 } } })).unwrap();

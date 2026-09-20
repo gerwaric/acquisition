@@ -39,7 +39,10 @@
 //!   the subtotal already reaches.
 //! - **The sort scalar** of `line(P).<slot>` is the largest value of the
 //!   slot over the occurrences that satisfy `P`, in either direction; an
-//!   item with none has no scalar and sorts last either way.
+//!   item with none has no scalar and sorts last either way. So does one
+//!   whose largest is not established — a source `P` admits is unread, or
+//!   an occurrence `P` may select holds a larger number — with what was
+//!   readable shown and its status beside it, as an incomplete sum is.
 
 use serde::Serialize;
 
@@ -282,8 +285,8 @@ pub(crate) fn member_truth(member: &BMember, line: &Line) -> Truth {
         BMember::Source(sources) => sure(sources.contains(&line.source.as_str())),
         BMember::Slot { word, test } => sure(line.slot(word).is_some_and(|n| test.holds(n))),
         BMember::Is(flag) if line.flags.iter().any(|f| f == flag) => Truth::True,
-        BMember::Is(_) => {
-            if line.flags_unread {
+        BMember::Is(flag) => {
+            if line.flags_unread || line.flags_unknown.iter().any(|f| f == flag) {
                 Truth::Undecided
             } else {
                 Truth::False
@@ -474,8 +477,9 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
     }
 }
 
-/// What stops an item's flag being a no: its own key, and `influences`
-/// for the flags that live there — never for `corrupted`.
+/// What stops an item's flag being a no: its own key, and for the flags
+/// that live in `influences`, that object or the flag's own key in it —
+/// never a sibling's, and never `influences` for `corrupted`.
 fn unread_flag<'a>(held: &'a Held, flag: &str) -> Vec<&'a Unread> {
     held.item
         .unread
@@ -483,7 +487,9 @@ fn unread_flag<'a>(held: &'a Held, flag: &str) -> Vec<&'a Unread> {
         .filter(|u| match &u.part {
             Part::Body => true,
             Part::Field(key) => {
-                key == flag || (key == "influences" && crate::derive::INFLUENCES.contains(&flag))
+                key == flag
+                    || (crate::derive::INFLUENCES.contains(&flag)
+                        && (key == "influences" || key.strip_prefix("influences.") == Some(flag)))
             }
             _ => false,
         })
@@ -718,21 +724,36 @@ pub(crate) enum Scalar {
     Value(f64),
     /// No satisfying occurrence, or the item lacks the field.
     None,
-    /// A sum with a possible contributor unread: the subtotal, never a
-    /// total, and no place in the order.
-    Incomplete(f64),
+    /// What was readable, which is not the answer: a sum with a possible
+    /// contributor unread is a subtotal, never a total, and a largest
+    /// occurrence is not the largest while an unread source the group
+    /// admits, or an occurrence it may select, could hold a larger one. No
+    /// place in the order.
+    Incomplete(Option<f64>),
 }
 
 pub(crate) fn scalar(key: &SortKey, held: &Held) -> Scalar {
     match key {
         SortKey::Number(thing) => number(held, *thing).map_or(Scalar::None, Scalar::Value),
-        SortKey::Projection { group, slot } => satisfying(held, &group.whole)
-            .filter_map(|line| line.slot(slot))
-            .reduce(f64::max)
-            .map_or(Scalar::None, Scalar::Value),
+        SortKey::Projection { group, slot } => {
+            let largest = satisfying(held, &group.whole)
+                .filter_map(|line| line.slot(slot))
+                .reduce(f64::max);
+            let could_be_larger = held.item.lines.iter().any(|line| {
+                member_truth(&group.whole, line) == Truth::Undecided
+                    && line
+                        .slot(slot)
+                        .is_some_and(|n| largest.is_none_or(|most| n > most))
+            });
+            if could_be_larger || !unread_lines(held, group).is_empty() {
+                Scalar::Incomplete(largest)
+            } else {
+                largest.map_or(Scalar::None, Scalar::Value)
+            }
+        }
         SortKey::Sum { group, slot } => match sum(held, group, slot) {
             (total, true) => Scalar::Value(total),
-            (subtotal, false) => Scalar::Incomplete(subtotal),
+            (subtotal, false) => Scalar::Incomplete(Some(subtotal)),
         },
     }
 }

@@ -34,11 +34,13 @@
 //!   `holds` is `<parent>.<n>`, what a not negates or `undecided( … )`
 //!   asks about is `<parent>.0`, and the children of the root carry no
 //!   prefix.
-//! - **A line group's selector** is the group without its slot
-//!   comparisons: the members of its and that name no slot. It is what
-//!   tells *lacked* (no occurrence is selected) from *failed* (one is, and
-//!   none satisfies the whole), what `--sort` and `sum` range over when
-//!   they compare nothing, and what the together count sums (C92).
+//! - **A line group's selector** is the group with its slot comparisons
+//!   taken as favourably as they can be and folded away: what the group
+//!   picks before any number is compared, by meaning and never by where a
+//!   comparison sits. It is what tells *lacked* (no occurrence is
+//!   selected) from *failed* (one is, and none satisfies the whole), what
+//!   the answer says a `:` or `~` template selector resolved to, and what
+//!   the together count sums (C92).
 //! - **A bare word's closed-set readings** arrive here: the parser offers
 //!   `"rare"` and `line(template:rare)`, and [`parse_query`] puts
 //!   `rarity=rare` before them.
@@ -909,20 +911,57 @@ fn has_slot(member: &Member) -> bool {
     }
 }
 
-/// The group without its slot comparisons (the module doc).
+/// The group's selector (the module doc): the group with every slot
+/// comparison taken as favourably as it can be — true where it helps the
+/// group hold, false under a not — and the constants folded away. By
+/// meaning, never by where a comparison sits: an occurrence the selector
+/// refuses is one no numbers could make the group hold on, so
+/// `"T" (source=explicit arg1>=90)` selects as `"T" source=explicit` does,
+/// and `"T" arg1>=90` selects as `"T"`.
 pub(crate) fn selector(whole: &Member) -> Member {
-    match whole {
-        Member::All(children) => {
-            let mut kept: Vec<Member> = children.iter().filter(|c| !has_slot(c)).cloned().collect();
+    fn favoured(member: &Member, positive: bool) -> Member {
+        match member {
+            Member::All(children) => {
+                Member::All(children.iter().map(|c| favoured(c, positive)).collect())
+            }
+            Member::Any(children) => {
+                Member::Any(children.iter().map(|c| favoured(c, positive)).collect())
+            }
+            Member::Not(inner) => Member::Not(Box::new(favoured(inner, !positive))),
+            Member::Test { attr, .. } if tree::is_slot_word(attr) => Member::Const(positive),
+            other => other.clone(),
+        }
+    }
+    /// Fold the constants out: a generated tree, so nothing the author
+    /// wrote is simplified (invariant 1 is the canonical text's).
+    fn folded(member: Member) -> Member {
+        let group = |children: Vec<Member>, absorbs: bool| {
+            let mut kept = Vec::new();
+            for child in children.into_iter().map(folded) {
+                match child {
+                    Member::Const(value) if value == absorbs => return Member::Const(absorbs),
+                    Member::Const(_) => {}
+                    other => kept.push(other),
+                }
+            }
             match kept.len() {
-                0 => Member::Const(true),
+                0 => Member::Const(!absorbs),
                 1 => kept.remove(0),
+                _ if absorbs => Member::Any(kept),
                 _ => Member::All(kept),
             }
+        };
+        match member {
+            Member::All(children) => group(children, false),
+            Member::Any(children) => group(children, true),
+            Member::Not(inner) => match folded(*inner) {
+                Member::Const(value) => Member::Const(!value),
+                other => Member::Not(Box::new(other)),
+            },
+            other => other,
         }
-        other if has_slot(other) => Member::Const(true),
-        other => other.clone(),
     }
+    folded(favoured(whole, true))
 }
 
 pub(crate) fn group(whole: &Member) -> Result<Group, LanguageError> {

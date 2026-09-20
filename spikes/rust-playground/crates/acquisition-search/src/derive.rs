@@ -56,10 +56,11 @@
 //!   Level: 84`, where the item has one (owner, 2026-09-19).
 //! - **A yes or no that is neither** is unread, never a no (C93): a key
 //!   of [`ITEM_FLAGS`] or of `influences` whose value is no boolean is
-//!   unread under that key, and a line whose `flags` is no object, or
-//!   holds a value that is no boolean, says so itself
-//!   ([`Line::flags_unread`]) — its text is a witness all the same, its
-//!   flags are not.
+//!   unread under that key — `influences.hunter`, so that a no beside it
+//!   is a no still — and a line says so itself: [`Line::flags_unread`]
+//!   when its `flags` is no object, and the flags by name
+//!   ([`Line::flags_unknown`]) when a value in it is no boolean. Its text
+//!   is a witness all the same, and so is every flag it could read.
 //! - **Unread, by collection (C93).** What the deriver met and could not
 //!   read is an [`Unread`] naming the [`Part`] — never a panic (C47), never
 //!   a silent gap. The readable rest of the part is still derived, since a
@@ -150,10 +151,14 @@ pub struct Line {
     pub source: String,
     /// The flags the body sets on the line: `crafted`, `fractured`, …
     pub flags: Vec<String>,
-    /// The line's flags could not all be read: one named in `flags` is a
-    /// yes, and any other is unknown, never a no.
+    /// The line's `flags` is no object: one named in `flags` is a yes, and
+    /// every other is unknown, never a no.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub flags_unread: bool,
+    /// The flags whose value was no boolean: unknown, where every other
+    /// flag of a readable object is the yes or no it says.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flags_unknown: Vec<String>,
     pub template: String,
     #[serde(serialize_with = "whole_numbers")]
     pub numbers: Vec<f64>,
@@ -426,8 +431,9 @@ impl Item {
                     match value {
                         Value::Bool(true) => flags.push(key.clone()),
                         Value::Bool(false) => {}
+                        // under its own key: a no beside it is a no still
                         other => self.unread(
-                            Part::Field("influences".to_string()),
+                            Part::Field(format!("influences.{key}")),
                             format!("`influences.{key}` is {}, not yes or no", json_kind(other)),
                         ),
                     }
@@ -493,12 +499,13 @@ impl Item {
                 }
             };
             let mut flags_unread = false;
+            let mut flags_unknown = Vec::new();
             let flags = match flags {
                 None | Some(Value::Null) => Vec::new(),
                 Some(Value::Object(flags)) => {
                     for (flag, value) in flags {
                         if !value.is_boolean() && !value.is_null() {
-                            flags_unread = true;
+                            flags_unknown.push(flag.clone());
                             let problem = format!(
                                 "{at}: `flags.{flag}` is {}, not yes or no",
                                 json_kind(value)
@@ -535,6 +542,7 @@ impl Item {
                 source: source.to_string(),
                 flags,
                 flags_unread,
+                flags_unknown,
                 template,
                 numbers,
                 text,
