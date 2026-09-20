@@ -331,6 +331,16 @@ is built in the direction that breaks nothing if he rules the other way.
 | H4 | A quoted value after `:` — `template:"maximum life"`, `tab:"$ dump 1"`; the reference shows only a bare word there | accepted; a value that is more than one plain word must be quoted, and the error offers it quoted | keep |
 | H5 | `AND`, `Or`, `NOT` | accepted in any case, printed as whitespace, `or`, `-` | keep |
 
+H3, H4 and H5 stand as built (owner, 2026-09-19: "Otherwise I accept
+your recommendations"). H1 and H2 are open: the trade site writes
+`+# to maximum Life`, and people and agents will type what it writes.
+Measured over its stat texts (`trade-query/data/stats-2026-09-12.json`,
+13,707 outside `pseudo`): 1,048 carry `+#` and none `-#`; typed as the
+site writes them 0 name a census template, with the sign dropped 359 do
+(the rest are lines this corpus does not hold); only 3 sign-free forms
+are shared by two site texts (block chance, with and without `+`). `#%`
+needs nothing: the `%` is part of a template here as there.
+
 **Observations — the builder's.**
 
 - Parentheses are spelling for nesting and nothing else: `(a) b` is
