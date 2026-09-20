@@ -127,6 +127,8 @@ ITEM-LEVEL
                       its numbers — properties, requirements, every mod line; markup reduced
                       to what the player sees. Numbers are characters — "Level 1" also finds
                       "Level 10" — where template: sees only the #-form and never a number.
+                      The requirements are one displayed string, the row the game shows:
+                      "Requires Level 67, 159 Str"; each requirement is kept on its own beneath it.
                       Not searched: flavour text, description text, the note (its own field).
                       A socketed gem is its own item, found by its own text, its place showing
                       what it sits in; the parent's text does not include it.
@@ -286,7 +288,13 @@ reasoning, in `search/search-forms/11-owner-amendments.md`):
   frameTypeId string … I think this means we need to support both
   'rarity' and 'frame' or 'frameType' as a search." On an ilvl of 0 as
   absent, and on a vaal gem's base skill as lines and displayed strings
-  of their own: "Agreed", each. Measured over the census's store copy
+  of their own: "Agreed", each. On the requirements, after the builder
+  had made each its own string: "In the trade site, item level is
+  rendered as "Item Level: <N>" and the required level is "Requires
+  Level <N>"", then "I agree on the display row for requirements with
+  each requirement kept separately." The C++ app builds the same row
+  (`src/ui/itemtooltiptext.cpp`, name before value throughout); here
+  GGG's `displayMode` orders each, `159 Str`. Measured over the census's store copy
   (22,721 live items): 8,297 carry no rarity, 7,903 an ilvl of 0, 457 a
   base skill of 2,251 lines.
 - The trade site's spelling of a line: "The trade site accepts "+# ...",

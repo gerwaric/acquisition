@@ -229,8 +229,9 @@ fn markup_is_reduced_to_its_display_half() {
     assert_eq!(it.lines[2].numbers, [1500.0]);
 }
 
-/// Properties render by `displayMode` as the game shows them, and a
-/// requirement's name takes no colon.
+/// Properties render by `displayMode` as the game shows them. Each
+/// requirement is kept on its own, its name without a colon, and they are
+/// displayed as one row (owner, 2026-09-19).
 #[test]
 fn properties_and_requirements_are_displayed_strings() {
     let mut body = ring();
@@ -256,10 +257,21 @@ fn properties_and_requirements_are_displayed_strings() {
             ("properties", "Elemental Damage: 38-71, 57-108"),
             ("properties", "Any Heist member can equip this item."),
             ("additionalProperties", "Experience: 1/70"),
-            ("requirements", "Level 67"),
-            ("requirements", "159 Str"),
         ]
     );
+    let each: Vec<(&str, &str, &str)> = ring
+        .requirements
+        .iter()
+        .map(|r| (r.name.as_str(), r.values[0].as_str(), r.text.as_str()))
+        .collect();
+    assert_eq!(
+        each,
+        [("Level", "67", "Level 67"), ("Str", "159", "159 Str")]
+    );
+    assert_eq!(ring.requires.as_deref(), Some("Requires Level 67, 159 Str"));
+    // an item that requires nothing displays no row
+    let gem = item(json!({"typeLine": "Portal", "requirements": []}));
+    assert_eq!((gem.requires, gem.requirements.len()), (None, 0));
     assert!(ring.unread.is_empty());
 }
 
@@ -276,8 +288,7 @@ fn displayed_is_the_header_the_properties_and_every_line() {
             "Two-Stone Ring",
             "Two-Stone Ring",
             "Quality: +20%",
-            "Level 67",
-            "159 Str",
+            "Requires Level 67, 159 Str",
             "+92 to maximum Life",
             "-27% to Chaos Resistance",
             "+20 to maximum Life",
@@ -288,7 +299,8 @@ fn displayed_is_the_header_the_properties_and_every_line() {
     let wheres: Vec<Shown> = ring.displayed().map(|(w, _)| w).collect();
     assert_eq!(wheres[..3], [Shown::Name, Shown::Typeline, Shown::Base]);
     assert!(matches!(wheres[3], Shown::Property(p) if p.name == "Quality"));
-    assert!(matches!(wheres[6], Shown::Line(l) if l.numbers == [92.0]));
+    assert_eq!(wheres[4], Shown::Requires);
+    assert!(matches!(wheres[5], Shown::Line(l) if l.numbers == [92.0]));
 }
 
 /// The reference, *Item-level*: an item with no name lacks it — known
@@ -483,7 +495,7 @@ fn the_json_form() {
             "name": null, "typeline": "Ring", "base": null, "rarity": null, "frame": "Magic",
             "ilvl": 3, "stack": null, "note": null,
             "flags": ["identified"],
-            "properties": [],
+            "properties": [], "requirements": [], "requires": null,
             "lines": [{
                 "source": "explicit", "flags": ["crafted"], "template": "Adds # to # Cold Damage",
                 "numbers": [1.5, 4], "text": "Adds 1.5 to 4 Cold Damage"

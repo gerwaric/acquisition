@@ -420,16 +420,17 @@ included; M1 is step 3's.
 **Holes — they change which items a query matches, so they are the
 owner's.** None blocked step 2: the deriver reads and does not interpret
 (`derive.rs`, "As built"). D1–D3 were ruled the day the step landed
-(owner, 2026-09-19; his words in the reference) and D2 and D3 built in
-the commit after it; D1 needed no code, the deriver carrying both.
+(owner, 2026-09-19; his words in the reference), D4 and D5 after his two
+questions on them; D2, D3 and D5 were built in the commits after the
+step's; D1 needed no code, the deriver carrying both, and D4 none.
 
 | # | Hole | Built as | Recommendation |
 | --- | --- | --- | --- |
 | D1 | `rarity` on an item whose body carries none: 8,297 of 22,721 — gems 5,747, currency 1,720, cards 490, normal-frame 339, a quest item. `frameTypeId` is on every item and differs from `rarity` on 7 (foils; one currency item marked normal) | **ruled: two fields, `rarity` and `frame`, each what GGG gives** (the reference, *Item-level*) — the builder's fallback from one to the other was not taken, and this plan's seat line became `frame=currency`. `--count rarity` puts those 8,297 under `none` (C105); `--count frame` has no `none` | — |
 | D2 | `ilvl` is 0 on 7,903 items (every gem and card, most currency): the game shows them no item level | **ruled: 0 is absent** (the reference, *Item-level*) | — |
 | D3 | A vaal gem's base skill sits under `hybrid` — 2,251 lines and its properties on 457 items — and is displayed on the item | **ruled: its lines are the source `hybrid`, its properties displayed strings** (the reference, *Members*) | — |
-| D4 | The other property-shaped arrays: `nextLevelRequirements` (265 items), `supportGemRequirements` (19), `weaponRequirements` (6), and `gemTabs`, `grantedSkills` on poe2 (42, 4) | not read; `properties`, `additionalProperties` and `requirements` are | leave until a question needs one; `nextLevelRequirements` as text would make `"Level 21"` find a level-20 gem |
-| D5 | A requirement as a displayed string: GGG gives a name and a value, the game shows `Requires Level 67, 159 Str` | each its own string, the name without a colon: `Level 67`, `159 Str`; a property keeps it: `Quality: +20%`. From the builder's knowledge of the tooltip, no capture checked | keep |
+| D4 | The other property-shaped arrays: `nextLevelRequirements` (265 items), `supportGemRequirements` (19), `weaponRequirements` (6), and `gemTabs`, `grantedSkills` on poe2 (42, 4); `notableProperties` never seen | **ruled: not read until a question needs one** ("I agree with you on D4"); `nextLevelRequirements` as text would make `"Level 21"` find a level-20 gem | — |
+| D5 | A requirement as a displayed string. The builder had made each its own string from memory of the tooltip; the trade site (the owner) and the C++ app (`src/ui/itemtooltiptext.cpp`) both show one row | **ruled: one displayed row, `Requires Level 67, 159 Str`, each requirement kept on its own beneath it** (the reference, *Item-level*), GGG's `displayMode` ordering each | — |
 
 **Observations — the builder's.**
 

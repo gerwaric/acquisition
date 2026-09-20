@@ -44,11 +44,14 @@
 //!   `avg` on a template with exactly one `# to #` (C92). A line whose
 //!   numbers are not its template's `#`s — a veiled line, a displayed
 //!   literal `#` — names no slot.
-//! - **Properties and requirements** are displayed strings with their
-//!   name and values kept apart, rendered by `displayMode` as the game
-//!   shows them: `Quality: +20%`, `159 Str`, `Weapon Range: 1.1 metres`; a
-//!   requirement's name takes no colon (`Level 67`). Each is a string of
-//!   its own; a phrase never matches across two.
+//! - **Properties** are displayed strings with their name and values kept
+//!   apart, rendered by `displayMode` as the game shows them: `Quality:
+//!   +20%`, `Weapon Range: 1.1 metres`. Each is a string of its own; a
+//!   phrase never matches across two.
+//! - **Requirements** are kept one by one, the name without a colon
+//!   (`Level 67`, `159 Str`), and displayed as the one row the game, the
+//!   trade site and the C++ app show: `Requires Level 67, 159 Str` (owner,
+//!   2026-09-19). A phrase is tested against the row.
 //! - **Unread, by collection (C93).** What the deriver met and could not
 //!   read is an [`Unread`] naming the [`Part`] — never a panic (C47), never
 //!   a silent gap. The readable rest of the part is still derived, since a
@@ -109,6 +112,10 @@ pub struct Item {
     /// true keys of `influences`, as GGG spells them, sorted.
     pub flags: Vec<String>,
     pub properties: Vec<Property>,
+    /// Each requirement on its own: `Level 67`, `159 Str`.
+    pub requirements: Vec<Property>,
+    /// The row they are displayed as: `Requires Level 67, 159 Str`.
+    pub requires: Option<String>,
     pub lines: Vec<Line>,
     pub unread: Vec<Unread>,
 }
@@ -170,12 +177,13 @@ pub enum Shown<'a> {
     Typeline,
     Base,
     Property(&'a Property),
+    /// The one row of [`Item::requires`].
+    Requires,
     Line(&'a Line),
 }
 
-/// The arrays read as properties. `requirements` renders a name without a
-/// colon, as the game's `Requires Level 67, 159 Str` does.
-const PROPERTY_ARRAYS: [&str; 3] = ["properties", "additionalProperties", "requirements"];
+/// The arrays read as properties; `hybrid.properties` joins them.
+const PROPERTY_ARRAYS: [&str; 2] = ["properties", "additionalProperties"];
 
 /// `*Mods` arrays that are no source of lines (the module doc).
 const NOT_LINES: [&str; 1] = ["ultimatumMods"];
@@ -195,6 +203,8 @@ pub fn derive(facts: Facts, body: &str) -> Item {
         note: None,
         flags: Vec::new(),
         properties: Vec::new(),
+        requirements: Vec::new(),
+        requires: None,
         lines: Vec::new(),
         unread: Vec::new(),
     };
@@ -221,6 +231,11 @@ pub fn derive(facts: Facts, body: &str) -> Item {
     item.read_flags(&body);
     for array in PROPERTY_ARRAYS {
         item.read_properties(&body, array, array);
+    }
+    item.read_properties(&body, "requirements", "requirements");
+    if !item.requirements.is_empty() {
+        let each: Vec<&str> = item.requirements.iter().map(|r| r.text.as_str()).collect();
+        item.requires = Some(format!("Requires {}", each.join(", ")));
     }
     let mut sources: Vec<(&str, String, &Value)> = body
         .iter()
@@ -260,9 +275,9 @@ impl Item {
     }
 
     /// Every displayed string a phrase is tested against, row by row (the
-    /// reference, *Item-level*): the header, each property and
-    /// requirement, each row of each line. Never the flavour text, the
-    /// description or the note.
+    /// reference, *Item-level*): the header, each property, the
+    /// requirements' row, each row of each line. Never the flavour text,
+    /// the description or the note.
     pub fn displayed(&self) -> impl Iterator<Item = (Shown<'_>, &str)> {
         let header = [
             (Shown::Name, self.name.as_deref()),
@@ -275,11 +290,12 @@ impl Item {
             .properties
             .iter()
             .flat_map(|p| p.text.split('\n').map(move |row| (Shown::Property(p), row)));
+        let requires = self.requires.as_deref().map(|row| (Shown::Requires, row));
         let lines = self
             .lines
             .iter()
             .flat_map(|l| l.rows().map(move |row| (Shown::Line(l), row)));
-        header.chain(properties).chain(lines)
+        header.chain(properties).chain(requires).chain(lines)
     }
 
     fn unread(&mut self, part: Part, problem: impl Into<String>) {
@@ -365,6 +381,7 @@ impl Item {
         };
         for (i, element) in elements.iter().enumerate() {
             match property(array, element) {
+                Ok(Some(property)) if array == "requirements" => self.requirements.push(property),
                 Ok(Some(property)) => self.properties.push(property),
                 Ok(None) => {}
                 Err(problem) => self.unread(part(), format!("`{array}[{i}]`: {problem}")),
