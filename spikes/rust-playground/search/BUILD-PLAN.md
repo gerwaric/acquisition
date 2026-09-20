@@ -196,10 +196,63 @@ made under them and not beside them.
 
 **Asked of the outside agent** (2026-09-20, by the owner's hand, since it
 cannot read this session): its check of counts against routes over
-generated queries as a test file for `crates/acquisition-search/tests/`,
-through the crate's public boundary alone; the list of transformations
-it tries on a fixture, so that the properties cover them; and to fix
-nothing itself. Its next audit waits for 4b's close.
+generated queries as a test file, through the crate's public boundary
+alone; the list of transformations it tries on a fixture, so that the
+properties cover them; and to fix nothing itself. Its next audit waits
+for 4b's close, and will look at the rows, the zero block, `show`,
+`--describe`, the CLI's text, and whether the property tests — its own
+among them — can detect a meaningful fault.
+
+*The routes property has landed*, the outside agent's file as it wrote
+it: `crates/acquisition-search/tests/generated_routes.rs`. 512 cases of
+three queries each over generated items with unread evidence — flags,
+arrays, `hybrid`, `ilvl`, an influence — and six anchor items from the
+audits; membership by id, the scope taken from the fixture's ids and
+never from the evaluator, an empty scope, routes followed past the first
+page, the together and root routes among them; negative controls on the
+checker itself. Read whole by the builder before it was committed; 8.1 s
+in a debug build here. Three of step 4's mutants tried against it, each
+caught and shrunk to a query: the failed route ignoring an open selector,
+the selector read off the syntax, and the selector's polarity under a
+not — the last being the one the builder had recorded as something
+routes could not see because they are made from the selector. They
+could not over seven hand-made items; over a generated population they
+do. As its own header says, it checks that an answer agrees with itself,
+never that it is right: equivalence and completion are still 4b's to
+write.
+
+*The transformations the properties are to cover*, the outside agent's
+list, as given:
+
+1. Parenthesise and reassociate conjunctions at both item and occurrence
+   levels.
+2. Nest comparisons beside template, source, and flag restrictions.
+3. Add double negation; exercise predicates beneath negation and
+   disjunction.
+4. Reorder predicates and occurrences; compare meaning while preserving
+   authored text.
+5. Complete unread flags as both true and false, independently of sibling
+   flags.
+6. Complete unread arrays as empty, nonmatching, and matching
+   occurrences; complete unread numbers with several values.
+7. Add irrelevant unread fields or excluded sources; established answers
+   should survive.
+8. Add readable witnesses beside unknown occurrences, including smaller,
+   larger, and slotless candidates.
+9. Probe bounds immediately below, at, and above values, including zero
+   and negative values.
+10. Duplicate occurrences and items separately; check sums, existential
+    matches, and item counts.
+11. Compare shorthand, projections, explicit groups, text requests, and
+    returned-tree requests.
+12. Run every printed route, compare membership, and partition the scope —
+    including empty scopes and results beyond pagination.
+13. Cross-check value probes against sort status, resolved selectors
+    against the zero block, and row evidence against `show`.
+
+Of these, 12 is the landed file's; 1 to 4 and 11 are equivalence; 5 to 8
+are completion; 9, 10 and 13 belong to neither and want generators or
+cross-checks of their own.
 
 **Not in 4b.** No new surface. No rule of the language or the answer:
 finding 7 (which identity names a store in the basis) and B1–B11 are the
@@ -709,7 +762,7 @@ it left them.
 
 | # | Finding | Verdict | Held by |
 | --- | --- | --- | --- |
-| 1 | The selector dropped a whole member of the group's and when any comparison sat inside it, its template and source restrictions with it: a lacked count of 1 whose route returned 0, and a nested group resolving to templates the unnested one did not | confirmed: the first audit's finding 4 over again — source eligibility had been moved from syntax to meaning and the selector left behind, the second of the six places the builder had said he trusted least | the selector is the group with each comparison taken as favourably as it can be — true, or false under a not — and folded (`bind.rs`, `selector`), so the ordinary route is still the reference's. Five nested spellings in the route property. A mutant that ignored the not survived the routes, which are made from the selector and stay consistent with a wrong one; the failed-against-lacked split of one item is stated by hand for that reason — then caught |
+| 1 | The selector dropped a whole member of the group's and when any comparison sat inside it, its template and source restrictions with it: a lacked count of 1 whose route returned 0, and a nested group resolving to templates the unnested one did not | confirmed: the first audit's finding 4 over again — source eligibility had been moved from syntax to meaning and the selector left behind, the second of the six places the builder had said he trusted least | the selector is the group with each comparison taken as favourably as it can be — true, or false under a not — and folded (`bind.rs`, `selector`), so the ordinary route is still the reference's. Five nested spellings in the route property. A mutant that ignored the not survived the routes, which the builder put down to their being made from the selector — true of his seven hand-made items, and not in general: the generated routes of step 4b catch that mutant; the failed-against-lacked split of one item is stated by hand as well — then caught |
 | 2 | An unread flag erased the known no beside it: with `{"crafted": false, "fractured": "unread"}`, `-is:crafted` was undecided, and `{"shaper": false, "hunter": "unread"}` left `-is:shaper` open | confirmed: the first fix was per object and had to be per flag | `Line::flags_unknown` names the flags of a readable object that could not be read, `flags_unread` is the object itself; an influence is unread under `influences.<flag>` |
 | 3 | The sort scalar ignored an occurrence the group may select: 20 shown as the largest beside an open 95 | confirmed, and wider — a source the group admits and could not read may hold a larger one too, which the first build had as well | `Scalar::Incomplete`: what was readable, its status, no place in the order (B10). An open occurrence that cannot pass the largest changes nothing, pinned |
 | 4 | `DERIVATION` stayed 1 though the same malformed body now derives to another item — against the rule written on the constant | confirmed | 2 |
