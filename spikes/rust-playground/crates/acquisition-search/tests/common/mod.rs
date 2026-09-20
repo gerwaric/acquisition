@@ -9,6 +9,9 @@ use acquisition_search::{Answer, Corpus, Realm, Request, SearchError, answer};
 use acquisition_store::{Endpoint, Store};
 use serde_json::{Value, json};
 
+/// A facts file of this test's own. The process id alone is not: ids come
+/// round again, and a directory an earlier run left behind would be opened
+/// as this one's store — an empty store seen holding twelve items, once.
 pub fn tmp() -> PathBuf {
     static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let dir = std::env::temp_dir().join(format!(
@@ -16,6 +19,7 @@ pub fn tmp() -> PathBuf {
         std::process::id(),
         N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
+    let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     dir.join("facts.db")
 }

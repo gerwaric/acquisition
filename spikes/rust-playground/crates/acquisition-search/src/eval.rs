@@ -25,7 +25,12 @@
 //! - **A line's group is three-valued on each occurrence**, as the item's
 //!   tree is on each item: `-is:crafted` is undecided on a line whose flags
 //!   could not be read, never true. A sum over occurrences that may or may
-//!   not be selected is incomplete, and they establish no together count.
+//!   not be selected is incomplete, and they establish no together count —
+//!   where they name the slot: one that does not cannot contribute
+//!   whichever way its flag falls, and leaves nothing open.
+//! - **A value is open exactly when it would sort as incomplete**:
+//!   `undecided(sum( … ))`, `undecided(line(P).<slot>)` and `--sort` ask
+//!   one function.
 //! - **Outcomes are computed for every term on every item, and nothing
 //!   else is**: what a row shows ([`evidence`]) and why an item is
 //!   undecided ([`reasons`]) are worked out only for the items an answer
@@ -351,12 +356,24 @@ fn open_on_a_line(held: &Held, member: &BMember) -> bool {
         .any(|l| member_truth(member, l) == Truth::Undecided)
 }
 
+/// Whether an occurrence that may or may not satisfy `member` names the
+/// slot: one that does not cannot contribute whichever way its flag falls,
+/// so it leaves no sum, no largest and no together count open (C93's
+/// known absence).
+fn open_with_the_slot(held: &Held, member: &BMember, slot: &str) -> bool {
+    held.item
+        .lines
+        .iter()
+        .any(|l| member_truth(member, l) == Truth::Undecided && l.slot(slot).is_some())
+}
+
 /// A sum and whether every possible contributor was readable.
 pub(crate) fn sum(held: &Held, group: &Group, slot: &str) -> (f64, bool) {
     let total = satisfying(held, &group.whole)
         .filter_map(|line| line.slot(slot))
         .sum();
-    let complete = unread_lines(held, group).is_empty() && !open_on_a_line(held, &group.whole);
+    let complete =
+        unread_lines(held, group).is_empty() && !open_with_the_slot(held, &group.whole, slot);
     (total, complete)
 }
 
@@ -367,7 +384,7 @@ pub(crate) fn together(held: &Held, group: &Group) -> bool {
     let Some(lower) = &group.together else {
         return false;
     };
-    if open_on_a_line(held, &group.selector) {
+    if open_with_the_slot(held, &group.selector, &lower.slot) {
         return false;
     }
     let total: f64 = satisfying(held, &group.selector)
@@ -467,9 +484,9 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
         Atom::Undecided(probe) => {
             let open = match probe {
                 BProbe::Field(thing) => !unread_for(held, *thing).is_empty(),
-                BProbe::Lines(group) => {
-                    !unread_lines(held, group).is_empty() || open_on_a_line(held, &group.whole)
-                }
+                // one judgement with the sort's: a value is open exactly
+                // when it would sort as incomplete
+                BProbe::Value(key) => matches!(scalar(key, held), Scalar::Incomplete(_)),
                 BProbe::Term(inner) => truth(inner, earlier) == Truth::Undecided,
             };
             decided(open, true, false)
@@ -675,9 +692,13 @@ pub(crate) fn evidence(
 
 /// What left a term open on an item.
 fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<&'a Unread> {
-    let of_group = |group: &Group| {
+    let of_group = |group: &Group, slot: Option<&str>| {
         let mut unread = unread_lines(held, group);
-        if open_on_a_line(held, &group.whole) {
+        let open = match slot {
+            Some(slot) => open_with_the_slot(held, &group.whole, slot),
+            None => open_on_a_line(held, &group.whole),
+        };
+        if open {
             unread.extend(
                 held.item
                     .unread
@@ -694,8 +715,14 @@ fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<&'a Unread> {
         | Atom::Has(thing)
         | Atom::Undecided(BProbe::Field(thing)) => unread_for(held, *thing),
         Atom::Is(flag) => unread_flag(held, flag),
-        Atom::Lines(group) | Atom::Sum { group, .. } => of_group(group),
-        Atom::Undecided(BProbe::Lines(group)) => of_group(group),
+        Atom::Lines(group) => of_group(group, None),
+        Atom::Sum { group, slot, .. } => of_group(group, Some(slot.as_str())),
+        Atom::Undecided(BProbe::Value(key)) => match key.as_ref() {
+            SortKey::Projection { group, slot } | SortKey::Sum { group, slot } => {
+                of_group(group, Some(slot.as_str()))
+            }
+            SortKey::Number(thing) => unread_for(held, *thing),
+        },
         Atom::Id(_) | Atom::Const(_) | Atom::Undecided(BProbe::Term(_)) => Vec::new(),
     }
 }

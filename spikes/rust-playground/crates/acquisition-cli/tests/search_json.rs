@@ -50,6 +50,8 @@ fn base() -> std::path::PathBuf {
         std::process::id(),
         N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
+    // a process id comes round again: never open what an earlier run left
+    let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }

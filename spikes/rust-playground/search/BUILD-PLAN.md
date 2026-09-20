@@ -587,12 +587,13 @@ direction that breaks least if he rules the other way.
 | B7 | Failed against lacked on a line's group — both false, so no answer's members move, only how the false are split | the selector is the group without its slot comparisons: an item with no occurrence the selector picks lacked it; one with such an occurrence and none satisfying the whole failed. A group comparing no slot never fails | keep |
 | B9 | A query that starts with `-`, the language's not, at a terminal, where it is a flag: `acq search -is:corrupted` is clap's error, and `-has:note` would be read as `-h` (audit finding 1) | it goes after `--`, as every route prints it and the verb's help says: `acq search --realm pc -- '-is:corrupted'` | keep: accepting a leading hyphen as the query would turn a mistyped flag into a query |
 | B10 | The order of an item whose largest occurrence is not established (the second audit, finding 3). C92 gives no scalar to an item with no satisfying occurrence; it says nothing of one that has a readable occurrence and an unread source the group admits | it sorts last either way, as an incomplete sum does, the readable value shown with `incomplete` beside it. A term is another matter: a readable 95 is a witness to `>=90` still | keep: an order that may be wrong is worse than a place at the end that says why |
+| B11 | Whether parentheses may change what is an error. Step 1 checks a slot against a quoted template only at the group's own level (its observations), so a nested template takes any slot word and the evaluator finds no such number | as step 1 built it: never a wrong answer, a missing error | the seat's: checking through nested ands, as the together bound is now found, is a small change to `template::selected` |
 | B8 | Gap 2, as this plan recommended | (b): `--query-file <file\|->`; a route is printed shell-quoted, an apostrophe as `'\''`. (c) is untouched | the seat's |
 
 **An outside audit of the build at `28606ed4` (2026-09-20), each finding
 reproduced with a fixture of the builder's own before it was taken.**
 Verdict of the audit: keep step 4 open. It stays open until the owner
-has ruled on finding 7 and on B1–B10 (finding 8).
+has ruled on finding 7 and on B1–B11 (finding 8).
 
 | # | Finding | Verdict | Held by |
 | --- | --- | --- | --- |
@@ -626,6 +627,24 @@ it left them.
 | 4 | `DERIVATION` stayed 1 though the same malformed body now derives to another item — against the rule written on the constant | confirmed | 2 |
 | 5 | The timing note claimed more than it had: an unchanged reader running slower shows the machine changed, never that the evaluator had not | confirmed — and the builder's cause was wrong as well as unproven. The slowdown was put down to battery and low power mode because that was found first; on the same battery in the same mode, an hour on, the pre-fix binary ran at the morning's 257 ms. What slowed the machine is not known | the two builds measured against each other, above; the claim that a release ask is over 500 ms in that power state is withdrawn |
 
+**A third audit, of the fixes at `ad5589c9` (2026-09-20)**, which found
+the earlier reproductions passing and two gaps more; its own check of
+counts against routes ran over 2,000 generated queries.
+
+| # | Finding | Verdict | Held by |
+| --- | --- | --- | --- |
+| 1 | An occurrence the group may select, and which names no such number, left a value open: over one line `Cannot be Frozen` with an unread `crafted`, `sum(… .arg1)=0` was undecided and `undecided(… .arg1)` matched, though either reading of the flag gives a complete zero and no occurrence. And binding `undecided( … )` of a value threw its slot away, a sum and a projection made one probe | confirmed | an open occurrence counts only where it names the slot — in a sum, in the largest, and in the together count, which had the same fault and was not in the finding; `undecided( … )` of a value binds as `--sort` does and is open exactly when the value would sort as incomplete, one function for both (`eval.rs`, `scalar`) |
+| 2 | Parentheses changed whether the together count applies: the bound was looked for among the group's immediate members | confirmed: the third time one fault — a meaning read off the syntax (source eligibility, the selector, now this) | the bound is the one comparison among the group's conjuncts, through every nested and and a doubled not; four spellings pinned to one count, one route and one selector, and four shapes that are no single lower bound pinned as not applicable |
+
+After it the builder walked every function that reads a group's tree.
+The rest recurse. One reads by position still, and it is step 1's,
+stated there: the parser checks a slot against a quoted template only
+where the template sits at the group's own level, so
+`line(("# to maximum Life" source=explicit) arg3>=5)` is accepted where
+`line("# to maximum Life" source=explicit arg3>=5)` is an error. It
+matches nothing either way, so no answer is wrong; parentheses change
+what is an error, which is the owner's to weigh (B11).
+
 **Observations — the builder's.**
 
 - The walk found two cases of step 1's corpus using fields the builder
@@ -653,6 +672,13 @@ it left them.
   a sum's, the root's — is exercised by fixtures alone, as at step 2.
 - The scope says `in all leagues`; a league is a term, and the owner's
   seat forgetting it is the default-league park's trigger, not a step's.
+- The gate failed once on the refusal walk, which found twelve items in a
+  store that holds none: the fixture helper named its directory by the
+  process id and never cleared it, the id came round again, and an
+  earlier run's file — the acceptance fixture's — was opened as the new
+  store. 871 such directories had gathered in a day. Both helpers clear
+  the directory first now. The store's own tests name theirs the same
+  way (`acq-corpus-<pid>-<n>`) and were not touched.
 - Linking the store turned two of C89's breaker cases over, as step 1's
   own comment said it would: the case adding the store added a key twice,
   and the store linking the search became a cycle Cargo refuses before

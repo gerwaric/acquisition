@@ -451,7 +451,8 @@ pub(crate) enum BMember {
 }
 
 /// A lower bound on one slot of a line selector: what the together count
-/// is defined for (C92).
+/// is defined for (C92) — the one comparison among the group's conjuncts,
+/// however its and is parenthesised. Anything else is not applicable.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct LowerBound {
     pub slot: String,
@@ -501,8 +502,9 @@ pub(crate) enum Atom {
 #[derive(Debug, Clone)]
 pub(crate) enum BProbe {
     Field(Thing),
-    /// A sum or a projection: undecided when a possible contributor is unread.
-    Lines(Box<Group>),
+    /// A sum or a projection, as `--sort` takes one: open exactly when it
+    /// would sort as incomplete.
+    Value(Box<SortKey>),
     Term(Box<Bound>),
 }
 
@@ -706,8 +708,8 @@ impl Binder {
                 Probe::Thing(ValueRef::Field(name)) => {
                     BProbe::Field(known_field(name, |near| format!("undecided({near})"))?.thing)
                 }
-                Probe::Thing(ValueRef::Sum { lines, .. } | ValueRef::Projection { lines, .. }) => {
-                    BProbe::Lines(Box::new(group(lines)?))
+                Probe::Thing(value @ (ValueRef::Sum { .. } | ValueRef::Projection { .. })) => {
+                    BProbe::Value(Box::new(bind_sort(value)?))
                 }
                 Probe::Term(inner) => {
                     BProbe::Term(Box::new(self.node(inner, format!("{path}.0"))?))
@@ -967,11 +969,21 @@ pub(crate) fn selector(whole: &Member) -> Member {
 pub(crate) fn group(whole: &Member) -> Result<Group, LanguageError> {
     let selector_tree = selector(whole);
     let bound = member(whole)?;
-    let top: &[Member] = match whole {
-        Member::All(children) => children,
-        other => std::slice::from_ref(other),
-    };
-    let slotted: Vec<&Member> = top.iter().filter(|c| has_slot(c)).collect();
+    // the group's conjuncts, through every nested and and a doubled not:
+    // `"T" (source=explicit arg1>=90)` is `"T" source=explicit arg1>=90`
+    fn conjuncts<'a>(member: &'a Member, out: &mut Vec<&'a Member>) {
+        match member {
+            Member::All(children) => children.iter().for_each(|c| conjuncts(c, out)),
+            Member::Not(inner) => match inner.as_ref() {
+                Member::Not(twice) => conjuncts(twice, out),
+                _ => out.push(member),
+            },
+            other => out.push(other),
+        }
+    }
+    let mut all = Vec::new();
+    conjuncts(whole, &mut all);
+    let slotted: Vec<&Member> = all.into_iter().filter(|c| has_slot(c)).collect();
     let together = match slotted.as_slice() {
         [
             Member::Test {

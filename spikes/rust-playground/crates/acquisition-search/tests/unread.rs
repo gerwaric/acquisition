@@ -484,3 +484,136 @@ fn c92_a_sort_scalar_that_is_not_established_says_so_and_sorts_last() {
     let explicit = sorted("line(template:life source=explicit).arg1");
     assert_eq!(explicit[0], ("src".to_string(), json!({ "value": 99 })));
 }
+
+/// An occurrence that names no such number cannot contribute, selected or
+/// not (the third audit of step 4, finding 1): whether `crafted` is yes
+/// or no, the sum is a complete zero and the projection has no occurrence,
+/// so neither is left open by the flag (C93's known absence; C94's sum of
+/// nothing). One that does name the number leaves both open.
+#[test]
+fn c93_an_open_occurrence_without_the_slot_leaves_no_value_open() {
+    let open = |text: &str| json!({ "description": text, "flags": { "crafted": "unread" } });
+    let s = one_tab(vec![
+        ring(
+            "frozen",
+            json!({ "explicitMods": [open("Cannot be Frozen")] }),
+        ),
+        ring(
+            "life",
+            json!({ "explicitMods": [open("+50 to maximum Life")] }),
+        ),
+    ]);
+    let corpus = load(&s, Some("pc"));
+    let frozen = "line(template:Frozen -is:crafted).arg1";
+    assert_eq!(of(&corpus, "frozen", &format!("sum({frozen})=0")), (1, 0));
+    assert_eq!(
+        of(&corpus, "frozen", &format!("undecided(sum({frozen}))")),
+        (0, 0)
+    );
+    assert_eq!(
+        of(&corpus, "frozen", &format!("undecided({frozen})")),
+        (0, 0)
+    );
+    // the line itself is open still: the flag decides whether it is selected
+    assert_eq!(
+        of(&corpus, "frozen", "line(template:Frozen -is:crafted)"),
+        (0, 1)
+    );
+    let life = "line(template:life -is:crafted).arg1";
+    assert_eq!(of(&corpus, "life", &format!("sum({life})>=0")), (0, 1));
+    assert_eq!(
+        of(&corpus, "life", &format!("undecided(sum({life}))")),
+        (1, 0)
+    );
+    assert_eq!(of(&corpus, "life", &format!("undecided({life})")), (1, 0));
+    // `undecided( … )` of a value and the sort's status are one judgement
+    let sorted = |id: &str, sort: &str| {
+        let request = serde_json::from_value(json!({ "query": { "text": format!("id:{id}") }, "view": { "rows": { "sort": sort } } })).unwrap();
+        as_json(&answer(&corpus, &request).unwrap())["rows"][0]["sort"].clone()
+    };
+    assert_eq!(
+        sorted("frozen", frozen),
+        json!({ "status": "no satisfying occurrence" })
+    );
+    assert_eq!(
+        sorted("frozen", &format!("sum({frozen})")),
+        json!({ "value": 0 })
+    );
+    assert_eq!(sorted("life", life), json!({ "status": "incomplete" }));
+    assert_eq!(
+        sorted("life", &format!("sum({life})")),
+        json!({ "value": 0, "status": "incomplete" })
+    );
+    // the reasons follow: nothing of `frozen` is said to be unread for the sum
+    let a = as_json(&ask(&corpus, &format!("sum({life})>=0")).unwrap());
+    assert_eq!(
+        a["total"]["undecided_items"][0]["why"][0]["unread"],
+        "the flags of explicit lines"
+    );
+}
+
+/// C92's together count is the group's, however its and is parenthesised
+/// (the third audit, finding 2): the diagnostic and its route, for both
+/// spellings — the four counts alone do not show it.
+#[test]
+fn c92_parentheses_never_change_whether_the_together_count_applies() {
+    let s = one_tab(vec![
+        ring(
+            "pair",
+            json!({ "explicitMods": ["+20 to maximum Life", "+75 to maximum Life"] }),
+        ),
+        ring(
+            "short",
+            json!({ "explicitMods": ["+20 to maximum Life", "+30 to maximum Life"] }),
+        ),
+    ]);
+    let corpus = load(&s, Some("pc"));
+    let mut seen = Vec::new();
+    for query in [
+        "line(template:life source=explicit arg1>=90)",
+        "line(template:life (source=explicit arg1>=90))",
+        "line((template:life (source=explicit (arg1>=90))))",
+        "line(template:life source=explicit --arg1>=90)",
+    ] {
+        let a = as_json(&ask(&corpus, query).unwrap());
+        let together = &a["terms"][0]["together"];
+        assert_eq!(
+            (&together["count"], &together["slot"], &together["bound"]),
+            (&json!(1), &json!("arg1"), &json!(90)),
+            "{query}"
+        );
+        let request = serde_json::from_value(together["request"].clone()).unwrap();
+        assert_eq!(
+            ids(&as_json(&answer(&corpus, &request).unwrap())),
+            ["pair"],
+            "{query}"
+        );
+        let term = a["terms"][0]["term"].as_str().unwrap();
+        seen.push(
+            together["request"]["query"]["text"]
+                .as_str()
+                .unwrap()
+                .replace(term, "<term>"),
+        );
+    }
+    // one selector, one sum, whatever the spelling
+    assert_eq!(
+        seen[0],
+        "line(template:life source=explicit) -<term> sum(line(template:life source=explicit).arg1)>=90"
+    );
+    assert!(seen.iter().all(|route| *route == seen[0]), "{seen:?}");
+    // what is not one lower bound beside a selector stays not applicable, never zero
+    for query in [
+        "line(template:life (arg1>=90 or arg1<=5))",
+        "line(template:life arg1>=90 arg1<=200)",
+        "line(template:life -(arg1>=90))",
+        "line(template:life arg1=90)",
+    ] {
+        assert!(
+            as_json(&ask(&corpus, query).unwrap())["terms"][0]
+                .get("together")
+                .is_none(),
+            "{query}"
+        );
+    }
+}
