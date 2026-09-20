@@ -64,6 +64,7 @@ is provisional, this plan's later steps included.
 | 2 · the derivation | a pure function, body and ingest columns in, the item out (C103): fields, displayed strings, lines as (kind, template, numbers) with slots and the ranged rule, and what could not be read, by collection | fixture tests; M2 against the census |
 | 3 · the store's read | C103's read, the revision, the coverage rows — **shown to the owner first** (below) | store tests, `REFRESH-SLICE.md`'s findings table as the checklist; the one-snapshot test; M1; C103's second decision given its own entry (below) |
 | 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verbs `acq search` and `acq show <id>` (the item as the deriver sees it: fields, place, every line with its kind, template and numbers, what was unread; `--json` the same, structured; the stored body on request by a flag, which still works when deriving fails — the reference's `acq show`), their README tour lines, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the acceptance rows marked 4; the refusal walk; the route property; M3, M4 |
+| 4b · the properties | what four audits of step 4 found by generating, put in the gate as properties; then a group's meaning computed once, so that no second reading of it can disagree (below, "Step 4b") — no new surface and no rule changed | the three properties green in the gate, each shown able to fail; the structural rule with its breaker; step 4's regression tests untouched and green; M3 again; one more outside audit, its yield reported beside 6, 5, 2, 3 |
 | 5 · counts and the vocabulary | `--count`, `--cross`, `--sum` (C95); `none` and `undecided` buckets with routes (C105); `--count line[:text,…]` (C97) | AQ1; C105's two invariants pinned on a one-value key; C95's sum over a fixture of three kinds — an item with the value, one lacking it (adds nothing, counted as lacking), one whose value is unread (the subtotal marked incomplete, never a total); the vocabulary's pasted term selects its row; M3 again; then the seat |
 
 **The reference was brought level with what was ruled here before step
@@ -123,6 +124,93 @@ gap ruled below keeps its evidence here and its rule in
   search.
 - *The limits register* (C102): S12, S52, S53, S107 each have a fixture
   that meets the limit and a test on the wording printed.
+
+## Step 4b — the properties, before step 5
+
+Draft for the owner's edit, 2026-09-20 (owner, the same day, on the
+diagnosis below: "I agree"). Run in a fresh session: the one that built
+step 4 is long, and its author has now judged four rounds of his own
+repairs.
+
+**Why.** Four outside audits of step 4 found 6, 5, 2 and 3 defects, all
+sixteen real (the record below). Fixing what each found did not bring
+the yield down, for two reasons the findings share:
+
+- *One fault, five times.* A group's meaning was read again, off its
+  syntax, by whichever function needed it next: which sources it admits,
+  its selector, its together bound, the slot check, the zero block. Each
+  round fixed the reader it was shown. Measured at `c3de464d`: 29
+  functions in eight files match on a group's tree; 15 build, print or
+  validate it (`parse`, `print`, `json`, `tree`), and 14 read what it
+  means, across `bind`, `eval`, `answer` and `template`. This is P5's
+  case — a rule that can be broken silently — held so far by discipline.
+- *The builder counted examples; the auditor generated.* Every finding
+  came from a transformation the hand-counted fixtures never made:
+  parenthesise the group, resolve the unknown either way, run the route.
+  The third audit's own check ran counts against routes over 2,000
+  generated queries.
+
+**What, in this order** — the properties first, so that the refactor is
+made under them and not beside them.
+
+1. *Three properties, in the gate*, over generated queries and generated
+   items, through the crate's boundary (a request in, an answer out, as
+   JSON — rule 3). `proptest` is already a dev-dependency, and
+   `tests/language.rs` has generators for trees and groups.
+   - **Equivalence.** A rewrite that changes no meaning — parentheses
+     around any of a group's conjuncts, a doubled not, the same for the
+     item's tree — changes nothing in the answer but the canonical text
+     and the paths: the same counts, together count, resolved values,
+     zero block, rows, and the same error or none.
+   - **Routes.** Every route an answer prints binds and is not refused
+     (rule 5), returns exactly as many as it counted, and a term's four
+     routes partition the scope (invariant 4).
+   - **Completion.** C93's own definition, as a test. An item with
+     something unread is given completions of it — each unread flag a yes
+     and a no, an unread array as none and as lines of the templates the
+     query names, an unread number as several — and whatever the answer
+     called decided on the item as stored — a term, a sum, a sort scalar,
+     the root — is the same under every one of them. That half binds: one
+     counterexample is a defect. The other half is measured, never
+     required: how often an answer called undecided is the same under
+     every completion tried, each kind explained or fixed, as M2 explains
+     its differences — a sampler cannot show that no completion differs,
+     and a rule may be careful on purpose (a comparison on an incomplete
+     subtotal is undecided whatever the subtotal already reaches). The
+     evaluator over fully readable bodies is the oracle, which is the
+     half step 4's hand counts and the real copy already exercise.
+   The generators and the oracle are not the builder's alone to write
+   (author is not test): the outside agent's harness is asked for as a
+   committed test, and the builder's properties are audited as code that
+   must be able to fail — a mutant per property, as step 4's fixes had.
+2. *A group's meaning, once.* What a group means is computed when it is
+   bound and read from there by every consumer. The boundary is the
+   property, not the shape: outside the modules that build, print and
+   validate the tree, and the one that computes its meaning, nothing
+   matches on a group's tree — a rule `tools/docs-check.sh` refuses, with
+   a breaker. Internals are the builder's; the answer's JSON does not
+   move, and step 4's tests are the proof that it did not.
+3. *Then one audit round more*, pointed where the four were not — the
+   rows, the zero block, `show`, `--describe`, the CLI's text — and at
+   the properties themselves.
+
+**Asked of the outside agent** (2026-09-20, by the owner's hand, since it
+cannot read this session): its check of counts against routes over
+generated queries as a test file for `crates/acquisition-search/tests/`,
+through the crate's public boundary alone; the list of transformations
+it tries on a fixture, so that the properties cover them; and to fix
+nothing itself. Its next audit waits for 4b's close.
+
+**Not in 4b.** No new surface. No rule of the language or the answer:
+finding 7 (which identity names a store in the basis) and B1–B11 are the
+owner's and wait on nothing here. Whatever a property finds that changes
+what a user types stops and comes to him (rule 4, as the first audit's
+finding 8 read it).
+
+**If the properties find a lot.** They may: they make every audit's
+transformation at once. Defects are fixed under them; a property that
+cannot be made green without a ruling is reported with its
+counterexample and marked as waiting, never loosened to pass.
 
 ## The first seat — after step 5
 
