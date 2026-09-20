@@ -155,12 +155,12 @@ acq show <an id an answer printed>
 acq search --realm pc 'rarity=rare base:ring' --count line:resist,life
 acq search --realm pc --count tab,league,rarity
 acq search --realm pc 'rarity=unique' --cross league,tab
-acq search --realm pc 'rarity=currency' --count base --sum stack
+acq search --realm pc 'frame=currency' --count base --sum stack
 acq search --describe
 ```
 
 Composition whole (`and or not - ( ) holds undecided`); phrases and
-`text:`; `name` and `base` with `:` `=` `~`; `rarity`, `ilvl`, `is:`,
+`text:`; `name` and `base` with `:` `=` `~`; `rarity`, `frame`, `ilvl`, `is:`,
 `has:`; place (`league: tab: character: container:`); `id:`; `line(…)`
 whole, the shorthand, `sum(…)`; `--sort --desc --limit --json`;
 `--count`, `--cross`, `--sum`, and the vocabulary.
@@ -386,15 +386,16 @@ whether the ranged rule takes it (`ranged-split.py`'s cases A and B).
 
 | | Census rule | Deriver |
 | --- | ---: | ---: |
-| templates / lines, all arrays | 6,476 / 88,128 | 6,407 / 84,199 |
+| templates / lines, all arrays | 6,476 / 88,128 | 6,606 / 86,450 |
 | `explicitMods` | 5,304 / 72,868 | 5,278 / 72,506 |
 | `implicitMods` | 446 / 6,050 | 440 / 6,050 |
 | `utilityMods` | 26 / 2,911 | 23 / 2,911 |
 | `ultimatumMods` | 34 / 3,567 | none: not lines |
+| `hybrid.explicitMods` (D3) | never read | 199 / 2,251 |
 | enchant, crucible, scourge, veiled, bonded, rune | 666 / 2,732 | the same |
 | unexplained differences | | **0** |
 | items with anything unread | | **0** of 22,721 |
-| ranged (one `# to #`): rows / lines | | 195 / 3,584 — 180 the pair alone, 15 with a further number; 2 rows with two pairs, 378 with several numbers and no pair, 166 `(#-#)`, none of them ranged |
+| ranged (one `# to #`): rows / lines | | 201 / 3,708 — 186 the pair alone, 15 with a further number; 2 rows with two pairs, 387 with several numbers and no pair, 166 `(#-#)`, none of them ranged |
 
 The departures, each counted by the script (lines whose template moved /
 census templates touched):
@@ -402,10 +403,11 @@ census templates touched):
 | Departure | Count | Why |
 | --- | ---: | --- |
 | `ultimatumMods` is no source of lines | 3,567 lines | its elements are ids with a tier (`FrostInfection`, 3); the same item's `explicitMods` already displays them (`Blistering Cold III`) on all 539 items, with two lines more on 315. A candidate ground-truth claim |
+| a vaal gem's base skill is the source `hybrid` | 2,251 lines added | D3, ruled; the census read top-level arrays only |
 | an empty line displays nothing | 362 lines | the spacer rows of an essence's description |
 | a row break `\r\n` is `\n` | 407 / 256 | the reference's strings escape `\n` alone, so a template holding a CR could never be typed |
 | `<style>{Display}` reduced, nested | 478 / 359 | markup the digest does not name (S4 knows the brackets): a divination card's reward, `<uniqueitem>{Staff}`, `<size:31>{…}`; 821 tags, each followed by its brace. A candidate ground-truth claim |
-| `[Tag|Display]` and `[Display]` reduced | 265 / 61 | S4, C90 |
+| `[Tag|Display]` and `[Display]` reduced | 286 / 62 | S4, C90 |
 | `1,500` is one number | 1 / 1 | read as 1 and 500 it is a wrong value, silently; the template is `#x Vivid Crystallised Lifeforce` |
 
 The differential caught two misreadings in the builder's code before any
@@ -417,15 +419,15 @@ included; M1 is step 3's.
 
 **Holes — they change which items a query matches, so they are the
 owner's.** None blocked step 2: the deriver reads and does not interpret
-(`derive.rs`, "As built"), so each fact is carried as GGG gives it and
-the rule that gives a name its meaning is the binder's, step 4. D1 and
-D2 want a ruling before step 4 binds `rarity` and `ilvl`.
+(`derive.rs`, "As built"). D1–D3 were ruled the day the step landed
+(owner, 2026-09-19; his words in the reference) and D2 and D3 built in
+the commit after it; D1 needed no code, the deriver carrying both.
 
 | # | Hole | Built as | Recommendation |
 | --- | --- | --- | --- |
-| D1 | `rarity` on an item whose body carries none: 8,297 of 22,721 — gems 5,747, currency 1,720, cards 490, normal-frame 339, a quest item. `frameTypeId` is on every item and differs from `rarity` on 7 (foils; one currency item marked normal). This plan's own seat line `rarity=currency` assumes the frame answers | both carried as given, `rarity` and `frame` | `rarity` is GGG's where given, else the frame, so `gem`, `currency`, `divinationcard` are values of the closed set and `--count rarity` has no `none` a third of the corpus sits in; `frame` stays a field for the foil |
-| D2 | `ilvl` is 0 on 7,903 items (every gem and card, most currency): the game shows them no item level | 0, as given | 0 is absent: `ilvl<=10` should not return every gem, and `-has:ilvl` finds them |
-| D3 | A vaal gem's base skill sits under `hybrid` — 2,251 lines and its properties on 457 items — and is displayed on the item. Neither a line nor a phrase reaches it | not read | read its lines as a source of their own, `hybrid`, and its properties as displayed strings; adding it later breaks nothing |
+| D1 | `rarity` on an item whose body carries none: 8,297 of 22,721 — gems 5,747, currency 1,720, cards 490, normal-frame 339, a quest item. `frameTypeId` is on every item and differs from `rarity` on 7 (foils; one currency item marked normal) | **ruled: two fields, `rarity` and `frame`, each what GGG gives** (the reference, *Item-level*) — the builder's fallback from one to the other was not taken, and this plan's seat line became `frame=currency`. `--count rarity` puts those 8,297 under `none` (C105); `--count frame` has no `none` | — |
+| D2 | `ilvl` is 0 on 7,903 items (every gem and card, most currency): the game shows them no item level | **ruled: 0 is absent** (the reference, *Item-level*) | — |
+| D3 | A vaal gem's base skill sits under `hybrid` — 2,251 lines and its properties on 457 items — and is displayed on the item | **ruled: its lines are the source `hybrid`, its properties displayed strings** (the reference, *Members*) | — |
 | D4 | The other property-shaped arrays: `nextLevelRequirements` (265 items), `supportGemRequirements` (19), `weaponRequirements` (6), and `gemTabs`, `grantedSkills` on poe2 (42, 4) | not read; `properties`, `additionalProperties` and `requirements` are | leave until a question needs one; `nextLevelRequirements` as text would make `"Level 21"` find a level-20 gem |
 | D5 | A requirement as a displayed string: GGG gives a name and a value, the game shows `Requires Level 67, 159 Str` | each its own string, the name without a colon: `Level 67`, `159 Str`; a property keeps it: `Quality: +20%`. From the builder's knowledge of the tooltip, no capture checked | keep |
 

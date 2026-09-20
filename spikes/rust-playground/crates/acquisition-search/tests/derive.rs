@@ -304,10 +304,63 @@ fn an_empty_string_is_an_item_without_one() {
     assert_eq!(gem.name, None);
     assert_eq!(gem.rarity, None);
     assert_eq!(gem.frame.as_deref(), Some("Gem"));
-    assert_eq!(gem.ilvl, Some(0));
+    // GGG's 0: the game shows a gem no item level (owner, 2026-09-19)
+    assert_eq!(gem.ilvl, None);
     assert_eq!(gem.stack, Some(1));
     assert_eq!(gem.flags, ["corrupted", "identified"]);
     assert!(gem.unread.is_empty());
+}
+
+/// A vaal gem's base skill sits under `hybrid` and is displayed on the
+/// item: its lines are the source `hybrid`, its properties displayed
+/// strings (owner, 2026-09-19).
+#[test]
+fn a_vaal_gems_base_skill_is_the_source_hybrid() {
+    let gem = item(json!({
+        "typeLine": "Vaal Discipline", "frameTypeId": "Gem",
+        "properties": [{"name": "Level", "values": [["20 (Max)", 0]], "displayMode": 0, "type": 5}],
+        "explicitMods": [{"description": "Base duration is 3.00 seconds"}],
+        "hybrid": {
+            "isVaalGem": true, "baseTypeName": "Discipline",
+            "properties": [{"name": "Cooldown Time", "values": [["1.20 sec", 0]], "displayMode": 0}],
+            "explicitMods": ["You and nearby allies gain 303 additional Energy Shield", 7]
+        }
+    }));
+    let kinds: Vec<(&str, &str)> = gem
+        .lines
+        .iter()
+        .map(|l| (l.source.as_str(), l.template.as_str()))
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            ("explicit", "Base duration is # seconds"),
+            (
+                "hybrid",
+                "You and nearby allies gain # additional Energy Shield"
+            ),
+        ]
+    );
+    let shown: Vec<(&str, &str)> = gem
+        .properties
+        .iter()
+        .map(|p| (p.array.as_str(), p.text.as_str()))
+        .collect();
+    assert_eq!(
+        shown,
+        [
+            ("properties", "Level: 20 (Max)"),
+            ("hybrid.properties", "Cooldown Time: 1.20 sec")
+        ]
+    );
+    assert_eq!(gem.unread.len(), 1);
+    assert_eq!(gem.unread[0].part, Part::Lines("hybrid".into()));
+    assert_eq!(
+        gem.unread[0].problem,
+        "`hybrid.explicitMods[1]` is a number, not a line"
+    );
+    // a flag inside `hybrid` is the base skill's, never the item's
+    assert!(gem.flags.is_empty());
 }
 
 /// Every `*Mods` array is a source, string elements as object ones —

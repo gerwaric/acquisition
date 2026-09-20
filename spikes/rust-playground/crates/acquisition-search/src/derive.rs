@@ -10,10 +10,12 @@
 //! # As built
 //!
 //! **The deriver reads; it does not interpret.** A field is what GGG
-//! gives under its own key — `rarity` beside `frameTypeId`, an `ilvl` of 0
-//! — and a rule that joins or reinterprets two of them is the binder's,
-//! where a name gets its meaning. The one thing normalised here is what
-//! every displayed string gets (C90; `shown`, below).
+//! gives under its own key, and a rule that joins two of them is never
+//! made here: `rarity` and `frame` are two fields (owner, 2026-09-19), a
+//! gem lacking the first and carrying the second. What is normalised is
+//! what every displayed string gets (C90; `shown`, below), and the two
+//! spellings GGG has for nothing: an empty string, and an `ilvl` of 0,
+//! which the game shows no item level for (owner, 2026-09-19).
 //!
 //! - **Place is never read from a body (C103).** [`Facts`] is handed in
 //!   and handed back; a body's own `league` or `realm` is ignored.
@@ -26,7 +28,9 @@
 //! - **Lines (C90).** Every top-level array whose key ends in `Mods` is a
 //!   source of lines, its word the key without the suffix (`explicit`,
 //!   `enchant`, `crucible`, …), so an array GGG adds is read the day it
-//!   appears; an element is a string or an object with a `description`,
+//!   appears; a vaal gem's base skill, `hybrid.explicitMods`, is the source
+//!   `hybrid`, and `hybrid.properties` are displayed strings (owner,
+//!   2026-09-19); an element is a string or an object with a `description`,
 //!   and an object's true `flags` are the line's. The template and the
 //!   numbers are `template::typed`'s — the sign in the number, a range
 //!   dash never a sign, `1,500` one number. Two exceptions, each a fact
@@ -51,11 +55,10 @@
 //!   readable line is a witness; absence is claimed only when
 //!   [`Item::unread_in`] finds nothing.
 //!
-//! Not read yet, each with the step that reads it (the build plan):
-//! sockets (8); `hybrid` — a vaal gem's base skill — and the other
-//! property-shaped arrays (`nextLevelRequirements`, `weaponRequirements`,
-//! `supportGemRequirements`), which wait for the owner (the plan's holes
-//! table).
+//! Not read yet: sockets (the build plan, step 8), and the other
+//! property-shaped arrays — `nextLevelRequirements`,
+//! `weaponRequirements`, `supportGemRequirements`, and poe2's `gemTabs`
+//! and `grantedSkills` (the plan's holes table, D4).
 
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Map, Value};
@@ -97,6 +100,7 @@ pub struct Item {
     pub rarity: Option<String>,
     /// GGG's `frameTypeId`, as given: on every item.
     pub frame: Option<String>,
+    /// GGG's `ilvl`; its 0 is absent.
     pub ilvl: Option<i64>,
     /// GGG's `stackSize`.
     pub stack: Option<i64>,
@@ -112,7 +116,8 @@ pub struct Item {
 /// One element of a property-shaped array, as displayed.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Property {
-    /// The body's key: `properties`, `additionalProperties`, `requirements`.
+    /// The body's key: `properties`, `additionalProperties`,
+    /// `requirements`, `hybrid.properties`.
     pub array: String,
     pub name: String,
     pub values: Vec<String>,
@@ -123,7 +128,8 @@ pub struct Property {
 /// One displayed occurrence of a line (C90, C92).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Line {
-    /// The source array, without its `Mods`: `explicit`, `implicit`, …
+    /// The source array, without its `Mods`: `explicit`, `implicit`, …;
+    /// `hybrid` for a vaal gem's base skill.
     pub source: String,
     /// The flags the body sets on the line: `crafted`, `fractured`, …
     pub flags: Vec<String>,
@@ -209,22 +215,37 @@ pub fn derive(facts: Facts, body: &str) -> Item {
     item.rarity = item.text(&body, "rarity");
     item.frame = item.text(&body, "frameTypeId");
     item.note = item.text(&body, "note");
-    item.ilvl = item.int(&body, "ilvl");
+    // GGG's 0 is an item the game shows no level for: known absence
+    item.ilvl = item.int(&body, "ilvl").filter(|ilvl| *ilvl != 0);
     item.stack = item.int(&body, "stackSize");
     item.read_flags(&body);
     for array in PROPERTY_ARRAYS {
-        item.read_properties(&body, array);
+        item.read_properties(&body, array, array);
     }
-    // by source word, so the order never depends on how the body was held
-    let mut sources: Vec<(&str, &Value)> = body
+    let mut sources: Vec<(&str, String, &Value)> = body
         .iter()
         .filter(|(key, _)| !NOT_LINES.contains(&key.as_str()))
-        .filter_map(|(key, value)| Some((key.strip_suffix("Mods")?, value)))
-        .filter(|(source, _)| !source.is_empty())
+        .filter_map(|(key, value)| Some((key.strip_suffix("Mods")?, key.clone(), value)))
+        .filter(|(source, _, _)| !source.is_empty())
         .collect();
-    sources.sort_by_key(|(source, _)| *source);
-    for (source, value) in sources {
-        item.read_lines(source, value);
+    // a vaal gem's base skill: its lines are a source of their own
+    match body.get("hybrid") {
+        None | Some(Value::Null) => {}
+        Some(Value::Object(hybrid)) => {
+            item.read_properties(hybrid, "properties", "hybrid.properties");
+            if let Some(lines) = hybrid.get("explicitMods") {
+                sources.push(("hybrid", "hybrid.explicitMods".to_string(), lines));
+            }
+        }
+        Some(other) => {
+            let problem = format!("`hybrid` is {}, not an object", json_kind(other));
+            item.unread(Part::Field("hybrid".to_string()), problem);
+        }
+    }
+    // by source word, so the order never depends on how the body was held
+    sources.sort_by_key(|(source, _, _)| *source);
+    for (source, key, value) in sources {
+        item.read_lines(source, &key, value);
     }
     item
 }
@@ -330,9 +351,11 @@ impl Item {
         self.flags = flags;
     }
 
-    fn read_properties(&mut self, body: &Map<String, Value>, array: &str) {
+    /// `array` is the name the part and its properties carry; `key` is
+    /// where it sits in `holder`.
+    fn read_properties(&mut self, holder: &Map<String, Value>, key: &str, array: &str) {
         let part = || Part::Properties(array.to_string());
-        let elements = match body.get(array) {
+        let elements = match holder.get(key) {
             None | Some(Value::Null) => return,
             Some(Value::Array(elements)) => elements,
             Some(other) => {
@@ -349,18 +372,18 @@ impl Item {
         }
     }
 
-    fn read_lines(&mut self, source: &str, value: &Value) {
+    fn read_lines(&mut self, source: &str, key: &str, value: &Value) {
         let part = || Part::Lines(source.to_string());
         let elements = match value {
             Value::Null => return,
             Value::Array(elements) => elements,
             other => {
-                let problem = format!("`{source}Mods` is {}, not an array", json_kind(other));
+                let problem = format!("`{key}` is {}, not an array", json_kind(other));
                 return self.unread(part(), problem);
             }
         };
         for (i, element) in elements.iter().enumerate() {
-            let at = format!("`{source}Mods[{i}]`");
+            let at = format!("`{key}[{i}]`");
             let (text, flags) = match element {
                 Value::String(text) => (text, None),
                 Value::Object(line) => match line.get("description") {

@@ -159,7 +159,13 @@ ITEM-LEVEL
   text:word   text~"pattern"           the explicit name of what a quoted phrase searches;
                                        in a pattern ^ and $ are the ends of one displayed string
   rarity=rare   class:ring             closed set: `=` exact; `:` picks among legal values, listed
-  ilvl>=84   ilvl=80..84   ilvl=..84   = > >= < <= ; a..b inclusive, a side may be blank
+  rarity=unique   frame=gem            two fields, each what GGG gives. rarity is normal, magic, rare or
+                                       unique; a gem, a currency stack, a card lacks it: known absence.
+                                       frame (GGG's frameTypeId) is on every item and adds gem, currency,
+                                       divinationcard, quest, supporterfoil.
+  ilvl>=84   ilvl=80..84   ilvl=..84   = > >= < <= ; a..b inclusive, a side may be blank. GGG's ilvl of 0
+                                       is an item with no item level — a gem, a card: known absence, so
+                                       ilvl<=10 is false on it and -has:ilvl finds it.
   has:x  -has:x                        presence; absence only when all that could hold x was readable
   is:corrupted  -is:corrupted          yes / no; silence is any
   league:  tab:  character:  container:      place, as text fields
@@ -173,6 +179,7 @@ MEMBERS — conditions that hold together on one member
   line( … )      one displayed occurrence      linked( … )     one link group
   line:    "T" (leading; means template="T")   template:words   template~"pattern"
            source=explicit   is:fractured   -is:crafted
+           source=hybrid     a vaal gem's base skill, displayed on the gem: a source of its own
            arg1 arg2 …   and on a ranged line  low  high  avg        with = > >= < <= a..b
              line("# to maximum Life" source=explicit -is:crafted arg1>=90)
              line(template:resistance is:fractured)
@@ -273,6 +280,15 @@ reasoning, in `search/search-forms/11-owner-amendments.md`):
   add something like type line to the search in addition to name and
   base?" — the C++ app's pretty name, the two joined, is a rendering,
   never a field.
+- Rarity and the frame: "Rarity is now a first-class field in Item
+  objects, and it can be Normal, Magic, Rare, or Unique. However, there
+  is also a frameType (deprecated enum int, but still present) and a
+  frameTypeId string … I think this means we need to support both
+  'rarity' and 'frame' or 'frameType' as a search." On an ilvl of 0 as
+  absent, and on a vaal gem's base skill as lines and displayed strings
+  of their own: "Agreed", each. Measured over the census's store copy
+  (22,721 live items): 8,297 carry no rarity, 7,903 an ilvl of 0, 457 a
+  base skill of 2,251 lines.
 - The trade site's spelling of a line: "The trade site accepts "+# ...",
   "#% ...", and "+#% ...", so our grammar should accept those because
   agents and humans will expect it." On a template alone meaning the

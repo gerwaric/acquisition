@@ -8,8 +8,9 @@ the deriver (crates/acquisition-search/examples/derive-census.rs), and sets the
 two tables against each other: templates, items, lines, flags, numbers, and
 the ranged split (ranged-split.py's `classify`).
 
-The deriver departs from the census by four named normalisations and two
-exclusions. Each is applied here, one at a time, to the census's input, and
+The deriver departs from the census by four named normalisations, two
+exclusions and one addition (a vaal gem's `hybrid.explicitMods`, which the
+census never read; here it is the array `hybridMods`). Each is applied here, one at a time, to the census's input, and
 counted; the deriver's table must then equal the normalised census exactly.
 What is left over is unexplained, and the script exits 1.
 
@@ -90,25 +91,30 @@ def main():
             out.write(json.dumps({"facts": dict(zip(cols, row[:-1])), "body": row[-1]}) + "\n")
             body = json.loads(row[-1])
             seen_c, seen_e = set(), set()
-            for k, v in body.items():
-                if not k.endswith("Mods") or not isinstance(v, list):
-                    continue
+            arrays = [(k, v, True) for k, v in body.items() if k.endswith("Mods") and isinstance(v, list)]
+            hybrid = (body.get("hybrid") or {}).get("explicitMods")
+            if isinstance(hybrid, list):
+                arrays.append(("hybridMods", hybrid, False))
+            for k, v, in_census in arrays:
                 for line in v:
                     if isinstance(line, dict):
                         text, flags = line.get("description", line.get("type", "")), line.get("flags") or {}
                     else:
                         text, flags = str(line), {}
                     tpl = census.template(text).replace("\\n", "\n")
-                    c = as_census[(k, tpl)]
-                    c["lines"] += 1
-                    if (k, tpl) not in seen_c:
-                        seen_c.add((k, tpl))
-                        c["items"] += 1
+                    if in_census:
+                        c = as_census[(k, tpl)]
+                        c["lines"] += 1
+                        if (k, tpl) not in seen_c:
+                            seen_c.add((k, tpl))
+                            c["items"] += 1
+                    else:
+                        excluded["`hybrid.explicitMods`, a vaal gem's base skill: ADDED as the source `hybrid`"] += 1
                     if k == "ultimatumMods":
-                        excluded["`ultimatumMods`: ids of what `explicitMods` displays, not lines"] += 1
+                        excluded["`ultimatumMods`: ids of what `explicitMods` displays, not lines: EXCLUDED"] += 1
                         continue
                     if text == "":
-                        excluded["an empty line (the spacer rows of an essence's description) displays nothing"] += 1
+                        excluded["an empty line (the spacer rows of an essence's description) displays nothing: EXCLUDED"] += 1
                         continue
                     for label, step in STEPS:
                         after = step(text)
@@ -165,12 +171,12 @@ def main():
     print(f"deriver: {rust['properties']:,} properties, {rust['displayed']:,} displayed rows, {rust['derive_seconds']:.2f} s deriving (debug build)")
     print("\n| array | census templates / lines | deriver templates / lines |\n| --- | ---: | ---: |")
     c_by, e_by = summary(as_census), summary({k: {"lines": g["lines"]} for k, g in got.items()})
-    for k in sorted(c_by, key=lambda k: -c_by[k][1]):
+    for k in sorted(set(c_by) | set(e_by), key=lambda k: -max(c_by[k][1], e_by[k][1])):
         print(f"| `{k}` | {c_by[k][0]:,} / {c_by[k][1]:,} | {e_by[k][0]:,} / {e_by[k][1]:,} |")
     print(f"| all | {len(as_census):,} / {sum(t['lines'] for t in as_census.values()):,} | {len(got):,} / {sum(g['lines'] for g in got.values()):,} |")
     print("\ndepartures (lines whose template moved / census templates touched):")
     for label, n in excluded.items():
-        print(f"- {label}: {n:,} lines excluded")
+        print(f"- {label}: {n:,} lines")
     for label, n in moved.items():
         print(f"- {label}: {n:,} / {len(moved_templates[label]):,}")
     split = collections.Counter(ranged_split.classify(t) for (_, t) in got)
