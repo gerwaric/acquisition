@@ -61,6 +61,8 @@ the site's pseudo stats, and neither promises the other (owner,
 
 ```
 acq search [--account A] [--realm pc|xbox|sony|poe2|all] ['<query>']    no query: every item in scope
+   a query that starts with -, the language's not, goes after --, as every route prints it:
+       acq search --realm pc -- '-is:corrupted'
    view       rows (default) | --count key,…  (one table each) | --cross key,key  (one table)   [--sum value]
               [--fields name,…] [--sort value [--desc]] [--limit n] [--next token]
    discover   --describe [name,…]             the language: fields, operators, closed value sets,
@@ -141,8 +143,9 @@ ITEM-LEVEL
                         "# to maximum Life"      -"+#% to Chaos Resistance"   (the item has no such line)
                       text:"…#…" searches for a literal #.
   word                a bare word is an authoring error that shows its readings, never a guess:
-                        rare → rarity=rare · "rare"      ring → class:ring · "ring"
-                        life → "life" · line(template:life)
+                        rare → rarity=rare · "rare" · line(template:rare)
+                        corrupted → is:corrupted · "corrupted" · line(template:corrupted)
+                        life → "life" · line(template:life)          ring → class:ring · "ring" · line(template:ring)
                       Quotes are the deliberate signal for text. An adapter may offer a plain
                       text box that wraps its input in text: — the query itself never does.
   name  typeline  base                 the header: three text things, each what GGG gives (name, typeLine,
@@ -156,8 +159,9 @@ ITEM-LEVEL
                                        changes what the fields mean, and a phrase never matches across them.
   name:kaom   name="Kaom's Heart"   name~"^Kaom"
                                        `:` contains · `=` whole value · `~` pattern, on every text
-                                       thing. Rust regex syntax, unanchored, any case unless the
-                                       pattern says otherwise; a bad pattern is an authoring error.
+                                       thing, each in any case: name="kaom's heart" finds Kaom's
+                                       Heart. Rust regex syntax, unanchored; a pattern may turn case
+                                       back on for itself, (?-i). A bad pattern is an authoring error.
                                        Like `:`, a pattern is a continuing search: the answer lists
                                        what it resolved to and never freezes it.
   text:word   text~"pattern"           the explicit name of what a quoted phrase searches;
@@ -171,9 +175,22 @@ ITEM-LEVEL
                                        is an item with no item level — a gem, a card: known absence, so
                                        ilvl<=10 is false on it and -has:ilvl finds it.
   has:x  -has:x                        presence; absence only when all that could hold x was readable
-  is:corrupted  -is:corrupted          yes / no; silence is any
-  league:  tab:  character:  container:      place, as text fields
-  id:<handle>                          any id an answer printed
+  is:corrupted  -is:corrupted          yes / no; silence is any. The words are a closed list, GGG's
+                                     own spellings in any case (is:abyssJewel), printed by
+                                     --describe; so are a line's source= words and its is: flags.
+                                     A word outside its list is an authoring error with the near
+                                     ones offered. A flag GGG adds is shown by acq show and
+                                     cannot be asked for until the list gains it.
+  league:  tab:  character:  container:      place, as text fields. tab: is the tab's name, never its
+                                     type: a map tab named Maps is found by tab:maps because of
+                                     what it is called. An item in a substash — a map tab's or a
+                                     unique tab's, whose own names are "1" or empty — is tested
+                                     against the substash's name and its tab's. A folder's name
+                                     is no part of it. A stash item has no character and a
+                                     character's no tab: known absence.
+  id:<handle>                          any id an answer printed, whole: the item's own, or its
+                                     tab's, substash's or character's, which finds what is in
+                                     it. `:` and `=` mean the same. acq show takes an item's id.
   unknown field, operator or closed value → an authoring error, near names offered; mod( and
   stat( are ordinary unknown names. realm: is an error that names the scope words (C96).
   A valid selector nothing carries is NOT an error: it matches nothing known, and is
@@ -188,6 +205,10 @@ MEMBERS — conditions that hold together on one member
              line("# to maximum Life" source=explicit -is:crafted arg1>=90)
              line(template:resistance is:fractured)
              line("Adds # to # Cold Damage" low>=15 high<=45)
+           A quoted template is compared in any case too. GGG has spelled some lines
+           two ways — Gain # Life per Enemy Killed · Gain # Life per enemy killed —
+           and one spelling typed finds both: the term lists the spellings it found,
+           and template~"(?-i)^Gain # Life per enemy killed$" selects one.
   linked:  red green blue white (counts)   size
              linked(red>=3 green>=1)      linked(size>=5 blue>=2)
   inside: and / or / - / ( ); a bare word is an error here as everywhere
@@ -205,6 +226,9 @@ SLOTS — the words that name a number
   two `# to #`        not ranged: low, high or avg on it is an error that lists arg1 … arg4
   (#-#)               "Bow: Adds (#-#) to (#-#) Cold Damage" describes possible rolls and never
                       reads `# to #`: positional only — a line, and searchable, like any other
+  a slot is checked against a quoted template wherever the template sits among the group's
+  conjuncts: line(("T" source=explicit) arg3>=0) is the error line("T" source=explicit arg3>=0)
+  is. A template under an or or a not states no numbers, and its slots are the evaluator's.
 
 VALUES
   line(P).<slot>                 a projected value: what a comparison, a sum or a sort consumes.
@@ -230,7 +254,10 @@ VALUES
                                  pseudo.total_res>0 and undecided(pseudo.total_res).
   sockets  links  sockets.red    counts over the socket collection:  sockets>=5  links=6  sockets.red>=2
   has:priced   price.amount  price.currency  price.lot
-  --sort takes a value; a ranged value needs a slot; no satisfying occurrence sorts last either way.
+  --sort takes a number: ilvl, stack, line(P).<slot>, sum( … ); a ranged value needs a slot. An
+  item with no satisfying occurrence sorts last either way, and so does one whose largest is not
+  established — a source P admits is unread, or an occurrence P may select holds a larger number:
+  what was readable is shown, marked incomplete, as an incomplete sum is.
 ```
 
 **A sum's status.** One rule for computed totals and item sums:
@@ -269,6 +296,11 @@ reasoning, in `search/search-forms/11-owner-amendments.md`):
   `pseudo.total_res`). It has no trade equivalent, so it is the
   translation's remainder (C99). Its cost over all displayed text is
   unmeasured.
+- On the case of `=`: "i agree with any-case everywhere after this
+  investigation." Six pairs of the census's 6,549 templates differ only
+  by capitals, each a line GGG has spelled two ways; an exact `=` would
+  find 209 items of one such line and miss the 2 spelled the other way,
+  with no sign of it.
 - Positions are `arg<N>`, his form, after he asked whether `#1` and `#2`
   could lose the special character: the template is a format string and
   its numbers are the arguments filled into it, so every slot word is a
@@ -350,7 +382,7 @@ hand from those facts.
 query   league=Standard class=ring rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60
 scope   account A · pc · live · 7 items · 2 locations fetched (oldest 3d, newest 2h)
         1 never fetched · location list seen 2h ago                       more: --view locations
-basis   snapshot 41 · intent 12 · totals v1 · classes v3
+basis   store 3f9a1c0be27d · snapshot 41 · intent 12 · totals v1 · classes v3
 terms   each term evaluated independently over live pc items in all leagues
   0    league=Standard                        7 matched
   1    class=ring                             6 matched · 1 undecided
@@ -482,7 +514,13 @@ since none has a trigger yet. Meeting one is a listed limit (C102).
   is never inferred from an incomplete collection. The four counts are
   taken per atomic term before outer composition, over the fixed item
   scope, before pagination, with no short-circuit omission; root matches
-  and root undecided are separate answer counts. `has:` is the spelling
+  and root undecided are separate answer counts. On a line's group,
+  *lacked* is no occurrence its selector picks, and *failed* is one
+  picked and none satisfying the whole. The selector is the group with
+  its comparisons taken as favourably as they can be and folded away —
+  `"T" arg1>=90` selects as `"T"`, `"T" (source=explicit arg1>=90)` as
+  `"T" source=explicit` — and a group that compares no number never
+  fails. `has:` is the spelling
   of presence; `-has:reqlevel` is how OQ5 asks absence, and an unread
   requirements array does not satisfy it. Only what cannot be
   established on an item is undecided: a name the language does not
@@ -576,7 +614,11 @@ since none has a trigger yet. Meeting one is a listed limit (C102).
 - **C98 (K4) — the basis.** The facts revision advances in the
   transaction that changes bodies, locations or membership; the basis
   carries the store and account identity, so revision 7 in two accounts
-  is never one snapshot; a resident joined value (an effective price) is
+  is never one snapshot. The store is named by twelve hex digits of the
+  SHA-256 of its file's canonical path, as C83 names a world (owner,
+  2026-09-20: "(a') now and park (c)"): no path in an answer and no
+  migration; a file moved is another store. An id the file itself
+  carries is parked (`decisions/search.md`); a resident joined value (an effective price) is
   part of the held corpus and is reused only under the intent revision
   it was read at (Astra's counterexample: facts at 7, a price moved at
   intent 12 → 13). The numbers that would move persistence: the

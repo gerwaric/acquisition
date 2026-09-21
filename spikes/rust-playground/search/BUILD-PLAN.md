@@ -756,7 +756,8 @@ reproduced with a fixture of the builder's own before it was taken.**
 Verdict of the audit: keep step 4 open. Finding 7 and B2–B11 were ruled
 2026-09-20 (owner: "Otherwise agree with all you recommendations");
 B1 the same day;
-it stays open until the reference carries what was ruled.
+the reference carries them since (owner, on the text proposed: "R1-12
+are approved").
 
 | # | Finding | Verdict | Held by |
 | --- | --- | --- | --- |
