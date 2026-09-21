@@ -56,6 +56,36 @@ is provisional, this plan's later steps included.
    opened only by the owner, at a terminal. No GGG traffic anywhere in
    this plan; the one daemon is M5's, a mock session.
 
+Rules 8 to 10 are what step 4b's audits taught (the record, "Step 4b"),
+each a fault that came back until it was named; the owner approved their
+meaning from a plain account of each and left the wording to the
+builder (2026-09-22: "the words that get written down are for you"; "If
+so, go ahead"). Each names what already holds it: the rule is for the
+moment before the code is written.
+
+8. **Unknown is said once, where the evidence is read, and of no more
+   than was lost.** What the deriver cannot read — a flag that is no yes
+   or no, a number it does not read, an array that is no array — is
+   unread there, at that grain: the flag, the slot, the array. Too small
+   and it reads as absent, and a not makes a witness of it; too large and
+   terms that never needed it are left open (C93). Nothing downstream
+   has a fallback or a second way to fail. *Held by:* the completion
+   property; `derive::Slot`, `Line::flags_unknown`, `Unread::line`.
+9. **A cut follows the data, never the query.** A block that shows part
+   of something orders it by the item or by the counts, so that two
+   spellings of one question show the same part (invariant 7), chooses
+   what is relevant before it cuts, and counts what it left out in the
+   unit it cut — rows, values, unread parts. *Held by:* the equivalence
+   property, where a generated or fixed case crosses the bound: a new
+   bound needs a case past it.
+10. **One maker for each kind of thing an answer holds.** What a group
+    means (`group.rs`, refused elsewhere by `tools/docs-check.sh` §7), a
+    command (`answer::command`: rule 5 is this rule for commands), why
+    an item is undecided (`eval::why`), a sum (`exact.rs`). A second
+    maker is how two parts of one answer come to disagree: look for the
+    first before writing one. *Held by:* §7; the CLI test that runs
+    every command printed; the cross-checks.
+
 ## Steps to the first seat
 
 | Step | Builds | Closes on |
