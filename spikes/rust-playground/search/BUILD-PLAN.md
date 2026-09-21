@@ -1063,6 +1063,23 @@ is asked, its numbers where a number is — before the six-part cut.
 case; a generated check holds the second half (a reason is of what its
 term asked) and refuses the old join. Yields of the four looks: 6, 3, 3, 1.
 
+**Step 4b is closed** (owner, 2026-09-22, on the audit's last word: "With
+that, i think we are ready to close"). The audit's, of `b4d7a7d0`: the
+occurrence association fixes the remaining finding, no further blocker,
+"No additional abstraction or audit round is warranted by the evidence
+here. Step 5, then the owner's seat, is the right next move"; it asked
+that the fixed occurrence case stay beside the generated checks, which
+cover different failures, and it did not repeat the full gate or the
+census measurement, which the builder ran (M2: 0 unread, 0 unexplained).
+What the step closed on, against its row above: the properties green in
+the gate, each shown able to fail; §7's rule with its breakers (56 ok
+at the close); step 4's tests green — untouched by part 2, and step 2's
+`tests/derive.rs` re-pinned for cause at the third review; the outside
+audit, four looks, 6, 3, 3, 1. M3 at the close, `b4d7a7d0`: first ask
+486 ms; warm, release, 269 to 304 ms (AQ2, the sum, 304), debug 1,762 to
+2,489 — every release ask under 500 ms, so the persisted-projection
+park's trigger does not fire.
+
 The generators write a number with five decimals, which a completion
 fills; with an unread slot read as a no again the completion property
 refuses at once, shrunk to `line("# to maximum Life" arg1>=0)` over
