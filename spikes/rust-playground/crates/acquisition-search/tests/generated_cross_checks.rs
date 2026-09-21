@@ -15,7 +15,8 @@
 //!   suggestion's count is what its term returns (invariant 4).
 //! - **A row's evidence is the item's** (C100, C103): every line a row
 //!   shows is a line `show` derives of that item — source, flags and text —
-//!   and what a row shows of one term is bounded (invariant 5).
+//!   and what a row shows of one term is bounded (invariant 5): six lines
+//!   or strings, or the reasons of six unread parts.
 //! - **Every occurrence in another order** (C92): no term moves, and no
 //!   sum and no largest — decimals among the numbers.
 //! - **Every item twice** doubles every count and changes no row's
@@ -158,8 +159,20 @@ fn evidence_is_the_items(store: &Store, answer: &Value) -> Result<(), String> {
         let lines = shown["lines"].as_array().ok_or("show has no lines")?;
         let flags = |line: &Value| line["flags"].clone();
         for touched in row["matched"].as_array().ok_or("a row with no matched")? {
-            // six, and a sum's value beside them
-            if touched["shows"].as_array().ok_or("no shows")?.len() > 7 {
+            // six lines or strings, and a sum's value beside them; of
+            // reasons, six unread parts — every term's pair with each, so
+            // the parts are counted and never the entries
+            let shows = touched["shows"].as_array().ok_or("no shows")?;
+            let parts: std::collections::BTreeSet<String> = shows
+                .iter()
+                .filter_map(|e| e.get("undecided"))
+                .map(|r| format!("{} {}", r["unread"], r["problem"]))
+                .collect();
+            let others = shows
+                .iter()
+                .filter(|e| e.get("undecided").is_none())
+                .count();
+            if others > 7 || parts.len() > 6 {
                 return Err(format!("row {id} shows more than its bound: {touched}"));
             }
             for evidence in touched["shows"].as_array().ok_or("no shows")? {
@@ -406,6 +419,23 @@ fn the_checks_refuse_an_empty_zero_block_a_miscounted_suggestion_and_an_unbounde
             .unwrap_err()
             .contains("says 2 and returns 1")
     );
+    // many terms resting on one unread part are one part, however many
+    // pairs: the bound counts parts, and this is within it
+    let (one_part, probed, _) = fixture_with_store(vec![json!({ "corrupted": "unread" })]);
+    let eight = ["is:corrupted"; 8].join(" ");
+    let probe = run(
+        &probed,
+        &request(&format!("undecided({eight})"), None, false, 10),
+    )
+    .unwrap();
+    assert_eq!(
+        probe["rows"][0]["matched"][0]["shows"]
+            .as_array()
+            .unwrap()
+            .len(),
+        8
+    );
+    evidence_is_the_items(&one_part, &probe).unwrap();
     let answer = run(&corpus, &request("line(template:life)", None, false, 10)).unwrap();
     evidence_is_the_items(&store, &answer).unwrap();
     let mut bad = answer.clone();

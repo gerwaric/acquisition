@@ -738,6 +738,10 @@ pub enum Flags {
 pub struct LineM {
     pub kind: u8,
     pub n: i32,
+    /// The number is written with more decimals than the search reads: an
+    /// unread slot, which a completion fills with a number. Never on the
+    /// ranged line, whose second number is read and must stay as it is.
+    pub unread_number: bool,
     pub flags: Flags,
 }
 
@@ -789,8 +793,18 @@ pub fn line(holes: bool) -> BoxedStrategy<LineM> {
         5 => (tri(holes), tri(holes)).prop_map(|(crafted, fractured)| Flags::Each { crafted, fractured }),
         hole => Just(Flags::Hole),
     ];
-    (0u8..7, LOW..=HIGH, flags)
-        .prop_map(|(kind, n, flags)| LineM { kind, n, flags })
+    (
+        0u8..7,
+        LOW..=HIGH,
+        proptest::bool::weighted(if holes { 0.15 } else { 0.0 }),
+        flags,
+    )
+        .prop_map(|(kind, n, unread, flags)| LineM {
+            kind,
+            n,
+            unread_number: unread && kind != 2 && kind != 3,
+            flags,
+        })
         .boxed()
 }
 
@@ -953,6 +967,7 @@ impl Body {
                 [LOW, 0, 1, HIGH].map(|n| LineM {
                     kind,
                     n,
+                    unread_number: false,
                     flags: Flags::Each {
                         crafted: flag,
                         fractured: flag,
@@ -1002,10 +1017,13 @@ impl Body {
             Lines::Hole => true,
             Lines::Of(elems) => elems.iter().any(|e| match e {
                 Elem::Junk => true,
-                Elem::Line(l) => match &l.flags {
-                    Flags::Hole => true,
-                    Flags::Each { crafted, fractured } => tri(*crafted) || tri(*fractured),
-                },
+                Elem::Line(l) => {
+                    l.unread_number
+                        || match &l.flags {
+                            Flags::Hole => true,
+                            Flags::Each { crafted, fractured } => tri(*crafted) || tri(*fractured),
+                        }
+                }
             }),
         };
         of(&self.explicit)
@@ -1077,7 +1095,19 @@ impl Body {
                                     (toss(*crafted), toss(*fractured))
                                 }
                             };
+                            // an unread number may be any number: the
+                            // ends of the range, or one the dice pick
+                            let n = match (l.unread_number, coins) {
+                                (false, _) => l.n,
+                                (true, Coins::No) => LOW,
+                                (true, Coins::Yes) => HIGH,
+                                (true, Coins::Tossed(_)) => {
+                                    LOW + pick((HIGH - LOW + 1) as usize) as i32
+                                }
+                            };
                             out.push(Elem::Line(LineM {
+                                n,
+                                unread_number: false,
                                 flags: Flags::Each { crafted, fractured },
                                 ..l.clone()
                             }));
@@ -1125,7 +1155,22 @@ impl Body {
             Tri::Hole => json!(UNREAD),
         };
         let line = |l: &LineM| {
+            // five decimals: one more than the search reads
             let description = match l.kind {
+                0 | 1 | 4 | 6 if l.unread_number => {
+                    let of = [
+                        "to maximum Life",
+                        "% to Cold Resistance",
+                        "",
+                        "",
+                        "to Spirit",
+                        "",
+                        "to maximum life",
+                    ][usize::from(l.kind)];
+                    let gap = if l.kind == 1 { "" } else { " " };
+                    format!("{:+}.12345{gap}{of}", l.n)
+                }
+                5 if l.unread_number => format!("{}2345% of Damage Leeched as Life", tenths(l.n)),
                 0 => format!("{:+} to maximum Life", l.n),
                 1 => format!("{:+}% to Cold Resistance", l.n),
                 2 => format!("Adds {} to {} Cold Damage", l.n.abs(), l.n.abs() + 7),
