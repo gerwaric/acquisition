@@ -294,8 +294,9 @@ reasoning, in `search/search-forms/11-owner-amendments.md`):
   pattern-selected lines is the user's arithmetic, never a reviewed
   total (the all-elemental line counts once there, three times in
   `pseudo.total_res`). It has no trade equivalent, so it is the
-  translation's remainder (C99). Its cost over all displayed text is
-  unmeasured.
+  translation's remainder (C99). Its cost over all displayed text was
+  measured at the first surface: 9 ms an ask over 22,623 items (the build
+  plan's M4).
 - On the case of `=`: "i agree with any-case everywhere after this
   investigation." Six pairs of the census's 6,549 templates differ only
   by capitals, each a line GGG has spelled two ways; an exact `=` would
@@ -453,6 +454,9 @@ Opt-in, one node at a time.
    whole, never an enumeration by default.
 6. Search is a pure read, and no item predicate supports a claim about
    an unfetched location.
+7. Parentheses group and do nothing else: a rewrite that changes no
+   meaning changes no match, no count, no error and no route — only the
+   canonical text and the paths (invariant 1).
 
 ### Outside the first surface
 

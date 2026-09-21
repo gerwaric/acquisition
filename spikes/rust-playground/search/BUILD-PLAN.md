@@ -157,9 +157,12 @@ made under them and not beside them.
    items, through the crate's boundary (a request in, an answer out, as
    JSON — rule 3). `proptest` is already a dev-dependency, and
    `tests/language.rs` has generators for trees and groups.
-   - **Equivalence.** A rewrite that changes no meaning — parentheses
-     around any of a group's conjuncts, a doubled not, the same for the
-     item's tree — changes nothing in the answer but the canonical text
+   - **Equivalence** — invariant 7 of the surface, the builder's
+     proposal, which the owner approved (2026-09-20: "yes, i agree"): what
+     four audits found broken was a rule nobody had written down. A
+     rewrite that changes no meaning — parentheses around any of a
+     group's conjuncts, a doubled not, the same for the item's tree —
+     changes nothing in the answer but the canonical text
      and the paths: the same counts, together count, resolved values,
      zero block, rows, and the same error or none.
    - **Routes.** Every route an answer prints binds and is not refused
@@ -757,7 +760,10 @@ Verdict of the audit: keep step 4 open. Finding 7 and B2–B11 were ruled
 2026-09-20 (owner: "Otherwise agree with all you recommendations");
 B1 the same day;
 the reference carries them since (owner, on the text proposed: "R1-12
-are approved").
+are approved"), and a seventh invariant of the surface with them — that
+parentheses group and do nothing else — the builder's proposal, approved
+the same day. Nothing of step 4 waits on the owner now; what is left is
+4b's.
 
 | # | Finding | Verdict | Held by |
 | --- | --- | --- | --- |
