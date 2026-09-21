@@ -465,6 +465,7 @@ record's step ledger and its observations.
 | 2 · the derivation | `ef720323` | `derive.rs`: `derive(facts, body) -> Item`, pure and total — the header, `rarity` and `frameTypeId` as given, `ilvl`, `stackSize`, the note, every yes the body says; properties and requirements as displayed strings, name and values kept apart; lines as (source, flags, template, numbers) with `slot` and the ranged rule; `displayed()`, the rows a phrase will be tested against; and what could not be read, by part, the readable rest still derived. `tests/derive.rs`: 12 fixtures worked by hand and a property test that no text and no JSON panics it. M2 below: no unexplained difference. `template::typed` gained the thousands comma. |
 | 3 · the store's read | `c0a8f918` | `acquisition-store/src/corpus.rs`: `Store::read_corpus` — the header (the revision, the account, the realms the file holds, the latest listing of each list in scope, every live location in scope with its `type`, `listed_at` and `fetched_at`) and then every live item at a live location, streamed to the caller's closure inside one read transaction, league joined as `read_items` joins it, the body as text — and `Store::revision`. Seven store tests, `REFRESH-SLICE.md`'s findings as the checklist: the one-snapshot test over two handles on one file (it fails when the snapshot is ended after the header — tried), the league join over a character the listing moved and a league-less one, live by full coordinate (one tab id under `pc` and `xbox`) in one realm or all, the revision through every write door, no derived column in the read or its order, a store with no account refused, and the header's coverage — a folder told from an unfetched tab, a retired tab's substash no live location (it fails without the exclusion — tried), an empty listing still seen. The revision's line-by-line read is that module's doc. C103's second decision is C108 (`decisions/store.md`), its wording approved by the owner (2026-09-20: "All is approved"). M1 below. |
 | 4 · the first surface | `28606ed4` | `acquisition-search` links the store (C89) and gains `bind.rs` (the vocabulary as closed lists, near names, the one list of what is not built, a bare word's closed-set readings), `corpus.rs` (every live item of a scope derived from one `read_corpus`, held with its basis, its places and the coverage the scope block states), `eval.rs` (matched, failed, lacked, undecided; witnesses; three-valued composition and the `holds` interval; sums with their status; the sort scalar; the together count), `answer.rs` (the request and the answer: a route on every count that is not zero, what a `:` or `~` selector resolved to, rows with what matched, the zero block), `describe.rs`, `show.rs`. The CLI gains `acq search` and `acq show` (`search_cmd.rs`), text rendered from the value `--json` prints, the flags of steps 5 and 10 refused by name; README tour lines; `CLI-REFERENCE.md` regenerated. Tests at the crate's boundary, every count worked by hand first: `tests/answer.rs` (the worked example reduced, the route property, invariants 2 and 6, C93's composition, C92's scalar, C96's scope, C98 at the answer's boundary), `tests/acceptance.rs` (OQ1–OQ4, OQ7, AQ2–AQ5 as far as step 4 builds them; S12, S52 and S107 by their wording), `tests/refusal.rs` (the walk over `language.toml`, invariant 3, S53), and the CLI's `tests/search_json.rs`. Three mutants tried, each caught: unread beating a witness, a line's failed route as `-term`, not-undecided as true. M3 and M4 below. |
+| 4b · the properties | `39e7667a`–`36a9738a` | Three properties beside the outside agent's routes, each through the crate's boundary over generated queries and generated items with unread evidence, from one set of generators (`tests/common/generated.rs`: a query tree of the test's own with its normal form, and bodies with holes that a completion fills): `tests/generated_equivalence.rs` (invariant 7), `tests/generated_completion.rs` (C93's definition, its measured half run by hand), `tests/generated_cross_checks.rs` (transformations 10 and 13). Then `group.rs`: what `line( … )` means, computed once at binding and read from there, the bound form private to it; `tools/docs-check.sh` §7 refuses a source file that names a group's tree outside `tree`, `parse`, `print`, `json`, `template` and `group`, with five breakers (`tools/docs-check-breakers.sh`, 56 ok). No test of step 4 was touched and the answer's JSON did not move. What they met is below. |
 
 **Found by step 1's own tests, in the builder's code:** a computed value
 named alone (`pseudo.total_res`) was answered as a bare word; a whole
@@ -871,6 +872,140 @@ third-round fixes held, no defect found in `show`, three more.
 - Over the copy, `name="Ashes of the Stars"` finds ten, which is the
   variant park's first test (below, "Parks whose triggers the build
   fires"): step 4 has reached OQ2, and the question is the owner's.
+
+### Step 4b — what the properties met
+
+**No defect of the build was found by any property** — of the first
+surface as the fourth audit's fixes left it (`c3de464d`). That is a claim
+about the properties as much as the build, so each was shown able to fail
+before it was believed, and the outside audit this step closes on is the
+check of both.
+
+**Every property passed at its first run, and each time that was a
+signal and not a result.** Equivalence: a third of its queries were
+authoring errors (a slot its quoted template lacks) and 837 of 870 bodies
+had a hole; rebalanced, 7 queries in 100 err and a third of bodies are
+fully readable. Its one failure since was the test's — the reasons an
+`undecided( … )` shows follow the order its terms were written in.
+Completion: its completions were too few and too random to move an
+equality or an element that is no line, so its measurement said little;
+the sixteen it tries now are in its header. Cross-checks: believed only
+after the three mutants below.
+
+**The mutants** — each a fix of step 4's audits undone, or a fault of the
+same kind; tried against the three generated properties before part 2,
+and A–E, G and H again after it, in `group.rs`, with the same result.
+`·` survived; blank, not tried.
+
+| | Mutant | routes | equivalence | completion | cross-checks |
+| --- | --- | --- | --- | --- | --- |
+| A | the together bound looked for among the group's immediate members | · | caught | · | |
+| B | which sources a group admits, read off its immediate members | caught | caught | caught | |
+| C | the slot check at the group's own level only | · | caught | · | |
+| D | the selector dropping a whole member that holds a comparison | caught | caught | caught | |
+| E | the selector ignoring a not | caught | caught | caught | |
+| F | unread beating a witness | · | · | · — seen by the measurement | |
+| G | a line's unread flag read as a no | · | · | caught | |
+| H | an unread array read as empty | caught | · | caught | |
+| I | a sum ignoring an occurrence it may select | · | · | caught | |
+| J | a largest ignoring a larger that may be selected | · | · | caught | |
+| K | the zero block reading a group's first template alone | · | · | · | caught |
+| L | an unread `ilvl` read as absent | · | · | caught | |
+| N | `undecided(V)` missing an incomplete value with nothing readable | | | | caught |
+| O | a sum counting one text once | | | | caught |
+
+Every reading of a group off its syntax (A–E) is caught by equivalence,
+which is what part 2 was made under. F makes an answer more careful and
+never wrong, so nothing that binds can see it: step 4's hand test does
+(`tests/answer.rs`), and so does the measurement. K is the same wrong in
+every spelling and under every completion; only a second part of the
+answer contradicts it.
+
+**The completion property's measured half** —
+`cargo test -p acquisition-search --test generated_completion -- --ignored --nocapture`,
+2026-09-20, 2,000 cases from a fixed seed, 183 of them authoring errors;
+the same numbers before part 2 and after it. What was decided as stored
+and held under all sixteen completions: 3,309 terms, 1,251 roots, 3,756
+sort scalars; counterexamples, none. What was undecided as stored:
+
+| Undecided | Completions differed | Every one said no | Every one said yes |
+| --- | ---: | ---: | ---: |
+| a field, a flag or a phrase | 200 | 39 | 0 |
+| a line's group | 489 | 457 | 0 |
+| a sum's comparison | 84 | 191 | 110 |
+| the root | 256 | 209 | 101 |
+| a sort scalar | 1,055 | 822 with one value | |
+
+The kinds that did not differ, read from the examples the run prints:
+
+- *The sampler cannot reach it.* An element that is no line becomes one
+  line at most, and the term wants a template at one value (`arg1=11`); a
+  selector nothing carries (`template:nothing`); a phrase no generated
+  line says (`"Level: 8"` where an array is unread); an upper bound no
+  generated value breaks (`sum( … )<=21`, values to 12). Each is
+  undecided rightly: a completion that differs exists and was not tried.
+- *A group no occurrence can satisfy* — two quoted templates in one and,
+  `arg1<2 arg1>=12`. Every completion says no, and the evaluator says
+  undecided while a source the group admits is unread: it asks which
+  sources a group admits and never whether anything could satisfy it.
+  Careful on purpose; no rule of the reference asks for more.
+- *A comparison on an incomplete subtotal*, undecided whatever the
+  subtotal already reaches: the reference's sum-status table, and this
+  section's own example of a rule careful on purpose. The eight the run
+  prints of the 110 sums every completion made true are this kind or the
+  first, and the eight roots it prints inherit a sum or a negated group;
+  the rest were not read.
+- The column that matters is the empty one: **no undecided group, field,
+  flag or phrase was made true by every completion**, which is where a
+  missed witness shows. With mutant F applied, 83 groups and 18 fields in
+  600 cases are.
+
+**Observations — the builder's.**
+
+- *Failed against lacked under completion.* A line's group that failed as
+  stored lacked under a completion 19 times in 2,000 cases: the selector
+  was open on an occurrence with unread flags, the whole was false on it
+  whatever the flag, and a completion answered the flag no. The property
+  lets this through and counts it: *failed* on a group says the truth is
+  established and the absence is not, *lacked* is the claim that needs
+  everything readable (C93), and no answer's members move (B7). A
+  matched, a lacked, and a failed that turned true would each be a defect.
+- The transformations: 1–4 and 11 are equivalence's, the returned tree
+  sent back among them; 5–8 completion's; 9 is the generators' one small
+  range for values and bounds, zero and negatives in it; 10 and 13 are the
+  cross-checks'; 12 is the landed file's. Of 13, a row's evidence is
+  checked to be lines `show` derives of that item, never that they are the
+  lines that satisfied the term.
+- What no property here sees: a fault every spelling and every completion
+  shares and no second part of the answer states; the text the CLI
+  renders; `--describe`; whether an error's readings are good ones. The
+  hand-counted tests hold the first as far as they go, and the next audit
+  is pointed at the rest.
+- The rule names and does not only match: `use … Member as M` was a way
+  round the first wording, found by asking how the check could be passed
+  without being obeyed, and is a breaker now.
+- The gate's cost, a debug build here: equivalence 14 s, the cross-checks
+  15 s, completion 3 to 6 s, beside the routes' 16 s. 256, 192 and 256
+  cases; `PROPTEST_CASES` runs any of them longer by hand.
+- The commit of part 2 first stated its line counts from memory, twice
+  wrong, and was amended from `git diff --numstat` (the trap
+  `search/README.md` already names).
+
+**M3 again** — the same command as step 4's, 2026-09-20, the build at
+`36a9738a`: first ask 445 ms; warm, release, 270 to 299 ms over the
+thirteen asks (the empty query 270, OQ1 288, AQ2 299, `~` over all text
+277), debug 1,739 to 2,438 ms. Every release ask is under 500 ms. Each
+release figure is within 9 ms of the audited build's column above, taken
+the same day (OQ2 the furthest, 269 to 278); the two builds were not run
+against each other, so that part 2 cost nothing is not claimed.
+
+**For the outside audit this step closes on** (by the owner's hand): the
+range `39e7667a`–`36a9738a`; what the plan's "Step 4b" already points it
+at — the rows, the zero block, `show`, `--describe`, the CLI's text —
+and the four generated test files with `tests/common/generated.rs`:
+whether each can detect a meaningful fault, what the normal form and the
+sixteen completions leave out, and whether §7's rule can be passed
+without being obeyed. Its yield goes beside 6, 5, 2, 3.
 
 ## Gaps found while planning — rules the reference did not state
 
