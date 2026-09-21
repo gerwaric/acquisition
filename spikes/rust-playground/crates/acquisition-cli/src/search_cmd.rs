@@ -379,7 +379,13 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                     .collect();
                 let more = resolved.more + resolved.values.len().saturating_sub(SHOWN);
                 if more > 0 {
-                    values.push(format!("{more} more: --count line, not built (step 5)"));
+                    // the vocabulary for a group's templates, the field's
+                    // own table for a field's values
+                    let key = match resolved.of.as_str() {
+                        "template" => "line",
+                        field => field,
+                    };
+                    values.push(format!("{more} more: --count {key}, not built (step 5)"));
                 }
                 if !values.is_empty() {
                     line(format!("       → {}", values.join(" · ")));
@@ -398,6 +404,11 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         let mut head = title(row.name.as_deref(), row.typeline.as_deref());
         if let Some(rarity) = &row.rarity {
             head.push_str(&format!(" · {}", rarity.to_lowercase()));
+        }
+        // a scope that spans realms says which one each item is in, as
+        // `show` does; under one realm the scope line has said it
+        if a.scope.realm == Realm::All {
+            head.push_str(&format!(" · {}", row.place.realm));
         }
         head.push_str(&format!(" · {}", place_text(&row.place)));
         line(format!(
@@ -438,6 +449,14 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         shows.dedup();
         if !shows.is_empty() {
             line(format!("            {}", shows.join(" · ")));
+        }
+        for touched in row.matched.iter().filter(|t| t.left_out > 0) {
+            line(format!(
+                "            {} more of term {}: acq show {}",
+                touched.left_out,
+                touched.path,
+                acquisition_search::answer::shell_quoted(&row.id)
+            ));
         }
         line(format!("            id {}", row.id));
     }
@@ -557,17 +576,19 @@ fn describe_text(d: &Describe) -> String {
         }
         out.push_str(&format!("{head}\n"));
         for e in entries {
-            out.push_str(&format!("  {:<12}{:<11}{}\n", e.name, e.kind, e.what));
+            out.push_str(&format!("  {:<16}{:<12}{}\n", e.name, e.kind, e.what));
             if !e.values.is_empty() {
-                out.push_str(&format!("  {:<23}one of: {}\n", "", e.values.join(", ")));
+                out.push_str(&format!("  {:<28}one of: {}\n", "", e.values.join(", ")));
             }
             if !e.examples.is_empty() {
-                out.push_str(&format!("  {:<23}e.g. {}\n", "", e.examples.join("   ")));
+                out.push_str(&format!("  {:<28}e.g. {}\n", "", e.examples.join("   ")));
             }
         }
     };
     block("fields", &d.fields);
     block("inside line( … )", &d.line);
+    block("values", &d.values);
+    block("composition", &d.composition);
     block("operators", &d.operators);
     block("slots", &d.slots);
     block("computed values", &d.computed);

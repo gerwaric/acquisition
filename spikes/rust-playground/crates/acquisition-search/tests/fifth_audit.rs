@@ -1,0 +1,233 @@
+//! The fifth outside audit (2026-09-21), of step 4b at `ef381909`: four
+//! defects of the first surface that the generated properties had not
+//! met, each reproduced here before it was fixed. C92 (a sum), C100 and
+//! invariants 4 and 5 of the surface (a count has a route; every block is
+//! bounded), C97 (`--describe` is the help).
+
+mod common;
+
+use acquisition_search::describe;
+use common::generated::{fixture, request, run};
+use serde_json::{Value, json};
+
+fn lines(texts: &[&str]) -> Value {
+    json!({ "explicitMods": texts })
+}
+
+/// A sum is its occurrences' sum, in whatever order the body lists them:
+/// 0.1 + 0.2 + 0.3 is 0.6, never 0.6000000000000001, so `=0.6` matches
+/// both items and both sort by one value. The mean of a ranged pair is a
+/// sum too.
+#[test]
+fn c92_a_sum_of_decimals_is_exact_and_no_order_of_occurrences_changes_it() {
+    let leech = |values: [&str; 3]| {
+        let texts: Vec<String> = values
+            .iter()
+            .map(|v| format!("{v}% of Damage Leeched as Life"))
+            .collect();
+        json!({ "explicitMods": texts })
+    };
+    let (corpus, _) = fixture(vec![
+        leech(["0.1", "0.2", "0.3"]),
+        leech(["0.3", "0.2", "0.1"]),
+        lines(&["Adds 0.1 to 0.2 Cold Damage"]),
+    ]);
+    let ids = |query: &str, sort: Option<&str>| -> Vec<(String, Value)> {
+        let answer = run(&corpus, &request(query, sort, false, 10)).unwrap();
+        let mut rows: Vec<(String, Value)> = answer["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| {
+                (
+                    r["id"].as_str().unwrap().to_string(),
+                    r["sort"]["value"].clone(),
+                )
+            })
+            .collect();
+        rows.sort_by(|a, b| a.0.cmp(&b.0));
+        rows
+    };
+    let sum = "sum(\"#% of Damage Leeched as Life\")";
+    let matched: Vec<String> = ids(&format!("{sum}=0.6"), None)
+        .into_iter()
+        .map(|r| r.0)
+        .collect();
+    assert_eq!(matched, ["i0", "i1"]);
+    let sorted = ids("\"#% of Damage Leeched as Life\"", Some(sum));
+    assert_eq!(sorted[0].1, json!(0.6));
+    assert_eq!(sorted[1].1, json!(0.6));
+    // reaching a bound only together is a sum as well
+    let together = run(
+        &corpus,
+        &request(
+            "line(\"#% of Damage Leeched as Life\" arg1>=0.6)",
+            None,
+            false,
+            10,
+        ),
+    )
+    .unwrap();
+    assert_eq!(together["terms"][0]["together"]["count"], 2);
+    // (0.1 + 0.2) / 2 is 0.15
+    let avg: Vec<String> = ids("line(\"Adds # to # Cold Damage\" avg=0.15)", None)
+        .into_iter()
+        .map(|r| r.0)
+        .collect();
+    assert_eq!(avg, ["i2"]);
+}
+
+/// A suggestion's count is the count of the term it offers (invariant 4):
+/// `=` is any-case, so two spellings of one line are one suggestion, and
+/// asking it returns as many items as it said.
+#[test]
+fn c100_a_suggestion_counts_what_its_term_returns() {
+    let (corpus, _) = fixture(vec![
+        lines(&["Gain 5 Life per Enemy Killed"]),
+        lines(&["Gain 7 Life per enemy killed"]),
+        lines(&[
+            "Gain 9 Life per Enemy Killed",
+            "Gain 1 Life per enemy killed",
+        ]),
+    ]);
+    let answer = run(
+        &corpus,
+        &request("line(\"Gain # Life per Enemy Kiledd\")", None, false, 10),
+    )
+    .unwrap();
+    let suggestions = answer["zero"]["resolved_to_nothing"][0]["suggestions"]
+        .as_array()
+        .unwrap();
+    assert_eq!(
+        suggestions.len(),
+        1,
+        "one line, however GGG spelled it: {suggestions:?}"
+    );
+    for s in suggestions {
+        let asked = run(
+            &corpus,
+            &request(s["term"].as_str().unwrap(), None, false, 10),
+        )
+        .unwrap();
+        assert_eq!(asked["total"]["matched"], s["items"], "{s}");
+    }
+    assert_eq!(suggestions[0]["items"], 3);
+    // a field's values too
+    let (corpus, _) = fixture(vec![
+        json!({ "name": "Doom Knot" }),
+        json!({ "name": "DOOM KNOT" }),
+    ]);
+    let answer = run(&corpus, &request("name=\"Doom Knott\"", None, false, 10)).unwrap();
+    let suggestions = answer["zero"]["resolved_to_nothing"][0]["suggestions"]
+        .as_array()
+        .unwrap();
+    assert_eq!(suggestions.len(), 1, "{suggestions:?}");
+    assert_eq!(suggestions[0]["items"], 2);
+}
+
+/// A selector that resolved to nothing is said to, whether or not it has
+/// words a suggestion could be scored against: a pattern has none, and is
+/// listed with no suggestion.
+#[test]
+fn c100_a_pattern_that_resolved_to_nothing_is_in_the_zero_block() {
+    let (corpus, _) = fixture(vec![
+        lines(&["+5 to maximum Life"]),
+        json!({ "name": "Doom Knot" }),
+    ]);
+    for (query, of) in [
+        ("line(template:nothing)", "template"),
+        ("line(template~\"nothing\")", "template"),
+        ("sum(line(template~\"nothing\").arg1)>0", "template"),
+        ("name~\"nothing\"", "name"),
+        ("name:nothing", "name"),
+        // found by the cross-check the audit asked for, on its first day
+        ("rarity:ma", "rarity"),
+    ] {
+        let answer = run(&corpus, &request(query, None, false, 10)).unwrap();
+        let nothing = answer["zero"]["resolved_to_nothing"].as_array().unwrap();
+        assert_eq!(nothing.len(), 1, "`{query}`: {nothing:?}");
+        assert_eq!(nothing[0]["of"], of, "`{query}`");
+    }
+    // a pattern that found something is not
+    let answer = run(
+        &corpus,
+        &request("line(template~\"life\" arg1>=90)", None, false, 10),
+    )
+    .unwrap();
+    assert_eq!(answer["zero"]["resolved_to_nothing"], json!([]));
+}
+
+/// What a row shows of one term is bounded, and says what it left out
+/// (invariant 5); `acq show <id>` is the route to the whole.
+#[test]
+fn c100_a_rows_evidence_is_bounded_and_says_what_it_left_out() {
+    let forty: Vec<String> = (1..=40).map(|n| format!("+{n} to maximum Life")).collect();
+    let (corpus, _) = fixture(vec![json!({ "explicitMods": forty })]);
+    for (query, touched) in [
+        ("line(template:life)", 40),
+        ("sum(\"# to maximum Life\")>0", 41),
+        ("text:life", 40),
+    ] {
+        let answer = run(&corpus, &request(query, None, false, 10)).unwrap();
+        let matched = &answer["rows"][0]["matched"][0];
+        let shows = matched["shows"].as_array().unwrap().len();
+        assert!(shows <= 7, "`{query}` shows {shows}");
+        assert_eq!(
+            shows as u64 + matched["left_out"].as_u64().unwrap(),
+            touched,
+            "`{query}`: {matched}"
+        );
+    }
+    // nothing left out is not said
+    let (corpus, _) = fixture(vec![lines(&["+5 to maximum Life"])]);
+    let answer = run(&corpus, &request("line(template:life)", None, false, 10)).unwrap();
+    assert!(answer["rows"][0]["matched"][0].get("left_out").is_none());
+}
+
+/// `--describe` is the help C97 names: it says how terms compose and what
+/// has a value, and a word it prints can be asked for alone.
+#[test]
+fn c97_describe_says_how_terms_compose_and_knows_the_words_it_prints() {
+    let whole = serde_json::to_value(describe(&[]).unwrap()).unwrap();
+    let names = |block: &str| -> Vec<String> {
+        whole[block]
+            .as_array()
+            .unwrap_or_else(|| panic!("no `{block}` block"))
+            .iter()
+            .map(|n| n["name"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let composition = names("composition").join(" ");
+    for word in ["and", "or", "not", "holds", "undecided", "true()"] {
+        assert!(
+            composition.contains(word),
+            "composition lacks `{word}`: {composition}"
+        );
+    }
+    let values = names("values").join(" ");
+    for word in ["sum", "line(P).<slot>"] {
+        assert!(values.contains(word), "values lacks `{word}`: {values}");
+    }
+    // every example the description prints is a query this build binds
+    for block in ["fields", "line", "composition", "values"] {
+        for entry in whole[block].as_array().unwrap() {
+            for example in entry["examples"].as_array().into_iter().flatten() {
+                acquisition_search::parse_query(example.as_str().unwrap())
+                    .unwrap_or_else(|e| panic!("{example}: {e}"));
+            }
+        }
+    }
+    for (word, block) in [
+        ("arg1", "slots"),
+        ("arg7", "slots"),
+        ("avg", "slots"),
+        ("=", "operators"),
+        (">=", "operators"),
+        ("holds", "composition"),
+        ("sum", "values"),
+    ] {
+        let one = serde_json::to_value(describe(&[word.to_string()]).unwrap())
+            .unwrap_or_else(|_| panic!("`{word}`"));
+        assert_eq!(one[block].as_array().unwrap().len(), 1, "`{word}`: {one}");
+    }
+}

@@ -571,7 +571,7 @@ impl Line {
             "high" => at(slots.ranged?.1),
             "avg" => {
                 let (low, high) = slots.ranged?;
-                Some((at(low)? + at(high)?) / 2.0)
+                Some(crate::exact::mean(at(low)?, at(high)?))
             }
             other => at(crate::tree::arg_index(other)?),
         }

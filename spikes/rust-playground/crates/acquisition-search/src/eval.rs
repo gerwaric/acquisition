@@ -36,7 +36,8 @@
 //!   prints. An `undecided( … )` that matched shows the reasons of what it
 //!   asked about, so an undecided count's route returns its members with
 //!   why.
-//! - **A sum** adds the named slot over the occurrences that satisfy its
+//! - **A sum** adds the named slot — as decimals, exactly and the same in
+//!   any order (`exact.rs`) — over the occurrences that satisfy its
 //!   group; an occurrence that names no such slot adds nothing; a sum of
 //!   nothing is zero; with a possible contributor unread it is an
 //!   incomplete subtotal, and a comparison on it is undecided whatever
@@ -53,6 +54,7 @@ use serde::Serialize;
 use crate::bind::{Atom, BProbe, Bound, NumTest, SortKey, Term, Thing};
 use crate::corpus::Held;
 use crate::derive::{Line, Part, Shown, Unread};
+use crate::exact;
 pub(crate) use crate::group::Truth;
 use crate::group::{Asked, Group};
 use crate::tree::Number;
@@ -279,9 +281,7 @@ fn open_with_the_slot(held: &Held, asked: &Asked, slot: &str) -> bool {
 
 /// A sum and whether every possible contributor was readable.
 pub(crate) fn sum(held: &Held, group: &Group, slot: &str) -> (f64, bool) {
-    let total = satisfying(held, &group.whole)
-        .filter_map(|line| line.slot(slot))
-        .sum();
+    let total = exact::sum(satisfying(held, &group.whole).filter_map(|line| line.slot(slot)));
     let complete =
         unread_lines(held, group).is_empty() && !open_with_the_slot(held, &group.whole, slot);
     (total, complete)
@@ -297,9 +297,8 @@ pub(crate) fn together(held: &Held, group: &Group) -> bool {
     if open_with_the_slot(held, &group.selector, &lower.slot) {
         return false;
     }
-    let total: f64 = satisfying(held, &group.selector)
-        .filter_map(|line| line.slot(&lower.slot))
-        .sum();
+    let total =
+        exact::sum(satisfying(held, &group.selector).filter_map(|line| line.slot(&lower.slot)));
     NumTest::Cmp(lower.op, lower.bound.as_f64()).holds(total)
 }
 
@@ -514,14 +513,24 @@ fn line_evidence(line: &Line) -> Evidence {
 /// the place are on every row already, so a term on them shows nothing.
 /// An `undecided( … )` that matched shows why — the reasons of what it
 /// asked about — so the route of an undecided count returns its members
-/// with their reasons, however many there are.
+/// with their reasons. Bounded, with what was left out counted: the item
+/// whole is `show <id>`.
 pub(crate) fn evidence(
     terms: &[Term],
     term: &Term,
     held: &Held,
     outcomes: &[Outcome],
-) -> Vec<Evidence> {
-    const MOST: usize = 3;
+) -> (Vec<Evidence>, usize) {
+    /// How much of one term a row shows; a sum's value is beside it.
+    const MOST: usize = 6;
+    let mut all = everything(terms, term, held, outcomes);
+    let keep = MOST + usize::from(matches!(all.first(), Some(Evidence::Value { .. })));
+    let left_out = all.len().saturating_sub(keep);
+    all.truncate(keep);
+    (all, left_out)
+}
+
+fn everything(terms: &[Term], term: &Term, held: &Held, outcomes: &[Outcome]) -> Vec<Evidence> {
     match &term.atom {
         Atom::Text {
             thing: Thing::Text,
@@ -534,7 +543,6 @@ pub(crate) fn evidence(
                 part: shown_part(shown),
                 text: row.to_string(),
             })
-            .take(MOST)
             .collect(),
         Atom::Text {
             thing: Thing::Note,

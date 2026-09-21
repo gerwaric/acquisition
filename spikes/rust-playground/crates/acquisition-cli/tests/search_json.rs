@@ -126,6 +126,91 @@ fn seed(base: &Path) {
     );
 }
 
+/// A second realm in the same store: one ring in a poe2 tab named as the
+/// pc one is, and a pc item with more lines than a row shows.
+fn seed_more(base: &Path) {
+    let mut store = Store::open(&account_path(&base.join("mock"), USER)).unwrap();
+    let mut record = |ep: Endpoint, realm: &str, body: Value, at: i64| {
+        store
+            .record(
+                &ep,
+                &json!({ "realm": realm, "league": "Standard" }),
+                200,
+                &body,
+                at,
+            )
+            .unwrap();
+    };
+    let ring = |id: &str, mods: Vec<String>| {
+        json!({ "id": id, "name": "", "typeLine": "Iron Ring", "baseType": "Iron Ring", "rarity": "Rare",
+                "frameTypeId": "Rare", "identified": true, "ilvl": 84, "x": 0, "y": 0, "explicitMods": mods })
+    };
+    record(
+        Endpoint::Stashes {
+            realm: "poe2".into(),
+            league: "Standard".into(),
+        },
+        "poe2",
+        json!({ "stashes": [{ "id": "p1", "name": "Rings", "type": "PremiumStash" }] }),
+        40,
+    );
+    record(
+        Endpoint::Stash {
+            realm: "poe2".into(),
+            league: "Standard".into(),
+            id: "p1".into(),
+            sub: None,
+        },
+        "poe2",
+        json!({ "stash": { "id": "p1", "name": "Rings", "type": "PremiumStash",
+            "items": [ring("two", vec!["+30 to Spirit".to_string()])] } }),
+        50,
+    );
+    record(
+        Endpoint::Stash {
+            realm: "pc".into(),
+            league: "Standard".into(),
+            id: "t3".into(),
+            sub: None,
+        },
+        "pc",
+        json!({ "stash": { "id": "t3", "name": "Never", "type": "PremiumStash",
+            "items": [ring("many", (1..=8).map(|n| format!("+{n} to Spirit")).collect())] } }),
+        60,
+    );
+}
+
+/// The fifth audit, findings 4 and 5: under an all-realms scope a row says
+/// which realm its item is in, and a row that shows part of what a term
+/// touched says how much it left out and where the whole is.
+#[test]
+fn c96_c100_a_row_names_its_realm_under_all_and_says_what_it_left_out() {
+    let base = base();
+    seed(&base);
+    seed_more(&base);
+    let shown = text(&acq(
+        &base,
+        &["search", "--realm", "all", "line(template:spirit)"],
+    ));
+    for needle in [
+        "poe2 · Standard / Rings",
+        "pc · Standard / Never",
+        "2 more of term 0: acq show many",
+    ] {
+        assert!(
+            shown.contains(needle),
+            "the text lacks `{needle}`:\n{shown}"
+        );
+    }
+    // one realm in scope: the scope line has said it
+    let shown = text(&acq(
+        &base,
+        &["search", "--realm", "pc", "line(template:spirit)"],
+    ));
+    assert!(shown.contains(" · Standard / Never"), "{shown}");
+    assert!(!shown.contains("pc · Standard / Never"), "{shown}");
+}
+
 const LIFE: &str = r##""+# to maximum Life">=90"##;
 
 #[test]

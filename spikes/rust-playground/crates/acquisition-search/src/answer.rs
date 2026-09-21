@@ -32,6 +32,9 @@
 //!   resolves to itself and lists nothing, unless it found two spellings
 //!   of one line, which any-case `=` can, and then both are listed. The route to the rest is the vocabulary read, which is not
 //!   built (rule 5 of the plan: the count, and the construct's name).
+//! - **What a row shows of one term is bounded** — six lines, strings or
+//!   reasons, a sum's value beside them — and says how many it left out;
+//!   the item whole is `show <id>` (invariant 5).
 //! - **Rows** are the matching items in the store's stable order, or by
 //!   the sort scalar with items that have none last either way; past the
 //!   limit they are counted, and the way on is a larger limit until
@@ -54,7 +57,7 @@ use crate::corpus::{Basis, Corpus, Coverage, Held, Place, Realm};
 use crate::error::{LanguageError, SearchError};
 use crate::eval::{self, Outcome, Scalar, Truth};
 pub use crate::eval::{Evidence, Reason};
-use crate::group::{self, Group};
+use crate::group;
 use crate::tree::{Collection, Node, Op, Probe, Value, ValueRef};
 use crate::{json, parse, print};
 
@@ -305,6 +308,14 @@ pub struct Touched {
     pub path: String,
     pub term: String,
     pub shows: Vec<Evidence>,
+    /// What the term touched past what is shown: `show <id>` has the item
+    /// whole (invariant 5).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub left_out: usize,
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
 }
 
 /// An item's sort scalar, or why it has none (C92).
@@ -581,10 +592,12 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                     .into_iter()
                     .map(|i| {
                         let term = &query.terms[i];
+                        let (shows, left_out) = eval::evidence(&query.terms, term, held, outcomes);
                         Touched {
                             path: term.path.clone(),
                             term: print::print(&term.node),
-                            shows: eval::evidence(&query.terms, term, held, outcomes),
+                            shows,
+                            left_out,
                         }
                     })
                     .filter(|t| !t.shows.is_empty())
@@ -833,80 +846,113 @@ fn words(text: &str) -> Vec<String> {
 /// answer reads it — by its bound selector, a `sum`'s too — so one that
 /// picked any occurrence resolved to something, whatever a template test
 /// inside it would find alone; a field's term carried nothing when no item
-/// matched it.
+/// matched it. A pattern that resolved to nothing is listed like any other
+/// and has no words to suggest by.
 fn nothing(corpus: &Corpus, term: &Term, picked: bool, matched: usize) -> Option<Nothing> {
-    let of_group = |group: &Group| {
-        if picked {
-            return None;
-        }
-        let wanted = group.wanted()?;
-        let mut templates: HashMap<String, usize> = HashMap::new();
-        for held in &corpus.items {
-            let mut seen: Vec<&str> = held
-                .item
-                .lines
-                .iter()
-                .map(|l| l.template.as_str())
-                .collect();
-            seen.sort_unstable();
-            seen.dedup();
-            for template in seen {
-                *templates.entry(template.to_string()).or_default() += 1;
-            }
-        }
-        Some(("template".to_string(), wanted, templates))
-    };
-    let (of, wanted, values): (String, String, HashMap<String, usize>) =
+    // what the selector ranges over; the words a suggestion is scored
+    // against, which a pattern has none of and is listed all the same; and
+    // the field its values are read from, a group's being its templates
+    let (of, wanted, thing): (String, Option<String>, Option<Thing>) =
         match (&term.node, &term.atom) {
-            (_, Atom::Lines(group) | Atom::Sum { group, .. }) => of_group(group)?,
+            (_, Atom::Lines(group) | Atom::Sum { group, .. })
+                if !picked && group.names_a_template() =>
+            {
+                ("template".to_string(), group.wanted(), None)
+            }
             (
                 Node::Test {
-                    field,
-                    op: Op::Contains | Op::Eq,
-                    value: Value::Text(wanted),
+                    field, op, value, ..
                 },
                 Atom::Text { thing, .. },
             ) if *thing != Thing::Text && matched == 0 => {
-                let mut values: HashMap<String, usize> = HashMap::new();
-                for held in &corpus.items {
-                    for value in eval::texts(held, *thing) {
-                        *values.entry(value.to_string()).or_default() += 1;
-                    }
-                }
-                (field.clone(), wanted.clone(), values)
+                let wanted = match (op, value) {
+                    (Op::Contains | Op::Eq, Value::Text(wanted)) => Some(wanted.clone()),
+                    _ => None,
+                };
+                (field.clone(), wanted, Some(*thing))
             }
+            // a closed set's `:` or `~` picks among legal values, and the
+            // answer says what it resolved to: nothing, here
+            (
+                Node::Test {
+                    field,
+                    op: Op::Contains | Op::Match,
+                    ..
+                },
+                Atom::Closed { thing, .. },
+            ) if matched == 0 => (field.clone(), None, Some(*thing)),
             _ => return None,
         };
-    let wanted_words = words(&wanted);
-    let mut scored: Vec<(usize, Carried)> = values
-        .into_iter()
-        .filter_map(|(value, items)| {
-            let has = words(&value);
-            // a plural typed for a singular shares the word too
-            let shared = wanted_words
-                .iter()
-                .filter(|w| has.iter().any(|h| h.contains(*w) || w.contains(h)))
-                .count();
-            (shared > 0).then_some((shared, Carried { value, items }))
-        })
-        .collect();
-    scored.sort_by(|(sa, a), (sb, b)| {
-        sb.cmp(sa)
-            .then_with(|| b.items.cmp(&a.items))
-            .then_with(|| a.value.cmp(&b.value))
-    });
+    let values_of = |held: &'_ Held| -> Vec<String> {
+        let mut values: Vec<String> = match thing {
+            Some(thing) => eval::texts(held, thing)
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            None => held.item.lines.iter().map(|l| l.template.clone()).collect(),
+        };
+        values.sort_unstable();
+        values.dedup();
+        values
+    };
+    let mut suggestions: Vec<Suggestion> = Vec::new();
+    if let Some(wanted) = wanted {
+        let mut carried: HashMap<String, usize> = HashMap::new();
+        for held in &corpus.items {
+            for value in values_of(held) {
+                *carried.entry(value).or_default() += 1;
+            }
+        }
+        let wanted_words = words(&wanted);
+        let mut scored: Vec<(usize, Carried)> = carried
+            .into_iter()
+            .filter_map(|(value, items)| {
+                let has = words(&value);
+                // a plural typed for a singular shares the word too
+                let shared = wanted_words
+                    .iter()
+                    .filter(|w| has.iter().any(|h| h.contains(*w) || w.contains(h)))
+                    .count();
+                (shared > 0).then_some((shared, Carried { value, items }))
+            })
+            .collect();
+        scored.sort_by(|(sa, a), (sb, b)| {
+            sb.cmp(sa)
+                .then_with(|| b.items.cmp(&a.items))
+                .then_with(|| a.value.cmp(&b.value))
+        });
+        // a suggestion's count is its term's (invariant 4): the term is an
+        // any-case `=`, so it is asked of the scope as it will be when
+        // typed, and a second spelling of a value already offered is the
+        // same term and is not offered again
+        let mut offered: Vec<bind::TextTest> = Vec::new();
+        for (_, candidate) in scored {
+            if suggestions.len() == SUGGESTED {
+                break;
+            }
+            if offered.iter().any(|test| test.holds(&candidate.value)) {
+                continue;
+            }
+            let exact = Value::Text(candidate.value.clone());
+            let Ok(test) = bind::text_test(&of, Op::Eq, &exact) else {
+                continue;
+            };
+            suggestions.push(Suggestion {
+                term: print::print(&exactly(&of, &candidate.value)),
+                value: candidate.value,
+                items: corpus
+                    .items
+                    .iter()
+                    .filter(|held| values_of(held).iter().any(|v| test.holds(v)))
+                    .count(),
+            });
+            offered.push(test);
+        }
+    }
     Some(Nothing {
         path: term.path.clone(),
         term: print::print(&term.node),
-        suggestions: scored
-            .into_iter()
-            .take(SUGGESTED)
-            .map(|(_, carried)| Suggestion {
-                term: print::print(&exactly(&of, &carried.value)),
-                value: carried.value,
-                items: carried.items,
-            })
-            .collect(),
+        suggestions,
         of,
     })
 }

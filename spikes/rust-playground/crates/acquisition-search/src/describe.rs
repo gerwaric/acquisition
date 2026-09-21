@@ -1,7 +1,11 @@
 //! `--describe` (C97: the closed lists are printed in the help): the
-//! language as this build knows it — fields, what a line has, operators,
-//! closed value sets, slots, computed values, what is not built, and the
-//! limits it states (C102). Printed from the binder's own tables, so the
+//! language as this build knows it — fields, what a line has, what has a
+//! value, how terms compose, operators, closed value sets, slots, computed
+//! values, what is not built, and the limits it states (C102). An entry is
+//! a name, a line and an example: the reference is `search/DESIGN.md`, and
+//! this is what a terminal can ask of it. Every example printed is a query
+//! this build binds (`tests/fifth_audit.rs`), and every word an entry is
+//! named by can be asked for alone. Printed from the binder's own tables, so the
 //! help cannot say a name the binder refuses.
 
 use serde::Serialize;
@@ -14,6 +18,10 @@ pub struct Describe {
     pub fields: Vec<Named>,
     /// What `line( … )` takes inside.
     pub line: Vec<Named>,
+    /// What a comparison, a sum or `--sort` consumes.
+    pub values: Vec<Named>,
+    /// How terms are put together.
+    pub composition: Vec<Named>,
     pub operators: Vec<Named>,
     pub slots: Vec<Named>,
     /// `pseudo.<name>`: none is built yet.
@@ -86,8 +94,9 @@ fn named(name: &str, kind: &'static str, what: &str) -> Named {
 }
 
 /// The whole description, or the entries named — a field, `line`, a line's
-/// attribute, `is`, `has`, an operator, a slot word. An unknown name is an
-/// authoring error with the near ones offered.
+/// attribute, `is`, `has`, an operator, a slot word (`arg7` is one), a word
+/// of composition, a block by its name. An unknown name is an authoring
+/// error with the near ones offered.
 pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     let mut fields: Vec<Named> = FIELDS
         .iter()
@@ -157,6 +166,73 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             ..named("is", "flag", "the flags the body sets on the line")
         },
     ];
+    let values = vec![
+        Named {
+            examples: vec![
+                "line(\"Adds # to # Cold Damage\").avg>=20",
+                "\"# to maximum Life\">=90",
+            ],
+            ..named(
+                "line(P).<slot>",
+                "value",
+                "one occurrence's number: a comparison on it means what it means inside the group, and `\"T\">=90` is its shorthand; `--sort` takes it, the largest that satisfies P",
+            )
+        },
+        Named {
+            examples: vec![
+                "sum(\"# to maximum Life\")>=90",
+                "sum(line(template:resistance).arg1)>=60",
+            ],
+            ..named(
+                "sum",
+                "value",
+                "the item's sum of a slot over the occurrences P selects, exact in decimals; nothing sums to zero; with a possible contributor unread it is incomplete and its comparison undecided",
+            )
+        },
+    ];
+    let composition = vec![
+        Named {
+            examples: vec!["rarity=rare base:ring", "rarity=rare and base:ring"],
+            ..named(
+                "and",
+                "composition",
+                "whitespace or the word, at the level you are in; `a b or c` unparenthesised is an error showing both readings",
+            )
+        },
+        Named {
+            examples: vec!["base:ring or base:amulet"],
+            ..named("or", "composition", "either")
+        },
+        Named {
+            examples: vec!["-is:corrupted", "not has:note"],
+            ..named(
+                "not -",
+                "composition",
+                "the term is false; at a terminal a query that starts with - goes after --",
+            )
+        },
+        Named {
+            examples: vec!["(base:ring or base:amulet) rarity=rare"],
+            ..named("( )", "composition", "grouping, and nothing else")
+        },
+        Named {
+            examples: vec!["holds(rarity=rare, is:corrupted, has:note)>=2"],
+            ..named(
+                "holds",
+                "composition",
+                "how many of its queries hold: >=n, <=n, =n, =a..b",
+            )
+        },
+        Named {
+            examples: vec!["undecided(ilvl)", "undecided(\"# to maximum Life\">=90)"],
+            ..named(
+                "undecided",
+                "composition",
+                "true when a thing's value or a term's truth cannot be established on the item — something it needs was unread; always decided itself",
+            )
+        },
+        named("true() false()", "composition", "always true, always false"),
+    ];
     let operators = vec![
         named(
             ":",
@@ -190,6 +266,8 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     let mut out = Describe {
         fields,
         line,
+        values,
+        composition,
         operators,
         slots,
         computed: Vec::new(),
@@ -199,20 +277,42 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     if names.is_empty() {
         return Ok(out);
     }
-    // narrow to what was named
-    let known: Vec<String> = out
-        .fields
-        .iter()
-        .chain(&out.line)
+    // narrow to what was named: an entry answers to its name and to each
+    // word of it, the positional slots to any `arg<N>`, a block to its own
+    let answers = |entry: &str, asked: &str| {
+        entry.eq_ignore_ascii_case(asked)
+            || entry
+                .split_whitespace()
+                .any(|word| word != "…" && word.eq_ignore_ascii_case(asked))
+            || (entry.starts_with("arg1") && crate::tree::arg_index(asked).is_some())
+    };
+    const BLOCKS: [&str; 6] = [
+        "fields",
+        "line",
+        "values",
+        "composition",
+        "operators",
+        "slots",
+    ];
+    let entries = |d: &Describe| -> Vec<String> {
+        [
+            &d.fields,
+            &d.line,
+            &d.values,
+            &d.composition,
+            &d.operators,
+            &d.slots,
+        ]
+        .into_iter()
+        .flatten()
         .map(|n| n.name.clone())
-        .chain([
-            "line".to_string(),
-            "slots".to_string(),
-            "operators".to_string(),
-        ])
-        .collect();
+        .collect()
+    };
+    let all = entries(&out);
     for name in names {
-        if !known.iter().any(|k| k.eq_ignore_ascii_case(name)) {
+        let known = BLOCKS.iter().any(|b| b.eq_ignore_ascii_case(name))
+            || all.iter().any(|entry| answers(entry, name));
+        if !known {
             if let Some(unbuilt) = NOT_BUILT.iter().find(|n| {
                 n.construct
                     .trim_end_matches([':', '*', '.'])
@@ -220,28 +320,36 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             }) {
                 return Err(bind::not_built(unbuilt.construct));
             }
-            let known: Vec<&str> = known.iter().map(String::as_str).collect();
-            let near = bind::near(name, &known);
+            let words: Vec<&str> = all
+                .iter()
+                .flat_map(|entry| entry.split_whitespace())
+                .filter(|word| *word != "…")
+                .chain(BLOCKS)
+                .collect();
+            let near = bind::near(name, &words);
             return Err(LanguageError::new(
                 ErrorKind::UnknownName,
                 format!(
                     "`{name}` is nothing `--describe` knows: {}",
-                    known.join(", ")
+                    words.join(", ")
                 ),
             )
             .with_readings(near.into_iter().map(str::to_string).collect()));
         }
     }
-    let wants = |n: &str| names.iter().any(|w| w.eq_ignore_ascii_case(n));
-    let whole_line = wants("line");
-    out.fields.retain(|f| wants(&f.name));
-    out.line.retain(|l| whole_line || wants(&l.name));
-    if !wants("operators") {
-        out.operators.clear();
-    }
-    if !wants("slots") && !whole_line {
-        out.slots.clear();
-    }
+    let wants = |block: &str, entry: &str| {
+        names
+            .iter()
+            .any(|asked| asked.eq_ignore_ascii_case(block) || answers(entry, asked))
+    };
+    out.fields.retain(|n| wants("fields", &n.name));
+    out.line.retain(|n| wants("line", &n.name));
+    out.values.retain(|n| wants("values", &n.name));
+    out.composition.retain(|n| wants("composition", &n.name));
+    out.operators.retain(|n| wants("operators", &n.name));
+    // a line's numbers are named by its slots
+    out.slots
+        .retain(|n| wants("slots", &n.name) || wants("line", &n.name));
     out.not_built.clear();
     out.limits.clear();
     Ok(out)

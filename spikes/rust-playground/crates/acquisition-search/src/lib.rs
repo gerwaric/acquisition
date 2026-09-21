@@ -81,6 +81,7 @@ pub mod derive;
 pub mod describe;
 pub mod error;
 mod eval;
+mod exact;
 mod group;
 pub mod json;
 pub mod parse;
