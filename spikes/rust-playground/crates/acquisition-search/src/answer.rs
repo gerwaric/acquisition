@@ -54,7 +54,8 @@ use crate::corpus::{Basis, Corpus, Coverage, Held, Place, Realm};
 use crate::error::{LanguageError, SearchError};
 use crate::eval::{self, Outcome, Scalar, Truth};
 pub use crate::eval::{Evidence, Reason};
-use crate::tree::{Collection, Member, Node, Op, Probe, Value, ValueRef};
+use crate::group::{self, Group};
+use crate::tree::{Collection, Node, Op, Probe, Value, ValueRef};
 use crate::{json, parse, print};
 
 /// The register's wording for a line the search cannot name (C102, S107).
@@ -684,20 +685,11 @@ struct Routes {
     failed: Option<Node>,
     lacked: Option<Node>,
     undecided: Node,
-    together: Option<(Node, bind::LowerBound)>,
+    together: Option<(Node, group::LowerBound)>,
 }
 
 fn not(node: Node) -> Node {
     Node::Not(Box::new(node))
-}
-
-fn asks_a_flag(member: &Member) -> bool {
-    match member {
-        Member::All(children) | Member::Any(children) => children.iter().any(asks_a_flag),
-        Member::Not(inner) => asks_a_flag(inner),
-        Member::Is(_) => true,
-        Member::Test { .. } | Member::Const(_) => false,
-    }
 }
 
 fn routes(term: &Term) -> Routes {
@@ -714,7 +706,7 @@ fn routes(term: &Term) -> Routes {
             // flags are unread: such an item did not lack the line, so the
             // failed route admits it, and stays as short as the reference's
             // wherever no flag is asked
-            let picked = if asks_a_flag(&group.selector_tree) {
+            let picked = if group.selector_asks_a_flag {
                 Node::Any(vec![
                     selected.clone(),
                     Node::Undecided(Probe::Term(Box::new(selected.clone()))),
@@ -763,22 +755,6 @@ fn routes(term: &Term) -> Routes {
 
 // ---- what a selector resolved to ------------------------------------------------------------
 
-/// The template tests a group makes, anywhere in it.
-fn template_tests(member: &Member, out: &mut Vec<(Op, String)>) {
-    match member {
-        Member::All(children) | Member::Any(children) => {
-            children.iter().for_each(|c| template_tests(c, out));
-        }
-        Member::Not(inner) => template_tests(inner, out),
-        Member::Test {
-            attr,
-            op,
-            value: Value::Text(text),
-        } if attr == "template" => out.push((*op, text.clone())),
-        _ => {}
-    }
-}
-
 /// What a term's `:` or `~` selector ranges over, when it has one: a
 /// field, or the templates of a line's group — a `sum`'s group too.
 /// Whether every template test of the term's group is a quoted `"T"`. Such
@@ -786,27 +762,18 @@ fn template_tests(member: &Member, out: &mut Vec<(Op, String)>) {
 /// one spelling, which any-case `=` can (owner, 2026-09-20: six pairs of
 /// the census's templates differ only by capitals), and then it says so.
 fn exact_only(term: &Term) -> bool {
-    let group = match &term.node {
-        Node::Members { where_, .. } => where_,
-        Node::Compare {
-            value: ValueRef::Sum { lines, .. },
-            ..
-        } => lines,
-        _ => return false,
-    };
-    let mut tests = Vec::new();
-    template_tests(group, &mut tests);
-    tests.iter().all(|(op, _)| *op == Op::Eq)
+    match &term.atom {
+        Atom::Lines(group) | Atom::Sum { group, .. } => group.quoted_only(),
+        _ => false,
+    }
 }
 
 fn resolves(term: &Term) -> Option<String> {
-    let of_group = |where_: &Member| {
-        let mut tests = Vec::new();
-        template_tests(where_, &mut tests);
-        // a quoted template resolves too: `=` is any-case, and GGG has
-        // spelled some lines two ways (`exact_only`, below)
-        (!tests.is_empty()).then(|| "template".to_string())
-    };
+    // a quoted template resolves too: `=` is any-case, and GGG has
+    // spelled some lines two ways (`exact_only`, above)
+    if let Atom::Lines(group) | Atom::Sum { group, .. } = &term.atom {
+        return group.names_a_template().then(|| "template".to_string());
+    }
     match &term.node {
         Node::Test {
             field,
@@ -822,14 +789,6 @@ fn resolves(term: &Term) -> Option<String> {
         {
             Some(field.clone())
         }
-        Node::Members {
-            of: Collection::Lines,
-            where_,
-        } => of_group(where_),
-        Node::Compare {
-            value: ValueRef::Sum { lines, .. },
-            ..
-        } => of_group(lines),
         _ => None,
     }
 }
@@ -876,20 +835,11 @@ fn words(text: &str) -> Vec<String> {
 /// inside it would find alone; a field's term carried nothing when no item
 /// matched it.
 fn nothing(corpus: &Corpus, term: &Term, picked: bool, matched: usize) -> Option<Nothing> {
-    let of_group = |where_: &Member| {
+    let of_group = |group: &Group| {
         if picked {
             return None;
         }
-        let mut tests = Vec::new();
-        template_tests(where_, &mut tests);
-        let wanted: Vec<String> = tests
-            .into_iter()
-            .filter(|(op, _)| *op != Op::Match)
-            .map(|(_, text)| text)
-            .collect();
-        if wanted.is_empty() {
-            return None;
-        }
+        let wanted = group.wanted()?;
         let mut templates: HashMap<String, usize> = HashMap::new();
         for held in &corpus.items {
             let mut seen: Vec<&str> = held
@@ -904,24 +854,11 @@ fn nothing(corpus: &Corpus, term: &Term, picked: bool, matched: usize) -> Option
                 *templates.entry(template.to_string()).or_default() += 1;
             }
         }
-        Some(("template".to_string(), wanted.join(" "), templates))
+        Some(("template".to_string(), wanted, templates))
     };
     let (of, wanted, values): (String, String, HashMap<String, usize>) =
         match (&term.node, &term.atom) {
-            (
-                Node::Members {
-                    of: Collection::Lines,
-                    where_,
-                },
-                Atom::Lines(_),
-            ) => of_group(where_)?,
-            (
-                Node::Compare {
-                    value: ValueRef::Sum { lines, .. },
-                    ..
-                },
-                Atom::Sum { .. },
-            ) => of_group(lines)?,
+            (_, Atom::Lines(group) | Atom::Sum { group, .. }) => of_group(group)?,
             (
                 Node::Test {
                     field,
@@ -977,14 +914,7 @@ fn nothing(corpus: &Corpus, term: &Term, picked: bool, matched: usize) -> Option
 /// The exact term that selects one value: `line("T")`, `base="…"`.
 fn exactly(of: &str, value: &str) -> Node {
     if of == "template" {
-        return Node::Members {
-            of: Collection::Lines,
-            where_: Box::new(Member::Test {
-                attr: "template".to_string(),
-                op: Op::Eq,
-                value: Value::Text(value.to_string()),
-            }),
-        };
+        return group::line_of(value);
     }
     Node::Test {
         field: of.to_string(),

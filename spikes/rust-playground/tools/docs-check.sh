@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # docs-check.sh — the documentation half of the quality gate.
 #
-# Six checks, all mechanical (P5, CONTEXT.md "Working style": a lint
+# Seven checks, all mechanical (P5, CONTEXT.md "Working style": a lint
 # where mechanical, a recorded property where stakes are real):
 #
 #   1. Byte budgets on the always-loaded documents. Every session reads
@@ -32,6 +32,11 @@
 #      a path citation to a note that is gone is refused — history is
 #      cited as "note NN at `<commit>`" — and the uncited notes are
 #      reported, the same shape as the uncited decisions.
+#
+#   7. One reader of a group's meaning: outside the search crate's modules
+#      that build, print and validate the query tree, and the one that
+#      computes what a line's group means, no source file names a
+#      group's tree (the build plan, step 4b; `group.rs`).
 #
 # Exit 1 on any failure; the report names each offender.
 set -euo pipefail
@@ -456,6 +461,33 @@ if [[ -n $uncited_notes ]]; then
   printf 'note    uncited notes (nothing points at them; delete once their content has landed): %s\n' "$(echo $uncited_notes)"
 elif [[ -z $gone ]]; then
   printf 'ok      %-13s every note is cited by path, every path citation resolves\n' notes
+fi
+
+# ---- 7. a group's meaning has one reader ---------------------------------
+# What `line( … )` means — what it selects, which sources it admits, its
+# together bound, whether its selector asks a flag, its template tests — is
+# computed once, when the query is bound, in acquisition-search's `group`
+# module, and read from there. Four outside audits of the first surface
+# found one fault five times: a meaning read again off the syntax by the
+# function that needed it next, which parentheses then changed (invariant 7
+# of the surface; `search/BUILD-PLAN.md`, "Step 4b"). P5: a rule that can
+# be broken silently becomes structure. So no source file of any crate
+# names a group's tree, authored (`Member`) or bound (`BMember`), but the
+# modules that build, print and validate it, and that one — names, and not
+# only matches on, so that an alias is no way round; the crate's re-export
+# is the one line let through, for a caller that builds a tree.
+group_modules='^crates/acquisition-search/src/(tree|parse|print|json|template|group)\.rs:'
+group_readers=$(grep -rnE '(^|[^A-Za-z0-9_])B?Member([^A-Za-z0-9_]|$)' crates/*/src --include='*.rs' \
+  | grep -vE "$group_modules" | grep -vE '^crates/acquisition-search/src/lib\.rs:[0-9]+:pub use tree::\{' || true)
+if [[ -n $group_readers ]]; then
+  echo "GROUP   a group's tree is named outside the modules that build, print and validate it and the one that computes its meaning (acquisition-search: tree, parse, print, json, template, group) — a fact of a group is added to group.rs and read from there:"
+  printf '%s\n' "$group_readers" | cut -c1-160 | sed 's/^/          /'
+  fail=1
+elif [[ ! -f crates/acquisition-search/src/group.rs ]]; then
+  echo "GROUP   crates/acquisition-search/src/group.rs is gone: the rule names a module that does not exist"
+  fail=1
+else
+  printf 'ok      %-13s a group'"'"'s tree is named by tree, parse, print, json, template and group alone (step 4b)\n' group
 fi
 
 exit $fail

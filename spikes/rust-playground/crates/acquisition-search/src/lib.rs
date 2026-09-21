@@ -28,6 +28,9 @@
 //!   numbers with their slots, and what could not be read, by collection.
 //! - [`mod@bind`] — the names: fields, closed sets, what a line has; near
 //!   names; and the one closed list of what is not built, refused by name.
+//! - `group` — what `line( … )` means, computed once when the query is
+//!   bound: the one module that reads a group's tree for its meaning (the
+//!   build plan, step 4b; `tools/docs-check.sh` §7).
 //! - [`corpus`] — every live item of a scope, derived from one snapshot of
 //!   the store's read (C108) and held with its basis (C98).
 //! - `eval` — a term asked of an item: matched, failed, lacked or
@@ -78,6 +81,7 @@ pub mod derive;
 pub mod describe;
 pub mod error;
 mod eval;
+mod group;
 pub mod json;
 pub mod parse;
 pub mod print;

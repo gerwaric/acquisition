@@ -19,12 +19,11 @@
 //!   phrase, what holds a displayed string; for a line's group, the body,
 //!   a source of lines the group admits, `hybrid` when it admits that
 //!   source, and — where the group asks a flag — an occurrence whose own
-//!   flags are unread. Which sources a group admits is what it means,
-//!   never where its parentheses sit: the group is asked with its source
-//!   tests answered and everything else unknown.
-//! - **A line's group is three-valued on each occurrence**, as the item's
-//!   tree is on each item: `-is:crafted` is undecided on a line whose flags
-//!   could not be read, never true. A sum over occurrences that may or may
+//!   flags are unread. Which sources a group admits, what it selects and
+//!   what it says of one occurrence are the group's own (`group.rs`), read
+//!   here and never worked out again.
+//! - **A line's group is three-valued on each occurrence** (`group.rs`). A
+//!   sum over occurrences that may or may
 //!   not be selected is incomplete, and they establish no together count —
 //!   where they name the slot: one that does not cannot contribute
 //!   whichever way its flag falls, and leaves nothing open.
@@ -51,9 +50,11 @@
 
 use serde::Serialize;
 
-use crate::bind::{Atom, BMember, BProbe, Bound, Group, NumTest, SortKey, Term, Thing};
+use crate::bind::{Atom, BProbe, Bound, NumTest, SortKey, Term, Thing};
 use crate::corpus::Held;
 use crate::derive::{Line, Part, Shown, Unread};
+pub(crate) use crate::group::Truth;
+use crate::group::{Asked, Group};
 use crate::tree::Number;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,13 +62,6 @@ pub(crate) enum Outcome {
     Matched,
     Failed,
     Lacked,
-    Undecided,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Truth {
-    True,
-    False,
     Undecided,
 }
 
@@ -242,87 +236,6 @@ fn shown_part(shown: Shown<'_>) -> String {
 
 // ---- a line's group ---------------------------------------------------------------------
 
-fn all_of(each: impl Iterator<Item = Truth>) -> Truth {
-    let each: Vec<Truth> = each.collect();
-    if each.contains(&Truth::False) {
-        Truth::False
-    } else if each.contains(&Truth::Undecided) {
-        Truth::Undecided
-    } else {
-        Truth::True
-    }
-}
-
-fn any_of(each: impl Iterator<Item = Truth>) -> Truth {
-    let each: Vec<Truth> = each.collect();
-    if each.contains(&Truth::True) {
-        Truth::True
-    } else if each.contains(&Truth::Undecided) {
-        Truth::Undecided
-    } else {
-        Truth::False
-    }
-}
-
-fn negated(truth: Truth) -> Truth {
-    match truth {
-        Truth::True => Truth::False,
-        Truth::False => Truth::True,
-        Truth::Undecided => Truth::Undecided,
-    }
-}
-
-fn sure(value: bool) -> Truth {
-    if value { Truth::True } else { Truth::False }
-}
-
-/// One node of a group asked of one occurrence. Three-valued: a flag the
-/// line could not read is unknown, never a no (C93), so `-is:crafted` is
-/// undecided on a line whose flags are unread and composes as the item's
-/// tree does.
-pub(crate) fn member_truth(member: &BMember, line: &Line) -> Truth {
-    match member {
-        BMember::All(children) => all_of(children.iter().map(|c| member_truth(c, line))),
-        BMember::Any(children) => any_of(children.iter().map(|c| member_truth(c, line))),
-        BMember::Not(inner) => negated(member_truth(inner, line)),
-        BMember::Const(value) => sure(*value),
-        BMember::Template(test) => sure(test.holds(&line.template)),
-        BMember::Source(sources) => sure(sources.contains(&line.source.as_str())),
-        BMember::Slot { word, test } => sure(line.slot(word).is_some_and(|n| test.holds(n))),
-        BMember::Is(flag) if line.flags.iter().any(|f| f == flag) => Truth::True,
-        BMember::Is(flag) => {
-            if line.flags_unread || line.flags_unknown.iter().any(|f| f == flag) {
-                Truth::Undecided
-            } else {
-                Truth::False
-            }
-        }
-    }
-}
-
-pub(crate) fn member_holds(member: &BMember, line: &Line) -> bool {
-    member_truth(member, line) == Truth::True
-}
-
-/// Whether an occurrence from `source` could satisfy the group: the group
-/// asked with its source tests answered and everything else unknown. By
-/// meaning, never by where the test sits — `(source=explicit "T") arg1>=90`
-/// rules the implicit array out exactly as `source=explicit "T" arg1>=90`
-/// does.
-fn admits(member: &BMember, source: &str) -> bool {
-    fn asked(member: &BMember, source: &str) -> Truth {
-        match member {
-            BMember::All(children) => all_of(children.iter().map(|c| asked(c, source))),
-            BMember::Any(children) => any_of(children.iter().map(|c| asked(c, source))),
-            BMember::Not(inner) => negated(asked(inner, source)),
-            BMember::Const(value) => sure(*value),
-            BMember::Source(sources) => sure(sources.contains(&source)),
-            BMember::Template(_) | BMember::Slot { .. } | BMember::Is(_) => Truth::Undecided,
-        }
-    }
-    asked(member, source) != Truth::False
-}
-
 /// What stops this group claiming an absence on this item: the body, a
 /// source of lines the group admits, and `hybrid` — a vaal gem's base
 /// skill, whose lines are the source `hybrid` — when it admits that.
@@ -332,39 +245,36 @@ fn unread_lines<'a>(held: &'a Held, group: &Group) -> Vec<&'a Unread> {
         .iter()
         .filter(|u| match &u.part {
             Part::Body => true,
-            Part::Lines(source) => admits(&group.whole, source),
-            Part::Field(key) => key == "hybrid" && admits(&group.whole, "hybrid"),
-            // a line's flags: the occurrence itself says so (`member_truth`)
+            Part::Lines(source) => group.admits(source),
+            Part::Field(key) => key == "hybrid" && group.admits("hybrid"),
+            // a line's flags: the occurrence itself says so (`Asked::of`)
             Part::Flags(_) | Part::Properties(_) => false,
         })
         .collect()
 }
 
-fn satisfying<'a>(held: &'a Held, member: &'a BMember) -> impl Iterator<Item = &'a Line> {
+fn satisfying<'a>(held: &'a Held, asked: &'a Asked) -> impl Iterator<Item = &'a Line> {
+    held.item.lines.iter().filter(move |l| asked.holds(l))
+}
+
+/// Whether some occurrence leaves what is asked open: its flags are unread
+/// and the group asks about one.
+fn open_on_a_line(held: &Held, asked: &Asked) -> bool {
     held.item
         .lines
         .iter()
-        .filter(move |l| member_holds(member, l))
+        .any(|l| asked.of(l) == Truth::Undecided)
 }
 
-/// Whether some occurrence leaves `member` open: its flags are unread and
-/// the group asks about one.
-fn open_on_a_line(held: &Held, member: &BMember) -> bool {
-    held.item
-        .lines
-        .iter()
-        .any(|l| member_truth(member, l) == Truth::Undecided)
-}
-
-/// Whether an occurrence that may or may not satisfy `member` names the
+/// Whether an occurrence that may or may not satisfy what is asked names the
 /// slot: one that does not cannot contribute whichever way its flag falls,
 /// so it leaves no sum, no largest and no together count open (C93's
 /// known absence).
-fn open_with_the_slot(held: &Held, member: &BMember, slot: &str) -> bool {
+fn open_with_the_slot(held: &Held, asked: &Asked, slot: &str) -> bool {
     held.item
         .lines
         .iter()
-        .any(|l| member_truth(member, l) == Truth::Undecided && l.slot(slot).is_some())
+        .any(|l| asked.of(l) == Truth::Undecided && l.slot(slot).is_some())
 }
 
 /// A sum and whether every possible contributor was readable.
@@ -474,7 +384,7 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
                     .item
                     .lines
                     .iter()
-                    .any(|l| member_truth(&group.selector, l) != Truth::False),
+                    .any(|l| group.selector.of(l) != Truth::False),
             !unread_lines(held, group).is_empty() || open_on_a_line(held, &group.whole),
         ),
         Atom::Sum { group, slot, test } => match sum(held, group, slot) {
@@ -773,7 +683,7 @@ pub(crate) fn scalar(key: &SortKey, held: &Held) -> Scalar {
                 .filter_map(|line| line.slot(slot))
                 .reduce(f64::max);
             let could_be_larger = held.item.lines.iter().any(|line| {
-                member_truth(&group.whole, line) == Truth::Undecided
+                group.whole.of(line) == Truth::Undecided
                     && line
                         .slot(slot)
                         .is_some_and(|n| largest.is_none_or(|most| n > most))

@@ -34,13 +34,9 @@
 //!   `holds` is `<parent>.<n>`, what a not negates or `undecided( … )`
 //!   asks about is `<parent>.0`, and the children of the root carry no
 //!   prefix.
-//! - **A line group's selector** is the group with its slot comparisons
-//!   taken as favourably as they can be and folded away: what the group
-//!   picks before any number is compared, by meaning and never by where a
-//!   comparison sits. It is what tells *lacked* (no occurrence is
-//!   selected) from *failed* (one is, and none satisfies the whole), what
-//!   the answer says a `:` or `~` template selector resolved to, and what
-//!   the together count sums (C92).
+//! - **A line's group is bound in `group.rs`**, the one module that reads
+//!   a group's tree for what it means: its selector, the sources it admits,
+//!   its together bound, its template tests.
 //! - **A bare word's closed-set readings** arrive here: the parser offers
 //!   `"rare"` and `line(template:rare)`, and [`parse_query`] puts
 //!   `rarity=rare` before them.
@@ -48,8 +44,9 @@
 use regex::{Regex, RegexBuilder};
 
 use crate::error::{ErrorKind, LanguageError};
+use crate::group::Group;
 use crate::print;
-use crate::tree::{self, Collection, Member, Node, Number, Op, Probe, Value, ValueRef};
+use crate::tree::{self, Collection, Node, Number, Op, Probe, Value, ValueRef};
 
 // ---- what is not built -------------------------------------------------------
 
@@ -362,7 +359,7 @@ fn field(name: &str) -> Option<&'static FieldDef> {
 }
 
 /// A closed value by any-case name, in the list's own spelling.
-fn legal(list: &'static [&'static str], word: &str) -> Option<&'static str> {
+pub(crate) fn legal(list: &'static [&'static str], word: &str) -> Option<&'static str> {
     list.iter().copied().find(|v| v.eq_ignore_ascii_case(word))
 }
 
@@ -435,41 +432,6 @@ impl NumTest {
             NumTest::Range(from, to) => from.is_none_or(|a| x >= a) && to.is_none_or(|b| x <= b),
         }
     }
-}
-
-/// A node inside a line's group, bound.
-#[derive(Debug, Clone)]
-pub(crate) enum BMember {
-    All(Vec<BMember>),
-    Any(Vec<BMember>),
-    Not(Box<BMember>),
-    Const(bool),
-    Template(TextTest),
-    Source(Vec<&'static str>),
-    Slot { word: String, test: NumTest },
-    Is(&'static str),
-}
-
-/// A lower bound on one slot of a line selector: what the together count
-/// is defined for (C92) — the one comparison among the group's conjuncts,
-/// however its and is parenthesised. Anything else is not applicable.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct LowerBound {
-    pub slot: String,
-    pub op: Op,
-    pub bound: Number,
-}
-
-/// `line( … )`, bound, with its selector (the module doc).
-#[derive(Debug, Clone)]
-pub(crate) struct Group {
-    pub whole: BMember,
-    pub selector: BMember,
-    /// The selector as a tree, for the routes that name it.
-    pub selector_tree: Member,
-    /// True when the group compares no slot: the selector is the whole.
-    pub selects_only: bool,
-    pub together: Option<LowerBound>,
 }
 
 #[derive(Debug, Clone)]
@@ -596,11 +558,11 @@ pub(crate) fn bind_sort(value: &ValueRef) -> Result<SortKey, LanguageError> {
             }
         }
         ValueRef::Projection { lines, slot } => Ok(SortKey::Projection {
-            group: group(lines)?,
+            group: Group::bind(lines)?,
             slot: slot.clone(),
         }),
         ValueRef::Sum { lines, slot } => Ok(SortKey::Sum {
-            group: group(lines)?,
+            group: Group::bind(lines)?,
             slot: slot.clone(),
         }),
     }
@@ -689,10 +651,10 @@ impl Binder {
             Node::Members {
                 of: Collection::Lines,
                 where_,
-            } => Ok(Atom::Lines(group(where_)?)),
+            } => Ok(Atom::Lines(Group::bind(where_)?)),
             Node::Compare { value, op, rhs } => match value {
                 ValueRef::Sum { lines, slot } => Ok(Atom::Sum {
-                    group: group(lines)?,
+                    group: Group::bind(lines)?,
                     slot: slot.clone(),
                     test: num_test("sum( … )", *op, rhs)?,
                 }),
@@ -736,7 +698,7 @@ fn known_field(
     })
 }
 
-fn unknown(
+pub(crate) fn unknown(
     what: &str,
     name: &str,
     known: &[&'static str],
@@ -801,7 +763,7 @@ fn number_text(n: Number) -> String {
     }
 }
 
-fn text_test(name: &str, op: Op, value: &Value) -> Result<TextTest, LanguageError> {
+pub(crate) fn text_test(name: &str, op: Op, value: &Value) -> Result<TextTest, LanguageError> {
     let text = match value {
         Value::Text(text) => text.clone(),
         Value::Number(n) => number_text(*n),
@@ -837,7 +799,7 @@ fn text_test(name: &str, op: Op, value: &Value) -> Result<TextTest, LanguageErro
         })
 }
 
-fn num_test(name: &str, op: Op, value: &Value) -> Result<NumTest, LanguageError> {
+pub(crate) fn num_test(name: &str, op: Op, value: &Value) -> Result<NumTest, LanguageError> {
     match (op, value) {
         (Op::Eq, Value::Range { from, to }) => Ok(NumTest::Range(
             from.map(Number::as_f64),
@@ -854,7 +816,7 @@ fn num_test(name: &str, op: Op, value: &Value) -> Result<NumTest, LanguageError>
 }
 
 /// The legal values a closed-set test names or picks.
-fn closed(
+pub(crate) fn closed(
     name: &str,
     list: &'static [&'static str],
     op: Op,
@@ -900,156 +862,6 @@ fn closed(
         format!("`{word}` is no `{name}`: {}", list.join(", ")),
     )
     .with_readings(offered.iter().map(|v| format!("{name}={v}")).collect()))
-}
-
-// ---- a line's group ---------------------------------------------------------------------
-
-fn has_slot(member: &Member) -> bool {
-    match member {
-        Member::All(children) | Member::Any(children) => children.iter().any(has_slot),
-        Member::Not(inner) => has_slot(inner),
-        Member::Test { attr, .. } => tree::is_slot_word(attr),
-        Member::Const(_) | Member::Is(_) => false,
-    }
-}
-
-/// The group's selector (the module doc): the group with every slot
-/// comparison taken as favourably as it can be — true where it helps the
-/// group hold, false under a not — and the constants folded away. By
-/// meaning, never by where a comparison sits: an occurrence the selector
-/// refuses is one no numbers could make the group hold on, so
-/// `"T" (source=explicit arg1>=90)` selects as `"T" source=explicit` does,
-/// and `"T" arg1>=90` selects as `"T"`.
-pub(crate) fn selector(whole: &Member) -> Member {
-    fn favoured(member: &Member, positive: bool) -> Member {
-        match member {
-            Member::All(children) => {
-                Member::All(children.iter().map(|c| favoured(c, positive)).collect())
-            }
-            Member::Any(children) => {
-                Member::Any(children.iter().map(|c| favoured(c, positive)).collect())
-            }
-            Member::Not(inner) => Member::Not(Box::new(favoured(inner, !positive))),
-            Member::Test { attr, .. } if tree::is_slot_word(attr) => Member::Const(positive),
-            other => other.clone(),
-        }
-    }
-    /// Fold the constants out: a generated tree, so nothing the author
-    /// wrote is simplified (invariant 1 is the canonical text's).
-    fn folded(member: Member) -> Member {
-        let group = |children: Vec<Member>, absorbs: bool| {
-            let mut kept = Vec::new();
-            for child in children.into_iter().map(folded) {
-                match child {
-                    Member::Const(value) if value == absorbs => return Member::Const(absorbs),
-                    Member::Const(_) => {}
-                    other => kept.push(other),
-                }
-            }
-            match kept.len() {
-                0 => Member::Const(!absorbs),
-                1 => kept.remove(0),
-                _ if absorbs => Member::Any(kept),
-                _ => Member::All(kept),
-            }
-        };
-        match member {
-            Member::All(children) => group(children, false),
-            Member::Any(children) => group(children, true),
-            Member::Not(inner) => match folded(*inner) {
-                Member::Const(value) => Member::Const(!value),
-                other => Member::Not(Box::new(other)),
-            },
-            other => other,
-        }
-    }
-    folded(favoured(whole, true))
-}
-
-pub(crate) fn group(whole: &Member) -> Result<Group, LanguageError> {
-    let selector_tree = selector(whole);
-    let bound = member(whole)?;
-    let mut all = Vec::new();
-    crate::template::conjuncts(whole, &mut all);
-    let slotted: Vec<&Member> = all.into_iter().filter(|c| has_slot(c)).collect();
-    let together = match slotted.as_slice() {
-        [
-            Member::Test {
-                attr,
-                op: op @ (Op::Gt | Op::Ge),
-                value: Value::Number(bound),
-            },
-        ] => Some(LowerBound {
-            slot: attr.clone(),
-            op: *op,
-            bound: *bound,
-        }),
-        _ => None,
-    };
-    // a route is a query this build runs (the plan's rule 5): the together
-    // route sums the selector's slot, and a selector folding has reshaped
-    // may name a template that slot is not one of. Where the checker would
-    // refuse that sum the count is not applicable, never a refused route.
-    let together = together.filter(|lower| {
-        tree::check(&Node::Undecided(Probe::Thing(ValueRef::Sum {
-            lines: Box::new(selector_tree.clone()),
-            slot: lower.slot.clone(),
-        })))
-        .is_ok()
-    });
-    Ok(Group {
-        selector: member(&selector_tree)?,
-        selects_only: !has_slot(whole),
-        whole: bound,
-        selector_tree,
-        together,
-    })
-}
-
-fn member(m: &Member) -> Result<BMember, LanguageError> {
-    Ok(match m {
-        Member::All(children) => {
-            BMember::All(children.iter().map(member).collect::<Result<_, _>>()?)
-        }
-        Member::Any(children) => {
-            BMember::Any(children.iter().map(member).collect::<Result<_, _>>()?)
-        }
-        Member::Not(inner) => BMember::Not(Box::new(member(inner)?)),
-        Member::Const(value) => BMember::Const(*value),
-        Member::Is(name) => match legal(LINE_FLAGS, name) {
-            Some(flag) => BMember::Is(flag),
-            None if legal(ITEM_FLAGS, name).is_some() => {
-                return Err(LanguageError::new(
-                    ErrorKind::UnknownName,
-                    format!(
-                        "`is:{name}` is said of the item, outside the line's group; a line is: {}",
-                        LINE_FLAGS.join(", ")
-                    ),
-                ));
-            }
-            None => {
-                return Err(unknown("flag of a line", name, LINE_FLAGS, |near| {
-                    format!("is:{near}")
-                }));
-            }
-        },
-        Member::Test { attr, op, value } => match attr.as_str() {
-            "template" => BMember::Template(text_test("template", *op, value)?),
-            "source" => BMember::Source(closed("source", SOURCES, *op, value)?),
-            slot if tree::is_slot_word(slot) => BMember::Slot {
-                word: slot.to_string(),
-                test: num_test(slot, *op, value)?,
-            },
-            other => {
-                return Err(LanguageError::new(
-                    ErrorKind::UnknownName,
-                    format!(
-                        "`{other}` is nothing a line has: template, source, is:<flag>, and its numbers — low, high, avg on a ranged line, arg1, arg2 … by position"
-                    ),
-                ));
-            }
-        },
-    })
 }
 
 // ---- a bare word's closed-set readings -------------------------------------------------

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# docs-check-breakers.sh — proves the dependency guard in docs-check.sh
-# fails closed, by breaking the code and the tool and watching it refuse.
+# docs-check-breakers.sh — proves the dependency guard in docs-check.sh,
+# and the one-reader rule on a line's group (§7), fail closed, by breaking
+# the code and the tool and watching it refuse.
 #
 # Six review rounds on the guard (DAEMON-SPLIT-SLICE.md, rounds 5–11)
 # found the same shape each time: a reader whose empty, partial or
@@ -31,7 +32,7 @@ restore() {
     cmp -s "$scratch/keep/$f" "$f" || { echo "RESTORE FAILED: $f"; exit 2; }
   done
   rm -rf crates/acquisition-helper
-  rm -f crates/acquisition-client/src/zz_breaker.rs
+  rm -f crates/acquisition-client/src/zz_breaker.rs crates/acquisition-cli/src/zz_breaker.rs crates/acquisition-search/src/zz_breaker.rs
 }
 trap 'restore; rm -rf "$scratch"' EXIT
 
@@ -98,7 +99,7 @@ run_case() {  # run_case <name> <refuse|pass> <pattern the output must contain> 
      || [[ $want == pass && $status -eq 0 && $out == *"$pattern"* ]]; then
     printf 'ok      %-52s %s: %s\n' "$name" "$want" "$(grep -m1 -F "$pattern" <<<"$out" | cut -c1-90)"; pass=$((pass+1))
   else
-    printf 'FAIL    %-52s wanted %s with "%s"; exit %d, got:\n%s\n' "$name" "$want" "$pattern" "$status" "$(grep -E 'EDGE|dependencies' <<<"$out" | sed 's/^/          /')"
+    printf 'FAIL    %-52s wanted %s with "%s"; exit %d, got:\n%s\n' "$name" "$want" "$pattern" "$status" "$(grep -E 'EDGE|GROUP|dependencies' <<<"$out" | sed 's/^/          /')"
     failed=$((failed+1))
   fi
   restore
@@ -157,6 +158,19 @@ run_case 'plan links search directly'                            refuse 'acquisi
 run_case 'store links search directly (a cycle: Cargo refuses it first)' refuse 'cargo metadata failed' adddep crates/acquisition-store/Cargo.toml "$SP"
 intent_in_client() { printf '// breaker: a client that reads intent\npub fn f() -> Option<u32> { let annotations_path = 1; Some(annotations_path) }\n' >crates/acquisition-client/src/zz_breaker.rs; }
 run_case 'the intent API named in client/src'                    refuse 'names the intent API' intent_in_client
+
+echo '== the code: a group'"'"'s meaning has one reader (the build plan, step 4b)'
+GR="a group's tree is named outside"
+tree_in_cli()    { printf '// breaker: a frontend reading a selector off the syntax\nfn f(m: &Member) -> bool { matches!(m, Member::Is(_)) }\n' >crates/acquisition-cli/src/zz_breaker.rs; }
+bound_in_search() { printf '// breaker: a second reader of the bound form\nfn f(m: &BMember) -> bool { matches!(m, BMember::Const(true)) }\n' >crates/acquisition-search/src/zz_breaker.rs; }
+qualified()      { printf '// breaker: the same, by its path\nfn f(m: &crate::tree::Member) -> bool { matches!(m, crate::tree::Member::Const(_)) }\n' >crates/acquisition-search/src/zz_breaker.rs; }
+run_case 'a frontend matches on a group'"'"'s tree'                 refuse "$GR" tree_in_cli
+run_case 'a search module matches on the bound form'             refuse "$GR" bound_in_search
+aliased()        { printf '// breaker: the tree under another name\nuse acquisition_search::Member as M;\nfn f(m: &M) -> bool { matches!(m, M::Is(_)) }\n' >crates/acquisition-cli/src/zz_breaker.rs; }
+run_case 'the tree under an alias'                               refuse "$GR" aliased
+run_case 'the tree named by its path'                            refuse "$GR" qualified
+no_group_module() { tool "group_modules='^crates/acquisition-search/src/(tree|parse|print|json|template|group)\\.rs:'" "group_modules='^crates/acquisition-search/src/(tree|parse|print|json|template)\\.rs:'"; }
+run_case 'the rule forgets the module that computes the meaning' refuse "$GR" no_group_module
 
 echo '== the code: shapes that must pass'
 dup() { adddep crates/acquisition-store/Cargo.toml "duplicate-helper = { path = \"$scratch/x/dup1\" }"; adddep crates/acquisition-cli/Cargo.toml "duplicate-helper = { path = \"$scratch/x/dup2\", version = \"0.2.0\" }"; }
