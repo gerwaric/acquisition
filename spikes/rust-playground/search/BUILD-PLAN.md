@@ -1029,7 +1029,7 @@ first, fixed at `7f5fd962`.
 
 | # | Follow-up | Verdict | Held by |
 | --- | --- | --- | --- |
-| 1 | `exact.rs` fell back to floats when its integers overflowed, and whether a sum fell back depended on the order its occurrences cancelled in: one order of 1e28, 1e28, −1e28, −1e28, 1e-10 gave 0, another 1e-10 | confirmed | a number is read once, where the body is read: ten whole digits and four decimals (measured over the census copy: 212,233 displayed numbers, none past two decimals or ten whole digits; the owner: "I have never seen more than 4 digits after the decimal"). One beyond it costs its line its numbers and leaves its array unread (C93), so nothing downstream has a fallback; 48 lines of code became 21. `DERIVATION` 3. M2 again: 0 unread, 0 unexplained |
+| 1 | `exact.rs` fell back to floats when its integers overflowed, and whether a sum fell back depended on the order its occurrences cancelled in: one order of 1e28, 1e28, −1e28, −1e28, 1e-10 gave 0, another 1e-10 | confirmed | a number is read once, where the body is read: ten whole digits and four decimals (measured over the census copy: 212,233 displayed numbers, none past two decimals or ten whole digits; the owner: "I have never seen more than 4 digits after the decimal"). One beyond it is unread (C93), so nothing downstream has a fallback; 48 lines of code became 21. M2 again: 0 unread, 0 unexplained. Its first form — the line's numbers cleared, its array unread — was too blunt twice over: the third review, 1 |
 | 2 | The reasons an `undecided( … )` shows were cut to six in the order the terms were written, so reordering a conjunction changed which was dropped — and the fixture, passed through the equivalence checker, was refused | confirmed, and wider: the total's undecided items listed their reasons with no bound at all | `eval::why`, one function for both: the bound is on the item's unread parts, the first six in the item's own order, every term's pair with each kept; `why_left_out`. The audit's fixture is a fixed case of `generated_equivalence.rs` |
 | 3 | The `acq show` continuation dropped the account: with a second account known it does not run | confirmed, and wider: both offers of `show`'s errors dropped it too | `answer::command`, the one way the search prints a command — routes, the continuation, the offers. The CLI's rule-5 test runs every `acq …` a text prints, anywhere in a line, with two accounts known; the walk it replaces saw only lines that start with one |
 
@@ -1037,6 +1037,23 @@ The shared anchors gained an item past every cut (`1e951803`). With the
 reasons ordered by authored term again, the fixed case fails at once;
 the generated property passed its 256 gate cases and found it at case
 531 of 2,000.
+
+**Its review of `783461e7`, 2026-09-22**: the command and the reasons
+hold; two defects and a stale check, each reproduced first, fixed at
+`4e591ddc` and `f7318421`. Yield of the three looks at step 4b: 6, 3, 3 —
+and one each day found by the checks they asked for.
+
+| # | Finding | Verdict | Held by |
+| --- | --- | --- | --- |
+| 1 | A number the search does not read was made an absent slot and an unread array. Absent: its comparison was a no, and a not made a witness of it — `line("# to Spirit" -arg1>=0)` matched `1.12345 to Spirit`. The array: `-line(template:life)` and a sibling number that was read were left open though neither needs it | confirmed; the per-flag fix of the second audit was the precedent, and was not followed | `Line::numbers` is `Vec<Option<f64>>` and `Line::slot` returns `Slot` — absent, unread, or a number; a comparison on an unread slot is undecided, as a flag is (`group.rs`); `Part::Numbers`; a sum, a largest and the together count ask one question of an occurrence, `leaves_the_slot_open`. `DERIVATION` 4. Step 2's `tests/derive.rs` pins the new types at twenty places. M2: 0 unread, 0 unexplained |
+| 2 | A total past 2^53 units was divided as a float and rounded twice: nineteen of `9999999999.9997` did not equal `189999999999.9943` | confirmed | the integer total is written out as its decimal and read by the parser a typed bound is read by |
+| 3 | The evidence cross-check still refused more than seven entries, and `answer.rs` still promised six reasons, after the bound became six unread parts | confirmed | the checker counts parts; eight terms on one part is a fixed case; the doc says what `left_out` counts |
+| 4 | — found by the completion property on its first run over generators that write an unread number, and not again in six: the together count took an item with no occurrence that counts, since a sum of nothing is 0 and 0 is at least any bound of zero or less; its route, which asks for a selected line, returned 11 of 12 | the builder's; nothing to do with an unread number | only occurrences that count reach a bound together; pinned by hand, since the generators reach it seldom |
+
+The generators write a number with five decimals, which a completion
+fills; with an unread slot read as a no again the completion property
+refuses at once, shrunk to `line("# to maximum Life" arg1>=0)` over
+`+0.12345 to maximum Life`.
 
 Why the suites had passed over them, which is the audit's other half:
 the generators made whole numbers only and never reordered an item's
