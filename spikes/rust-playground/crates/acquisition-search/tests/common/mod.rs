@@ -3,6 +3,8 @@
 //! plan, rule 7).
 #![allow(dead_code)]
 
+pub mod generated;
+
 use std::path::PathBuf;
 
 use acquisition_search::{Answer, Corpus, Realm, Request, SearchError, answer};
