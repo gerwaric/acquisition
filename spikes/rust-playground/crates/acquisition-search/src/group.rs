@@ -170,6 +170,9 @@ pub(crate) struct Group {
     pub selects_only: bool,
     /// Whether the selector asks a flag of the occurrence.
     pub selector_asks_a_flag: bool,
+    /// Whether the whole does: what an occurrence's unread flags can leave
+    /// open, as `selects_only` says of its unread numbers.
+    pub asks_a_flag: bool,
     pub together: Option<LowerBound>,
     /// The sources of [`SOURCES`] an occurrence satisfying the whole may
     /// come from, and whether one from a source outside that list may.
@@ -217,6 +220,7 @@ impl Group {
             selector: Asked(member(&selector_tree)?),
             selects_only: !has_slot(whole),
             selector_asks_a_flag: asks_a_flag(&selector_tree),
+            asks_a_flag: asks_a_flag(whole),
             admitted: SOURCES
                 .iter()
                 .copied()

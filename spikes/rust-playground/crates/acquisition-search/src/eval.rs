@@ -675,26 +675,27 @@ fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
 fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<&'a Unread> {
     let of_group = |group: &Group, slot: Option<&str>| {
         let mut unread = unread_lines(held, group);
-        // what an occurrence itself left open: its flags, its numbers
-        let open: Vec<&Line> = held
+        // what an occurrence itself left open, explained by that occurrence
+        // and by what the group asked of it: its flags where a flag is
+        // asked, its numbers where a number is
+        let open: Vec<usize> = held
             .item
             .lines
             .iter()
-            .filter(|l| match slot {
+            .enumerate()
+            .filter(|(_, l)| match slot {
                 Some(slot) => leaves_the_slot_open(&group.whole, slot, l),
                 None => group.whole.of(l) == Truth::Undecided,
             })
+            .map(|(at, _)| at)
             .collect();
         unread.extend(held.item.unread.iter().filter(|u| {
-            match &u.part {
-                Part::Flags(source) => open.iter().any(|l| {
-                    l.source == *source && (l.flags_unread || !l.flags_unknown.is_empty())
-                }),
-                Part::Numbers(source) => open
-                    .iter()
-                    .any(|l| l.source == *source && l.numbers.contains(&None)),
+            let asked = match &u.part {
+                Part::Flags(_) => group.asks_a_flag,
+                Part::Numbers(_) => slot.is_some() || !group.selects_only,
                 _ => false,
-            }
+            };
+            asked && u.line.is_some_and(|at| open.contains(&at))
         }));
         unread
     };

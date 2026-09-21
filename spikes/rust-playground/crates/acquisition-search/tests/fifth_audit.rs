@@ -450,3 +450,75 @@ fn c92_nothing_reaches_a_bound_together_without_an_occurrence_that_counts() {
         "an upper bound: not applicable"
     );
 }
+
+/// The audit's last review: why an item is undecided names the occurrence
+/// that left it open — never another of the same array that happens to be
+/// unread too. Six Spirit lines nobody asked about come before the one
+/// Life line that matters; the reason given is that line's, `[6]`, and
+/// nothing relevant is left out. Both paths: the total's `why` and an
+/// `undecided( … )` row.
+#[test]
+fn c93_the_reason_given_is_the_open_occurrences_own() {
+    let unread_number = |of: &str| json!(format!("1.12345 to {of}"));
+    let unread_flags =
+        |of: &str| json!({ "description": format!("+1 to {of}"), "flags": "unread" });
+    for (make, query, unread) in [
+        (
+            &unread_number as &dyn Fn(&str) -> Value,
+            "line(template:life arg1>=0)",
+            "the numbers of explicit lines",
+        ),
+        (
+            &unread_flags,
+            "line(template:life is:crafted)",
+            "the flags of explicit lines",
+        ),
+    ] {
+        let mut mods: Vec<Value> = (0..6).map(|_| make("Spirit")).collect();
+        mods.push(make("maximum Life"));
+        let (corpus, _) = fixture(vec![json!({ "explicitMods": mods })]);
+        let total = run(&corpus, &request(query, None, false, 10)).unwrap();
+        let item = &total["total"]["undecided_items"][0];
+        let probe = run(
+            &corpus,
+            &request(&format!("undecided({query})"), None, false, 10),
+        )
+        .unwrap();
+        let row = &probe["rows"][0]["matched"][0];
+        for (reasons, left_out) in [
+            (item["why"].as_array().unwrap(), &item["why_left_out"]),
+            (row["shows"].as_array().unwrap(), &row["left_out"]),
+        ] {
+            assert_eq!(reasons.len(), 1, "`{query}`: {reasons:?}");
+            let reason = reasons[0].get("undecided").unwrap_or(&reasons[0]);
+            assert_eq!(reason["unread"], unread, "`{query}`");
+            assert!(
+                reason["problem"]
+                    .as_str()
+                    .unwrap()
+                    .contains("explicitMods[6]"),
+                "`{query}`: {reason}"
+            );
+            assert!(left_out.is_null(), "`{query}`: {left_out} left out");
+        }
+    }
+    // a line open for its flags is not explained by its number, nor the
+    // other way round
+    let both = json!({ "description": "1.12345 to maximum Life", "flags": "unread" });
+    let (corpus, _) = fixture(vec![json!({ "explicitMods": [both] })]);
+    for (query, unread) in [
+        (
+            "line(template:life is:crafted)",
+            "the flags of explicit lines",
+        ),
+        (
+            "line(template:life arg1>=0)",
+            "the numbers of explicit lines",
+        ),
+    ] {
+        let a = run(&corpus, &request(query, None, false, 10)).unwrap();
+        let why = a["total"]["undecided_items"][0]["why"].as_array().unwrap();
+        assert_eq!(why.len(), 1, "`{query}`: {why:?}");
+        assert_eq!(why[0]["unread"], unread, "`{query}`");
+    }
+}

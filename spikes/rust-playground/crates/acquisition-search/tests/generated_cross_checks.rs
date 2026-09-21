@@ -151,6 +151,43 @@ fn zero_block_is_terms_block(corpus: &Corpus, answer: &Value) -> Result<(), Stri
     Ok(())
 }
 
+/// A reason is of something its term asked: a line's unread flags explain
+/// a term that asks a flag, its unread numbers one that asks a number.
+/// (Which occurrence a reason is of is pinned by hand, `fifth_audit.rs`.)
+fn a_reason_is_of_what_its_term_asked(answer: &Value) -> Result<(), String> {
+    fn walk(value: &Value, out: &mut Vec<Value>) {
+        match value {
+            Value::Object(fields) => {
+                if fields.contains_key("unread") && fields.contains_key("term") {
+                    out.push(value.clone());
+                }
+                fields.values().for_each(|child| walk(child, out));
+            }
+            Value::Array(entries) => entries.iter().for_each(|child| walk(child, out)),
+            _ => {}
+        }
+    }
+    let mut reasons = Vec::new();
+    walk(answer, &mut reasons);
+    for reason in reasons {
+        let (unread, term) = (
+            reason["unread"].as_str().unwrap_or_default(),
+            reason["term"].as_str().unwrap_or_default(),
+        );
+        let asks_a_number = ["arg", "low", "high", "avg"]
+            .iter()
+            .any(|w| term.contains(w));
+        if (unread.starts_with("the flags of") && !term.contains("is:"))
+            || (unread.starts_with("the numbers of") && !asks_a_number)
+        {
+            return Err(format!(
+                "{term} is explained by {unread}, which it never asked"
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn evidence_is_the_items(store: &Store, answer: &Value) -> Result<(), String> {
     for row in answer["rows"].as_array().ok_or("no rows")? {
         let id = row["id"].as_str().ok_or("a row with no id")?;
@@ -376,6 +413,7 @@ proptest! {
             if let Ok(answer) = run(&corpus, &request(&text, sort, false, 50)) {
                 zero_block_is_terms_block(&corpus, &answer).map_err(TestCaseError::fail)?;
                 evidence_is_the_items(&store, &answer).map_err(TestCaseError::fail)?;
+                a_reason_is_of_what_its_term_asked(&answer).map_err(TestCaseError::fail)?;
             }
         }
         // a generated query seldom ends in a zero block with suggestions in

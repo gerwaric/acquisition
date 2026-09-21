@@ -181,6 +181,11 @@ pub struct Unread {
     #[serde(flatten)]
     pub part: Part,
     pub problem: String,
+    /// The occurrence it is of, by its place in [`Item::lines`], when it is
+    /// one line's flags or numbers: what is open on one occurrence is
+    /// explained by that occurrence, never by another of its array.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<usize>,
 }
 
 /// The collection a reading belongs to: what C93's "everything that could
@@ -395,6 +400,17 @@ impl Item {
         self.unread.push(Unread {
             part,
             problem: problem.into(),
+            line: None,
+        });
+    }
+
+    /// Something unread of the occurrence about to be kept.
+    fn unread_of_this_line(&mut self, part: Part, problem: String) {
+        let line = Some(self.lines.len());
+        self.unread.push(Unread {
+            part,
+            problem,
+            line,
         });
     }
 
@@ -519,6 +535,12 @@ impl Item {
                     continue;
                 }
             };
+            // an essence's description spaces its rows with empty lines:
+            // no occurrence, so nothing of it is kept or unread
+            let text = shown(text);
+            if text.is_empty() {
+                continue;
+            }
             let mut flags_unread = false;
             let mut flags_unknown = Vec::new();
             let flags = match flags {
@@ -531,7 +553,7 @@ impl Item {
                                 "{at}: `flags.{flag}` is {}, not yes or no",
                                 json_kind(value)
                             );
-                            self.unread(Part::Flags(source.to_string()), problem);
+                            self.unread_of_this_line(Part::Flags(source.to_string()), problem);
                         }
                     }
                     let mut set: Vec<String> = flags
@@ -546,15 +568,10 @@ impl Item {
                 Some(other) => {
                     flags_unread = true;
                     let problem = format!("{at}: `flags` is {}, not an object", json_kind(other));
-                    self.unread(Part::Flags(source.to_string()), problem);
+                    self.unread_of_this_line(Part::Flags(source.to_string()), problem);
                     Vec::new()
                 }
             };
-            let text = shown(text);
-            // an essence's description spaces its rows with empty lines
-            if text.is_empty() {
-                continue;
-            }
             let (template, read) = template::read(&text);
             let mut numbers: Vec<Option<f64>> = read
                 .into_iter()
@@ -567,7 +584,7 @@ impl Item {
                 let problem = format!(
                     "{at}: a number with more digits than the search reads: ten whole, four decimals"
                 );
-                self.unread(Part::Numbers(source.to_string()), problem);
+                self.unread_of_this_line(Part::Numbers(source.to_string()), problem);
             }
             self.lines.push(Line {
                 source: source.to_string(),

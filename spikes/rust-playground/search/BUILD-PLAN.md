@@ -1050,6 +1050,19 @@ and one each day found by the checks they asked for.
 | 3 | The evidence cross-check still refused more than seven entries, and `answer.rs` still promised six reasons, after the bound became six unread parts | confirmed | the checker counts parts; eight terms on one part is a fixed case; the doc says what `left_out` counts |
 | 4 | — found by the completion property on its first run over generators that write an unread number, and not again in six: the together count took an item with no occurrence that counts, since a sum of nothing is 0 and 0 is at least any bound of zero or less; its route, which asks for a selected line, returned 11 of 12 | the builder's; nothing to do with an unread number | only occurrences that count reach a bound together; pinned by hand, since the generators reach it seldom |
 
+**Its last look, at `8083c465`, the same day**: the three fixes hold, no
+new matching or arithmetic defect; one defect of explanation. A reason
+was joined to an open occurrence by its *source*, so six unread Spirit
+lines before the one Life line that mattered filled the six parts shown
+and the relevant reason, `explicitMods[6]`, was the one left out —
+confirmed, on both paths. An `Unread` of a line's flags or numbers now
+says which occurrence it is of (`Unread::line`), reasons are chosen by
+occurrence, and by what the group asked of it — its flags where a flag
+is asked, its numbers where a number is — before the six-part cut.
+`DERIVATION` 5. The audit's fixture is `tests/fifth_audit.rs`'s last
+case; a generated check holds the second half (a reason is of what its
+term asked) and refuses the old join. Yields of the four looks: 6, 3, 3, 1.
+
 The generators write a number with five decimals, which a completion
 fills; with an unread slot read as a no again the completion property
 refuses at once, shrunk to `line("# to maximum Life" arg1>=0)` over
