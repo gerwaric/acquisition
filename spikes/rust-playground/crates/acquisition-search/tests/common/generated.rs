@@ -263,7 +263,7 @@ pub enum Q {
     Plain(String),
     /// A spelling and the explicit form it lowers to or means
     /// (transformation 11): `"life"` and `text:life`.
-    Alt(String, String),
+    Alt(String, String, TermKind),
     Line(G),
     /// `sum(line(G).slot)` and its comparison.
     Sum(G, String, String),
@@ -341,29 +341,37 @@ fn plain() -> BoxedStrategy<Q> {
 }
 
 fn alt() -> BoxedStrategy<Q> {
-    let pairs: Vec<(String, String)> = vec![
-        ("\"life\"".into(), "text:life".into()),
-        ("RARITY=Rare".into(), "rarity=rare".into()),
-        (quoted(LIFE), format!("line({})", quoted(LIFE))),
+    let pairs: Vec<(String, String, TermKind)> = vec![
+        ("\"life\"".into(), "text:life".into(), TermKind::Plain),
+        ("RARITY=Rare".into(), "rarity=rare".into(), TermKind::Plain),
+        (
+            quoted(LIFE),
+            format!("line({})", quoted(LIFE)),
+            TermKind::Group,
+        ),
         (
             "\"+# to maximum Life\">=5".into(),
             format!("line({} arg1>=5)", quoted(LIFE)),
+            TermKind::Group,
         ),
         (
             format!("{}.avg>4", quoted(ADDS)),
             format!("line({} avg>4)", quoted(ADDS)),
+            TermKind::Group,
         ),
         (
             format!("sum({})>=9", quoted(LIFE)),
             format!("sum(line({}).arg1)>=9", quoted(LIFE)),
+            TermKind::Sum,
         ),
         (
             format!("-{}", quoted(COLD)),
             format!("-line({})", quoted(COLD)),
+            TermKind::Group,
         ),
     ];
     proptest::sample::select(pairs)
-        .prop_map(|(spelled, explicit)| Q::Alt(spelled, explicit))
+        .prop_map(|(spelled, explicit, kind)| Q::Alt(spelled, explicit, kind))
         .boxed()
 }
 
@@ -476,7 +484,7 @@ fn text(q: &Q, top: bool, spelling: Spelling) -> String {
     };
     match q {
         Q::Plain(term) => term.clone(),
-        Q::Alt(spelled, explicit) => match spelling {
+        Q::Alt(spelled, explicit, _) => match spelling {
             Spelling::Authored => spelled.clone(),
             Spelling::Explicit => explicit.clone(),
         },
@@ -616,7 +624,8 @@ fn key(q: &Q) -> String {
 pub fn terms(q: &Q) -> Vec<(String, TermKind)> {
     fn walk(q: &Q, out: &mut Vec<(String, TermKind)>) {
         match q {
-            Q::Plain(_) | Q::Alt(..) => out.push((key(q), TermKind::Plain)),
+            Q::Plain(_) => out.push((key(q), TermKind::Plain)),
+            Q::Alt(_, _, kind) => out.push((key(q), *kind)),
             Q::Line(_) | Q::Proj(..) => out.push((key(q), TermKind::Group)),
             Q::Sum(..) => out.push((key(q), TermKind::Sum)),
             Q::Open(..) => out.push((key(q), TermKind::Probe)),
@@ -742,7 +751,7 @@ fn tri(holes: bool) -> BoxedStrategy<Tri> {
     prop_oneof![3 => Just(Tri::No), 2 => Just(Tri::Yes), hole => Just(Tri::Hole)].boxed()
 }
 
-fn line(holes: bool) -> BoxedStrategy<LineM> {
+pub fn line(holes: bool) -> BoxedStrategy<LineM> {
     let hole = if holes { 1 } else { 0 };
     let flags = prop_oneof![
         5 => (tri(holes), tri(holes)).prop_map(|(crafted, fractured)| Flags::Each { crafted, fractured }),
@@ -826,7 +835,101 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
         .boxed()
 }
 
+/// A body with something unread in it, whatever the dice gave.
+pub fn holed() -> BoxedStrategy<Body> {
+    (some_body(true), 0u8..4)
+        .prop_map(|(mut body, which)| {
+            if !body.has_holes() {
+                match which {
+                    0 => body.implicit = Lines::Hole,
+                    1 => body.explicit = Lines::Hole,
+                    2 => body.corrupted = Tri::Hole,
+                    _ => body.ilvl = Known::Hole,
+                }
+            }
+            body
+        })
+        .boxed()
+}
+
 impl Body {
+    /// A body that says nothing, every yes or no of it answered `flag`:
+    /// what the two plainest completions are filled from.
+    pub fn blank(flag: Tri) -> Body {
+        Body {
+            explicit: Lines::Absent,
+            implicit: Lines::Absent,
+            hybrid: Lines::Absent,
+            corrupted: flag,
+            influences_hole: false,
+            shaper: flag,
+            hunter: flag,
+            ilvl: Known::Absent,
+            name: Known::Absent,
+            note: Known::Absent,
+        }
+    }
+
+    /// A readable body whose arrays hold `lines`, and whose numbers, names
+    /// and yes-or-noes are the `n`th of a fixed round — so that a handful
+    /// of completions tries an unread number as several, a name as two and
+    /// as none, and three flags every way, whatever the dice gave.
+    pub fn nth(n: usize, lines: Vec<LineM>) -> Body {
+        let flag = |bit: usize| if n >> bit & 1 == 1 { Tri::Yes } else { Tri::No };
+        let of = |lines: &[LineM]| Lines::Of(lines.iter().cloned().map(Elem::Line).collect());
+        let half = lines.len().div_ceil(2);
+        Body {
+            explicit: of(&lines[..half]),
+            implicit: of(&lines[half..]),
+            hybrid: if n.is_multiple_of(3) {
+                of(&lines)
+            } else {
+                Lines::Absent
+            },
+            corrupted: flag(0),
+            influences_hole: false,
+            shaper: flag(1),
+            hunter: flag(2),
+            ilvl: [
+                Known::Absent,
+                Known::Is(0),
+                Known::Is(1),
+                Known::Is(79),
+                Known::Is(80),
+                Known::Is(84),
+            ][n % 6]
+                .clone(),
+            name: [
+                Known::Absent,
+                Known::Is("Doom Knot"),
+                Known::Is("Life Ring"),
+            ][n % 3]
+                .clone(),
+            note: [
+                Known::Is("keep"),
+                Known::Absent,
+                Known::Is("~price 1 chaos"),
+            ][n / 3 % 3]
+                .clone(),
+        }
+    }
+
+    /// One line of every kind at each of four values, its flags as given.
+    pub fn every_line(flag: Tri) -> Vec<LineM> {
+        (0u8..5)
+            .flat_map(|kind| {
+                [LOW, 0, 1, HIGH].map(|n| LineM {
+                    kind,
+                    n,
+                    flags: Flags::Each {
+                        crafted: flag,
+                        fractured: flag,
+                    },
+                })
+            })
+            .collect()
+    }
+
     /// Whether anything of it cannot be read.
     pub fn has_holes(&self) -> bool {
         let tri = |t: Tri| t == Tri::Hole;
@@ -858,15 +961,17 @@ impl Body {
     /// an element that was no line a line or nothing. What could be read
     /// is kept.
     pub fn completed(&self, fill: &Body, coins: Coins) -> Body {
-        let mut rng = Lcg(match coins {
+        let rng = Lcg(match coins {
             Coins::Tossed(seed) => seed | 1,
             _ => 1,
         });
-        let mut coin = move || match coins {
+        let rng = std::cell::RefCell::new(rng);
+        let coin = || match coins {
             Coins::No => false,
             Coins::Yes => true,
-            Coins::Tossed(_) => rng.next().is_multiple_of(2),
+            Coins::Tossed(_) => rng.borrow_mut().next().is_multiple_of(2),
         };
+        let pick = |of: usize| (rng.borrow_mut().next() as usize) % of.max(1);
         let filled = |t: Tri, from: Tri| match (t, from) {
             (Tri::Hole, Tri::Hole) => Tri::No,
             (Tri::Hole, from) => from,
@@ -891,13 +996,13 @@ impl Body {
                 for elem in elems {
                     match elem {
                         Elem::Junk => {
-                            let line = spare.pop();
-                            if coin() {
-                                out.extend(line.map(Elem::Line));
+                            let at = pick(spare.len());
+                            if coin() && !spare.is_empty() {
+                                out.push(Elem::Line(spare.remove(at)));
                             }
                         }
                         Elem::Line(l) => {
-                            let mut toss = |t: Tri| match t {
+                            let toss = |t: Tri| match t {
                                 Tri::Hole if coin() => Tri::Yes,
                                 Tri::Hole => Tri::No,
                                 known => known,
