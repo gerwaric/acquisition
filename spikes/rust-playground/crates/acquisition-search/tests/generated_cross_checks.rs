@@ -365,6 +365,13 @@ proptest! {
                 evidence_is_the_items(&store, &answer).map_err(TestCaseError::fail)?;
             }
         }
+        // a generated query seldom ends in a zero block with suggestions in
+        // it, so two misspellings are asked of every corpus: the life line,
+        // which the generators spell two ways, and a name
+        for misspelt in ["line(template:lifes)", "sum(line(template:lifes).arg1)>0", "name:knott"] {
+            let answer = run(&corpus, &request(misspelt, None, false, 50)).map_err(|e| TestCaseError::fail(e.to_string()))?;
+            zero_block_is_terms_block(&corpus, &answer).map_err(TestCaseError::fail)?;
+        }
         every_item_twice(&all, &text, Some(&sum)).map_err(TestCaseError::fail)?;
         every_occurrence_twice(&bodies, &q, &projection, &sum).map_err(TestCaseError::fail)?;
         every_occurrence_in_another_order(&bodies, &q, &projection, &sum)
