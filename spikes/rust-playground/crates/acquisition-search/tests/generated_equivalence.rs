@@ -256,3 +256,32 @@ proptest! {
         check(&corpus, &scope, &q, &sort, desc, seed).map_err(TestCaseError::fail)?;
     }
 }
+
+/// Past a bound: seven unread flags and a probe of seven terms, so that
+/// what a row shows is cut — and cut the same however the terms are
+/// ordered. The fifth audit's follow-up passed this fixture through
+/// `check` and it refused; the generators' items never held more unread
+/// parts than a row shows.
+#[test]
+fn invariant_7_holds_where_a_block_is_cut() {
+    let flags = [
+        "corrupted",
+        "identified",
+        "split",
+        "duplicated",
+        "replica",
+        "fractured",
+        "mutated",
+    ];
+    let mut body = serde_json::json!({});
+    for flag in flags {
+        body[flag] = serde_json::json!("unread");
+    }
+    let (corpus, scope) = fixture(vec![body]);
+    let terms: Vec<Q> = flags.iter().map(|f| Q::Plain(format!("is:{f}"))).collect();
+    for q in [Q::Undecided(Box::new(Q::And(terms.clone()))), Q::And(terms)] {
+        for seed in 1..6 {
+            check(&corpus, &scope, &q, &Sort::None, false, seed).unwrap();
+        }
+    }
+}

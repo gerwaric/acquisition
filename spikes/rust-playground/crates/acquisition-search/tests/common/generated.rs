@@ -353,6 +353,10 @@ fn plain() -> BoxedStrategy<Q> {
             "is:corrupted",
             "is:shaper",
             "is:hunter",
+            "is:split",
+            "is:duplicated",
+            "is:replica",
+            "is:mutated",
             "\"life\"",
             "\"Level: 8\"",
             "text~\"^adds\"",
@@ -1206,7 +1210,15 @@ impl Body {
     }
 }
 
-/// The six items the audits' reproductions were made of.
+/// Four lines of one template whose flags cannot be read.
+fn flagless(template: &str, from: i32) -> Vec<Value> {
+    (from..from + 4)
+        .map(|n| json!({ "description": format!("+{n}{}{template}", if template.starts_with('%') { "" } else { " " }), "flags": "unread" }))
+        .collect()
+}
+
+/// The six items the audits' reproductions were made of, and a seventh
+/// that is past every bound.
 pub fn anchors() -> Vec<Value> {
     vec![
         json!({"explicitMods": ["+95 to maximum Life"]}),
@@ -1217,6 +1229,15 @@ pub fn anchors() -> Vec<Value> {
             {"description": "+95 to maximum Life", "flags": "unread"}]}),
         json!({"explicitMods": [{"description": "Cannot be Frozen", "flags": "unread"}],
             "hybrid": "unread"}),
+        // past every bound of a row: more unread parts than are shown, in
+        // two arrays and on the item, so that a block is cut and the cut
+        // is asked of every spelling and every order
+        json!({
+            "explicitMods": flagless("to maximum Life", 1),
+            "implicitMods": flagless("% to Cold Resistance", 5),
+            "corrupted": "unread", "split": "unread", "duplicated": "unread",
+            "replica": "unread", "mutated": "unread",
+            "influences": {"shaper": "unread", "hunter": "unread"}}),
     ]
 }
 
