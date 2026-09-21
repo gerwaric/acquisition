@@ -930,6 +930,23 @@ impl Body {
             .collect()
     }
 
+    /// The body with every element of every array written twice
+    /// (transformation 10).
+    pub fn every_line_twice(&self) -> Body {
+        let twice = |lines: &Lines| match lines {
+            Lines::Of(elems) => {
+                Lines::Of(elems.iter().flat_map(|e| [e.clone(), e.clone()]).collect())
+            }
+            other => other.clone(),
+        };
+        Body {
+            explicit: twice(&self.explicit),
+            implicit: twice(&self.implicit),
+            hybrid: twice(&self.hybrid),
+            ..self.clone()
+        }
+    }
+
     /// Whether anything of it cannot be read.
     pub fn has_holes(&self) -> bool {
         let tri = |t: Tri| t == Tri::Hole;
@@ -1162,6 +1179,12 @@ pub fn anchors() -> Vec<Value> {
 /// One tab of rare rings `i0`, `i1`, … in the realm `pc`, and an item in
 /// another realm that no answer over `pc` may return.
 pub fn fixture(bodies: Vec<Value>) -> (Corpus, Ids) {
+    let (_, corpus, ids) = fixture_with_store(bodies);
+    (corpus, ids)
+}
+
+/// The same, with the store it was loaded from: what `show` reads.
+pub fn fixture_with_store(bodies: Vec<Value>) -> (Store, Corpus, Ids) {
     let mut store = Store::open_memory().unwrap();
     store
         .record(
@@ -1202,7 +1225,8 @@ pub fn fixture(bodies: Vec<Value>) -> (Corpus, Ids) {
         vec![super::item("outside", "", "Iron Ring", "Rare", json!({}))],
         5,
     );
-    (super::load(&store, Some("pc")), ids)
+    let corpus = super::load(&store, Some("pc"));
+    (store, corpus, ids)
 }
 
 /// A request in, an answer out, as JSON; an error as the JSON `--json`
