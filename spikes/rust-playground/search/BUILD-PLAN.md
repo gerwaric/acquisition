@@ -889,7 +889,7 @@ fully readable. Its one failure since was the test's — the reasons an
 `undecided( … )` shows follow the order its terms were written in.
 Completion: its completions were too few and too random to move an
 equality or an element that is no line, so its measurement said little;
-the sixteen it tries now are in its header. Cross-checks: believed only
+the fifteen it tries now are in its header. Cross-checks: believed only
 after the three mutants below.
 
 **The mutants** — each a fix of step 4's audits undone, or a fault of the
@@ -923,18 +923,21 @@ answer contradicts it.
 
 **The completion property's measured half** —
 `cargo test -p acquisition-search --test generated_completion -- --ignored --nocapture`,
-2026-09-20, 2,000 cases from a fixed seed, 183 of them authoring errors;
-the same numbers before part 2 and after it. What was decided as stored
-and held under all sixteen completions: 3,309 terms, 1,251 roots, 3,756
-sort scalars; counterexamples, none. What was undecided as stored:
+2,000 cases from a fixed seed. Run 2026-09-20 before part 2 and after it,
+the same numbers both times; the figures here are the run of 2026-09-21,
+over the generators as the fifth audit left them (decimal lines, a second
+spelling, selectors that resolve to nothing), 174 of the cases authoring
+errors. What was decided as stored and held under all fifteen
+completions: 3,400 terms, 1,288 roots, 3,782 sort scalars;
+counterexamples, none. What was undecided as stored:
 
 | Undecided | Completions differed | Every one said no | Every one said yes |
 | --- | ---: | ---: | ---: |
-| a field, a flag or a phrase | 200 | 39 | 0 |
-| a line's group | 489 | 457 | 0 |
-| a sum's comparison | 84 | 191 | 110 |
-| the root | 256 | 209 | 101 |
-| a sort scalar | 1,055 | 822 with one value | |
+| a field, a flag or a phrase | 167 | 49 | 0 |
+| a line's group | 419 | 535 | 0 |
+| a sum's comparison | 110 | 164 | 99 |
+| the root | 227 | 226 | 85 |
+| a sort scalar | 953 | 888 with one value | |
 
 The kinds that did not differ, read from the examples the run prints:
 
@@ -951,10 +954,10 @@ The kinds that did not differ, read from the examples the run prints:
   Careful on purpose; no rule of the reference asks for more.
 - *A comparison on an incomplete subtotal*, undecided whatever the
   subtotal already reaches: the reference's sum-status table, and this
-  section's own example of a rule careful on purpose. The eight the run
-  prints of the 110 sums every completion made true are this kind or the
-  first, and the eight roots it prints inherit a sum or a negated group;
-  the rest were not read.
+  section's own example of a rule careful on purpose. The eight the
+  first run printed of its 110 sums every completion made true were this
+  kind or the first, and the eight roots it printed inherited a sum or a
+  negated group; the rest were not read.
 - The column that matters is the empty one: **no undecided group, field,
   flag or phrase was made true by every completion**, which is where a
   missed witness shows. With mutant F applied, 83 groups and 18 fields in
@@ -963,7 +966,8 @@ The kinds that did not differ, read from the examples the run prints:
 **Observations — the builder's.**
 
 - *Failed against lacked under completion.* A line's group that failed as
-  stored lacked under a completion 19 times in 2,000 cases: the selector
+  stored lacked under a completion 19 times in 2,000 cases (21 on the
+  second day's generators): the selector
   was open on an occurrence with unread flags, the whole was false on it
   whatever the flag, and a completion answered the flag no. The property
   lets this through and counts it: *failed* on a group says the truth is
@@ -999,13 +1003,49 @@ release figure is within 9 ms of the audited build's column above, taken
 the same day (OQ2 the furthest, 269 to 278); the two builds were not run
 against each other, so that part 2 cost nothing is not claimed.
 
-**For the outside audit this step closes on** (by the owner's hand): the
-range `39e7667a`–`36a9738a`; what the plan's "Step 4b" already points it
-at — the rows, the zero block, `show`, `--describe`, the CLI's text —
-and the four generated test files with `tests/common/generated.rs`:
-whether each can detect a meaningful fault, what the normal form and the
-sixteen completions leave out, and whether §7's rule can be passed
-without being obeyed. Its yield goes beside 6, 5, 2, 3.
+**A fifth audit, of step 4b at `ef381909` (Astra, 2026-09-21)**, the one
+this step closes on: keep `group.rs`; six defects of the first surface
+that four generated suites had passed over, none of them the
+extraction's, and two corrections. Each reproduced as a failing test
+before it was taken (`tests/fifth_audit.rs`; the CLI's `search_json.rs`
+for 5). Yield by round: 6, 5, 2, 3, 6 — and a seventh, found the same day
+by the check the audit asked for.
+
+| # | Finding | Verdict | Held by |
+| --- | --- | --- | --- |
+| 1 | A sum of decimals depended on the order of occurrences: 0.1, 0.2, 0.3 summed to 0.6000000000000001 one way round, so `sum( … )=0.6` matched one of two items carrying the same lines | confirmed, and wider: the mean of a ranged pair had it too (`avg=0.15` over 0.1 and 0.2) | `exact.rs`: a sum is taken over the decimals — each number's shortest spelling as an integer and a scale — and read back as the nearest float, which is the float a typed bound is; one function for a sum, the together count and `avg`. No rounding anywhere |
+| 2 | A suggestion counted one spelling and offered an any-case `=` that returns every spelling: said 1, returned 2 | confirmed | a suggestion's count is its term's, asked of the scope as it will be typed; a second spelling of a value already offered is the same term and is not offered again |
+| 3 | A pattern that resolved to nothing was missing from the zero block: being listed was coupled to having words to suggest by | confirmed | listed with no suggestion — a group's, a `sum`'s, a field's |
+| 4 | What a row shows of one term was unbounded for a group and a sum (40 lines) and cut to three for a phrase without saying so (invariant 5) | confirmed | six, a sum's value beside them; `left_out` counts the rest and the CLI prints it with `acq show <id>` |
+| 5 | Under `--realm all` a row did not say which realm its item is in | confirmed | the renderer: the realm before the place, as `show` prints it; under one realm the scope line has said it |
+| 6 | `--describe` did not say how terms compose or what has a value, and refused the slot and operator words its own doc promised | confirmed | two blocks, `composition` and `values`, an entry a line and an example, every example bound by a test; an entry answers to each word of its name, the positional slots to any `arg<N>`, a block to its own. The reference stays the manual |
+| 7 | — found by the both-ways zero-block check on its first day: a closed set's `:` selector that matched nothing (`rarity:ma` over rares) showed an empty resolved list and no zero-block entry | the builder's, the same fault as 3 | listed; pinned beside 3 |
+| — | The record said sixteen completions: there are fifteen, sixteen bodies with the stored one | confirmed | here and above |
+| — | The resolved-values continuation always said `--count line` | confirmed | `--count <field>` for a field's values |
+
+Why the suites had passed over them, which is the audit's other half:
+the generators made whole numbers only and never reordered an item's
+occurrences, though transformation 4 asks for it and this record had
+claimed 1–4 covered; the zero-block check looked only at entries
+present, so an emptied block passed it; a suggestion's count is named
+`items`, which no walk over `count` sees; nothing bounded a row; and no
+property reads the CLI's text or `--describe`, as the observations above
+already said. The generators have decimal lines and bounds, a second
+spelling of one line and selectors that resolve to nothing; the
+cross-checks ask every occurrence in another order, the zero block both
+ways, every suggestion's term, a row's bound, and two misspellings of
+every corpus; negative controls refuse an emptied zero block, a
+miscounted suggestion and a doubled row. Each fix undone is caught by
+them: P a sum in float order, Q a suggestion counting its spelling
+(survived 192 cases until the misspellings were asked of every corpus),
+R a pattern dropped from the zero block, S a row unbounded.
+
+Observations — the builder's. The derivation's version stays 2: a body
+derives to the same item, what moved is a slot computed from it, and the
+basis names no evaluator — so two builds can label different answers
+with one basis, which was already true of every evaluator fix of step 4.
+M3 once more, the build at `3c7d31f3`, 2026-09-21: first ask 491 ms;
+warm, release, 266 to 296 ms (AQ2, the sum, 296), debug 1,729 to 2,441.
 
 ## Gaps found while planning — rules the reference did not state
 
