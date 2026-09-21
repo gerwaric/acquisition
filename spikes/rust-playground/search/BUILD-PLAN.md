@@ -1013,7 +1013,7 @@ by the check the audit asked for.
 
 | # | Finding | Verdict | Held by |
 | --- | --- | --- | --- |
-| 1 | A sum of decimals depended on the order of occurrences: 0.1, 0.2, 0.3 summed to 0.6000000000000001 one way round, so `sum( … )=0.6` matched one of two items carrying the same lines | confirmed, and wider: the mean of a ranged pair had it too (`avg=0.15` over 0.1 and 0.2) | `exact.rs`: a sum is taken over the decimals — each number's shortest spelling as an integer and a scale — and read back as the nearest float, which is the float a typed bound is; one function for a sum, the together count and `avg`. No rounding anywhere |
+| 1 | A sum of decimals depended on the order of occurrences: 0.1, 0.2, 0.3 summed to 0.6000000000000001 one way round, so `sum( … )=0.6` matched one of two items carrying the same lines | confirmed, and wider: the mean of a ranged pair had it too (`avg=0.15` over 0.1 and 0.2) | `exact.rs`: arithmetic on whole hundred-thousandths, in integers, read back as the nearest float, which is the float a typed bound is; one function for a sum, the together count and `avg`. No rounding anywhere. Its first form, a decimal sum with a float fallback, is follow-up 1 below |
 | 2 | A suggestion counted one spelling and offered an any-case `=` that returns every spelling: said 1, returned 2 | confirmed | a suggestion's count is its term's, asked of the scope as it will be typed; a second spelling of a value already offered is the same term and is not offered again |
 | 3 | A pattern that resolved to nothing was missing from the zero block: being listed was coupled to having words to suggest by | confirmed | listed with no suggestion — a group's, a `sum`'s, a field's |
 | 4 | What a row shows of one term was unbounded for a group and a sum (40 lines) and cut to three for a phrase without saying so (invariant 5) | confirmed | six, a sum's value beside them; `left_out` counts the rest and the CLI prints it with `acq show <id>` |
@@ -1022,6 +1022,21 @@ by the check the audit asked for.
 | 7 | — found by the both-ways zero-block check on its first day: a closed set's `:` selector that matched nothing (`rarity:ma` over rares) showed an empty resolved list and no zero-block entry | the builder's, the same fault as 3 | listed; pinned beside 3 |
 | — | The record said sixteen completions: there are fifteen, sixteen bodies with the stored one | confirmed | here and above |
 | — | The resolved-values continuation always said `--count line` | confirmed | `--count <field>` for a field's values |
+
+**The audit's review of those fixes (`c4fc8f13`–`15fc914a`), the same
+day**: they hold; three follow-ups, each reproduced as a failing test
+first, fixed at `7f5fd962`.
+
+| # | Follow-up | Verdict | Held by |
+| --- | --- | --- | --- |
+| 1 | `exact.rs` fell back to floats when its integers overflowed, and whether a sum fell back depended on the order its occurrences cancelled in: one order of 1e28, 1e28, −1e28, −1e28, 1e-10 gave 0, another 1e-10 | confirmed | a number is read once, where the body is read: ten whole digits and four decimals (measured over the census copy: 212,233 displayed numbers, none past two decimals or ten whole digits; the owner: "I have never seen more than 4 digits after the decimal"). One beyond it costs its line its numbers and leaves its array unread (C93), so nothing downstream has a fallback; 48 lines of code became 21. `DERIVATION` 3. M2 again: 0 unread, 0 unexplained |
+| 2 | The reasons an `undecided( … )` shows were cut to six in the order the terms were written, so reordering a conjunction changed which was dropped — and the fixture, passed through the equivalence checker, was refused | confirmed, and wider: the total's undecided items listed their reasons with no bound at all | `eval::why`, one function for both: the bound is on the item's unread parts, the first six in the item's own order, every term's pair with each kept; `why_left_out`. The audit's fixture is a fixed case of `generated_equivalence.rs` |
+| 3 | The `acq show` continuation dropped the account: with a second account known it does not run | confirmed, and wider: both offers of `show`'s errors dropped it too | `answer::command`, the one way the search prints a command — routes, the continuation, the offers. The CLI's rule-5 test runs every `acq …` a text prints, anywhere in a line, with two accounts known; the walk it replaces saw only lines that start with one |
+
+The shared anchors gained an item past every cut (`1e951803`). With the
+reasons ordered by authored term again, the fixed case fails at once;
+the generated property passed its 256 gate cases and found it at case
+531 of 2,000.
 
 Why the suites had passed over them, which is the audit's other half:
 the generators made whole numbers only and never reordered an item's
