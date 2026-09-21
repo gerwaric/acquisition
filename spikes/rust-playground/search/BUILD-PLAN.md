@@ -853,6 +853,12 @@ third-round fixes held, no defect found in `show`, three more.
   the rule is asked. Both say so now (`tools/docs-check-breakers.sh`, 51
   ok). The breakers are not in the gate, so nothing but running them by
   hand would have shown it.
+- What B3 rests on, measured over the copy when the owner asked what
+  `tab:maps` meant (2026-09-20): 15 map tabs hold 2,566 substashes and 29
+  unique tabs 491, and a substash is named `1`, `4 (Remove-only)` or
+  nothing, so without its tab's name an item in one could not be found by
+  tab at all. `tab:` tests names and never GGG's `type`, of which the copy
+  has 16; the type as a field is parked (`decisions/search.md`).
 - `Folder` has its fourth consumer, as step 3 said it would
   (`corpus.rs`, `is_folder`).
 - Over the copy, `name="Ashes of the Stars"` finds ten, which is the
