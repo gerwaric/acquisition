@@ -22,6 +22,8 @@ pub const COLD: &str = "#% to Cold Resistance";
 pub const ADDS: &str = "Adds # to # Cold Damage";
 pub const FROZEN: &str = "Cannot be Frozen";
 pub const SPIRIT: &str = "# to Spirit";
+/// A line whose numbers are decimals: tenths, from the same small range.
+pub const LEECH: &str = "#% of Damage Leeched as Life";
 
 /// Values and bounds share one small range, so that a bound lands
 /// immediately below, at and above a value, zero and negatives included
@@ -53,12 +55,32 @@ fn template_leaf() -> BoxedStrategy<String> {
             "template:Frozen",
             "template:spirit",
             "template:nothing",
+            "template:leeched",
+            // a word no line has whole and some have part of: the zero
+            // block's suggestions
+            "template:lifes",
             "template~\"life|resistance\"",
             "template~\"^adds\"",
+            "template~\"nothing\"",
         ])
         .prop_map(str::to_string),
     ]
     .boxed()
+}
+
+/// A bound as typed: a whole number of the range, or — one time in four —
+/// tenths, which is what a sum of decimal lines is compared with.
+fn bound() -> BoxedStrategy<String> {
+    prop_oneof![
+        3 => (LOW..=HIGH).prop_map(|n| n.to_string()),
+        1 => (LOW * 3..=HIGH * 3).prop_map(tenths),
+    ]
+    .boxed()
+}
+
+fn tenths(n: i32) -> String {
+    let sign = if n < 0 { "-" } else { "" };
+    format!("{sign}{}.{}", n.abs() / 10, n.abs() % 10)
 }
 
 fn restriction_leaf() -> BoxedStrategy<String> {
@@ -115,6 +137,7 @@ fn template_and_comparison() -> BoxedStrategy<(String, String)> {
         (ADDS, "low"),
         (ADDS, "high"),
         (ADDS, "avg"),
+        (LEECH, "arg1"),
     ])
     .prop_map(|(template, slot)| (quoted(template), slot));
     let worded = (
@@ -131,7 +154,7 @@ fn template_and_comparison() -> BoxedStrategy<(String, String)> {
     let fitted = (
         prop_oneof![fitting, worded],
         proptest::sample::select(vec![">=", ">", "<=", "<", "="]),
-        LOW..=HIGH,
+        bound(),
     )
         .prop_map(|((template, slot), op, n)| (template, format!("{slot}{op}{n}")));
     prop_oneof![9 => fitted, 1 => (template_leaf(), comparison_leaf())].boxed()
@@ -302,7 +325,10 @@ fn slot_word() -> BoxedStrategy<String> {
 fn comparison() -> BoxedStrategy<String> {
     (
         proptest::sample::select(vec![">=", ">", "<=", "<", "="]),
-        LOW..=HIGH * 2,
+        prop_oneof![
+            3 => (LOW..=HIGH * 2).prop_map(|n| n.to_string()),
+            1 => (LOW * 3..=HIGH * 6).prop_map(tenths),
+        ],
     )
         .prop_map(|(op, n)| format!("{op}{n}"))
         .boxed()
@@ -315,6 +341,8 @@ fn plain() -> BoxedStrategy<Q> {
             "rarity:ma",
             "base:ring",
             "name:doom",
+            "name:knott",
+            "name~\"nothing\"",
             "name=\"Doom Knot\"",
             "ilvl>=80",
             "ilvl=1..79",
@@ -757,7 +785,7 @@ pub fn line(holes: bool) -> BoxedStrategy<LineM> {
         5 => (tri(holes), tri(holes)).prop_map(|(crafted, fractured)| Flags::Each { crafted, fractured }),
         hole => Just(Flags::Hole),
     ];
-    (0u8..5, LOW..=HIGH, flags)
+    (0u8..7, LOW..=HIGH, flags)
         .prop_map(|(kind, n, flags)| LineM { kind, n, flags })
         .boxed()
 }
@@ -916,7 +944,7 @@ impl Body {
 
     /// One line of every kind at each of four values, its flags as given.
     pub fn every_line(flag: Tri) -> Vec<LineM> {
-        (0u8..5)
+        (0u8..7)
             .flat_map(|kind| {
                 [LOW, 0, 1, HIGH].map(|n| LineM {
                     kind,
@@ -928,6 +956,21 @@ impl Body {
                 })
             })
             .collect()
+    }
+
+    /// The body with the elements of every array in the opposite order
+    /// (transformation 4).
+    pub fn every_line_reversed(&self) -> Body {
+        let reversed = |lines: &Lines| match lines {
+            Lines::Of(elems) => Lines::Of(elems.iter().rev().cloned().collect()),
+            other => other.clone(),
+        };
+        Body {
+            explicit: reversed(&self.explicit),
+            implicit: reversed(&self.implicit),
+            hybrid: reversed(&self.hybrid),
+            ..self.clone()
+        }
     }
 
     /// The body with every element of every array written twice
@@ -1083,7 +1126,10 @@ impl Body {
                 1 => format!("{:+}% to Cold Resistance", l.n),
                 2 => format!("Adds {} to {} Cold Damage", l.n.abs(), l.n.abs() + 7),
                 3 => FROZEN.to_string(),
-                _ => format!("{:+} to Spirit", l.n),
+                4 => format!("{:+} to Spirit", l.n),
+                5 => format!("{}% of Damage Leeched as Life", tenths(l.n)),
+                // GGG has spelled some lines two ways
+                _ => format!("{:+} to maximum life", l.n),
             };
             let flags = match &l.flags {
                 Flags::Hole => json!(UNREAD),

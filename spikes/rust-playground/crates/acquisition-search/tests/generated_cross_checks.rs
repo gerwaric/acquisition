@@ -10,8 +10,14 @@
 //! - **The zero block is the terms block** (C100): a selector listed as
 //!   resolving to nothing lists no value it resolved to, and one that lists
 //!   a value is never said to resolve to nothing.
+//!   Both ways: a selector with nothing beside it in the terms block is in
+//!   the zero block, so an empty zero block is no way to pass. And a
+//!   suggestion's count is what its term returns (invariant 4).
 //! - **A row's evidence is the item's** (C100, C103): every line a row
-//!   shows is a line `show` derives of that item — source, flags and text.
+//!   shows is a line `show` derives of that item — source, flags and text —
+//!   and what a row shows of one term is bounded (invariant 5).
+//! - **Every occurrence in another order** (C92): no term moves, and no
+//!   sum and no largest — decimals among the numbers.
 //! - **Every item twice** doubles every count and changes no row's
 //!   evidence or scalar.
 //! - **Every occurrence twice** (C92): a term on a line binds one
@@ -95,14 +101,15 @@ fn probe_is_sort_status(corpus: &Corpus, scope: &Ids, value: &str) -> Result<(),
     Ok(())
 }
 
-fn zero_block_is_terms_block(answer: &Value) -> Result<(), String> {
+fn zero_block_is_terms_block(corpus: &Corpus, answer: &Value) -> Result<(), String> {
     let Some(nothing) = answer["zero"]["resolved_to_nothing"].as_array() else {
         return Ok(());
     };
+    let terms = answer["terms"].as_array().ok_or("no terms block")?;
     for entry in nothing {
-        let term = answer["terms"]
-            .as_array()
-            .and_then(|terms| terms.iter().find(|t| t["path"] == entry["path"]))
+        let term = terms
+            .iter()
+            .find(|t| t["path"] == entry["path"])
             .ok_or_else(|| format!("the zero block names a path no term has: {entry}"))?;
         if term["resolved"]["values"]
             .as_array()
@@ -111,6 +118,32 @@ fn zero_block_is_terms_block(answer: &Value) -> Result<(), String> {
             return Err(format!(
                 "{} resolved to nothing in the zero block and to {} in the terms block",
                 entry["term"], term["resolved"]["values"]
+            ));
+        }
+        for suggestion in entry["suggestions"].as_array().ok_or("no suggestions")? {
+            let text = suggestion["term"]
+                .as_str()
+                .ok_or("a suggestion with no term")?;
+            let asked = run(corpus, &request(text, None, false, 1))
+                .map_err(|e| format!("the suggestion `{text}` is refused: {e}"))?;
+            if asked["total"]["matched"] != suggestion["items"] {
+                return Err(format!(
+                    "the suggestion `{text}` says {} and returns {}",
+                    suggestion["items"], asked["total"]["matched"]
+                ));
+            }
+        }
+    }
+    // and the other way: a selector the terms block shows resolving to no
+    // value is said to in the zero block
+    for term in terms {
+        let empty = term["resolved"]["values"]
+            .as_array()
+            .is_some_and(Vec::is_empty);
+        if empty && !nothing.iter().any(|entry| entry["path"] == term["path"]) {
+            return Err(format!(
+                "{} resolved to no value and the zero block does not say so",
+                term["term"]
             ));
         }
     }
@@ -125,6 +158,10 @@ fn evidence_is_the_items(store: &Store, answer: &Value) -> Result<(), String> {
         let lines = shown["lines"].as_array().ok_or("show has no lines")?;
         let flags = |line: &Value| line["flags"].clone();
         for touched in row["matched"].as_array().ok_or("a row with no matched")? {
+            // six, and a sum's value beside them
+            if touched["shows"].as_array().ok_or("no shows")?.len() > 7 {
+                return Err(format!("row {id} shows more than its bound: {touched}"));
+            }
             for evidence in touched["shows"].as_array().ok_or("no shows")? {
                 let Some(line) = evidence.get("line") else {
                     continue;
@@ -219,6 +256,42 @@ fn every_item_twice(bodies: &[Value], text: &str, sort: Option<&str>) -> Result<
     Ok(())
 }
 
+fn every_occurrence_in_another_order(
+    bodies: &[Body],
+    q: &Q,
+    projection: &str,
+    sum: &str,
+) -> Result<(), String> {
+    let reversed: Vec<Body> = bodies.iter().map(Body::every_line_reversed).collect();
+    let (as_given, scope) = fixture(bodies.iter().map(Body::json).collect());
+    let (other, _) = fixture(reversed.iter().map(Body::json).collect());
+    let text = q_text(q, Spelling::Authored);
+    let ask = |corpus: &Corpus| run(corpus, &request(&text, None, false, scope.len().max(1)));
+    if let (Ok(a), Ok(b)) = (ask(&as_given), ask(&other)) {
+        let (a, b) = (
+            term_members(&as_given, &scope, &a)?,
+            term_members(&other, &scope, &b)?,
+        );
+        if a != b {
+            return Err(format!(
+                "`{text}`: a term moved when the occurrences were written in another order: {a:?} against {b:?}"
+            ));
+        }
+    }
+    for value in [projection, sum] {
+        let (a, b) = (
+            scalars(&as_given, &scope, value),
+            scalars(&other, &scope, value),
+        );
+        if a != b {
+            return Err(format!(
+                "`--sort {value}`: {a:?} and, the occurrences in another order, {b:?}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn every_occurrence_twice(
     bodies: &[Body],
     q: &Q,
@@ -288,11 +361,59 @@ proptest! {
         }
         for sort in [None, Some(projection.as_str()), Some(sum.as_str())] {
             if let Ok(answer) = run(&corpus, &request(&text, sort, false, 50)) {
-                zero_block_is_terms_block(&answer).map_err(TestCaseError::fail)?;
+                zero_block_is_terms_block(&corpus, &answer).map_err(TestCaseError::fail)?;
                 evidence_is_the_items(&store, &answer).map_err(TestCaseError::fail)?;
             }
         }
         every_item_twice(&all, &text, Some(&sum)).map_err(TestCaseError::fail)?;
         every_occurrence_twice(&bodies, &q, &projection, &sum).map_err(TestCaseError::fail)?;
+        every_occurrence_in_another_order(&bodies, &q, &projection, &sum)
+            .map_err(TestCaseError::fail)?;
     }
+}
+
+/// The checker's own negative controls, on a real answer: an empty zero
+/// block, a suggestion miscounted and an oversized row must each be
+/// refused — the fifth audit found the first of these passing.
+#[test]
+fn the_checks_refuse_an_empty_zero_block_a_miscounted_suggestion_and_an_unbounded_row() {
+    let many: Vec<String> = (1..=9).map(|n| format!("+{n} to maximum Life")).collect();
+    let (store, corpus, _) = fixture_with_store(vec![json!({ "explicitMods": many })]);
+    let answer = run(&corpus, &request("line(template:lifes)", None, false, 10)).unwrap();
+    zero_block_is_terms_block(&corpus, &answer).unwrap();
+    assert_eq!(
+        answer["zero"]["resolved_to_nothing"][0]["suggestions"][0]["items"],
+        1
+    );
+    let mut bad = answer.clone();
+    bad["zero"]["resolved_to_nothing"] = json!([]);
+    assert!(
+        zero_block_is_terms_block(&corpus, &bad)
+            .unwrap_err()
+            .contains("does not say so")
+    );
+    let mut bad = answer.clone();
+    bad["zero"]["resolved_to_nothing"][0]["suggestions"][0]["items"] = json!(2);
+    assert!(
+        zero_block_is_terms_block(&corpus, &bad)
+            .unwrap_err()
+            .contains("says 2 and returns 1")
+    );
+    let answer = run(&corpus, &request("line(template:life)", None, false, 10)).unwrap();
+    evidence_is_the_items(&store, &answer).unwrap();
+    let mut bad = answer.clone();
+    let shows = bad["rows"][0]["matched"][0]["shows"].clone();
+    let twice: Vec<Value> = shows
+        .as_array()
+        .unwrap()
+        .iter()
+        .chain(shows.as_array().unwrap())
+        .cloned()
+        .collect();
+    bad["rows"][0]["matched"][0]["shows"] = json!(twice);
+    assert!(
+        evidence_is_the_items(&store, &bad)
+            .unwrap_err()
+            .contains("more than its bound")
+    );
 }
