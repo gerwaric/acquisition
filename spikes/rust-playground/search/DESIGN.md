@@ -65,8 +65,10 @@ acq search [--account A] [--realm pc|xbox|sony|poe2|all] ['<query>']    no query
        acq search --realm pc -- '-is:corrupted'
    view       rows (default) | --count key,…  (one table each) | --cross key,key  (one table)   [--sum value]
               [--fields name,…] [--sort value [--desc]] [--limit n] [--next token]
-   discover   --describe [name,…]             the language: fields, operators, closed value sets,
-                                              computed values with their definitions, slots;
+   discover   --describe [name,…]             the language: fields, what a line takes, what has a
+                                              value, how terms compose, operators, closed value
+                                              sets, computed values with their definitions, slots;
+                                              a name asks for one entry, or a block by its name;
                                               structured under --json. This is the help C97 names.
               --count line[:text,…]           the vocabulary: templates by kind, ranked, slot ranges,
                                               each with its exact selector; several texts in one call
@@ -229,6 +231,11 @@ SLOTS — the words that name a number
   a slot is checked against a quoted template wherever the template sits among the group's
   conjuncts: line(("T" source=explicit) arg3>=0) is the error line("T" source=explicit arg3>=0)
   is. A template under an or or a not states no numbers, and its slots are the evaluator's.
+  a number            the search reads a number of up to ten whole digits and four decimals — more
+                      than any game displays. One written longer is an unread slot of its line:
+                      what asks that slot is undecided, through a not as well, and the line's text,
+                      template, source and other numbers answer as read (C93). Arithmetic on what
+                      is read — a sum, avg — is exact in decimals and the same in any order.
 
 VALUES
   line(P).<slot>                 a projected value: what a comparison, a sum or a sort consumes.
@@ -504,7 +511,9 @@ since none has a trigger yet. Meeting one is a listed limit (C102).
   selector, over C93's item scope, an item counts once when no
   occurrence meets the bound and the complete sum of its occurrences
   does — 20 + 75 counts for ≥ 90, 95 + 5 does not, and an unreadable
-  possible contributor cannot establish it; upper bounds, equality and
+  possible contributor cannot establish it, nor does an item none of
+  whose occurrences counts — a sum of nothing is zero, and is nothing
+  reaching a bound of zero or less; upper bounds, equality and
   compound terms report not applicable, never zero. It is a diagnostic
   beside C93's counts, not a fifth bucket (Astra's reading, accepted).
 - **C93 (K2) — composition and witnesses.** `true or undecided` is true;
@@ -629,6 +638,14 @@ since none has a trigger yet. Meeting one is a listed limit (C102).
   streaming body read; the re-derive under an active refresh; a CLI ask
   over 500 ms. S152 keeps direct SQLite open for a consumer that does
   not outlive its query.
+- **C100 — what a row shows is bounded (invariant 5).** Of one term, six
+  lines or displayed strings, a sum's value beside them; of why an item
+  is undecided, six of the item's unread parts in the item's own order,
+  each with every term that rests on it, the parts chosen for what the
+  term asked before they are cut. What is left out is counted in the
+  unit that was cut, and `acq show <id>` has the item whole. The number
+  six is the builder's; that there is one, and that the cut never
+  follows the order a query was written in (invariant 7), is the rule.
 - **C100, C101, C103 — where raw JSON is seen.** A result row never
   carries a body. One item's raw body is seen through `show <item>`, on
   request, one at a time (owner, 2026-09-17: "i agree with using show

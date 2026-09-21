@@ -1101,6 +1101,13 @@ here. Step 5, then the owner's seat, is the right next move"; it asked
 that the fixed occurrence case stay beside the generated checks, which
 cover different failures, and it did not repeat the full gate or the
 census measurement, which the builder ran (M2: 0 unread, 0 unexplained).
+Three rules the builder had built in the direction that breaks least,
+which the reference did not state, are in `search/DESIGN.md` since the
+close (owner, 2026-09-22: "Add the rules"; the wording the builder's):
+what a number is and what one written longer becomes (*Slots*), that
+nothing reaches a bound together without an occurrence that counts
+(C92's detail), and what a row shows of one term (C100's); the
+synopsis's `--describe` line says what it prints now.
 What the step closed on, against its row above: the properties green in
 the gate, each shown able to fail; §7's rule with its breakers (56 ok
 at the close); step 4's tests green — untouched by part 2, and step 2's
