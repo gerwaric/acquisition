@@ -716,8 +716,12 @@ ask and the three-valued group in those that have one.
 **Holes — each changes what a user types or which items it matches, so
 they are the owner's.** None blocked the step: each is built in the
 direction that breaks least if he rules the other way. B2–B11 ruled as
-recommended, 2026-09-20 (B8's recommendation being the seat's); B1 open,
-on the measurement beneath the table.
+recommended, 2026-09-20 (B8's recommendation being the seat's); B1 ruled
+the same day on the measurement beneath the table — "i agree with
+any-case everywhere after this investigation" — as built, the builder's
+split withdrawn: a quoted template that found two spellings lists them,
+and step 5 gives such a pair's vocabulary rows a pattern that turns case
+back on.
 
 | # | Hole | Built as | Recommendation |
 | --- | --- | --- | --- |
@@ -751,7 +755,8 @@ R1).
 reproduced with a fixture of the builder's own before it was taken.**
 Verdict of the audit: keep step 4 open. Finding 7 and B2–B11 were ruled
 2026-09-20 (owner: "Otherwise agree with all you recommendations");
-it stays open on B1, and until the reference carries what was ruled.
+B1 the same day;
+it stays open until the reference carries what was ruled.
 
 | # | Finding | Verdict | Held by |
 | --- | --- | --- | --- |

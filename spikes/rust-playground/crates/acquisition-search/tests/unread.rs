@@ -718,3 +718,48 @@ fn c93_sorting_by_an_unread_number_says_unread_not_absent() {
     assert_eq!(of(&corpus, "odd", "undecided(ilvl)"), (1, 0));
     assert_eq!(of(&corpus, "none", "undecided(ilvl)"), (0, 0));
 }
+
+/// B1 (owner, 2026-09-20: "i agree with any-case everywhere after this
+/// investigation"): GGG has spelled some lines two ways, and one typed
+/// spelling finds both — never silently: the term lists the spellings it
+/// found, and a pattern that turns case back on selects one.
+#[test]
+fn c90_a_quoted_template_finds_both_spellings_of_a_line_and_says_so() {
+    let s = one_tab(vec![
+        ring(
+            "new",
+            json!({ "explicitMods": ["Gain 4 Life per Enemy Killed"] }),
+        ),
+        ring(
+            "old",
+            json!({ "explicitMods": ["Gain 7 Life per enemy killed"] }),
+        ),
+        ring("none", json!({ "explicitMods": ["+20 to maximum Life"] })),
+    ]);
+    let corpus = load(&s, Some("pc"));
+    let a = as_json(&ask(&corpus, "\"Gain # Life per Enemy Killed\">=4").unwrap());
+    assert_eq!(ids(&a), ["new", "old"]);
+    assert_eq!(
+        a["terms"][0]["resolved"]["values"],
+        json!([{ "value": "Gain # Life per Enemy Killed", "items": 1 }, { "value": "Gain # Life per enemy killed", "items": 1 }])
+    );
+    // one spelling found: the quoted template resolved to itself, and lists nothing
+    let one = as_json(&ask(&corpus, "\"+# to maximum Life\"").unwrap());
+    assert!(one["terms"][0].get("resolved").is_none());
+    // the exact spelling, by a pattern that turns case back on
+    let exact = as_json(
+        &ask(
+            &corpus,
+            "line(template~\"(?-i)^Gain # Life per enemy killed$\")",
+        )
+        .unwrap(),
+    );
+    assert_eq!(ids(&exact), ["old"]);
+    // every other text comparison is any-case by the same rule
+    assert_eq!(ids(&as_json(&ask(&corpus, "name=NEW").unwrap())), ["new"]);
+    routes_partition(
+        &corpus,
+        "\"Gain # Life per Enemy Killed\">=5",
+        &["new", "none", "old"],
+    );
+}

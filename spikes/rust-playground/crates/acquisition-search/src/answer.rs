@@ -28,7 +28,9 @@
 //!   to beside it** (invariant 2): the values its matched items carry,
 //!   or — for a line's group, a `sum`'s too — the templates its selector
 //!   picks over the scope, whatever its comparisons then make of them; the
-//!   ten most carried listed and the rest counted. The route to the rest is the vocabulary read, which is not
+//!   ten most carried listed and the rest counted. A quoted template
+//!   resolves to itself and lists nothing, unless it found two spellings
+//!   of one line, which any-case `=` can, and then both are listed. The route to the rest is the vocabulary read, which is not
 //!   built (rule 5 of the plan: the count, and the construct's name).
 //! - **Rows** are the matching items in the store's stable order, or by
 //!   the sort scalar with items that have none last either way; past the
@@ -478,22 +480,27 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                     slot: lower.slot.clone(),
                     bound: eval::number_json(lower.bound.as_f64()),
                 }),
-                resolved: carried[i].take().zip(resolves(term)).map(|(carried, of)| {
-                    let mut values: Vec<Carried> = carried
-                        .into_iter()
-                        .map(|(value, items)| Carried { value, items })
-                        .collect();
-                    values
-                        .sort_by(|a, b| b.items.cmp(&a.items).then_with(|| a.value.cmp(&b.value)));
-                    let more = values.len().saturating_sub(LISTED);
-                    values.truncate(LISTED);
-                    Resolved {
-                        of,
-                        values,
-                        more,
-                        more_needs: (more > 0).then_some("--count"),
-                    }
-                }),
+                resolved: carried[i]
+                    .take()
+                    .filter(|carried| !exact_only(term) || carried.len() > 1)
+                    .zip(resolves(term))
+                    .map(|(carried, of)| {
+                        let mut values: Vec<Carried> = carried
+                            .into_iter()
+                            .map(|(value, items)| Carried { value, items })
+                            .collect();
+                        values.sort_by(|a, b| {
+                            b.items.cmp(&a.items).then_with(|| a.value.cmp(&b.value))
+                        });
+                        let more = values.len().saturating_sub(LISTED);
+                        values.truncate(LISTED);
+                        Resolved {
+                            of,
+                            values,
+                            more,
+                            more_needs: (more > 0).then_some("--count"),
+                        }
+                    }),
             }
         })
         .collect();
@@ -774,14 +781,31 @@ fn template_tests(member: &Member, out: &mut Vec<(Op, String)>) {
 
 /// What a term's `:` or `~` selector ranges over, when it has one: a
 /// field, or the templates of a line's group — a `sum`'s group too.
+/// Whether every template test of the term's group is a quoted `"T"`. Such
+/// a term resolves to itself and lists nothing — unless it found more than
+/// one spelling, which any-case `=` can (owner, 2026-09-20: six pairs of
+/// the census's templates differ only by capitals), and then it says so.
+fn exact_only(term: &Term) -> bool {
+    let group = match &term.node {
+        Node::Members { where_, .. } => where_,
+        Node::Compare {
+            value: ValueRef::Sum { lines, .. },
+            ..
+        } => lines,
+        _ => return false,
+    };
+    let mut tests = Vec::new();
+    template_tests(group, &mut tests);
+    tests.iter().all(|(op, _)| *op == Op::Eq)
+}
+
 fn resolves(term: &Term) -> Option<String> {
     let of_group = |where_: &Member| {
         let mut tests = Vec::new();
         template_tests(where_, &mut tests);
-        tests
-            .iter()
-            .any(|(op, _)| matches!(op, Op::Contains | Op::Match))
-            .then(|| "template".to_string())
+        // a quoted template resolves too: `=` is any-case, and GGG has
+        // spelled some lines two ways (`exact_only`, below)
+        (!tests.is_empty()).then(|| "template".to_string())
     };
     match &term.node {
         Node::Test {
