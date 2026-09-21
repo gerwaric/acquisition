@@ -107,6 +107,15 @@ impl Outcome {
     }
 }
 
+fn said_of(truth: Option<bool>) -> String {
+    match truth {
+        Some(true) => "yes",
+        Some(false) => "no",
+        None => "undecided",
+    }
+    .to_string()
+}
+
 fn check(
     corpus: &Corpus,
     scope: &Ids,
@@ -164,8 +173,7 @@ fn check(
                 let was = outcome(STORED)?;
                 match was {
                     Outcome::Undecided => {
-                        let each: Vec<String> =
-                            each.iter().map(|o| format!("{:?}", o.truth())).collect();
+                        let each: Vec<String> = each.iter().map(|o| said_of(o.truth())).collect();
                         let what = match kind {
                             TermKind::Group => "a line's group",
                             TermKind::Sum => "a sum's comparison",
@@ -222,7 +230,7 @@ fn check(
             }
             match root(STORED) {
                 None => {
-                    let each: Vec<String> = each.iter().map(|t| format!("{t:?}")).collect();
+                    let each: Vec<String> = each.iter().map(|t| said_of(*t)).collect();
                     tally.open("the root", &each, || format!("`{text}` over {stored}"));
                 }
                 decided => {
