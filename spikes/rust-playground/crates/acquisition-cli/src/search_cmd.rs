@@ -320,8 +320,11 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         ));
     }
     line(format!(
-        "basis   snapshot {} · facts v{} · derivation {}",
-        a.basis.snapshot.response, a.basis.snapshot.facts_version, a.basis.derivation
+        "basis   store {} · snapshot {} · facts v{} · derivation {}",
+        a.basis.store,
+        a.basis.snapshot.response,
+        a.basis.snapshot.facts_version,
+        a.basis.derivation
     ));
 
     if !a.terms.is_empty() {
@@ -668,8 +671,11 @@ fn shown_text(s: &Shown) -> String {
         ));
     }
     out.push_str(&format!(
-        "basis   snapshot {} · facts v{} · derivation {}\n",
-        s.basis.snapshot.response, s.basis.snapshot.facts_version, s.basis.derivation
+        "basis   store {} · snapshot {} · facts v{} · derivation {}\n",
+        s.basis.store,
+        s.basis.snapshot.response,
+        s.basis.snapshot.facts_version,
+        s.basis.derivation
     ));
     if let Some(body) = &s.body {
         out.push_str(&format!("body    {body}\n"));

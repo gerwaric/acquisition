@@ -10,6 +10,8 @@ acquisition-store = { path = "../acquisition-store" }
 anyhow.workspace = true
 # `~`, and every other text comparison: one any-case matcher (bind.rs)
 regex = "1"
+# the basis names the store by a short hash of its path, as C83 names a world
+sha2 = "0.10"
 serde.workspace = true
 serde_json.workspace = true
 

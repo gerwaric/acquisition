@@ -20,7 +20,7 @@ use acquisition_store::Store;
 use acquisition_store::corpus::{LocationRow, RealmScope};
 use serde::Serialize;
 
-use crate::corpus::{Basis, DERIVATION, Place, locations, placed};
+use crate::corpus::{Basis, Place, locations, placed};
 use crate::derive::{Facts, Item, Line, derive};
 use crate::describe::limit;
 use crate::error::SearchError;
@@ -53,11 +53,7 @@ pub struct ShownLine {
 pub fn show(store: &Store, id: &str, body: bool) -> Result<Shown, SearchError> {
     let found = store
         .read_corpus(RealmScope::All, |header, rows| {
-            let basis = Basis {
-                account: header.account_uuid.clone(),
-                snapshot: header.revision,
-                derivation: DERIVATION,
-            };
+            let basis = Basis::of(store, header);
             let mut live = 0usize;
             for row in rows {
                 let mut row = row?;

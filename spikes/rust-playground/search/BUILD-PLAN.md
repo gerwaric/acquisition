@@ -715,7 +715,9 @@ ask and the three-valued group in those that have one.
 
 **Holes — each changes what a user types or which items it matches, so
 they are the owner's.** None blocked the step: each is built in the
-direction that breaks least if he rules the other way.
+direction that breaks least if he rules the other way. B2–B11 ruled as
+recommended, 2026-09-20 (B8's recommendation being the seat's); B1 open,
+on the measurement beneath the table.
 
 | # | Hole | Built as | Recommendation |
 | --- | --- | --- | --- |
@@ -731,10 +733,25 @@ direction that breaks least if he rules the other way.
 | B11 | Whether parentheses may change what is an error. Step 1 checked a slot against a quoted template only at the group's own level, so a nested template took any slot word — and the answer then printed a route the build refuses (the fourth audit, finding 1) | the check reads the group's conjuncts, through nested ands: the tighter reading, which the owner's own test prefers — allowing a query later breaks nothing, forbidding one later would. A template under an or or a not states no numbers still, as step 1 says | keep |
 | B8 | Gap 2, as this plan recommended | (b): `--query-file <file\|->`; a route is printed shell-quoted, an apostrophe as `'\''`. (c) is untouched | the seat's |
 
+*B1's measurement* (2026-09-20, `item-facts/data/mod-templates.csv`,
+its three inputs): of 6,549 distinct templates, six pairs differ only by
+capitals, every one a line GGG has spelled two ways — `# Maximum Stages`
+16 items and `# maximum Stages` 30; `#% chance to Cause Bleeding on
+Critical Strike` 7 and `… cause …` 21; `Fires Projectiles every #
+seconds` 1 and `… projectiles …` 8; `Gain # Life per Enemy Killed` 209
+and `… enemy killed` 2; `Socketed Gems are Supported by Level # Blind` 1
+and `… supported …` 21; `… Supported by Level # Chance To Bleed` 1 and
+`… supported by Level # Chance to Bleed` 3. Under any-case `=` a quoted
+template selects both spellings of its pair, and step 5's two vocabulary
+rows would carry one selector (C97); under an exact `=` the commoner
+spelling typed misses the rarer one's items with no sign of it (S171's
+R1).
+
 **An outside audit of the build at `28606ed4` (2026-09-20), each finding
 reproduced with a fixture of the builder's own before it was taken.**
-Verdict of the audit: keep step 4 open. It stays open until the owner
-has ruled on finding 7 and on B1–B11 (finding 8).
+Verdict of the audit: keep step 4 open. Finding 7 and B2–B11 were ruled
+2026-09-20 (owner: "Otherwise agree with all you recommendations");
+it stays open on B1, and until the reference carries what was ruled.
 
 | # | Finding | Verdict | Held by |
 | --- | --- | --- | --- |
@@ -744,7 +761,7 @@ has ruled on finding 7 and on B1–B11 (finding 8).
 | 4 | Parentheses changed an outcome: `source=explicit` ruled the unread implicit array out only as an immediate member of the group's and | confirmed | which sources a group admits is asked of its meaning — the group with its source tests answered and all else unknown (`eval.rs`, `admits`); five spellings pinned against three that must stay open |
 | 5 | What a selector resolved to was filtered by the group's comparisons, so a template whose value failed was not listed, and a `sum`'s selector resolved to nothing | confirmed | resolved by the group's selector over the scope, a `sum`'s too; the worked example's count moved from 6 to 7 for that reason |
 | 6 | Following an undecided route returned the members without their reasons, so past the ten listed there was no way to them | confirmed | an `undecided( … )` that matched shows the reasons of what it asked about (`Evidence::Undecided`); pinned over twelve items |
-| 7 | The basis names the account and not the store, against C98's words; two stores of one account gave equal bases and `is_current` said yes across them | confirmed — and the owner's: which identity names a store (its path, the world's id of C83, an id the file carries) is the basis as the contract, one of the six lines the seat revisits first | open |
+| 7 | The basis names the account and not the store, against C98's words; two stores of one account gave equal bases and `is_current` said yes across them | confirmed — and the owner's: which identity names a store (its path, the world's id of C83, an id the file carries) is the basis as the contract, one of the six lines the seat revisits first | **ruled 2026-09-20: "(a') now and park (c)"** — twelve hex digits of the SHA-256 of the file's canonical path, as C83 names a world: no path in an answer, no migration. `Basis::of`, and `is_current` compares the whole basis; the auditor's two stores pinned, and the check without the store tried and caught. An id the file carries is parked with the refetched file (`decisions/search.md`) |
 | 8 | Rule 4 says an unstated rule that changes what a user types stops the step, and the record listed eight such holes and said none blocked | narrowed: the step was built as steps 1 and 2 were — in the direction that breaks least, the holes brought to the owner at the close, said before building — but a recommendation is no ruling, and the step is not closed until each is ruled and the reference carries it | open: B1–B9 |
 | — | `eval::texts` and `answer::item_texts` were one accessor written twice | confirmed | one, in `eval.rs` |
 

@@ -543,6 +543,33 @@ fn c98_a_held_corpus_answers_at_its_basis_and_the_check_sees_the_change() {
     );
 }
 
+/// C98 — the basis names the store (the first audit of step 4, finding 7;
+/// owner, 2026-09-20: "(a') now and park (c)"): two facts files of one
+/// account at one revision are two stores, their bases differ, and a
+/// corpus read from one is not current against the other.
+#[test]
+fn c98_the_basis_names_the_store_and_the_check_tells_two_files_apart() {
+    let (a, b) = (worked(), worked());
+    assert_eq!(a.revision().unwrap(), b.revision().unwrap());
+    let (of_a, of_b) = (load(&a, Some("pc")), load(&b, Some("pc")));
+    assert_eq!(of_a.basis.account, of_b.basis.account);
+    assert_ne!(of_a.basis.store, of_b.basis.store);
+    assert!(of_a.is_current(&a).unwrap() && !of_a.is_current(&b).unwrap());
+    // twelve hex digits, no path: the same file under another handle is the same store
+    let again = load(&Store::open(a.path()).unwrap(), Some("pc"));
+    assert_eq!(again.basis, of_a.basis);
+    assert!(
+        of_a.basis.store.len() == 12 && of_a.basis.store.chars().all(|c| c.is_ascii_hexdigit())
+    );
+    let answered = as_json(&ask(&of_a, "").unwrap());
+    assert_eq!(answered["basis"]["store"], of_a.basis.store.as_str());
+    assert!(
+        !answered
+            .to_string()
+            .contains(a.path().parent().unwrap().to_str().unwrap())
+    );
+}
+
 /// C104 — a request sends the text or the tree, and the answer returns both.
 #[test]
 fn c104_a_tree_is_accepted_and_the_answer_returns_both() {

@@ -9,9 +9,15 @@
 //!   describe one state, and each body is derived as it streams past, so
 //!   no body outlives its item. Nothing is persisted and nothing is cached
 //!   between processes (C98, C48).
-//! - **The basis** names the account, the facts revision — the highest
-//!   response id and the facts schema beside it — and the derivation's
-//!   version ([`DERIVATION`]). The intent revision joins it with price (the
+//! - **The basis** names the store, the account, the facts revision — the
+//!   highest response id and the facts schema beside it — and the
+//!   derivation's version ([`DERIVATION`]). The store is named by twelve
+//!   hex digits of the SHA-256 of its file's canonical path, as C83 names
+//!   a world (owner, 2026-09-20: "(a') now and park (c)"): no path in an
+//!   answer, no migration, and two files of one account are two stores. A
+//!   file moved is another store, which costs a reload; an id the file
+//!   itself carries is parked (`decisions/search.md`). Stores that are no
+//!   file — a test's, in memory — share one name. The intent revision joins it with price (the
 //!   build plan, step 9). [`Corpus::is_current`] is C98's check before
 //!   every answer: a consumer that holds a corpus across asks compares, and
 //!   reloads whole when it differs; an answer already given stays what its
@@ -87,6 +93,8 @@ impl Realm {
 /// What an answer is labelled with (C98).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Basis {
+    /// The facts file, by a short hash of its canonical path.
+    pub store: String,
     pub account: String,
     /// The facts revision: the highest response id, and the facts schema.
     pub snapshot: Revision,
@@ -214,6 +222,22 @@ pub(crate) fn placed(index: &Locations<'_>, row: CorpusItem) -> (Facts, Place) {
     (facts, place)
 }
 
+impl Basis {
+    /// The basis of what one read of `store` handed over.
+    pub(crate) fn of(store: &Store, header: &CorpusHeader) -> Basis {
+        use sha2::{Digest as _, Sha256};
+        let path = store.path();
+        let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        let digest = Sha256::digest(path.as_os_str().as_encoded_bytes());
+        Basis {
+            store: digest.iter().take(6).map(|b| format!("{b:02x}")).collect(),
+            account: header.account_uuid.clone(),
+            snapshot: header.revision,
+            derivation: DERIVATION,
+        }
+    }
+}
+
 impl Corpus {
     /// Read and derive every live item of `realm` under one snapshot. A
     /// named realm the store does not hold is a valid scope of no items; no
@@ -270,11 +294,7 @@ impl Corpus {
                     .cloned()
                     .collect();
                 Ok(Ok(Corpus {
-                    basis: Basis {
-                        account: header.account_uuid.clone(),
-                        snapshot: header.revision,
-                        derivation: DERIVATION,
-                    },
+                    basis: Basis::of(store, header),
                     account_name: header.account_name.clone(),
                     coverage: coverage(header, &realm, &locations, items.len()),
                     realm,
@@ -284,10 +304,13 @@ impl Corpus {
             .map_err(SearchError::store)?
     }
 
-    /// C98's check before every answer: whether the facts still stand at
-    /// the revision this corpus was read at.
+    /// C98's check before every answer: whether this is the store the
+    /// corpus was read from, and its facts still stand at that revision.
     pub fn is_current(&self, store: &Store) -> Result<bool, SearchError> {
-        Ok(store.revision().map_err(SearchError::store)? == self.basis.snapshot)
+        let now = store
+            .read_corpus(RealmScope::All, |header, _| Ok(Basis::of(store, header)))
+            .map_err(SearchError::store)?;
+        Ok(now == self.basis)
     }
 
     pub fn items(&self) -> &[Held] {
