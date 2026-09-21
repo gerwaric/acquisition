@@ -42,8 +42,11 @@
 //!   matches it.
 //! - **A number the search does not read** — more whole digits or decimals
 //!   than any game displays (`exact.rs`, the rule and its measurement) —
-//!   costs its line its numbers and leaves its array unread: said here,
-//!   once, so that no arithmetic downstream has a case for it.
+//!   is an unread slot of its line, said here, once, so that no arithmetic
+//!   downstream has a case for it. As with a flag: unknown, never absent
+//!   and never a no; the line's text, template, source and its other
+//!   numbers are read, and only what asks that slot is left open
+//!   ([`Slot`], [`Part::Numbers`]).
 //! - **Slots** ([`Line::slot`]): `arg<N>` by position, and `low`, `high`,
 //!   `avg` on a template with exactly one `# to #` (C92). A line whose
 //!   numbers are not its template's `#`s — a veiled line, a displayed
@@ -164,8 +167,10 @@ pub struct Line {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub flags_unknown: Vec<String>,
     pub template: String,
+    /// The template's numbers, in order; `None` where the search does not
+    /// read the number as written: unknown, never absent.
     #[serde(serialize_with = "whole_numbers")]
-    pub numbers: Vec<f64>,
+    pub numbers: Vec<Option<f64>>,
     /// As shown, with its numbers; a mod over several rows holds `\n`.
     pub text: String,
 }
@@ -194,6 +199,18 @@ pub enum Part {
     /// The flags of a line of that source: its text was read, so it
     /// hides no line and no displayed string — only what `is:` asks of it.
     Flags(String),
+    /// A number of a line of that source: only what asks that slot.
+    Numbers(String),
+}
+
+/// What a slot word names on one occurrence.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Slot {
+    /// The template has no such number: known absence.
+    Absent,
+    /// It has, and the number could not be read.
+    Unread,
+    Is(f64),
 }
 
 /// Where a displayed string sits on its item.
@@ -538,18 +555,19 @@ impl Item {
             if text.is_empty() {
                 continue;
             }
-            let (template, mut numbers, beyond) = template::read(&text);
+            let (template, read) = template::read(&text);
+            let mut numbers: Vec<Option<f64>> = read
+                .into_iter()
+                .map(|(n, reads)| reads.then_some(n))
+                .collect();
             if source == "veiled" {
                 numbers.clear();
             }
-            // read once, here: the line keeps its text and names no slot,
-            // and its array is unread, so no sum and no absence rests on it
-            if let Some(literal) = beyond {
-                numbers.clear();
+            if numbers.contains(&None) {
                 let problem = format!(
-                    "{at}: `{literal}` has more digits than the search reads: ten whole, four decimals"
+                    "{at}: a number with more digits than the search reads: ten whole, four decimals"
                 );
-                self.unread(part(), problem);
+                self.unread(Part::Numbers(source.to_string()), problem);
             }
             self.lines.push(Line {
                 source: source.to_string(),
@@ -573,29 +591,40 @@ impl Line {
     /// The number a slot word names on this occurrence (the reference,
     /// *Slots*); None when the template has no such slot, or when the
     /// numbers are not the template's `#`s.
-    pub fn slot(&self, word: &str) -> Option<f64> {
+    pub fn slot(&self, word: &str) -> Slot {
         let slots = template::slots(&self.template);
         if slots.count != self.numbers.len() {
-            return None;
+            return Slot::Absent;
         }
-        let at = |n: usize| self.numbers.get(n.checked_sub(1)?).copied();
-        match word {
-            "low" => at(slots.ranged?.0),
-            "high" => at(slots.ranged?.1),
-            "avg" => {
-                let (low, high) = slots.ranged?;
-                Some(crate::exact::mean(at(low)?, at(high)?))
-            }
-            other => at(crate::tree::arg_index(other)?),
+        let at = |n: usize| match n.checked_sub(1).and_then(|i| self.numbers.get(i)) {
+            None => Slot::Absent,
+            Some(None) => Slot::Unread,
+            Some(Some(n)) => Slot::Is(*n),
+        };
+        match (word, slots.ranged) {
+            ("low", Some((low, _))) => at(low),
+            ("high", Some((_, high))) => at(high),
+            ("avg", Some((low, high))) => match (at(low), at(high)) {
+                (Slot::Is(low), Slot::Is(high)) => Slot::Is(crate::exact::mean(low, high)),
+                (Slot::Absent, _) | (_, Slot::Absent) => Slot::Absent,
+                _ => Slot::Unread,
+            },
+            ("low" | "high" | "avg", None) => Slot::Absent,
+            (other, _) => crate::tree::arg_index(other).map_or(Slot::Absent, at),
         }
     }
 
-    /// Every slot this occurrence names, with its number: `low`, `high`
-    /// and `avg` first on a ranged line, then `arg1`, `arg2`, …
-    pub fn slots(&self) -> Vec<(String, f64)> {
+    /// Every slot this occurrence names, with its number — `None` where it
+    /// could not be read: `low`, `high` and `avg` first on a ranged line,
+    /// then `arg1`, `arg2`, …
+    pub fn slots(&self) -> Vec<(String, Option<f64>)> {
         template::slot_words(&self.template)
             .into_iter()
-            .filter_map(|word| self.slot(&word).map(|n| (word, n)))
+            .filter_map(|word| match self.slot(&word) {
+                Slot::Absent => None,
+                Slot::Unread => Some((word, None)),
+                Slot::Is(n) => Some((word, Some(n))),
+            })
             .collect()
     }
 }
@@ -721,9 +750,10 @@ fn json_kind(value: &Value) -> &'static str {
 }
 
 /// A whole number prints whole: `92`, never `92.0`.
-fn whole_numbers<S: Serializer>(numbers: &[f64], serializer: S) -> Result<S::Ok, S::Error> {
-    serializer.collect_seq(numbers.iter().map(|n| match Number::from_f64(*n) {
-        Number::Int(i) => Value::from(i),
-        Number::Float(f) => Value::from(f),
+fn whole_numbers<S: Serializer>(numbers: &[Option<f64>], serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.collect_seq(numbers.iter().map(|n| match n.map(Number::from_f64) {
+        None => Value::Null,
+        Some(Number::Int(i)) => Value::from(i),
+        Some(Number::Float(f)) => Value::from(f),
     }))
 }

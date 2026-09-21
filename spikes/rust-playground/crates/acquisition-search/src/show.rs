@@ -84,7 +84,7 @@ pub fn show(store: &Store, id: &str, body: bool) -> Result<Shown, SearchError> {
             slots: line
                 .slots()
                 .into_iter()
-                .map(|(w, n)| (w, number_json(n)))
+                .map(|(w, n)| (w, n.map_or(serde_json::Value::Null, number_json)))
                 .collect(),
             limit: (line.source == "veiled").then(|| limit("S12")),
             line,

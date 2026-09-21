@@ -196,17 +196,16 @@ pub(crate) fn check_typed(template: &str) -> Result<(), LanguageError> {
 /// digit or a `#` is a range dash, never a sign: `59-88` is `#-#`. A
 /// thousands comma is part of its number: `1,500x` is `#x`.
 pub(crate) fn typed(text: &str) -> (String, Vec<f64>) {
-    let (template, numbers, _) = read(text);
-    (template, numbers)
+    let (template, numbers) = read(text);
+    (template, numbers.into_iter().map(|(n, _)| n).collect())
 }
 
-/// The same, and the first number written that the search does not read
-/// (`exact::reads`), which is the deriver's to say.
-pub(crate) fn read(text: &str) -> (String, Vec<f64>, Option<String>) {
+/// The same, each number with whether the search reads it as written
+/// (`exact::reads`): what the deriver keeps, and what it calls unread.
+pub(crate) fn read(text: &str) -> (String, Vec<(f64, bool)>) {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::new();
     let mut numbers = Vec::new();
-    let mut beyond = None;
     let mut i = 0;
     while i < chars.len() {
         let c = chars[i];
@@ -234,15 +233,15 @@ pub(crate) fn read(text: &str) -> (String, Vec<f64>, Option<String>) {
                 }
             }
             let literal: String = chars[start..i].iter().filter(|c| **c != ',').collect();
-            numbers.push(literal.parse().unwrap_or(0.0));
-            if beyond.is_none() && !crate::exact::reads(&literal) {
-                beyond = Some(literal);
-            }
+            numbers.push((
+                literal.parse().unwrap_or(0.0),
+                crate::exact::reads(&literal),
+            ));
             out.push('#');
         } else {
             out.push(c);
             i += 1;
         }
     }
-    (out, numbers, beyond)
+    (out, numbers)
 }

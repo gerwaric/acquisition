@@ -51,7 +51,7 @@
 //!   resolves to itself; and the words a suggestion is scored against.
 
 use crate::bind::{self, LINE_FLAGS, NumTest, SOURCES, TextTest};
-use crate::derive::{ITEM_FLAGS, Line};
+use crate::derive::{ITEM_FLAGS, Line, Slot};
 use crate::error::{ErrorKind, LanguageError};
 use crate::tree::{self, Collection, Member, Node, Number, Op, Probe, Value, ValueRef};
 
@@ -132,7 +132,13 @@ fn truth(member: &BMember, line: &Line) -> Truth {
         BMember::Const(value) => sure(*value),
         BMember::Template(test) => sure(test.holds(&line.template)),
         BMember::Source(sources) => sure(sources.contains(&line.source.as_str())),
-        BMember::Slot { word, test } => sure(line.slot(word).is_some_and(|n| test.holds(n))),
+        // a number that could not be read is unknown, as a flag is: never
+        // a no, which a not would turn into a witness
+        BMember::Slot { word, test } => match line.slot(word) {
+            Slot::Is(n) => sure(test.holds(n)),
+            Slot::Absent => Truth::False,
+            Slot::Unread => Truth::Undecided,
+        },
         BMember::Is(flag) if line.flags.iter().any(|f| f == flag) => Truth::True,
         BMember::Is(flag) => {
             if line.flags_unread || line.flags_unknown.iter().any(|f| f == flag) {

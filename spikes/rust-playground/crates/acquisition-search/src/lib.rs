@@ -93,7 +93,7 @@ pub mod tree;
 pub use answer::{Answer, Request, answer};
 pub use bind::{NOT_BUILT, NotBuilt, Query, bind, not_built, parse_query};
 pub use corpus::{Basis, Corpus, Realm};
-pub use derive::{Facts, Item, Line, Part, Property, Shown, Unread, derive};
+pub use derive::{Facts, Item, Line, Part, Property, Shown, Slot, Unread, derive};
 pub use describe::{Describe, describe};
 pub use error::{ErrorKind, LanguageError, SearchError};
 pub use json::{from_json, to_json};

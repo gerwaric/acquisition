@@ -53,7 +53,7 @@ use serde::Serialize;
 
 use crate::bind::{Atom, BProbe, Bound, NumTest, SortKey, Term, Thing};
 use crate::corpus::Held;
-use crate::derive::{Line, Part, Shown, Unread};
+use crate::derive::{Line, Part, Shown, Slot, Unread};
 use crate::exact;
 pub(crate) use crate::group::Truth;
 use crate::group::{Asked, Group};
@@ -165,7 +165,7 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
                         "name" | "typeLine" | "baseType" | "ilvl" | "hybrid"
                     )
                 }
-                Part::Flags(_) => false,
+                Part::Flags(_) | Part::Numbers(_) => false,
             })
             .collect(),
         (_, Some(key)) => held
@@ -249,8 +249,9 @@ fn unread_lines<'a>(held: &'a Held, group: &Group) -> Vec<&'a Unread> {
             Part::Body => true,
             Part::Lines(source) => group.admits(source),
             Part::Field(key) => key == "hybrid" && group.admits("hybrid"),
-            // a line's flags: the occurrence itself says so (`Asked::of`)
-            Part::Flags(_) | Part::Properties(_) => false,
+            // a line's flags and numbers: the occurrence itself says so
+            // (`Asked::of`)
+            Part::Flags(_) | Part::Numbers(_) | Part::Properties(_) => false,
         })
         .collect()
 }
@@ -268,20 +269,35 @@ fn open_on_a_line(held: &Held, asked: &Asked) -> bool {
         .any(|l| asked.of(l) == Truth::Undecided)
 }
 
-/// Whether an occurrence that may or may not satisfy what is asked names the
-/// slot: one that does not cannot contribute whichever way its flag falls,
-/// so it leaves no sum, no largest and no together count open (C93's
-/// known absence).
+/// Whether an occurrence leaves the slot's contribution open: it may or
+/// may not satisfy what is asked and names the slot, or it satisfies it
+/// and the slot's number could not be read. One that does not name the
+/// slot cannot contribute whichever way its flag falls, so it leaves no
+/// sum, no largest and no together count open (C93's known absence).
+fn leaves_the_slot_open(asked: &Asked, slot: &str, line: &Line) -> bool {
+    match (asked.of(line), line.slot(slot)) {
+        (Truth::False, _) | (_, Slot::Absent) | (Truth::True, Slot::Is(_)) => false,
+        (Truth::Undecided, _) | (Truth::True, Slot::Unread) => true,
+    }
+}
+
 fn open_with_the_slot(held: &Held, asked: &Asked, slot: &str) -> bool {
     held.item
         .lines
         .iter()
-        .any(|l| asked.of(l) == Truth::Undecided && l.slot(slot).is_some())
+        .any(|l| leaves_the_slot_open(asked, slot, l))
+}
+
+fn value(line: &Line, slot: &str) -> Option<f64> {
+    match line.slot(slot) {
+        Slot::Is(n) => Some(n),
+        Slot::Absent | Slot::Unread => None,
+    }
 }
 
 /// A sum and whether every possible contributor was readable.
 pub(crate) fn sum(held: &Held, group: &Group, slot: &str) -> (f64, bool) {
-    let total = exact::sum(satisfying(held, &group.whole).filter_map(|line| line.slot(slot)));
+    let total = exact::sum(satisfying(held, &group.whole).filter_map(|line| value(line, slot)));
     let complete =
         unread_lines(held, group).is_empty() && !open_with_the_slot(held, &group.whole, slot);
     (total, complete)
@@ -297,9 +313,13 @@ pub(crate) fn together(held: &Held, group: &Group) -> bool {
     if open_with_the_slot(held, &group.selector, &lower.slot) {
         return false;
     }
-    let total =
-        exact::sum(satisfying(held, &group.selector).filter_map(|line| line.slot(&lower.slot)));
-    NumTest::Cmp(lower.op, lower.bound.as_f64()).holds(total)
+    // a sum of no occurrence is zero, which is at least any bound of zero
+    // or less — and is nothing reaching it: only occurrences that count
+    // reach a bound together
+    let counted: Vec<f64> = satisfying(held, &group.selector)
+        .filter_map(|line| value(line, &lower.slot))
+        .collect();
+    !counted.is_empty() && NumTest::Cmp(lower.op, lower.bound.as_f64()).holds(exact::sum(counted))
 }
 
 /// The occurrences a group's selector picks on this item: what the
@@ -655,18 +675,27 @@ fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
 fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<&'a Unread> {
     let of_group = |group: &Group, slot: Option<&str>| {
         let mut unread = unread_lines(held, group);
-        let open = match slot {
-            Some(slot) => open_with_the_slot(held, &group.whole, slot),
-            None => open_on_a_line(held, &group.whole),
-        };
-        if open {
-            unread.extend(
-                held.item
-                    .unread
+        // what an occurrence itself left open: its flags, its numbers
+        let open: Vec<&Line> = held
+            .item
+            .lines
+            .iter()
+            .filter(|l| match slot {
+                Some(slot) => leaves_the_slot_open(&group.whole, slot, l),
+                None => group.whole.of(l) == Truth::Undecided,
+            })
+            .collect();
+        unread.extend(held.item.unread.iter().filter(|u| {
+            match &u.part {
+                Part::Flags(source) => open.iter().any(|l| {
+                    l.source == *source && (l.flags_unread || !l.flags_unknown.is_empty())
+                }),
+                Part::Numbers(source) => open
                     .iter()
-                    .filter(|u| matches!(&u.part, Part::Flags(_))),
-            );
-        }
+                    .any(|l| l.source == *source && l.numbers.contains(&None)),
+                _ => false,
+            }
+        }));
         unread
     };
     match atom {
@@ -696,6 +725,7 @@ fn reason(unread: &Unread) -> Reason {
             Part::Properties(array) => format!("`{array}`"),
             Part::Lines(source) => format!("{source} lines"),
             Part::Flags(source) => format!("the flags of {source} lines"),
+            Part::Numbers(source) => format!("the numbers of {source} lines"),
         },
         problem: unread.problem.clone(),
         hint: UNREAD_HINT,
@@ -727,13 +757,12 @@ pub(crate) fn scalar(key: &SortKey, held: &Held) -> Scalar {
         },
         SortKey::Projection { group, slot } => {
             let largest = satisfying(held, &group.whole)
-                .filter_map(|line| line.slot(slot))
+                .filter_map(|line| value(line, slot))
                 .reduce(f64::max);
+            // an unread number may be any number
             let could_be_larger = held.item.lines.iter().any(|line| {
-                group.whole.of(line) == Truth::Undecided
-                    && line
-                        .slot(slot)
-                        .is_some_and(|n| largest.is_none_or(|most| n > most))
+                leaves_the_slot_open(&group.whole, slot, line)
+                    && value(line, slot).is_none_or(|n| largest.is_none_or(|most| n > most))
             });
             if could_be_larger || !unread_lines(held, group).is_empty() {
                 Scalar::Incomplete(largest)

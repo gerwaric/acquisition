@@ -6,11 +6,11 @@
 //! 22,721 items, 2026-09-21) none has more than two decimals or ten whole
 //! digits. [`reads`] is the rule — at most ten whole digits and four
 //! decimals — and the deriver asks it of every number of every line: one
-//! it does not read leaves that line without its numbers and its array
-//! unread (C93), which is the one failure path evidence has. Nothing
-//! downstream meets a number outside the rule, so nothing downstream has
-//! a fallback, and no answer depends on the order that a sum happened to
-//! overflow in (the fifth audit's follow-up, 1).
+//! it does not read is an unread slot of its line (C93; `derive::Slot`),
+//! which is the one failure path evidence has, at the grain the evidence
+//! was lost. Nothing downstream meets a number outside the rule, so
+//! nothing downstream has a fallback, and no answer depends on the order
+//! that a sum happened to overflow in (the fifth audit's follow-up, 1).
 //!
 //! **Arithmetic is on whole units.** Added as binary floats, 0.1 + 0.2 +
 //! 0.3 is 0.6000000000000001 one way round and 0.6 the other, and
@@ -18,8 +18,10 @@
 //! fifth audit, finding 1). A number within the rule is a whole count of
 //! hundred-thousandths — four decimals, and one more for the half a ranged
 //! pair's mean may end in — which a float holds exactly; units add as
-//! integers, and the total is read back as the float nearest to it, which
-//! is the float a typed bound is. A comparison needs none of this: two
+//! integers, and the total is written out as the decimal it is and read
+//! by the parser a typed bound is read by, so the two are one float
+//! however large the total (dividing a total past 2^53 as a float rounded
+//! twice: the audit's third review, 2). A comparison needs none of this: two
 //! floats read from the same decimal are the same float.
 
 /// The most whole digits and decimals a number may be displayed with.
@@ -41,7 +43,11 @@ fn units(value: f64) -> i128 {
 }
 
 fn read_back(units: i128) -> f64 {
-    units as f64 / UNITS
+    let sign = if units < 0 { "-" } else { "" };
+    let (units, one) = (units.unsigned_abs(), UNITS as u128);
+    format!("{sign}{}.{:05}", units / one, units % one)
+        .parse()
+        .unwrap_or(f64::NAN)
 }
 
 /// The sum of displayed numbers; nothing sums to zero.
@@ -75,6 +81,9 @@ mod tests {
         assert_eq!(sum([edge, -edge, 0.0001]), 0.0001);
         assert_eq!(sum([edge, 0.0001, -edge]), 0.0001);
         assert_eq!(sum([edge, edge]), 19999999999.9998);
+        // past what a float holds exactly, the total is still read once
+        assert_eq!(sum([9999999999.9997; 19]), 189999999999.9943);
+        assert_eq!(sum([-9999999999.9997; 19]), -189999999999.9943);
     }
 
     #[test]

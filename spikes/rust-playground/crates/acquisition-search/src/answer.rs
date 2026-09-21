@@ -32,9 +32,13 @@
 //!   resolves to itself and lists nothing, unless it found two spellings
 //!   of one line, which any-case `=` can, and then both are listed. The route to the rest is the vocabulary read, which is not
 //!   built (rule 5 of the plan: the count, and the construct's name).
-//! - **What a row shows of one term is bounded** — six lines, strings or
-//!   reasons, a sum's value beside them — and says how many it left out;
-//!   the item whole is `show <id>` (invariant 5).
+//! - **What a row shows of one term is bounded** and says how many it left
+//!   out; the item whole is `show <id>` (invariant 5). Of lines and
+//!   strings, six, a sum's value beside them. Of why an item is undecided,
+//!   six of the item's unread parts in the item's order, each with every
+//!   term that rests on it — so a block may hold more entries than six,
+//!   and what it leaves out is counted in parts, never in entries
+//!   (`eval::why`).
 //! - **Rows** are the matching items in the store's stable order, or by
 //!   the sort scalar with items that have none last either way; past the
 //!   limit they are counted, and the way on is a larger limit until
@@ -311,8 +315,9 @@ pub struct Touched {
     pub path: String,
     pub term: String,
     pub shows: Vec<Evidence>,
-    /// What the term touched past what is shown: `show <id>` has the item
-    /// whole (invariant 5).
+    /// What the term touched past what is shown — lines or strings, or,
+    /// of reasons, unread parts of the item: `show <id>` has the item whole
+    /// (invariant 5).
     #[serde(skip_serializing_if = "is_zero")]
     pub left_out: usize,
 }

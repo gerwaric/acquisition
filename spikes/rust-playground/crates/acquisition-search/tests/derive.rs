@@ -4,7 +4,7 @@
 //! body above it. The differential against the census over a real corpus
 //! is M2 (`search/item-facts/scripts/m2-differential.py`), never in the gate.
 
-use acquisition_search::{Facts, Item, Line, Part, Shown, derive};
+use acquisition_search::{Facts, Item, Line, Part, Shown, Slot, derive};
 use proptest::prelude::*;
 use serde_json::{Value, json};
 
@@ -104,23 +104,23 @@ fn a_line_is_kind_template_numbers() {
     assert_eq!(life.len(), 2);
     assert_eq!(
         (life[0].numbers.as_slice(), &life[0].flags[..]),
-        (&[92.0][..], &["fractured".to_string()][..])
+        (&[Some(92.0)][..], &["fractured".to_string()][..])
     );
     assert_eq!(
         (life[1].numbers.as_slice(), &life[1].flags[..]),
-        (&[20.0][..], &["crafted".to_string()][..])
+        (&[Some(20.0)][..], &["crafted".to_string()][..])
     );
     assert_eq!(life[0].text, "+92 to maximum Life");
-    assert_eq!(life[0].slot("arg1"), Some(92.0));
-    assert_eq!(life[0].slot("arg2"), None);
-    assert_eq!(life[0].slot("low"), None);
+    assert_eq!(life[0].slot("arg1"), Slot::Is(92.0));
+    assert_eq!(life[0].slot("arg2"), Slot::Absent);
+    assert_eq!(life[0].slot("low"), Slot::Absent);
 
     let chaos = line(&ring, "#% to Chaos Resistance");
-    assert_eq!(chaos.numbers, [-27.0]);
+    assert_eq!(chaos.numbers, [Some(-27.0)]);
     let implicit = line(&ring, "#% to Fire and Cold Resistances");
     assert_eq!(
         (implicit.source.as_str(), implicit.numbers.as_slice()),
-        ("implicit", &[16.0][..])
+        ("implicit", &[Some(16.0)][..])
     );
     assert!(implicit.flags.is_empty());
 }
@@ -139,11 +139,11 @@ fn the_ranged_rule_names_low_high_and_avg() {
     let cold = line(&it, "Adds # to # Cold Damage");
     assert_eq!(
         (cold.slot("low"), cold.slot("high"), cold.slot("avg")),
-        (Some(15.0), Some(45.0), Some(30.0))
+        (Slot::Is(15.0), Slot::Is(45.0), Slot::Is(30.0))
     );
     assert_eq!(
         (cold.slot("arg1"), cold.slot("arg2")),
-        (Some(15.0), Some(45.0))
+        (Slot::Is(15.0), Slot::Is(45.0))
     );
     let words: Vec<String> = cold.slots().into_iter().map(|(w, _)| w).collect();
     assert_eq!(words, ["low", "high", "avg", "arg1", "arg2"]);
@@ -155,20 +155,26 @@ fn the_ranged_rule_names_low_high_and_avg() {
     );
     assert_eq!(
         (shield.slot("avg"), shield.slot("arg3")),
-        (Some(4.0), Some(15.0))
+        (Slot::Is(4.0), Slot::Is(15.0))
     );
 
     let two = line(&it, "Adds # to # Fire Damage and # to # Cold Damage");
     assert_eq!(
         (two.slot("low"), two.slot("avg"), two.slot("arg4")),
-        (None, None, Some(4.0))
+        (Slot::Absent, Slot::Absent, Slot::Is(4.0))
     );
 
     let rolls = line(&it, "Bow: Adds (#-#) to (#-#) Cold Damage");
-    assert_eq!(rolls.numbers, [11.0, 12.0, 20.0, 23.0]);
-    assert_eq!((rolls.slot("low"), rolls.slot("arg3")), (None, Some(20.0)));
+    assert_eq!(
+        rolls.numbers,
+        [Some(11.0), Some(12.0), Some(20.0), Some(23.0)]
+    );
+    assert_eq!(
+        (rolls.slot("low"), rolls.slot("arg3")),
+        (Slot::Absent, Slot::Is(20.0))
+    );
 
-    assert_eq!(line(&it, "Base duration is # seconds").numbers, [1.6]);
+    assert_eq!(line(&it, "Base duration is # seconds").numbers, [Some(1.6)]);
 }
 
 /// The reference, *Strings*: a mod over several rows is one occurrence with
@@ -185,7 +191,7 @@ fn a_mod_over_several_rows_is_one_occurrence() {
         l.template,
         "Monsters have #% more Life\nMonsters cannot be Stunned"
     );
-    assert_eq!(l.numbers, [30.0]);
+    assert_eq!(l.numbers, [Some(30.0)]);
     assert_eq!(
         l.rows().collect::<Vec<_>>(),
         ["Monsters have 30% more Life", "Monsters cannot be Stunned"]
@@ -227,7 +233,7 @@ fn markup_is_reduced_to_its_display_half() {
     assert_eq!(it.lines[1].template, "Ngamahu's Flame\nItem Level: #");
     // a thousands comma is part of its number
     assert_eq!(it.lines[2].template, "#x Vivid Crystallised Lifeforce");
-    assert_eq!(it.lines[2].numbers, [1500.0]);
+    assert_eq!(it.lines[2].numbers, [Some(1500.0)]);
 }
 
 /// Properties render by `displayMode` as the game shows them. Each
@@ -302,7 +308,7 @@ fn displayed_is_the_header_the_properties_and_every_line() {
     assert_eq!(wheres[..3], [Shown::Name, Shown::Typeline, Shown::Base]);
     assert!(matches!(wheres[3], Shown::Property(p) if p.name == "Quality"));
     assert_eq!(wheres[4..6], [Shown::ItemLevel, Shown::Requires]);
-    assert!(matches!(wheres[6], Shown::Line(l) if l.numbers == [92.0]));
+    assert!(matches!(wheres[6], Shown::Line(l) if l.numbers == [Some(92.0)]));
 }
 
 /// The reference, *Item-level*: an item with no name lacks it — known
@@ -411,7 +417,7 @@ fn sources_are_the_mods_arrays() {
     let veiled = line(&it, "Suffix#");
     assert_eq!(veiled.text, "Suffix02");
     assert!(veiled.numbers.is_empty());
-    assert_eq!(veiled.slot("arg1"), None);
+    assert_eq!(veiled.slot("arg1"), Slot::Absent);
     assert!(veiled.slots().is_empty());
     assert!(it.unread.is_empty());
 }
@@ -436,7 +442,7 @@ fn what_could_not_be_read_is_named_by_collection() {
         .lines
         .iter()
         .filter(|l| l.source == "implicit")
-        .flat_map(|l| l.numbers.clone())
+        .flat_map(|l| l.numbers.iter().flatten().copied().collect::<Vec<f64>>())
         .collect();
     assert_eq!(implicit, [16.0]);
     let explicit: Vec<&str> = it
@@ -560,7 +566,7 @@ proptest! {
         for l in &it.lines {
             let _ = l.rows().count();
             for (word, n) in l.slots() {
-                prop_assert_eq!(l.slot(&word), Some(n));
+                prop_assert_eq!(l.slot(&word), n.map_or(Slot::Unread, Slot::Is));
             }
         }
         prop_assert!(serde_json::to_value(&it).is_ok());

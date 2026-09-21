@@ -234,9 +234,9 @@ fn c97_describe_says_how_terms_compose_and_knows_the_words_it_prints() {
 
 /// The audit's follow-up, 1: a number is read once, where the body is
 /// read, and one the search does not read — more digits than any game
-/// displays — leaves its array unread (C93), never a sum that is exact in
-/// one order of occurrences and rounded in another. So both orders answer
-/// alike, and say why.
+/// displays — is an unread slot of its line (C93), never a sum that is
+/// exact in one order of occurrences and rounded in another. So both
+/// orders answer alike, and say why.
 #[test]
 fn c93_a_number_beyond_reach_is_unread_where_it_is_read_and_no_order_matters() {
     let huge = "10000000000000000000000000000";
@@ -264,7 +264,7 @@ fn c93_a_number_beyond_reach_is_unread_where_it_is_read_and_no_order_matters() {
     assert_eq!(answer["rows"][0]["id"], "i2");
     assert_eq!(answer["rows"][0]["sort"]["value"], json!(0.0001));
     let why = &answer["total"]["undecided_items"][0]["why"][0];
-    assert_eq!(why["unread"], "explicit lines");
+    assert_eq!(why["unread"], "the numbers of explicit lines");
     assert!(why["problem"].as_str().unwrap().contains("digits"), "{why}");
     // its text is a witness all the same
     let phrase = run(&corpus, &request("\"maximum Life\"", None, false, 10)).unwrap();
@@ -330,4 +330,123 @@ fn c100_the_reasons_shown_are_the_items_first_six_however_the_terms_are_ordered(
     assert_eq!(forward.1, json!(1));
     assert_eq!(forward.2.len(), 6);
     assert_eq!(forward.3, json!(1));
+}
+
+/// The audit's third review, 1: a number the search does not read is an
+/// unread *slot* — not an absent one, and not an unread array. What needs
+/// the number is undecided, through a not as well; what needs the line's
+/// text, template, source or sibling numbers keeps its answer (C93: only
+/// the terms that needed it).
+#[test]
+fn c93_an_unread_number_is_unknown_to_what_asks_it_and_to_nothing_else() {
+    let (corpus, _) = fixture(vec![
+        lines(&["1.12345 to Spirit"]),
+        lines(&["Adds 1 to 10000000000 Cold Damage"]),
+    ]);
+    // (matched, undecided at the root) of a query asked of one item
+    let of = |id: &str, query: &str| -> (u64, u64) {
+        let a = run(
+            &corpus,
+            &request(&format!("id:{id} ({query})"), None, false, 10),
+        )
+        .unwrap();
+        (
+            a["total"]["matched"].as_u64().unwrap(),
+            a["total"]["undecided"]["count"].as_u64().unwrap(),
+        )
+    };
+    const MATCHED: (u64, u64) = (1, 0);
+    const UNDECIDED: (u64, u64) = (0, 1);
+    const NO: (u64, u64) = (0, 0);
+    for (id, query, want) in [
+        ("i0", "line(\"# to Spirit\" arg1>=0)", UNDECIDED),
+        ("i0", "line(\"# to Spirit\" -arg1>=0)", UNDECIDED),
+        ("i0", "-line(\"# to Spirit\" arg1>=0)", UNDECIDED),
+        ("i0", "sum(\"# to Spirit\")>=0", UNDECIDED),
+        ("i0", "undecided(line(\"# to Spirit\").arg1)", MATCHED),
+        // the line is there, and no other is
+        ("i0", "\"# to Spirit\"", MATCHED),
+        ("i0", "line(template:spirit source=explicit)", MATCHED),
+        ("i0", "-line(template:life)", MATCHED),
+        ("i0", "line(template:life arg1>=0)", NO),
+        // a sibling number that was read is a witness, and a wrong one is a no
+        ("i1", "line(\"Adds # to # Cold Damage\" arg1=1)", MATCHED),
+        ("i1", "line(\"Adds # to # Cold Damage\" low=2)", NO),
+        ("i1", "line(\"Adds # to # Cold Damage\" high>=5)", UNDECIDED),
+        ("i1", "line(\"Adds # to # Cold Damage\" avg>=5)", UNDECIDED),
+        ("i1", "line(\"Adds # to # Cold Damage\" low=2 high>=5)", NO),
+    ] {
+        assert_eq!(of(id, query), want, "{id}: `{query}`");
+    }
+    // and the item says which numbers, of which lines
+    let a = run(
+        &corpus,
+        &request("line(\"# to Spirit\" arg1>=0)", None, false, 10),
+    )
+    .unwrap();
+    let why = &a["total"]["undecided_items"][0]["why"][0];
+    assert_eq!(why["unread"], "the numbers of explicit lines", "{why}");
+}
+
+/// The third review, 2: a sum past what a float holds exactly is still the
+/// decimal sum, read once: nineteen of the largest numbers the search
+/// reads equal the bound typed for them.
+#[test]
+fn c92_a_sum_at_the_edge_of_what_is_read_equals_its_typed_bound() {
+    let nineteen: Vec<String> = (0..19)
+        .map(|_| "9999999999.9997 to Spirit".to_string())
+        .collect();
+    let (corpus, _) = fixture(vec![json!({ "explicitMods": nineteen })]);
+    let sum = "sum(\"# to Spirit\")";
+    let a = run(
+        &corpus,
+        &request(&format!("{sum}=189999999999.9943"), Some(sum), false, 10),
+    )
+    .unwrap();
+    assert_eq!(a["total"]["matched"], 1);
+    assert_eq!(a["rows"][0]["sort"]["value"], json!(189999999999.9943));
+}
+
+/// Found by the completion property the day its generators learned to
+/// write an unread number, and nothing to do with one: an item "reaches a
+/// bound only together" when its occurrences' sum does — and a sum of no
+/// occurrence is no such thing, though 0 is at least any bound of zero or
+/// less. The count said 1 and its route, which asks for a selected line,
+/// returned none (invariant 4).
+#[test]
+fn c92_nothing_reaches_a_bound_together_without_an_occurrence_that_counts() {
+    let (corpus, _) = fixture(vec![
+        json!({ "explicitMods": [{ "description": "Cannot be Frozen", "flags": "unread" }] }),
+        lines(&["-3 to maximum Life", "-4 to maximum Life"]),
+    ]);
+    // the selector is open on the first item's one line, which names no
+    // number: the group failed there, and nothing of it sums
+    let a = run(
+        &corpus,
+        &request(
+            "line(template~\"Frozen|Life\" is:crafted arg1>=-5)",
+            None,
+            false,
+            10,
+        ),
+    )
+    .unwrap();
+    assert_eq!(a["terms"][0]["failed"]["count"], 1, "{}", a["terms"][0]);
+    assert_eq!(a["terms"][0]["together"]["count"], 0);
+    // two that do sum: -3 and -4 are each under -2, and no sum of them is over
+    let a = run(
+        &corpus,
+        &request("line(template:life arg1>=-2)", None, false, 10),
+    )
+    .unwrap();
+    assert_eq!(a["terms"][0]["together"]["count"], 0);
+    let a = run(
+        &corpus,
+        &request("line(template:life arg1<=-5)", None, false, 10),
+    )
+    .unwrap();
+    assert!(
+        a["terms"][0].get("together").is_none(),
+        "an upper bound: not applicable"
+    );
 }
