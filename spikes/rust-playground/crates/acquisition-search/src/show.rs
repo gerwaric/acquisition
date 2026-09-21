@@ -20,6 +20,7 @@ use acquisition_store::Store;
 use acquisition_store::corpus::{LocationRow, RealmScope};
 use serde::Serialize;
 
+use crate::answer::command;
 use crate::corpus::{Basis, Place, locations, placed};
 use crate::derive::{Facts, Item, Line, derive};
 use crate::describe::limit;
@@ -67,12 +68,15 @@ pub fn show(store: &Store, id: &str, body: bool) -> Result<Shown, SearchError> {
             Ok(Err((
                 header.locations.iter().find(|l| l.id == id).cloned(),
                 live,
+                basis.account,
             )))
         })
         .map_err(SearchError::store)?;
     let (basis, place, mut item, stored) = match found {
         Ok(found) => found,
-        Err((location, live)) => return Err(not_shown(store, location, live, id)),
+        Err((location, live, account)) => {
+            return Err(not_shown(store, location, live, &account, id));
+        }
     };
     let lines = std::mem::take(&mut item.lines)
         .into_iter()
@@ -95,7 +99,13 @@ pub fn show(store: &Store, id: &str, body: bool) -> Result<Shown, SearchError> {
     })
 }
 
-fn not_shown(store: &Store, location: Option<LocationRow>, live: usize, id: &str) -> SearchError {
+fn not_shown(
+    store: &Store,
+    location: Option<LocationRow>,
+    live: usize,
+    account: &str,
+    id: &str,
+) -> SearchError {
     if let Some(location) = location {
         return SearchError::scope(
             "not_an_item",
@@ -109,9 +119,11 @@ fn not_shown(store: &Store, location: Option<LocationRow>, live: usize, id: &str
                 location.name
             ),
         )
-        .with_offers(vec![format!(
-            "acq search --realm {} id:{id}",
-            location.realm
+        .with_offers(vec![command(
+            "search",
+            Some(account),
+            Some(&location.realm),
+            &format!("id:{id}"),
         )]);
     }
     match store.item(id) {
@@ -119,7 +131,7 @@ fn not_shown(store: &Store, location: Option<LocationRow>, live: usize, id: &str
             "item_not_live",
             format!("item `{id}` is in the store and is not live — removed, or its tab or character was: the search reads live items only"),
         )
-        .with_offers(vec![format!("acq items show {id}")]),
+        .with_offers(vec![command("items show", Some(account), None, id)]),
         Ok(None) => SearchError::scope(
             "item_not_found",
             format!("no item `{id}` in this store: an id is given whole, as an answer printed it ({live} live items, every realm)"),

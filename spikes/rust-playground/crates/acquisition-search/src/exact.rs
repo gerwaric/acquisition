@@ -1,81 +1,63 @@
-//! Sums of displayed numbers (C92, C94, C95): exact, and the same in any
-//! order.
+//! A displayed number, and the arithmetic done on it (C92, C94, C95):
+//! exact, and the same in any order.
 //!
-//! A line's number is a decimal the game displayed — `0.2% of Damage
-//! Leeched as Life` — and a bound is a decimal the author typed. Added as
-//! binary floats, 0.1 + 0.2 + 0.3 is 0.6000000000000001 in one order of
-//! occurrences and 0.6 in the other, so `sum( … )=0.6` matched one of two
-//! items carrying the same three lines (the fifth audit, finding 1). So a
-//! sum is taken over the decimals themselves: each number's shortest
-//! spelling — which is the text it was read from, for any number a game
-//! displays — as an integer and a scale, added as integers, and the total
-//! read back as the float nearest to it, which is the float the author's
-//! `0.6` is. The mean of a ranged pair (`avg`) is the same sum, halved.
+//! **A number is read once, where the body is read.** What a game displays
+//! is a short decimal: over the census's store copy (212,233 numbers on
+//! 22,721 items, 2026-09-21) none has more than two decimals or ten whole
+//! digits. [`reads`] is the rule — at most ten whole digits and four
+//! decimals — and the deriver asks it of every number of every line: one
+//! it does not read leaves that line without its numbers and its array
+//! unread (C93), which is the one failure path evidence has. Nothing
+//! downstream meets a number outside the rule, so nothing downstream has
+//! a fallback, and no answer depends on the order that a sum happened to
+//! overflow in (the fifth audit's follow-up, 1).
 //!
-//! A number with more digits than an `i128` adds safely is no displayed
-//! number; then the floats are added smallest first, which is at least the
-//! same in any order.
+//! **Arithmetic is on whole units.** Added as binary floats, 0.1 + 0.2 +
+//! 0.3 is 0.6000000000000001 one way round and 0.6 the other, and
+//! `sum( … )=0.6` matched one of two items carrying the same lines (the
+//! fifth audit, finding 1). A number within the rule is a whole count of
+//! hundred-thousandths — four decimals, and one more for the half a ranged
+//! pair's mean may end in — which a float holds exactly; units add as
+//! integers, and the total is read back as the float nearest to it, which
+//! is the float a typed bound is. A comparison needs none of this: two
+//! floats read from the same decimal are the same float.
 
-/// An integer and how many of its digits follow the point.
-fn decimal(value: f64) -> Option<(i128, u32)> {
-    if !value.is_finite() {
-        return None;
-    }
-    // Rust prints the shortest digits that read back as this float, never
-    // an exponent
-    let text = format!("{value}");
-    let (whole, fraction) = text.split_once('.').unwrap_or((&text, ""));
-    if whole.len() + fraction.len() > 30 {
-        return None;
-    }
-    let mantissa: i128 = format!("{whole}{fraction}").parse().ok()?;
-    Some((mantissa, fraction.len() as u32))
+/// The most whole digits and decimals a number may be displayed with.
+const WHOLE: usize = 10;
+const DECIMALS: usize = 4;
+/// Hundred-thousandths: [`DECIMALS`] and a half.
+const UNITS: f64 = 100_000.0;
+
+/// Whether the search reads this number, as written: digits, a point and
+/// digits, a sign before them or none, its thousands commas gone.
+pub(crate) fn reads(literal: &str) -> bool {
+    let digits = literal.trim_start_matches(['+', '-']);
+    let (whole, decimals) = digits.split_once('.').unwrap_or((digits, ""));
+    whole.trim_start_matches('0').len() <= WHOLE && decimals.len() <= DECIMALS
 }
 
-fn read_back(mantissa: i128, scale: u32) -> Option<f64> {
-    let digits = mantissa.unsigned_abs().to_string();
-    let scale = scale as usize;
-    let digits = format!("{digits:0>width$}", width = scale + 1);
-    let (whole, fraction) = digits.split_at(digits.len() - scale);
-    let sign = if mantissa < 0 { "-" } else { "" };
-    format!("{sign}{whole}.{fraction}0").parse().ok()
+fn units(value: f64) -> i128 {
+    (value * UNITS).round() as i128
 }
 
-fn exactly(values: &[f64], halved: bool) -> Option<f64> {
-    let parts: Vec<(i128, u32)> = values.iter().map(|v| decimal(*v)).collect::<Option<_>>()?;
-    let scale = parts.iter().map(|(_, s)| *s).max().unwrap_or(0);
-    let mut total: i128 = 0;
-    for (mantissa, s) in parts {
-        let raised = mantissa.checked_mul(10i128.checked_pow(scale - s)?)?;
-        total = total.checked_add(raised)?;
-    }
-    if halved {
-        // a half is five tenths
-        return read_back(total.checked_mul(5)?, scale + 1);
-    }
-    read_back(total, scale)
-}
-
-fn in_one_order(values: &[f64]) -> f64 {
-    let mut values = values.to_vec();
-    values.sort_by(|a, b| a.abs().total_cmp(&b.abs()).then(a.total_cmp(b)));
-    values.iter().sum()
+fn read_back(units: i128) -> f64 {
+    units as f64 / UNITS
 }
 
 /// The sum of displayed numbers; nothing sums to zero.
 pub(crate) fn sum(values: impl IntoIterator<Item = f64>) -> f64 {
-    let values: Vec<f64> = values.into_iter().collect();
-    exactly(&values, false).unwrap_or_else(|| in_one_order(&values))
+    read_back(values.into_iter().map(units).sum())
 }
 
 /// The mean of a ranged pair.
 pub(crate) fn mean(low: f64, high: f64) -> f64 {
-    exactly(&[low, high], true).unwrap_or((low + high) / 2.0)
+    // each is a whole count of tens of units, so the half is whole
+    read_back((units(low) + units(high)) / 2)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{mean, sum};
+    use super::{mean, reads, sum};
 
     #[test]
     fn a_sum_is_the_decimal_sum_in_any_order() {
@@ -84,12 +66,32 @@ mod tests {
         assert_eq!(sum([]), 0.0);
         assert_eq!(sum([-0.1, 0.1]), 0.0);
         assert_eq!(sum([95.0, -5.0, 0.25]), 90.25);
-        assert_eq!(sum([1e15, 0.3, -1e15]), 0.3);
         assert_eq!(mean(0.1, 0.2), 0.15);
         assert_eq!(mean(3.0, 10.0), 6.5);
         assert_eq!(mean(-0.1, -0.2), -0.15);
-        // no displayed number: the floats, in one order either way
-        assert_eq!(sum([1e300, 1.0, -1e300]), sum([-1e300, 1e300, 1.0]));
-        assert!(sum([f64::NAN, 1.0]).is_nan());
+        assert_eq!(mean(0.0001, 0.0002), 0.00015);
+        // the rule's edge, exactly: ten whole digits and four decimals
+        let edge = 9999999999.9999;
+        assert_eq!(sum([edge, -edge, 0.0001]), 0.0001);
+        assert_eq!(sum([edge, 0.0001, -edge]), 0.0001);
+        assert_eq!(sum([edge, edge]), 19999999999.9998);
+    }
+
+    #[test]
+    fn the_rule_is_ten_whole_digits_and_four_decimals() {
+        for read in [
+            "0",
+            "95",
+            "+95",
+            "-5",
+            "0.0001",
+            "9999999999.9999",
+            "0009999999999",
+        ] {
+            assert!(reads(read), "{read}");
+        }
+        for unread in ["10000000000", "0.00001", "+10000000000000000000000000000"] {
+            assert!(!reads(unread), "{unread}");
+        }
     }
 }

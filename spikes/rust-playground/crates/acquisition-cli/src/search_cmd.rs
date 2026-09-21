@@ -452,10 +452,10 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         }
         for touched in row.matched.iter().filter(|t| t.left_out > 0) {
             line(format!(
-                "            {} more of term {}: acq show {}",
+                "            {} more of term {}: {}",
                 touched.left_out,
                 touched.path,
-                acquisition_search::answer::shell_quoted(&row.id)
+                a.show_command(&row.id)
             ));
         }
         line(format!("            id {}", row.id));
@@ -505,6 +505,13 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
             line(format!(
                 "            term {} {}: {} unread — {}; {}",
                 why.path, why.term, why.reason.unread, why.reason.problem, why.reason.hint
+            ));
+        }
+        if item.why_left_out > 0 {
+            line(format!(
+                "            {} more unread: {}",
+                item.why_left_out,
+                a.show_command(&item.id)
             ));
         }
     }

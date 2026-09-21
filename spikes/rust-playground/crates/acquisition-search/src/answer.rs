@@ -261,6 +261,9 @@ pub struct UndecidedItem {
     pub id: String,
     pub name: Option<String>,
     pub why: Vec<Why>,
+    /// Unread parts of the item past the ones `why` gives (invariant 5).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub why_left_out: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -532,22 +535,19 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                 let held = &corpus.items[*at];
                 let mut blamed = Vec::new();
                 eval::blame(&query.bound, outcomes, &mut blamed);
+                let (why, why_left_out) = eval::why(&query.terms, &blamed, held);
                 UndecidedItem {
                     id: held.item.facts.id.clone(),
                     name: label(held),
-                    why: blamed
+                    why: why
                         .into_iter()
-                        .flat_map(|i| {
-                            let term = &query.terms[i];
-                            eval::reasons(&term.atom, held)
-                                .into_iter()
-                                .map(|reason| Why {
-                                    path: term.path.clone(),
-                                    term: print::print(&term.node),
-                                    reason,
-                                })
+                        .map(|(term, reason)| Why {
+                            path: term.path.clone(),
+                            term: print::print(&term.node),
+                            reason,
                         })
                         .collect(),
+                    why_left_out,
                 }
             })
             .collect(),
@@ -969,23 +969,49 @@ fn exactly(of: &str, value: &str) -> Node {
     }
 }
 
+/// A command a terminal takes: the one way the search prints one (the
+/// build plan's rule 5 — a command printed is a command that runs). It
+/// names the account it was answered for, since a second account makes a
+/// command without one an error, and a last word that starts with `-` —
+/// the language's not, a terminal's flag — goes after `--`, or `-has:note`
+/// is read as `-h`.
+pub fn command(verb: &str, account: Option<&str>, realm: Option<&str>, last: &str) -> String {
+    let mut out = format!("acq {verb}");
+    if let Some(account) = account {
+        out.push_str(&format!(" --account {}", shell_quoted(account)));
+    }
+    if let Some(realm) = realm {
+        out.push_str(&format!(" --realm {realm}"));
+    }
+    out.push_str(if last.starts_with('-') { " -- " } else { " " });
+    out.push_str(&shell_quoted(last));
+    out
+}
+
 impl Route {
     /// The route as a command a terminal takes.
     pub fn command(&self) -> String {
         let scope = &self.request.scope;
-        let mut out = String::from("acq search");
-        if let Some(account) = &scope.account {
-            out.push_str(&format!(" --account {}", shell_quoted(account)));
-        }
-        if let Some(realm) = &scope.realm {
-            out.push_str(&format!(" --realm {}", realm.as_str()));
-        }
-        let query = self.request.query.text.as_deref().unwrap_or_default();
-        // `-` is the language's not and a terminal's flag: a query that
-        // starts with one goes after `--`, or `-has:note` is read as `-h`
-        out.push_str(if query.starts_with('-') { " -- " } else { " " });
-        out.push_str(&shell_quoted(query));
-        out
+        command(
+            "search",
+            scope.account.as_deref(),
+            scope.realm.as_ref().map(Realm::as_str),
+            self.request.query.text.as_deref().unwrap_or_default(),
+        )
+    }
+}
+
+impl Answer {
+    /// The command that shows one of this answer's items whole: where a
+    /// bounded block of a row sends its reader (invariant 5).
+    pub fn show_command(&self, id: &str) -> String {
+        let account = &self.scope.account;
+        command(
+            "show",
+            Some(account.name.as_deref().unwrap_or(&account.uuid)),
+            None,
+            id,
+        )
     }
 }
 

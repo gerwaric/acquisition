@@ -231,3 +231,103 @@ fn c97_describe_says_how_terms_compose_and_knows_the_words_it_prints() {
         assert_eq!(one[block].as_array().unwrap().len(), 1, "`{word}`: {one}");
     }
 }
+
+/// The audit's follow-up, 1: a number is read once, where the body is
+/// read, and one the search does not read — more digits than any game
+/// displays — leaves its array unread (C93), never a sum that is exact in
+/// one order of occurrences and rounded in another. So both orders answer
+/// alike, and say why.
+#[test]
+fn c93_a_number_beyond_reach_is_unread_where_it_is_read_and_no_order_matters() {
+    let huge = "10000000000000000000000000000";
+    let life = |n: &str| format!("{n} to maximum Life");
+    let (corpus, _) = fixture(vec![
+        json!({ "explicitMods": [life(&format!("+{huge}")), life(&format!("+{huge}")),
+            life(&format!("-{huge}")), life(&format!("-{huge}")), life("+0.0000000001")] }),
+        json!({ "explicitMods": [life(&format!("+{huge}")), life(&format!("-{huge}")),
+            life(&format!("+{huge}")), life(&format!("-{huge}")), life("+0.0000000001")] }),
+        lines(&[
+            "+1234567890.1234 to maximum Life",
+            "-1234567890.1234 to maximum Life",
+            "+0.0001 to maximum Life",
+        ]),
+    ]);
+    let sum = "sum(\"# to maximum Life\")";
+    let answer = run(&corpus, &request(&format!("{sum}>0"), Some(sum), false, 10)).unwrap();
+    assert_eq!(
+        answer["terms"][0]["undecided"]["count"], 2,
+        "{}",
+        answer["terms"][0]
+    );
+    // the largest number read whole: ten digits and four decimals, exactly
+    assert_eq!(answer["rows"].as_array().unwrap().len(), 1);
+    assert_eq!(answer["rows"][0]["id"], "i2");
+    assert_eq!(answer["rows"][0]["sort"]["value"], json!(0.0001));
+    let why = &answer["total"]["undecided_items"][0]["why"][0];
+    assert_eq!(why["unread"], "explicit lines");
+    assert!(why["problem"].as_str().unwrap().contains("digits"), "{why}");
+    // its text is a witness all the same
+    let phrase = run(&corpus, &request("\"maximum Life\"", None, false, 10)).unwrap();
+    assert_eq!(phrase["total"]["matched"], 3);
+}
+
+/// The follow-up, 2: what is shown of why an item is undecided is bounded
+/// by the item's unread parts, in the item's order — never by the order
+/// the terms were written in, which a rewrite that changes no meaning may
+/// change (invariant 7).
+#[test]
+fn c100_the_reasons_shown_are_the_items_first_six_however_the_terms_are_ordered() {
+    let flags = [
+        "corrupted",
+        "identified",
+        "split",
+        "duplicated",
+        "replica",
+        "fractured",
+        "mutated",
+    ];
+    let mut body = json!({});
+    for flag in flags {
+        body[flag] = json!("unread");
+    }
+    let (corpus, _) = fixture(vec![body]);
+    let shown = |order: &[&str]| -> (Vec<String>, Value, Vec<String>, Value) {
+        let terms: Vec<String> = order.iter().map(|f| format!("is:{f}")).collect();
+        let probe = run(
+            &corpus,
+            &request(&format!("undecided({})", terms.join(" ")), None, false, 10),
+        )
+        .unwrap();
+        let matched = &probe["rows"][0]["matched"][0];
+        let mut unread: Vec<String> = matched["shows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["undecided"]["unread"].as_str().unwrap().to_string())
+            .collect();
+        unread.sort();
+        let root = run(&corpus, &request(&terms.join(" "), None, false, 10)).unwrap();
+        let item = &root["total"]["undecided_items"][0];
+        let mut why: Vec<String> = item["why"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|w| w["unread"].as_str().unwrap().to_string())
+            .collect();
+        why.sort();
+        (
+            unread,
+            matched["left_out"].clone(),
+            why,
+            item["why_left_out"].clone(),
+        )
+    };
+    let forward = shown(&flags);
+    let mut reversed = flags;
+    reversed.reverse();
+    assert_eq!(forward, shown(&reversed));
+    assert_eq!(forward.0.len(), 6);
+    assert_eq!(forward.1, json!(1));
+    assert_eq!(forward.2.len(), 6);
+    assert_eq!(forward.3, json!(1));
+}

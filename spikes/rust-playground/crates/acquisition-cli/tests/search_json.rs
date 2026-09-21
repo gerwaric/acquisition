@@ -195,7 +195,7 @@ fn c96_c100_a_row_names_its_realm_under_all_and_says_what_it_left_out() {
     for needle in [
         "poe2 · Standard / Rings",
         "pc · Standard / Never",
-        "2 more of term 0: acq show many",
+        "2 more of term 0: acq show --account 'Alice#1234' many",
     ] {
         assert!(
             shown.contains(needle),
@@ -209,6 +209,96 @@ fn c96_c100_a_row_names_its_realm_under_all_and_says_what_it_left_out() {
     ));
     assert!(shown.contains(" · Standard / Never"), "{shown}");
     assert!(!shown.contains("pc · Standard / Never"), "{shown}");
+}
+
+/// Every `acq …` a text prints, to the end of its line — but a hint that
+/// names a flag this build refuses, which says so itself.
+fn printed_commands(text: &str) -> Vec<String> {
+    text.lines()
+        .filter(|line| !line.contains("not built"))
+        .filter_map(|line| line.find("acq ").map(|at| line[at..].trim().to_string()))
+        .collect()
+}
+
+fn run_printed(base: &Path, command: &str) -> Output {
+    Command::new("sh")
+        .arg("-c")
+        .arg(command.replacen("acq ", "\"$ACQ\" --json ", 1))
+        .env("ACQ", env!("CARGO_BIN_EXE_acq"))
+        .env("ACQ_STORE_DIR", base)
+        .env("ACQ_NO_KEYRING", "1")
+        .env("ACQ_NO_SPAWN", "1")
+        .env("ACQ_PROVIDER", "mock")
+        .env_remove("ACQ_ACCOUNT")
+        .output()
+        .unwrap()
+}
+
+/// Rule 5 of the build plan, over everything and not only the routes: a
+/// command the search prints — a route, where a cut block sends its
+/// reader, what an error offers — runs as printed. With two accounts
+/// known, which a command that drops its account does not survive (the
+/// fifth audit's follow-up, 3).
+#[test]
+fn rule_5_every_command_printed_runs_with_a_second_account_known() {
+    let base = base();
+    seed(&base);
+    seed_more(&base);
+    let mock = base.join("mock");
+    let mut index = Index::load(&mock).unwrap();
+    index.record_login("Bob#5678", "u-other", false, 2).unwrap();
+    let mut other = Store::open(&account_path(&mock, "Bob#5678")).unwrap();
+    other
+        .record(
+            &Endpoint::Profile,
+            &json!({}),
+            200,
+            &json!({ "uuid": "u-other", "name": "Bob#5678" }),
+            2,
+        )
+        .unwrap();
+    drop(other);
+    // the premise: with no account named, nothing runs
+    assert!(!acq(&base, &["search", "--realm", "pc"]).status.success());
+
+    let mut ran = 0;
+    for query in [
+        "line(template:spirit)",
+        "line(template:life arg1>=90)",
+        "is:corrupted",
+    ] {
+        let shown = text(&acq(
+            &base,
+            &[
+                "--account",
+                USER,
+                "search",
+                "--realm",
+                "all",
+                query,
+                "--routes",
+            ],
+        ));
+        let commands = printed_commands(&shown);
+        assert!(!commands.is_empty(), "{shown}");
+        for command in commands {
+            let out = run_printed(&base, &command);
+            assert!(
+                out.status.success(),
+                "`{command}` was printed and does not run: {}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+            ran += 1;
+        }
+    }
+    // what `show` offers when the id is a tab's
+    let refused = sole_json(&acq(&base, &["--account", USER, "--json", "show", "t1"]));
+    for offered in refused["readings"].as_array().unwrap() {
+        let out = run_printed(&base, offered.as_str().unwrap());
+        assert!(out.status.success(), "{offered}");
+        ran += 1;
+    }
+    assert!(ran > 8, "{ran} commands ran");
 }
 
 const LIFE: &str = r##""+# to maximum Life">=90"##;

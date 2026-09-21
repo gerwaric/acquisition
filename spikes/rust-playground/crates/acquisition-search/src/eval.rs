@@ -514,23 +514,91 @@ fn line_evidence(line: &Line) -> Evidence {
 /// An `undecided( … )` that matched shows why — the reasons of what it
 /// asked about — so the route of an undecided count returns its members
 /// with their reasons. Bounded, with what was left out counted: the item
-/// whole is `show <id>`.
+/// whole is `show <id>`. What is kept follows the item — its lines in its
+/// order, its unread parts in theirs — and never the order the terms were
+/// written in, which a rewrite that changes no meaning may change
+/// (invariant 7).
 pub(crate) fn evidence(
     terms: &[Term],
     term: &Term,
     held: &Held,
     outcomes: &[Outcome],
 ) -> (Vec<Evidence>, usize) {
-    /// How much of one term a row shows; a sum's value is beside it.
-    const MOST: usize = 6;
-    let mut all = everything(terms, term, held, outcomes);
-    let keep = MOST + usize::from(matches!(all.first(), Some(Evidence::Value { .. })));
-    let left_out = all.len().saturating_sub(keep);
-    all.truncate(keep);
-    (all, left_out)
+    let blamed = match &term.atom {
+        Atom::Undecided(BProbe::Term(inner)) => {
+            let mut blamed = Vec::new();
+            blame(inner, outcomes, &mut blamed);
+            blamed
+        }
+        Atom::Undecided(_) => terms
+            .iter()
+            .position(|t| t.path == term.path)
+            .into_iter()
+            .collect(),
+        _ => {
+            let mut all = everything(term, held);
+            let keep = SHOWN + usize::from(matches!(all.first(), Some(Evidence::Value { .. })));
+            let left_out = all.len().saturating_sub(keep);
+            all.truncate(keep);
+            return (all, left_out);
+        }
+    };
+    let (pairs, left_out) = why(terms, &blamed, held);
+    let shows = pairs
+        .into_iter()
+        .map(|(asked, reason)| Evidence::Undecided {
+            path: asked.path.clone(),
+            term: crate::print::print(&asked.node),
+            reason,
+        })
+        .collect();
+    (shows, left_out)
 }
 
-fn everything(terms: &[Term], term: &Term, held: &Held, outcomes: &[Outcome]) -> Vec<Evidence> {
+/// How much of one term a row shows, a sum's value beside it, and how many
+/// of an item's unread parts are given as why it is undecided.
+const SHOWN: usize = 6;
+
+/// Why these terms are open on an item: each term with each unread part
+/// it rests on. The bound is on the item's parts, the first [`SHOWN`] in
+/// the item's own order, every term's pair with each kept — how many terms
+/// a query has is its author's — and the parts past the bound are counted.
+pub(crate) fn why<'a>(
+    terms: &'a [Term],
+    blamed: &[usize],
+    held: &Held,
+) -> (Vec<(&'a Term, Reason)>, usize) {
+    let at = |unread: &Unread| {
+        held.item
+            .unread
+            .iter()
+            .position(|u| std::ptr::eq(u, unread))
+            .unwrap_or(usize::MAX)
+    };
+    let mut pairs: Vec<(usize, usize, &Unread)> = blamed
+        .iter()
+        .filter_map(|i| terms.get(*i).map(|term| (*i, term)))
+        .flat_map(|(i, term)| {
+            unread_of(&term.atom, held)
+                .into_iter()
+                .map(move |unread| (i, unread))
+        })
+        .map(|(i, unread)| (at(unread), i, unread))
+        .collect();
+    pairs.sort_by_key(|(part, term, _)| (*part, *term));
+    let mut parts: Vec<usize> = pairs.iter().map(|(part, _, _)| *part).collect();
+    parts.dedup();
+    let left_out = parts.len().saturating_sub(SHOWN);
+    let last = parts.get(SHOWN.saturating_sub(1)).copied();
+    let shown = pairs
+        .into_iter()
+        .filter(|(part, _, _)| last.is_none_or(|last| *part <= last))
+        .map(|(_, i, unread)| (&terms[i], reason(unread)))
+        .collect();
+    (shown, left_out)
+}
+
+fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
     match &term.atom {
         Atom::Text {
             thing: Thing::Text,
@@ -579,31 +647,6 @@ fn everything(terms: &[Term], term: &Term, held: &Held, outcomes: &[Outcome]) ->
             .chain(satisfying(held, &group.whole).map(line_evidence))
             .collect()
         }
-        Atom::Undecided(BProbe::Term(inner)) => {
-            let mut blamed = Vec::new();
-            blame(inner, outcomes, &mut blamed);
-            blamed
-                .into_iter()
-                .filter_map(|i| terms.get(i))
-                .flat_map(|asked| {
-                    reasons(&asked.atom, held)
-                        .into_iter()
-                        .map(|reason| Evidence::Undecided {
-                            path: asked.path.clone(),
-                            term: crate::print::print(&asked.node),
-                            reason,
-                        })
-                })
-                .collect()
-        }
-        Atom::Undecided(_) => reasons(&term.atom, held)
-            .into_iter()
-            .map(|reason| Evidence::Undecided {
-                path: term.path.clone(),
-                term: crate::print::print(&term.node),
-                reason,
-            })
-            .collect(),
         _ => Vec::new(),
     }
 }
@@ -645,22 +688,18 @@ fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<&'a Unread> {
     }
 }
 
-/// Why a term is undecided on an item.
-pub(crate) fn reasons(atom: &Atom, held: &Held) -> Vec<Reason> {
-    unread_of(atom, held)
-        .into_iter()
-        .map(|u| Reason {
-            unread: match &u.part {
-                Part::Body => "the body".to_string(),
-                Part::Field(key) => format!("`{key}`"),
-                Part::Properties(array) => format!("`{array}`"),
-                Part::Lines(source) => format!("{source} lines"),
-                Part::Flags(source) => format!("the flags of {source} lines"),
-            },
-            problem: u.problem.clone(),
-            hint: UNREAD_HINT,
-        })
-        .collect()
+fn reason(unread: &Unread) -> Reason {
+    Reason {
+        unread: match &unread.part {
+            Part::Body => "the body".to_string(),
+            Part::Field(key) => format!("`{key}`"),
+            Part::Properties(array) => format!("`{array}`"),
+            Part::Lines(source) => format!("{source} lines"),
+            Part::Flags(source) => format!("the flags of {source} lines"),
+        },
+        problem: unread.problem.clone(),
+        hint: UNREAD_HINT,
+    }
 }
 
 /// What an item sorts by.

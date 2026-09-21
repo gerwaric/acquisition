@@ -40,6 +40,10 @@
 //!   line is a placeholder re-rolled per response (S12), so it keeps its
 //!   template (`Suffix#`) and carries no number — a value query never
 //!   matches it.
+//! - **A number the search does not read** — more whole digits or decimals
+//!   than any game displays (`exact.rs`, the rule and its measurement) —
+//!   costs its line its numbers and leaves its array unread: said here,
+//!   once, so that no arithmetic downstream has a case for it.
 //! - **Slots** ([`Line::slot`]): `arg<N>` by position, and `low`, `high`,
 //!   `avg` on a template with exactly one `# to #` (C92). A line whose
 //!   numbers are not its template's `#`s — a veiled line, a displayed
@@ -534,9 +538,18 @@ impl Item {
             if text.is_empty() {
                 continue;
             }
-            let (template, mut numbers) = template::typed(&text);
+            let (template, mut numbers, beyond) = template::read(&text);
             if source == "veiled" {
                 numbers.clear();
+            }
+            // read once, here: the line keeps its text and names no slot,
+            // and its array is unread, so no sum and no absence rests on it
+            if let Some(literal) = beyond {
+                numbers.clear();
+                let problem = format!(
+                    "{at}: `{literal}` has more digits than the search reads: ten whole, four decimals"
+                );
+                self.unread(part(), problem);
             }
             self.lines.push(Line {
                 source: source.to_string(),
