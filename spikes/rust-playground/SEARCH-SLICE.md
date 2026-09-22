@@ -22,6 +22,29 @@ Reading a search change before reviewing one: the findings table below
 is the checklist, and `REFRESH-SLICE.md`'s beside it for the store's
 read.
 
+## How the design was reached
+
+Moved from `search/README.md` when the record opened; the tracks the
+stages read are that index's rows.
+
+The synthesis runs in stages after the tracks close (the plan and the
+owner's decisions: `brainstorming-notes/23-search-synthesis-plan.md`):
+its briefs and drafts are numbered notes, each edited by the owner
+before it runs — the digest brief was note 21 (at c56404ca, deleted at
+acceptance), the framing is `brainstorming-notes/22-search-framing.md`;
+the digest is `DIGEST.md`, accepted 2026-09-17; the proposal brief
+for stage 3 was note 29 (at `e5d270bc`, deleted at the close), and
+the two blind proposals it produced are
+`brainstorming-notes/24-search-proposal-fable.md` and
+`brainstorming-notes/25-search-proposal-astra.md` (merged f2b06a3e). Stage
+4 is an audit (`proposal-audit/`), the author's repair
+(note 32 at `a47fa1e5`), the review, a seat under note 30 (at
+`a47fa1e5`) over anonymised copies (`search/designs/`, retired at
+`548ecc4f`)
+(`brainstorming-notes/26-search-review-by-fable.md`,
+`brainstorming-notes/27-search-review-by-astra.md`), and the reconciliation,
+`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the model page, the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17; its contract detail is `DESIGN.md`, which opens with the language reference — the surface on one page, an example per construct (the stage-5 audit's finding 5, harvested 2026-09-19). Stage 6 is the build, under `BUILD-PLAN.md`: a brief the owner edits before it runs, deleted at the close; this file is its record.
+
 ## Step ledger
 
 Steps as built, in the order they landed; what each was to close on is

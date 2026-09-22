@@ -91,23 +91,13 @@ rulings they revisit — C48 (raw SQL is not a surface), C34
 (derivations), C12 (two surfaces), C79 (governed surfaces;
 `SURFACES.md`) — and the store's parks they cite are named from there.
 
-The synthesis runs in stages after the tracks close (the plan and the
-owner's decisions: `brainstorming-notes/23-search-synthesis-plan.md`):
-its briefs and drafts are numbered notes, each edited by the owner
-before it runs — the digest brief was note 21 (at c56404ca, deleted at
-acceptance), the framing is `brainstorming-notes/22-search-framing.md`;
-the digest is `DIGEST.md`, accepted 2026-09-17; the proposal brief
-for stage 3 was note 29 (at `e5d270bc`, deleted at the close), and
-the two blind proposals it produced are
-`brainstorming-notes/24-search-proposal-fable.md` and
-`brainstorming-notes/25-search-proposal-astra.md` (merged f2b06a3e). Stage
-4 is an audit (`proposal-audit/`), the author's repair
-(note 32 at `a47fa1e5`), the review, a seat under note 30 (at
-`a47fa1e5`) over anonymised copies (`search/designs/`, retired at
-`548ecc4f`)
-(`brainstorming-notes/26-search-review-by-fable.md`,
-`brainstorming-notes/27-search-review-by-astra.md`), and the reconciliation,
-`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the model page, the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17; its contract detail is `DESIGN.md`, which opens with the language reference — the surface on one page, an example per construct (the stage-5 audit's finding 5, harvested 2026-09-19). `search-forms/` is the design dialogue that chose that surface, history: files 10 and 11 are what was harvested, and the owner's words are whole in file 11. Stage 6 is the build, under `BUILD-PLAN.md`: a brief the owner edits before it runs, deleted at the close; its record is `SEARCH-SLICE.md`, opened at step 5 (the plan's header).
+How the rulings were reached — the synthesis's six stages, their notes,
+the blind proposals and the audit — is `SEARCH-SLICE.md`, "How the
+design was reached". `search-forms/` is the design dialogue that chose
+the surface, history: files 10 and 11 are what was harvested, and the
+owner's words are whole in file 11. The build runs under
+`BUILD-PLAN.md`, the brief, deleted at the close; what it met is the
+record.
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search
