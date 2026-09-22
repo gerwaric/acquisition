@@ -482,6 +482,77 @@ fn step_5_audit_keys_are_parsed_strictly_and_text_says_why_a_count_has_no_route(
     );
 }
 
+/// The audit's review, 2 and 3: a continuation whose key holds a comma,
+/// a quote or a backslash is printed in the count list's own grammar and
+/// runs; a quoted text keeps its trailing space through the binder.
+#[test]
+fn step_5_review_a_continuations_key_is_encoded_and_a_quoted_text_is_kept_whole() {
+    let base = base();
+    seed(&base);
+    let mut store = Store::open(&account_path(&base.join("mock"), USER)).unwrap();
+    // twelve templates a pattern with a comma selects, each with a comma
+    // and a backslash of its own
+    let items: Vec<Value> = (0..12)
+        .map(|n| {
+            let k = "abcdefghijkl".chars().nth(n).unwrap();
+            json!({ "id": format!("m{n}"), "name": "", "typeLine": "Ring", "baseType": "Ring", "rarity": "Rare",
+                "frameTypeId": "Rare", "identified": true, "ilvl": 84, "x": 0, "y": 0,
+                "explicitMods": [format!("+1 to Marker {k}{k}, half \\ {k}")] })
+        })
+        .collect();
+    store
+        .record(
+            &Endpoint::Stash {
+                realm: "pc".into(),
+                league: "Standard".into(),
+                id: "t3".into(),
+                sub: None,
+            },
+            &json!({}),
+            200,
+            &json!({ "stash": { "id": "t3", "name": "Never", "type": "PremiumStash", "items": items } }),
+            50,
+        )
+        .unwrap();
+    drop(store);
+    let mut ran = 0;
+    for query in [
+        r#"line(template~"Marker [a-z]{1,2}")"#,
+        r#"line(template:", half")"#,
+        r#"line(template:"\\")"#,
+    ] {
+        let shown = text(&acq(&base, &["search", query]));
+        let continuation = shown
+            .lines()
+            .find(|l| l.contains(" more: acq "))
+            .unwrap_or_else(|| panic!("no continuation for `{query}` in:\n{shown}"));
+        let command = &continuation[continuation.find("acq ").unwrap()..];
+        let out = run_printed(&base, command);
+        assert!(
+            out.status.success(),
+            "`{command}`: {}",
+            String::from_utf8_lossy(&out.stdout)
+        );
+        let listed = sole_json(&out);
+        assert_eq!(
+            listed["view"]["counts"]["tables"][0]["values"], 12,
+            "`{command}`"
+        );
+        ran += 1;
+    }
+    assert_eq!(ran, 3);
+    // a quoted text's trailing space is the text's: nothing ends in `Life `
+    let kept = sole_json(&acq(
+        &base,
+        &["--json", "search", "--count", "line:\"Life \""],
+    ));
+    let table = &kept["view"]["counts"]["tables"][0];
+    assert_eq!(
+        (&table["key"], &table["values"]),
+        (&json!("line:Life "), &json!(0))
+    );
+}
+
 const LIFE: &str = r##""+# to maximum Life">=90"##;
 
 #[test]

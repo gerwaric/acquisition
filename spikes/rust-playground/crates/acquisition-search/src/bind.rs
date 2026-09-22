@@ -536,7 +536,8 @@ pub(crate) enum Key {
 
 /// Bind one key, as a request names it: a field's name, `line`,
 /// `line:<text>` or `line~<pattern>` — the rest of the string is the text,
-/// as it stands. A field is a key when `has:` can be asked of it, since
+/// as it stands, whitespace and all; a name is trimmed, a text never (the
+/// step-5 audit's review, 3). A field is a key when `has:` can be asked of it, since
 /// `-has:<key>` is where its `none` bucket routes: every field but `text`
 /// and `id`. What a later step builds is refused by that step's name.
 pub(crate) fn bind_key(text: &str) -> Result<Key, LanguageError> {
@@ -545,6 +546,7 @@ pub(crate) fn bind_key(text: &str) -> Result<Key, LanguageError> {
         .find(|(_, c)| matches!(c, ':' | '~'))
         .map(|(at, c)| (&text[..at], c, &text[at + 1..]));
     if let Some((name, op, rest)) = narrowed {
+        let name = name.trim();
         if !name.eq_ignore_ascii_case("line") {
             return Err(LanguageError::new(
                 ErrorKind::View,
@@ -561,6 +563,7 @@ pub(crate) fn bind_key(text: &str) -> Result<Key, LanguageError> {
         let op = if op == ':' { Op::Contains } else { Op::Match };
         return Ok(Key::Line(Some((op, rest.to_string()))));
     }
+    let text = text.trim();
     if text.eq_ignore_ascii_case("line") {
         return Ok(Key::Line(None));
     }

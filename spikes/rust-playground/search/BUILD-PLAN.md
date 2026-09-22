@@ -1234,6 +1234,17 @@ again, release: 269–306 ms, within noise of the step's row.
 The audit also asked that `--sum`'s operator error stop offering a line's
 slot while E2 stands: it names `ilvl, stack, or the item's sum( … )` now.
 
+**Its review of those fixes (`6f352523`), the same day**: 1, 5 and 6
+hold; three follow-ups on 2–4, each reproduced first, fixed in the
+commit after; its three assertions rerun against the fixes pass. M2
+again: 0 unread, 0 unexplained. M3 again, release: 270–306 ms.
+
+| # | Follow-up | Verdict | Held by |
+| --- | --- | --- | --- |
+| 1 | Exactness ended at the item: units were read back off the float an item total became, and a total's decimal can be longer than a float prints — nine means of large pairs, their negatives and `0.0001` summed to `0.00011` split over two items, `0.0001` on one | confirmed; the builder's claim in `exact.rs`, that a float's shortest print is the decimal it was made from, was false past fifteen significant digits | `exact::Exact`, units carried: an item's sum, a bucket's sum of them and a sort scalar are `Exact`, and a float is made only to compare or print. Pinned in `exact.rs` and in `tests/counts.rs`, the review's own arrangement |
+| 2 | A continuation's key was shell-quoted and not list-quoted: `--count 'line~Marker [a-z]{1,2}'` split at the comma | confirmed | `answer::listed_text`: a text with a comma, a quote, a backslash, a row break, a leading `~` or whitespace at an end is quoted in the list's grammar with the language's escapes; the CLI runs continuations for a pattern with a comma and texts with a comma and a backslash, and a unit test reads every spelling back |
+| 3 | The binder trimmed a narrowing text: `line:"Life "` became `line:Life` | confirmed | `bind_key` trims a name and never a text; pinned at the terminal |
+
 ## Gaps found while planning — rules the reference did not state
 
 Each changes what a user types, or which items what he types matches.

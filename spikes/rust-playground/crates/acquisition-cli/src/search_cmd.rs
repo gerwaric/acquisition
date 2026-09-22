@@ -1068,3 +1068,42 @@ fn shown_text(s: &Shown) -> String {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::keys;
+
+    /// The count list's grammar, both ways: every spelling a continuation
+    /// prints (`answer::listed_text`) reads back as the key it encodes,
+    /// and what the reference's synopsis shows reads as it says.
+    #[test]
+    fn a_count_list_reads_back_what_a_continuation_prints() {
+        for (typed, read) in [
+            ("tab,league,rarity", vec!["tab", "league", "rarity"]),
+            ("line:resist,life", vec!["line:resist", "line:life"]),
+            (
+                "tab,line:resist,~^adds",
+                vec!["tab", "line:resist", "line~^adds"],
+            ),
+            ("line:~Life", vec!["line~Life"]),
+            // unquoted, the comma is the list's: the review's case
+            ("line~[a-z]{1,2}", vec!["line~[a-z]{1", "line:2}"]),
+            (r#"line~"[a-z]{1,2}""#, vec!["line~[a-z]{1,2}"]),
+            (r#"line:", half""#, vec!["line:, half"]),
+            (r#"line:"a\"b""#, vec![r#"line:a"b"#]),
+            (r#"line:"a\\b""#, vec![r"line:a\b"]),
+            (r#"line:"~x""#, vec!["line:~x"]),
+            (r#"line:"Life ""#, vec!["line:Life "]),
+            (
+                r#"line:life , "two words" "#,
+                vec!["line:life", "line:two words"],
+            ),
+            (r#"line:"a\nb""#, vec!["line:a\nb"]),
+        ] {
+            assert_eq!(keys(typed).unwrap(), read, "{typed}");
+        }
+        for bad in [r#"line:"Life"#, r#"line:"Life\q""#, r#"line:"Life\"#] {
+            assert!(keys(bad).is_err(), "{bad}");
+        }
+    }
+}

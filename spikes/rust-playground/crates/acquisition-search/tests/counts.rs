@@ -1170,3 +1170,45 @@ fn c100_the_rest_of_what_a_selector_resolved_to_is_a_count_that_lists_it() {
     assert_eq!(resolved["more"], 3);
     assert!(resolved.get("rest").is_none());
 }
+
+/// The audit's review, 1: units are carried through both levels of
+/// adding, never read back off a float. Nine means of large pairs on one
+/// item, their negatives and a ten-thousandth on another: the bucket's
+/// sum is what one item carrying all of them sums to.
+#[test]
+fn c95_a_sum_of_item_sums_is_exact_between_items() {
+    let up = "Adds 9999999999.9997 to 9999999999.9998 Cold Damage";
+    let down = "Adds -9999999999.9997 to -9999999999.9998 Cold Damage";
+    let bit = "Adds 0.0001 to 0.0001 Cold Damage";
+    let mut split: Vec<&str> = vec![up; 9];
+    let mut rest: Vec<&str> = vec![down; 9];
+    rest.push(bit);
+    let mut whole = split.clone();
+    whole.extend(&rest);
+    let counted = |items: Vec<Value>| {
+        let mut s = store();
+        list_tabs(&mut s, "pc", "Standard", json!([tab("t", "T")]), 10);
+        fetch_tab(&mut s, "pc", "Standard", "t", "T", items, 20);
+        let a = view(
+            &s,
+            "pc",
+            "",
+            json!({ "counts": { "keys": ["base"], "sum": "sum(line(template:cold).avg)" } }),
+        )
+        .unwrap();
+        a["view"]["counts"]["sum"]["value"].clone()
+    };
+    let one = counted(vec![item(
+        "one",
+        "",
+        "Ring",
+        "Rare",
+        json!({ "explicitMods": whole }),
+    )]);
+    split.truncate(9);
+    let two = counted(vec![
+        item("a", "", "Ring", "Rare", json!({ "explicitMods": split })),
+        item("b", "", "Ring", "Rare", json!({ "explicitMods": rest })),
+    ]);
+    assert_eq!((one, two), (json!(0.0001), json!(0.0001)));
+}

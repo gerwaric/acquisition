@@ -694,7 +694,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
     if let Some(scalars) = &scalars {
         order.sort_by(|a, b| match (scalars[*a], scalars[*b]) {
             (Scalar::Value(x), Scalar::Value(y)) => {
-                let by = x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal);
+                let by = x.cmp(&y);
                 if desc { by.reverse() } else { by }
             }
             (Scalar::Value(_), _) => std::cmp::Ordering::Less,
@@ -733,7 +733,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                     .collect(),
                 sort: scalars.as_ref().map(|s| match s[m] {
                     Scalar::Value(n) => Sorted {
-                        value: Some(eval::number_json(n)),
+                        value: Some(eval::number_json(n.as_f64())),
                         status: None,
                     },
                     Scalar::None => Sorted {
@@ -741,7 +741,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                         status: Some("no satisfying occurrence"),
                     },
                     Scalar::Incomplete(n) => Sorted {
-                        value: n.map(eval::number_json),
+                        value: n.map(|n| eval::number_json(n.as_f64())),
                         status: Some("incomplete"),
                     },
                 }),
@@ -1249,13 +1249,23 @@ impl Route {
             View::Cross(c) => ("--cross", c),
         };
         // a key is spelled at a terminal as a word of the list: after
-        // `line:` the rest are texts, so a text key is its text alone
+        // `line:` the rest are texts, so a text key is its text alone — and
+        // a text is quoted in the list's own grammar where the list would
+        // read it otherwise (`search_cmd::keys`): a comma, a quote, a
+        // backslash, a row break, a leading `~`, whitespace at an end
         let mut keys = Vec::new();
         let mut narrowing = false;
         for key in &counts.keys {
             let spelled = match (narrowing, key.split_once(['~', ':'])) {
-                (true, Some((_, text))) if key.starts_with("line~") => format!("~{text}"),
-                (true, Some((_, text))) if key.starts_with("line:") => text.to_string(),
+                (true, Some((_, text))) if key.starts_with("line~") => {
+                    format!("~{}", listed_text(text))
+                }
+                (true, Some((_, text))) if key.starts_with("line:") => listed_text(text),
+                (false, Some((prefix, text)))
+                    if key.starts_with("line~") || key.starts_with("line:") =>
+                {
+                    format!("{prefix}{}{}", &key[4..5], listed_text(text))
+                }
                 _ => key.clone(),
             };
             narrowing |= key.starts_with("line:") || key.starts_with("line~");
@@ -1284,6 +1294,29 @@ impl Answer {
             id,
         )
     }
+}
+
+/// A text of the count list, quoted in the list's grammar when the list
+/// would read part of it as syntax, with the language's three escapes.
+fn listed_text(text: &str) -> String {
+    let plain = !text.is_empty()
+        && !text.contains([',', '"', '\\', '\n'])
+        && !text.starts_with('~')
+        && text.trim() == text;
+    if plain {
+        return text.to_string();
+    }
+    let mut out = String::from("\"");
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            other => out.push(other),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// One shell word, in single quotes when it needs them; an apostrophe

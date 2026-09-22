@@ -82,7 +82,7 @@ use crate::bind::{self, Atom, FieldDef, Key, LINE_FLAGS, SOURCES, SortKey, Thing
 use crate::corpus::{Corpus, Held, Realm};
 use crate::error::{ErrorKind, LanguageError};
 use crate::eval::{self, Outcome, Scalar};
-use crate::exact;
+use crate::exact::Exact;
 use crate::group::{self, Group, LineKind};
 use crate::tree::{Node, Number, Op, Probe, Value, ValueRef};
 use crate::{parse, print};
@@ -122,7 +122,7 @@ pub(crate) fn bind(
     }
     let mut bound: Vec<BoundKey> = Vec::new();
     for key in keys {
-        let (text, kind) = match bind::bind_key(key.trim())? {
+        let (text, kind) = match bind::bind_key(key)? {
             Key::Field(def) => (def.name.to_string(), BoundKind::Field(def)),
             Key::Line(narrow) => {
                 let text = match &narrow {
@@ -330,7 +330,8 @@ pub struct Margin {
 #[derive(Debug, Clone, Default)]
 struct Pile {
     items: usize,
-    values: Vec<f64>,
+    /// In units, added again exactly (`exact.rs`).
+    total: Exact,
     lacking: usize,
     unread: usize,
 }
@@ -340,18 +341,20 @@ impl Pile {
         self.items += 1;
         match scalar {
             None => {}
-            Some(Scalar::Value(n)) => self.values.push(n),
+            Some(Scalar::Value(n)) => self.total = Exact::sum([self.total, n]),
             Some(Scalar::None) => self.lacking += 1,
             Some(Scalar::Incomplete(readable)) => {
                 self.unread += 1;
-                self.values.extend(readable);
+                if let Some(n) = readable {
+                    self.total = Exact::sum([self.total, n]);
+                }
             }
         }
     }
 
     fn summed(&self) -> Summed {
         Summed {
-            value: eval::number_json(exact::sum(self.values.iter().copied())),
+            value: eval::number_json(self.total.as_f64()),
             lacking: self.lacking,
             incomplete: self.unread > 0,
             unread: self.unread,

@@ -54,7 +54,7 @@ use serde::Serialize;
 use crate::bind::{Atom, BProbe, Bound, NumTest, SortKey, Term, Thing};
 use crate::corpus::Held;
 use crate::derive::{Line, Part, Shown, Slot, Unread};
-use crate::exact;
+use crate::exact::{self, Exact};
 pub(crate) use crate::group::Truth;
 use crate::group::{Asked, Group};
 use crate::tree::Number;
@@ -295,9 +295,13 @@ fn value(line: &Line, slot: &str) -> Option<f64> {
     }
 }
 
-/// A sum and whether every possible contributor was readable.
-pub(crate) fn sum(held: &Held, group: &Group, slot: &str) -> (f64, bool) {
-    let total = exact::sum(satisfying(held, &group.whole).filter_map(|line| value(line, slot)));
+/// A sum, in units, and whether every possible contributor was readable.
+pub(crate) fn sum(held: &Held, group: &Group, slot: &str) -> (Exact, bool) {
+    let total = Exact::sum(
+        satisfying(held, &group.whole)
+            .filter_map(|line| value(line, slot))
+            .map(Exact::of),
+    );
     let complete =
         unread_lines(held, group).is_empty() && !open_with_the_slot(held, &group.whole, slot);
     (total, complete)
@@ -408,7 +412,7 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
             !unread_lines(held, group).is_empty() || open_on_a_line(held, &group.whole),
         ),
         Atom::Sum { group, slot, test } => match sum(held, group, slot) {
-            (total, true) => decided(test.holds(total), true, false),
+            (total, true) => decided(test.holds(total.as_f64()), true, false),
             (_, false) => Outcome::Undecided,
         },
         Atom::Undecided(probe) => {
@@ -666,7 +670,7 @@ fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
             };
             std::iter::once(Evidence::Value {
                 name,
-                value: number_json(total),
+                value: number_json(total.as_f64()),
             })
             .chain(satisfying(held, &group.whole).map(line_evidence))
             .collect()
@@ -750,10 +754,11 @@ fn reason(unread: &Unread) -> Reason {
     }
 }
 
-/// What an item sorts by.
+/// What an item sorts by, and what a count sums (`counts.rs`): in units,
+/// so that a total is added again exactly.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Scalar {
-    Value(f64),
+    Value(Exact),
     /// No satisfying occurrence, or the item lacks the field.
     None,
     /// What was readable, which is not the answer: a field that could not
@@ -762,13 +767,13 @@ pub(crate) enum Scalar {
     /// occurrence is not the largest while an unread source the group
     /// admits, or an occurrence it may select, could hold a larger one. No
     /// place in the order.
-    Incomplete(Option<f64>),
+    Incomplete(Option<Exact>),
 }
 
 pub(crate) fn scalar(key: &SortKey, held: &Held) -> Scalar {
     match key {
         SortKey::Number(thing) => match number(held, *thing) {
-            Some(n) => Scalar::Value(n),
+            Some(n) => Scalar::Value(Exact::of(n)),
             // unread is not absent (C93): `undecided(ilvl)` says the same
             None if !unread_for(held, *thing).is_empty() => Scalar::Incomplete(None),
             None => Scalar::None,
@@ -782,6 +787,7 @@ pub(crate) fn scalar(key: &SortKey, held: &Held) -> Scalar {
                 leaves_the_slot_open(&group.whole, slot, line)
                     && value(line, slot).is_none_or(|n| largest.is_none_or(|most| n > most))
             });
+            let largest = largest.map(Exact::of);
             if could_be_larger || !unread_lines(held, group).is_empty() {
                 Scalar::Incomplete(largest)
             } else {
