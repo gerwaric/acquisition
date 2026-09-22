@@ -1245,6 +1245,11 @@ again: 0 unread, 0 unexplained. M3 again, release: 270–306 ms.
 | 2 | A continuation's key was shell-quoted and not list-quoted: `--count 'line~Marker [a-z]{1,2}'` split at the comma | confirmed | `answer::listed_text`: a text with a comma, a quote, a backslash, a row break, a leading `~` or whitespace at an end is quoted in the list's grammar with the language's escapes; the CLI runs continuations for a pattern with a comma and texts with a comma and a backslash, and a unit test reads every spelling back |
 | 3 | The binder trimmed a narrowing text: `line:"Life "` became `line:Life` | confirmed | `bind_key` trims a name and never a text; pinned at the terminal |
 
+**Its last look, at `99bd0962`**: the three hold, its reproducers pass,
+"no remaining blocker"; the one ignored test it saw is the completion
+property's measured half, run by hand. Yield of the three looks at step
+5: 6, 3, 0. "The owner's seat, including E1–E5, is the right next step."
+
 ## Gaps found while planning — rules the reference did not state
 
 Each changes what a user types, or which items what he types matches.
