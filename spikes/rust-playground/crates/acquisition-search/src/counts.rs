@@ -23,10 +23,13 @@
 //!   total (C105's second invariant); `line` puts an item in a bucket for
 //!   each template it carries, and only the first invariant holds.
 //! - **`tab` is counted by the tab, never by its name.** An item in a
-//!   substash is in its tab's bucket, and the route is `id:<the tab's id>`,
-//!   which finds what is in it. A name is no identity — two leagues each
-//!   have a `Dump` — and `tab=` tests a substash's name beside its tab's, so
-//!   a name's term would return what other buckets counted.
+//!   substash is in its tab's bucket. A name is no identity — two leagues
+//!   each have a `Dump` — and `tab=` tests a substash's name beside its
+//!   tab's, so a name's term would return what other buckets counted. Nor
+//!   is an id alone: a tab is its full coordinate, realm, league and id
+//!   (C54, C58), and the store has held one id under two realms. The
+//!   bucket is that coordinate, its route `id:<id> league=<league>` over
+//!   its realm, and its label carries all three (the step-5 audit, 1).
 //! - **`=` is any-case, so a value spelled two ways is two buckets with two
 //!   terms.** Where the corpus holds another spelling of a value the term
 //!   is a pattern that turns case back on, `name~"(?-i)^…$"`, which selects
@@ -57,7 +60,10 @@
 //!   and a part unread that could hold one — so an item with a line read
 //!   *and* an array unread is in its rows and not in `undecided`: the
 //!   language has no term for "its lines could not all be read" (the build
-//!   plan, step 5's holes).
+//!   plan, step 5's holes). A source or flag beneath a row is counted by
+//!   its legal spelling, which the evaluator matches in any case (B2), so
+//!   the kind's route returns what it counted; a spelling outside the list
+//!   is counted and has no route.
 //! - **The sum** (C95) adds one number of each item of a bucket, exactly
 //!   (`exact.rs`): an item lacking the thing adds nothing and is counted as
 //!   lacking; one whose number could not be read adds what was readable of
@@ -383,14 +389,28 @@ enum Of {
     /// A value outside its closed list.
     Unlisted(String),
     Number(i64),
-    /// A tab, by its id.
-    Tab(String),
+    /// A tab, by its full coordinate (C54).
+    Tab(TabAt),
     None,
     Undecided,
 }
 
-/// Where a tab's bucket gets its name and league: the first item met in it.
-type Tabs = HashMap<String, (Option<String>, Option<String>)>;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct TabAt {
+    realm: String,
+    league: Option<String>,
+    id: String,
+}
+
+/// Where a tab's bucket gets its name: the first item met in it.
+type Tabs = HashMap<TabAt, Option<String>>;
+
+/// What selects a bucket: its terms, under the query, over one realm where
+/// the bucket is one realm's.
+struct Selects {
+    terms: Vec<Node>,
+    realm: Option<String>,
+}
 
 fn bucket_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs) -> Of {
     match eval::outcome(&Atom::Has(def.thing), held, &[]) {
@@ -404,9 +424,13 @@ fn bucket_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs) -> Of {
             Some(tab) => (&tab.id, &tab.name),
             None => (&place.id, &place.name),
         };
-        tabs.entry(id.clone())
-            .or_insert_with(|| (name.clone(), place.league.clone()));
-        return Of::Tab(id.clone());
+        let at = TabAt {
+            realm: place.realm.clone(),
+            league: place.league.clone(),
+            id: id.clone(),
+        };
+        tabs.entry(at.clone()).or_insert_with(|| name.clone());
+        return Of::Tab(at);
     }
     if let Some(n) = eval::number(held, def.thing) {
         return Of::Number(n as i64);
@@ -421,13 +445,14 @@ fn bucket_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs) -> Of {
     }
 }
 
-/// A bucket's label and the term that selects it.
+/// A bucket's label and what selects it — none where the language cannot
+/// say it, and the label says why.
 fn label_of(
     def: &'static FieldDef,
     of: &Of,
     twins: &HashSet<String>,
     tabs: &Tabs,
-) -> (Label, Option<Node>) {
+) -> (Label, Option<Selects>) {
     let test = |field: &str, op: Op, value: Value| Node::Test {
         field: field.to_string(),
         op,
@@ -450,12 +475,10 @@ fn label_of(
             Some(Json::from(*n)),
             Some(test(def.name, Op::Eq, Value::Number(Number::Int(*n)))),
         ),
-        Of::Tab(id) => (
+        Of::Tab(at) => (
             "value",
-            tabs.get(id)
-                .and_then(|(name, _)| name.clone())
-                .map(Json::from),
-            Some(test("id", Op::Contains, Value::Text(id.clone()))),
+            tabs.get(at).cloned().flatten().map(Json::from),
+            Some(test("id", Op::Contains, Value::Text(at.id.clone()))),
         ),
         Of::Unlisted(value) => ("value", Some(Json::from(value.as_str())), None),
         Of::Text(value) => {
@@ -467,45 +490,68 @@ fn label_of(
             ("value", Some(Json::from(value.as_str())), Some(term))
         }
     };
-    let tab = match of {
-        Of::Tab(id) => Some((
-            id.clone(),
-            tabs.get(id).and_then(|(_, league)| league.clone()),
-        )),
-        _ => None,
+    // a tab is its coordinate: the id, and the league the tab is listed
+    // under, over its realm
+    let (tab, selects) = match (of, term) {
+        (Of::Tab(at), Some(term)) => {
+            let mut terms = vec![term];
+            if let Some(league) = &at.league {
+                terms.push(test("league", Op::Eq, Value::Text(league.clone())));
+            }
+            (
+                Some(at.clone()),
+                Some(Selects {
+                    terms,
+                    realm: Some(at.realm.clone()),
+                }),
+            )
+        }
+        (_, term) => (
+            None,
+            term.map(|term| Selects {
+                terms: vec![term],
+                realm: None,
+            }),
+        ),
     };
     let label = Label {
         bucket,
         value,
-        id: tab.as_ref().map(|(id, _)| id.clone()),
-        league: tab.and_then(|(_, league)| league),
-        realm: None,
-        term: term.as_ref().map(print::print),
-        needs: term.is_none().then(|| {
+        id: tab.as_ref().map(|at| at.id.clone()),
+        league: tab.as_ref().and_then(|at| at.league.clone()),
+        realm: tab.map(|at| at.realm),
+        term: selects.as_ref().map(|s| match s.terms.as_slice() {
+            [one] => print::print(one),
+            many => print::print(&Node::All(many.to_vec())),
+        }),
+        needs: selects.is_none().then(|| {
             format!(
                 "a value outside the closed list of `{}`: it is counted, and cannot be asked for until the list gains it",
                 def.name
             )
         }),
     };
-    (label, term)
+    (label, selects)
 }
 
 /// How a bucket is ordered among those that hold as many items: a value
 /// before `none` before `undecided`; a number by its size, a text by its
-/// spelling, a tab by its name and then its id. The order follows the data,
-/// never the query (the build plan, rule 9).
+/// spelling, a tab by its name, then its league, realm and id. The order
+/// follows the data, never the query (the build plan, rule 9).
 fn spelled(of: &Of, tabs: &Tabs) -> (u8, i64, String, String) {
     match of {
         Of::Number(n) => (0, *n, String::new(), String::new()),
         Of::Text(v) | Of::Unlisted(v) => (0, 0, v.clone(), String::new()),
-        Of::Tab(id) => (
+        Of::Tab(at) => (
             0,
             0,
-            tabs.get(id)
-                .and_then(|(name, _)| name.clone())
-                .unwrap_or_default(),
-            id.clone(),
+            tabs.get(at).cloned().flatten().unwrap_or_default(),
+            format!(
+                "{} {} {}",
+                at.league.as_deref().unwrap_or_default(),
+                at.realm,
+                at.id
+            ),
         ),
         Of::None => (1, 0, String::new(), String::new()),
         Of::Undecided => (2, 0, String::new(), String::new()),
@@ -523,11 +569,11 @@ fn field_twins(corpus: &Corpus, def: &'static FieldDef) -> HashSet<String> {
 
 // ---- answering ----------------------------------------------------------------------------------------
 
-/// A count under the query, by the terms that select it; with no term the
-/// language can say, a count and no route.
-fn routed(matches: &Matches<'_>, n: usize, terms: Option<Vec<Node>>, realm: Option<&str>) -> Count {
-    match terms {
-        Some(terms) => matches.router.under(n, terms, realm),
+/// A count under the query, by what selects it; with nothing the language
+/// can say, a count and no route.
+fn routed(matches: &Matches<'_>, n: usize, selects: Option<Selects>) -> Count {
+    match selects {
+        Some(s) => matches.router.under(n, s.terms, s.realm.as_deref()),
         None => Count {
             count: n,
             route: None,
@@ -613,10 +659,10 @@ fn field_table(
     }
     let twins = field_twins(matches.corpus, def);
     let bucket = |of: &Of, pile: &Pile, tally: Vec<Tallied>| {
-        let (label, term) = label_of(def, of, &twins, &tabs);
+        let (label, selects) = label_of(def, of, &twins, &tabs);
         Bucket {
             label,
-            count: routed(matches, pile.items, term.map(|term| vec![term]), None),
+            count: routed(matches, pile.items, selects),
             sum: scalars.as_ref().map(|_| pile.summed()),
             slots: Vec::new(),
             sources: Vec::new(),
@@ -709,17 +755,23 @@ pub(crate) fn crossed(bound: &BoundCounts, matches: &Matches<'_>) -> CrossOut {
         .iter()
         .take(bound.limit)
         .map(|(of, pile)| {
-            let (labels, terms): (Vec<Label>, Vec<Option<Node>>) = of
+            let (labels, selects): (Vec<Label>, Vec<Option<Selects>>) = of
                 .iter()
                 .enumerate()
                 .map(|(k, of)| label_of(defs[k], of, &twins[k], &tabs))
                 .unzip();
             // a cell's route carries both keys, and is none where one cannot
-            // be said
-            let terms: Option<Vec<Node>> = terms.into_iter().collect();
+            // be said; a tab's names its realm, and no cross holds two tabs
+            let selects = selects
+                .into_iter()
+                .collect::<Option<Vec<Selects>>>()
+                .map(|each| Selects {
+                    realm: each.iter().find_map(|s| s.realm.clone()),
+                    terms: each.into_iter().flat_map(|s| s.terms).collect(),
+                });
             Cell {
                 of: labels,
-                count: routed(matches, pile.items, terms, None),
+                count: routed(matches, pile.items, selects),
                 sum: scalars.as_ref().map(|_| pile.summed()),
             }
         })
@@ -738,8 +790,8 @@ pub(crate) fn crossed(bound: &BoundCounts, matches: &Matches<'_>) -> CrossOut {
             .zip(&margins)
             .map(|(def, [none, undecided])| {
                 let route = |n: usize, of: Of| {
-                    let (_, term) = label_of(def, &of, &empty, &tabs);
-                    routed(matches, n, term.map(|term| vec![term]), None)
+                    let (_, selects) = label_of(def, &of, &empty, &tabs);
+                    routed(matches, n, selects)
                 };
                 Margin {
                     key: def.name.to_string(),
@@ -801,7 +853,7 @@ fn vocabulary(
             Outcome::Matched => {
                 // an item is counted once under a template however many
                 // occurrences of it it carries
-                let mut seen: HashSet<(&str, Option<(bool, &str)>)> = HashSet::new();
+                let mut seen: HashSet<(&str, Option<(bool, String)>)> = HashSet::new();
                 for line in eval::selected(held, group) {
                     let row = rows
                         .entry((held.place.realm.clone(), line.template.clone()))
@@ -809,12 +861,19 @@ fn vocabulary(
                     if seen.insert((&line.template, None)) {
                         row.pile.add(scalar);
                     }
-                    if seen.insert((&line.template, Some((true, &line.source)))) {
-                        *row.sources.entry(line.source.clone()).or_default() += 1;
+                    // by the legal spelling, which `=` and `is:` match in any
+                    // case; a spelling outside the list stands as it is
+                    let spelled = |list: &'static [&'static str], word: &str| {
+                        bind::legal(list, word).map_or_else(|| word.to_string(), str::to_string)
+                    };
+                    let source = spelled(SOURCES, &line.source);
+                    if seen.insert((&line.template, Some((true, source.clone())))) {
+                        *row.sources.entry(source).or_default() += 1;
                     }
                     for flag in &line.flags {
-                        if seen.insert((&line.template, Some((false, flag)))) {
-                            *row.flags.entry(flag.clone()).or_default() += 1;
+                        let flag = spelled(LINE_FLAGS, flag);
+                        if seen.insert((&line.template, Some((false, flag.clone())))) {
+                            *row.flags.entry(flag).or_default() += 1;
                         }
                     }
                     // a line names its numbers only while they are its
@@ -885,7 +944,14 @@ fn vocabulary(
                                     if source { "sources" } else { "flags" }
                                 )
                             }),
-                            count: routed(matches, *items, term.map(|term| vec![term]), realm),
+                            count: routed(
+                                matches,
+                                *items,
+                                term.map(|term| Selects {
+                                    terms: vec![term],
+                                    realm: realm.map(str::to_string),
+                                }),
+                            ),
                         }
                     })
                     .collect();

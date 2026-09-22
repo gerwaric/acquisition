@@ -31,7 +31,12 @@
 //!   ten most carried listed and the rest counted. A quoted template
 //!   resolves to itself and lists nothing, unless it found two spellings
 //!   of one line, which any-case `=` can, and then both are listed. The
-//!   route to the rest is the vocabulary read, `--count line` (`counts.rs`).
+//!   route to the rest is a count: the term alone over the scope — never
+//!   the query, whose other terms would drop values the selector resolved
+//!   to — counted by the field, or the vocabulary narrowed by the group's
+//!   one template test (`counts.rs`); a `tab` selector has none, since a
+//!   tab is counted by the tab and it resolved to names (the step-5
+//!   audit, 3).
 //! - **What a row shows of one term is bounded** and says how many it left
 //!   out; the item whole is `show <id>` (invariant 5). Of lines and
 //!   strings, six, a sum's value beside them. Of why an item is undecided,
@@ -356,10 +361,12 @@ pub struct Resolved {
     /// `template`, or the field's name.
     pub of: String,
     pub values: Vec<Carried>,
-    /// Values past the listed ones; their route is the vocabulary read.
+    /// Values past the listed ones.
     pub more: usize,
+    /// The count that lists every value, the listed ones too: none where
+    /// no count does (the module doc).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub more_needs: Option<&'static str>,
+    pub rest: Option<Route>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -616,11 +623,15 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                         });
                         let more = values.len().saturating_sub(LISTED);
                         values.truncate(LISTED);
+                        let rest = (more > 0)
+                            .then(|| rest_of(term))
+                            .flatten()
+                            .map(|(node, key)| router.continuation(&node, key));
                         Resolved {
                             of,
                             values,
                             more,
-                            more_needs: (more > 0).then_some("--count"),
+                            rest,
                         }
                     }),
             }
@@ -844,6 +855,17 @@ impl Router<'_> {
         }
     }
 
+    /// The count of `node`'s matches by `key`, over the scope.
+    fn continuation(&self, node: &Node, key: String) -> Route {
+        let mut route = self.route(node, None);
+        route.request.view = View::Counts(Counts {
+            keys: vec![key],
+            sum: None,
+            limit: None,
+        });
+        route
+    }
+
     /// A count over the scope, with its route when it is not zero.
     pub(crate) fn count(&self, n: usize, node: Option<&Node>) -> Count {
         Count {
@@ -981,6 +1003,37 @@ fn resolves(term: &Term) -> Option<String> {
         ) =>
         {
             Some(field.clone())
+        }
+        _ => None,
+    }
+}
+
+/// The count that lists everything a term's selector resolved to: the
+/// term alone — a group's selector alone — counted by its field, or the
+/// vocabulary narrowed by the group's one template test. None for `tab`
+/// (E1: counted by the tab, resolved to names) and for a group whose
+/// selector is more than one template test.
+fn rest_of(term: &Term) -> Option<(Node, String)> {
+    match &term.atom {
+        Atom::Lines(group) | Atom::Sum { group, .. } => {
+            let (op, text) = group.sole_template_test()?;
+            let key = match op {
+                Op::Match => format!("line~{text}"),
+                _ => format!("line:{text}"),
+            };
+            Some((
+                Node::Members {
+                    of: Collection::Lines,
+                    where_: Box::new(group.selector_tree.clone()),
+                },
+                key,
+            ))
+        }
+        Atom::Text { thing, .. } | Atom::Closed { thing, .. } if *thing != Thing::Tab => {
+            match &term.node {
+                Node::Test { field, .. } => Some((term.node.clone(), field.clone())),
+                _ => None,
+            }
         }
         _ => None,
     }
@@ -1169,15 +1222,53 @@ pub fn command(verb: &str, account: Option<&str>, realm: Option<&str>, last: &st
 }
 
 impl Route {
-    /// The route as a command a terminal takes.
+    /// The route as a command a terminal takes: the query, then the view
+    /// where it is not the default rows.
     pub fn command(&self) -> String {
         let scope = &self.request.scope;
-        command(
+        let mut out = command(
             "search",
             scope.account.as_deref(),
             scope.realm.as_ref().map(Realm::as_str),
             self.request.query.text.as_deref().unwrap_or_default(),
-        )
+        );
+        let (flag, counts) = match &self.request.view {
+            View::Rows(rows) => {
+                if let Some(sort) = &rows.sort {
+                    out.push_str(&format!(" --sort {}", shell_quoted(sort)));
+                    if rows.desc {
+                        out.push_str(" --desc");
+                    }
+                }
+                if let Some(limit) = rows.limit {
+                    out.push_str(&format!(" --limit {limit}"));
+                }
+                return out;
+            }
+            View::Counts(c) => ("--count", c),
+            View::Cross(c) => ("--cross", c),
+        };
+        // a key is spelled at a terminal as a word of the list: after
+        // `line:` the rest are texts, so a text key is its text alone
+        let mut keys = Vec::new();
+        let mut narrowing = false;
+        for key in &counts.keys {
+            let spelled = match (narrowing, key.split_once(['~', ':'])) {
+                (true, Some((_, text))) if key.starts_with("line~") => format!("~{text}"),
+                (true, Some((_, text))) if key.starts_with("line:") => text.to_string(),
+                _ => key.clone(),
+            };
+            narrowing |= key.starts_with("line:") || key.starts_with("line~");
+            keys.push(spelled);
+        }
+        out.push_str(&format!(" {flag} {}", shell_quoted(&keys.join(","))));
+        if let Some(sum) = &counts.sum {
+            out.push_str(&format!(" --sum {}", shell_quoted(sum)));
+        }
+        if let Some(limit) = counts.limit {
+            out.push_str(&format!(" --limit {limit}"));
+        }
+        out
     }
 }
 

@@ -386,7 +386,7 @@ fn oq7_a_tab_is_counted_by_the_tab_and_never_by_its_name() {
             &json!("Dump"),
             &json!("d1"),
             &json!("Standard"),
-            &json!("id:d1")
+            &json!("id:d1 league=Standard")
         )
     );
     assert_eq!(members(&s, dump), set(&["r1", "r2", "r3", "u1", "gem"]));
@@ -898,4 +898,275 @@ fn keys(example: &str) -> Vec<String> {
             }
         })
         .collect()
+}
+
+// ---- the step-5 audit's findings, each reproduced first ----------------------------------------
+
+/// The audit's 1: a tab is its full coordinate (C54). One id under two
+/// leagues and two realms is three tabs, three buckets, each labelled and
+/// routed by realm, league and id — in a table and in a crossed one.
+#[test]
+fn a_tab_bucket_is_the_tabs_full_coordinate() {
+    let mut s = store();
+    for (realm, league, id, name) in [
+        ("pc", "Standard", "one", "First"),
+        ("pc", "Hardcore", "two", "Second"),
+        ("xbox", "Standard", "three", "Third"),
+    ] {
+        list_tabs(&mut s, realm, league, json!([tab("same", name)]), 10);
+        fetch_tab(
+            &mut s,
+            realm,
+            league,
+            "same",
+            name,
+            vec![item(id, "", "Ring", "Rare", json!({}))],
+            20,
+        );
+    }
+    let a = view(&s, "all", "", json!({ "counts": { "keys": ["tab"] } })).unwrap();
+    let table = &a["view"]["counts"]["tables"][0];
+    assert_eq!(table["values"], 3);
+    let at: Vec<(&str, &str, &str, &str, &str)> = table["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| {
+            (
+                b["value"].as_str().unwrap(),
+                b["realm"].as_str().unwrap(),
+                b["league"].as_str().unwrap(),
+                b["id"].as_str().unwrap(),
+                b["term"].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        at,
+        [
+            ("First", "pc", "Standard", "same", "id:same league=Standard"),
+            (
+                "Second",
+                "pc",
+                "Hardcore",
+                "same",
+                "id:same league=Hardcore"
+            ),
+            (
+                "Third",
+                "xbox",
+                "Standard",
+                "same",
+                "id:same league=Standard"
+            ),
+        ]
+    );
+    for (bucket, id, realm) in [(0, "one", "pc"), (1, "two", "pc"), (2, "three", "xbox")] {
+        let b = &table["buckets"][bucket];
+        assert_eq!(b["request"]["scope"]["realm"], realm);
+        assert_eq!(members(&s, b), set(&[id]));
+    }
+    let crossed = view(
+        &s,
+        "all",
+        "",
+        json!({ "cross": { "keys": ["tab", "rarity"] } }),
+    )
+    .unwrap();
+    let cells = crossed["view"]["cross"]["cells"].as_array().unwrap();
+    assert_eq!(cells.len(), 3);
+    let ids: BTreeSet<String> = cells.iter().flat_map(|c| members(&s, c)).collect();
+    assert_eq!(ids, set(&["one", "two", "three"]));
+}
+
+/// The audit's 4: a bucket's sum of item totals is exact where a float
+/// times 100,000 is not — one item, its own sum and the bucket's the same
+/// decimal; two items, the decimal sum; an incomplete subtotal added too.
+#[test]
+fn c95_a_sum_of_item_sums_is_exact() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("t", "T")]), 10);
+    let lines = |n: usize| json!({ "explicitMods": vec!["9999999999.9997 to maximum Life"; n] });
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "t",
+        "T",
+        vec![
+            item("one", "", "Ring", "Rare", lines(23)),
+            item("two", "", "Amulet", "Rare", lines(23)),
+            item(
+                "three",
+                "",
+                "Belt",
+                "Rare",
+                json!({ "explicitMods": ["+0.0001 to maximum Life"], "implicitMods": "unread" }),
+            ),
+        ],
+        20,
+    );
+    let total = 229999999999.9931;
+    let by_item = as_json(
+        &ask(
+            &load(&s, Some("pc")),
+            &format!("sum(\"# to maximum Life\")={total}"),
+        )
+        .unwrap(),
+    );
+    assert_eq!(by_item["total"]["matched"], 2);
+    let a = view(
+        &s,
+        "pc",
+        "",
+        json!({ "counts": { "keys": ["base"], "sum": "sum(\"# to maximum Life\")" } }),
+    )
+    .unwrap();
+    let table = &a["view"]["counts"]["tables"][0];
+    assert_eq!(bucket(table, "Ring")["sum"]["value"], json!(total));
+    assert_eq!(
+        bucket(table, "Belt")["sum"],
+        json!({ "value": 0.0001, "lacking": 0, "incomplete": true, "unread": 1 })
+    );
+    assert_eq!(
+        a["view"]["counts"]["sum"],
+        json!({ "name": "sum(line(\"# to maximum Life\").arg1)", "value": 459999999999.9863, "lacking": 0, "incomplete": true, "unread": 1 })
+    );
+}
+
+/// The audit's 5: a flag is counted by its legal spelling and matched in
+/// any case (B2), so a kind's route returns what it counted; a spelling
+/// outside the list is counted and has no route, and says so.
+#[test]
+fn c97_a_kind_is_counted_by_its_legal_spelling_and_routed_by_it() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("t", "T")]), 10);
+    let flagged = |id: &str, flags: Value| {
+        item(
+            id,
+            "",
+            "Ring",
+            "Rare",
+            json!({ "explicitMods": [{ "description": "10 to maximum Life", "flags": flags }] }),
+        )
+    };
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "t",
+        "T",
+        vec![
+            flagged("upper", json!({ "Crafted": true })),
+            flagged("lower", json!({ "crafted": true })),
+            flagged("odd", json!({ "Weird": true })),
+        ],
+        20,
+    );
+    let a = counted(&s, "", &["line"]);
+    let row = &a["view"]["counts"]["tables"][0]["buckets"][0];
+    let flags = row["flags"].as_array().unwrap();
+    assert_eq!(flags.len(), 2, "{flags:?}");
+    assert_eq!(flags[0]["kind"], "crafted");
+    assert_eq!(members(&s, &flags[0]), set(&["upper", "lower"]));
+    assert_eq!(flags[1]["kind"], "Weird");
+    assert_eq!(flags[1]["count"], 1);
+    assert!(flags[1].get("request").is_none());
+    assert!(
+        flags[1]["needs"]
+            .as_str()
+            .unwrap()
+            .contains("outside the closed list")
+    );
+    // the evaluator itself, on an item's flag spelled as GGG might
+    let corpus = load(&s, Some("pc"));
+    assert_eq!(
+        as_json(&ask(&corpus, "line(is:CRAFTED)").unwrap())["total"]["matched"],
+        2
+    );
+}
+
+/// The audit's 3: what a selector resolved to past the ten listed is
+/// reached by a count that lists them all — the term alone over the
+/// scope, since the query's other terms would drop some — and `tab` has
+/// none, since a tab is counted by the tab and resolved to names (E1).
+#[test]
+fn c100_the_rest_of_what_a_selector_resolved_to_is_a_count_that_lists_it() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("t", "T")]), 10);
+    let mut items = Vec::new();
+    for n in 0..12 {
+        // twelve ring bases, one of them unique; twelve life-ish templates
+        items.push(item(
+            &format!("r{n}"),
+            "",
+            &format!("Ring {n:02}"),
+            if n == 0 { "Unique" } else { "Rare" },
+            // a kind in letters: a digit would be one more `#` of one template
+            json!({ "explicitMods": [format!("+{n} to maximum Life of kind {}", "abcdefghijkl".chars().nth(n).unwrap())] }),
+        ));
+    }
+    fetch_tab(&mut s, "pc", "Standard", "t", "T", items, 20);
+    let corpus = load(&s, Some("pc"));
+    let a = as_json(&ask(&corpus, "base:ring rarity=unique").unwrap());
+    let resolved = &a["terms"][0]["resolved"];
+    assert_eq!(
+        (
+            &resolved["values"].as_array().unwrap().len(),
+            &resolved["more"]
+        ),
+        (&10, &json!(2))
+    );
+    let rest = &resolved["rest"];
+    assert_eq!(rest["request"]["query"]["text"], "base:ring");
+    assert_eq!(
+        rest["request"]["view"],
+        json!({ "counts": { "keys": ["base"] } })
+    );
+    let request: Request = serde_json::from_value(rest["request"].clone()).unwrap();
+    let listed = as_json(&answer(&corpus, &request).unwrap());
+    assert_eq!(listed["view"]["counts"]["tables"][0]["values"], 12);
+    // a group's: the vocabulary narrowed by its one template test
+    let a = as_json(&ask(&corpus, "line(template:life arg1>=100)").unwrap());
+    let rest = &a["terms"][0]["resolved"]["rest"];
+    assert_eq!(rest["request"]["query"]["text"], "line(template:life)");
+    assert_eq!(
+        rest["request"]["view"]["counts"]["keys"],
+        json!(["line:life"])
+    );
+    let request: Request = serde_json::from_value(rest["request"].clone()).unwrap();
+    let listed = as_json(&answer(&corpus, &request).unwrap());
+    assert_eq!(listed["view"]["counts"]["tables"][0]["values"], 12);
+    // a selector of more than one test, and a tab's: the count is said and
+    // no continuation is promised
+    let a = as_json(&ask(&corpus, "line(template:life source=explicit)").unwrap());
+    assert!(a["terms"][0]["resolved"].get("rest").is_none());
+    let mut children = Vec::new();
+    for n in 0..12 {
+        children
+            .push(json!({ "id": format!("s{n}"), "name": format!("Map {n}"), "type": "MapStash" }));
+    }
+    let sub = |sub: Option<String>| Endpoint::Stash {
+        realm: "pc".into(),
+        league: "Standard".into(),
+        id: "m".into(),
+        sub,
+    };
+    list_tabs(
+        &mut s,
+        "pc",
+        "Standard",
+        json!([tab("t", "T"), { "id": "m", "name": "Maps", "type": "MapStash" }]),
+        30,
+    );
+    s.record(&sub(None), &json!({}), 200, &json!({ "stash": { "id": "m", "name": "Maps", "type": "MapStash", "items": [], "children": children } }), 31).unwrap();
+    for n in 0..12 {
+        s.record(&sub(Some(format!("s{n}"))), &json!({}), 200, &json!({ "stash": { "id": format!("s{n}"), "name": format!("Map {n}"), "type": "MapStash",
+            "items": [item(&format!("map{n}"), "", "Beach Map", "Normal", json!({}))] } }), 40 + n).unwrap();
+    }
+    let a = as_json(&ask(&load(&s, Some("pc")), "tab:map").unwrap());
+    let resolved = &a["terms"][0]["resolved"];
+    // twelve substash names and their tab's, `Maps`: thirteen, ten listed
+    assert_eq!(resolved["more"], 3);
+    assert!(resolved.get("rest").is_none());
 }

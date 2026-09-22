@@ -394,6 +394,94 @@ fn step_5_a_count_at_a_terminal_and_every_route_it_prints_returns_what_it_counte
     );
 }
 
+/// The step-5 audit's 2, 3 and 6 at the terminal: a quoted key is the
+/// text as written and a quote that never closes is an error; the count
+/// that lists what a selector resolved to past the listed is printed as a
+/// command and lists them; a count with no route says why, in a crossed
+/// cell and beneath a vocabulary row.
+#[test]
+fn step_5_audit_keys_are_parsed_strictly_and_text_says_why_a_count_has_no_route() {
+    let base = base();
+    seed(&base);
+    let mut store = Store::open(&account_path(&base.join("mock"), USER)).unwrap();
+    let stash = |id: &str| Endpoint::Stash {
+        realm: "pc".into(),
+        league: "Standard".into(),
+        id: id.into(),
+        sub: None,
+    };
+    // twelve ring bases, a rarity outside the list, a flag outside the list
+    let mut items: Vec<Value> = (0..12)
+        .map(|n| {
+            json!({ "id": format!("b{n}"), "name": "", "typeLine": format!("Ring {}", "abcdefghijkl".chars().nth(n).unwrap()),
+                "baseType": format!("Ring {}", "abcdefghijkl".chars().nth(n).unwrap()), "rarity": "Rare", "frameTypeId": "Rare",
+                "identified": true, "ilvl": 84, "x": 0, "y": 0 })
+        })
+        .collect();
+    items.push(json!({ "id": "relic", "name": "New", "typeLine": "Ring", "baseType": "Ring", "rarity": "Relic",
+        "frameTypeId": "Relic", "identified": true, "ilvl": 84, "x": 0, "y": 0,
+        "explicitMods": [{ "description": "+7 to maximum Life", "flags": { "Weird": true } }] }));
+    store
+        .record(
+            &stash("t3"),
+            &json!({}),
+            200,
+            &json!({ "stash": { "id": "t3", "name": "Never", "type": "PremiumStash", "items": items } }),
+            50,
+        )
+        .unwrap();
+    drop(store);
+
+    // 2: a quote that never closes, an escape the language lacks
+    for bad in ["line:\"Life", "line:\"Life\\q\"", "line:\"Life\\"] {
+        let out = acq(&base, &["--json", "search", "--count", bad]);
+        assert_eq!(out.status.code(), Some(1), "{bad:?}");
+        assert_eq!(sole_json(&out)["kind"], "view", "{bad:?}");
+    }
+    // 2: quoted, a `~` is text and no pattern; unquoted, it is one
+    let literal = sole_json(&acq(
+        &base,
+        &["--json", "search", "--count", "line:\"~Life\""],
+    ));
+    let table = &literal["view"]["counts"]["tables"][0];
+    assert_eq!(
+        (&table["key"], &table["values"]),
+        (&json!("line:~Life"), &json!(0))
+    );
+    let pattern = sole_json(&acq(&base, &["--json", "search", "--count", "line:~Life"]));
+    assert_eq!(pattern["view"]["counts"]["tables"][0]["values"], 1);
+
+    // 3: the continuation printed is a command, and it lists every base
+    let shown = text(&acq(&base, &["search", "base:ring rarity=unique"]));
+    let continuation = shown
+        .lines()
+        .find(|l| l.contains(" more: acq "))
+        .unwrap_or_else(|| panic!("no continuation in:\n{shown}"));
+    let command = &continuation[continuation.find("acq ").unwrap()..];
+    let listed = sole_json(&run_printed(&base, command));
+    assert_eq!(
+        listed["view"]["counts"]["tables"][0]["values"], 15,
+        "{command}"
+    );
+    assert!(shown.contains("--count base"), "{shown}");
+
+    // 6: a cell with no route says why, and so does a kind
+    let crossed = text(&acq(
+        &base,
+        &["search", "--cross", "rarity,base", "--routes"],
+    ));
+    assert!(crossed.contains("Relic × Ring"), "{crossed}");
+    assert!(
+        crossed.contains("Relic: a value outside the closed list of `rarity`"),
+        "{crossed}"
+    );
+    let vocabulary = text(&acq(&base, &["search", "id:relic", "--count", "line"]));
+    assert!(
+        vocabulary.contains("Weird: outside the closed list of a line's flags"),
+        "{vocabulary}"
+    );
+}
+
 const LIFE: &str = r##""+# to maximum Life">=90"##;
 
 #[test]

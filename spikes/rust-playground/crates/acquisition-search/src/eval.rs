@@ -391,7 +391,8 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
             !unread_for(held, *thing).is_empty(),
         ),
         Atom::Is(flag) => decided(
-            held.item.flags.iter().any(|f| f == flag),
+            // GGG's spelling in any case, as the word was bound (B2)
+            held.item.flags.iter().any(|f| f.eq_ignore_ascii_case(flag)),
             true,
             !unread_flag(held, flag).is_empty(),
         ),
@@ -433,9 +434,12 @@ fn unread_flag<'a>(held: &'a Held, flag: &str) -> Vec<&'a Unread> {
         .filter(|u| match &u.part {
             Part::Body => true,
             Part::Field(key) => {
-                key == flag
+                key.eq_ignore_ascii_case(flag)
                     || (crate::derive::INFLUENCES.contains(&flag)
-                        && (key == "influences" || key.strip_prefix("influences.") == Some(flag)))
+                        && (key == "influences"
+                            || key
+                                .strip_prefix("influences.")
+                                .is_some_and(|k| k.eq_ignore_ascii_case(flag))))
             }
             _ => false,
         })

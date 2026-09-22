@@ -664,8 +664,13 @@ fn bind_value(flag: &str, value: &ValueRef) -> Result<SortKey, LanguageError> {
                 _ => Err(LanguageError::new(
                     ErrorKind::OperatorMismatch,
                     format!(
-                        "`{flag}` takes a number: `{}` is not one — ilvl, stack, a line's slot or a sum",
-                        def.name
+                        "`{flag}` takes a number: `{}` is not one — ilvl, stack, {}",
+                        def.name,
+                        if flag == "--sum" {
+                            "or the item's sum( … )"
+                        } else {
+                            "a line's slot or a sum"
+                        }
                     ),
                 )),
             }

@@ -198,9 +198,24 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         Some(word) => Some(Realm::parse(word).map_err(|e| fail(e, json))?),
         None => None,
     };
+    let keys = |raw: Option<&str>| -> Result<Option<Vec<String>>> {
+        raw.map(|raw| {
+            keys(raw).map_err(|message| {
+                fail(
+                    SearchError::Scope {
+                        kind: "view",
+                        message,
+                        offers: Vec::new(),
+                    },
+                    json,
+                )
+            })
+        })
+        .transpose()
+    };
     let view = View::of(
-        args.count.as_deref().map(keys),
-        args.cross.as_deref().map(keys),
+        keys(args.count.as_deref())?,
+        keys(args.cross.as_deref())?,
         args.sum.clone(),
         Rows {
             limit: Some(args.limit),
@@ -229,45 +244,88 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
 /// `line:` takes the rest of the list as its texts — `line:resist,life` is
 /// the vocabulary narrowed twice, a table each (the reference's synopsis,
 /// `--count line[:text,…]`) — and a text is a pattern after `~`. A text
-/// with a comma in it is quoted, its escapes the language's.
-fn keys(raw: &str) -> Vec<String> {
-    let mut parts: Vec<String> = Vec::new();
-    let (mut part, mut quoted, mut escaped) = (String::new(), false, false);
+/// with a comma, or a `~` of its own, is quoted, `"…"`, with the
+/// language's three escapes (`\"`, `\\`, `\n`) and no other; what is
+/// quoted is the text as written, never syntax, and a quote that does not
+/// close is an error, as it is in a query (the step-5 audit, 2).
+fn keys(raw: &str) -> Result<Vec<String>, String> {
+    // each part as characters, each marked quoted or not: what was quoted
+    // is text as written, and only an unquoted character is syntax
+    let mut parts: Vec<Vec<(char, bool)>> = vec![Vec::new()];
+    let (mut quoted, mut escaped) = (false, false);
     for c in raw.chars() {
+        let part = parts
+            .last_mut()
+            .unwrap_or_else(|| unreachable!("one part at least"));
         match c {
             _ if escaped => {
-                part.push(if c == 'n' { '\n' } else { c });
+                part.push((
+                    match c {
+                        '"' | '\\' => c,
+                        'n' => '\n',
+                        other => {
+                            return Err(format!(
+                                "`\\{other}` is no escape a quoted text takes: \\\" \\\\ and \\n are the only ones"
+                            ));
+                        }
+                    },
+                    true,
+                ));
                 escaped = false;
             }
             '\\' if quoted => escaped = true,
             '"' => quoted = !quoted,
-            ',' if !quoted => parts.push(std::mem::take(&mut part)),
-            _ => part.push(c),
+            ',' if !quoted => parts.push(Vec::new()),
+            _ => part.push((c, quoted)),
         }
     }
-    parts.push(part);
+    if quoted || escaped {
+        return Err(format!(
+            "a quoted text in `{raw}` never closes: a text with a comma or a ~ of its own is written \"…\", the language's escapes inside"
+        ));
+    }
     let mut narrowing = false;
-    parts
+    Ok(parts
         .into_iter()
-        .map(|part| part.trim().to_string())
-        .map(|part| {
-            let lower = part.to_ascii_lowercase();
-            if lower.starts_with("line:") || lower.starts_with("line~") {
+        .map(|mut part| {
+            // unquoted whitespace at the ends is none of the text
+            while part.first().is_some_and(|(c, q)| !q && c.is_whitespace()) {
+                part.remove(0);
+            }
+            while part.last().is_some_and(|(c, q)| !q && c.is_whitespace()) {
+                part.pop();
+            }
+            let text = |part: &[(char, bool)]| part.iter().map(|(c, _)| *c).collect::<String>();
+            let unquoted_prefix = |part: &[(char, bool)], word: &str| {
+                part.len() >= word.len()
+                    && part[..word.len()]
+                        .iter()
+                        .zip(word.chars())
+                        .all(|((c, q), w)| !q && c.eq_ignore_ascii_case(&w))
+            };
+            let pattern_marked = |part: &[(char, bool)]| part.first() == Some(&('~', false));
+            if unquoted_prefix(&part, "line:") || unquoted_prefix(&part, "line~") {
                 narrowing = true;
+                let pattern = part[4].0 == '~';
+                let rest = &part[5..];
                 // `line:~pattern` is `line~pattern`
-                match part[5..].strip_prefix('~') {
-                    Some(pattern) if lower.starts_with("line:") => format!("line~{pattern}"),
-                    _ => part,
-                }
-            } else if !narrowing {
-                part
-            } else if let Some(pattern) = part.strip_prefix('~') {
-                format!("line~{pattern}")
+                return if pattern {
+                    format!("line~{}", text(rest))
+                } else if pattern_marked(rest) {
+                    format!("line~{}", text(&rest[1..]))
+                } else {
+                    format!("line:{}", text(rest))
+                };
+            }
+            if !narrowing {
+                text(&part)
+            } else if pattern_marked(&part) {
+                format!("line~{}", text(&part[1..]))
             } else {
-                format!("line:{part}")
+                format!("line:{}", text(&part))
             }
         })
-        .collect()
+        .collect())
 }
 
 pub fn show_item(args: ShowArgs, json: bool) -> Result<()> {
@@ -440,13 +498,11 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                     .collect();
                 let more = resolved.more + resolved.values.len().saturating_sub(SHOWN);
                 if more > 0 {
-                    // the vocabulary for a group's templates, the field's
-                    // own table for a field's values
-                    let key = match resolved.of.as_str() {
-                        "template" => "line",
-                        field => field,
-                    };
-                    values.push(format!("{more} more: --count {key} lists them"));
+                    // the count that lists every value, where one does
+                    values.push(match &resolved.rest {
+                        Some(rest) => format!("{more} more: {}", rest.command()),
+                        None => format!("{more} more"),
+                    });
                 }
                 if !values.is_empty() {
                     line(format!("       → {}", values.join(" · ")));
@@ -532,14 +588,18 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                 line(format!("sum     {}", sum_of_text(sum)));
             }
             for table in &counts.tables {
-                table_text(table).into_iter().for_each(&mut line);
+                table_text(table, a.scope.realm == Realm::All)
+                    .into_iter()
+                    .for_each(&mut line);
             }
         }
         ViewOut::Cross(cross) => {
             if let Some(sum) = &cross.sum {
                 line(format!("sum     {}", sum_of_text(sum)));
             }
-            cross_text(cross).into_iter().for_each(&mut line);
+            cross_text(cross, a.scope.realm == Realm::All)
+                .into_iter()
+                .for_each(&mut line);
         }
     }
 
@@ -625,7 +685,11 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         ViewOut::Counts(counts) => {
             for table in &counts.tables {
                 for bucket in &table.buckets {
-                    let what = format!("{} {}", table.key, label_text(&bucket.label));
+                    let what = format!(
+                        "{} {}",
+                        table.key,
+                        label_text(&bucket.label, a.scope.realm == Realm::All)
+                    );
                     for kind in bucket.sources.iter().chain(&bucket.flags) {
                         buckets.push((format!("{what}, {}", kind.kind), &kind.count));
                     }
@@ -635,7 +699,11 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         }
         ViewOut::Cross(cross) => {
             for cell in &cross.cells {
-                let of: Vec<String> = cell.of.iter().map(label_text).collect();
+                let of: Vec<String> = cell
+                    .of
+                    .iter()
+                    .map(|l| label_text(l, a.scope.realm == Realm::All))
+                    .collect();
                 buckets.push((of.join(" × "), &cell.count));
             }
             for margin in &cross.margins {
@@ -693,19 +761,20 @@ fn json_text(value: &serde_json::Value) -> String {
 }
 
 /// A bucket's name: its value, or `(none)`, `(undecided)` — in brackets,
-/// since a tab may be named `none`.
-fn label_text(label: &Label) -> String {
+/// since a tab may be named `none`; a tab's league and id beside its
+/// name, and its realm where the scope spans realms.
+fn label_text(label: &Label, all_realms: bool) -> String {
     let mut out = match (label.bucket, &label.value) {
         ("value", Some(value)) => json_text(value),
         ("value", None) => "(no name)".to_string(),
         (bucket, _) => format!("({bucket})"),
     };
-    if let Some(realm) = &label.realm {
+    if let Some(realm) = label.realm.as_ref().filter(|_| all_realms) {
         out.push_str(&format!(" · {realm}"));
     }
-    if label.id.is_some() {
+    if let Some(id) = &label.id {
         out.push_str(&format!(
-            " · {}",
+            " · {} · {id}",
             label.league.as_deref().unwrap_or("no league")
         ));
     }
@@ -727,8 +796,12 @@ fn sum_of_text(sum: &SumOf) -> String {
     format!("{} over every match: {}", sum.name, summed_text(&sum.total))
 }
 
-fn bucket_text(bucket: &Bucket) -> Vec<String> {
-    let mut first = format!("  {:>7}  {}", bucket.count.count, label_text(&bucket.label));
+fn bucket_text(bucket: &Bucket, all_realms: bool) -> Vec<String> {
+    let mut first = format!(
+        "  {:>7}  {}",
+        bucket.count.count,
+        label_text(&bucket.label, all_realms)
+    );
     if let Some(sum) = &bucket.sum {
         first.push_str(&format!("   sum {}", summed_text(sum)));
     }
@@ -770,6 +843,12 @@ fn bucket_text(bucket: &Bucket) -> Vec<String> {
             .map(|k| format!("{} {}", k.kind, k.count.count))
             .collect();
         out.push(format!("           {}", kinds.join(" · ")));
+        // a kind with no route says why
+        for k in bucket.sources.iter().chain(&bucket.flags) {
+            if let Some(needs) = &k.needs {
+                out.push(format!("           {}: {needs}", k.kind));
+            }
+        }
     }
     if let Some(needs) = &bucket.label.needs {
         out.push(format!("           {needs}"));
@@ -777,7 +856,7 @@ fn bucket_text(bucket: &Bucket) -> Vec<String> {
     out
 }
 
-fn table_text(table: &Table) -> Vec<String> {
+fn table_text(table: &Table, all_realms: bool) -> Vec<String> {
     let (one, many) = if table.key.starts_with("line") {
         ("template", "templates")
     } else {
@@ -795,11 +874,16 @@ fn table_text(table: &Table) -> Vec<String> {
         ));
     }
     std::iter::once(head)
-        .chain(table.buckets.iter().flat_map(bucket_text))
+        .chain(
+            table
+                .buckets
+                .iter()
+                .flat_map(|b| bucket_text(b, all_realms)),
+        )
         .collect()
 }
 
-fn cross_text(cross: &CrossOut) -> Vec<String> {
+fn cross_text(cross: &CrossOut, all_realms: bool) -> Vec<String> {
     let mut head = format!(
         "cross   {} · {}",
         cross.keys.join(" × "),
@@ -813,12 +897,21 @@ fn cross_text(cross: &CrossOut) -> Vec<String> {
     }
     let mut out = vec![head];
     for cell in &cross.cells {
-        let of: Vec<String> = cell.of.iter().map(label_text).collect();
+        let of: Vec<String> = cell.of.iter().map(|l| label_text(l, all_realms)).collect();
         let mut row = format!("  {:>7}  {}", cell.count.count, of.join(" × "));
         if let Some(sum) = &cell.sum {
             row.push_str(&format!("   sum {}", summed_text(sum)));
         }
         out.push(row);
+        // a cell with no route says why, once per value that has none
+        for label in &cell.of {
+            if let Some(needs) = &label.needs {
+                out.push(format!(
+                    "           {}: {needs}",
+                    label_text(label, all_realms)
+                ));
+            }
+        }
     }
     for margin in &cross.margins {
         if margin.none.count + margin.undecided.count > 0 {

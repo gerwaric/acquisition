@@ -1211,6 +1211,29 @@ breaks least if he rules the other way.
   fifth changed how an unread part is joined to its occurrence and no
   template, so the count stands. Rerun if in doubt.
 
+**An outside audit of step 5 at `57539f65` (2026-09-22)**: six
+findings, each reproduced by the auditor's own fixture and then by the
+builder before it was taken; all six confirmed, one wider than found.
+Its verdict: localized fixes, no new layer, E1–E5 to the owner as they
+stand. Fixed in the commit after this row's; the regressions live in
+`tests/counts.rs` and the CLI's `search_json.rs`, never in a suite of
+the audit's own. Its seven assertions rerun against the fixes: six pass,
+and the seventh asserts the old continuation text is still printed,
+which is what the fix removed. M2 again: 0 unread, 0 unexplained. M3
+again, release: 269–306 ms, within noise of the step's row.
+
+| # | Finding | Verdict | Held by |
+| --- | --- | --- | --- |
+| 1 | A tab bucket was its id alone: one id under two leagues and two realms was one bucket, labelled with the first's name and league | confirmed — the store's own identity is the coordinate (C54), and the refresh slice met one id under two realms | `counts::TabAt`: realm, league and id; the route `id:<id> league=<L>` over its realm; the label carries all three, the text the id. A crossed cell's route names the tab's realm |
+| 2 | `--count`'s key parser stripped quotes before reading syntax: `line:"Life` was taken, `line:"~Life"` became a pattern, any escape was accepted | confirmed | per-character quoting: what was quoted is text as written, a quote that never closes or an escape outside the language's three is a `view` error; `~` outside the quotes still marks a pattern |
+| 3 | The resolved-values continuation said `--count tab lists them` and could not: a count by tab groups by the tab, the selector resolved to names. And wider, as the audit said: a count *under the query* is not the selector's domain — `base:ring rarity=unique` resolves rings of every rarity | confirmed | `Resolved::rest` is a route: the term alone over the scope, counted by its field, or a group's one template test as `line:<text>` / `line~<pattern>` (`Group::sole_template_test`); none for `tab` (E1) or a selector of more than one test, and the text then says the count and no command. `Route::command` prints a view. The CLI test runs the printed command and holds it to every value |
+| 4 | A bucket's sum of item totals was rounded again: `units` multiplied a float by 100,000, past 2^53 for a total; 23 × `9999999999.9997` summed to `.9931` on the item and `.99313` in the bucket | confirmed; within the declared rule | `exact::units` reads the decimal the float prints as — the decimal it was made from — so units are exact through every level of adding; pinned in `exact.rs` and over two items and an incomplete subtotal |
+| 5 | A vocabulary flag `Crafted: 1` routed to `is:crafted` and returned 0: the count matched the flag any-case and the evaluator exactly | confirmed, and older than step 5: `is:` and a line's `is:` were bound any-case (B2) and compared exactly since step 4; the census's flags are all lower-case, so no real item met it | one any-case compare in the evaluator (`group.rs`, `eval.rs`), and the vocabulary counts a kind by its legal spelling — `Crafted` and `crafted` one kind of two, routed to both; a spelling outside the list counted with no route and `needs` |
+| 6 | The text printed a crossed cell with no route as an ordinary row, and a kind's `needs` never | confirmed | `cross_text`, `bucket_text`: each value or kind with no route says why, once |
+
+The audit also asked that `--sum`'s operator error stop offering a line's
+slot while E2 stands: it names `ilvl, stack, or the item's sum( … )` now.
+
 ## Gaps found while planning — rules the reference did not state
 
 Each changes what a user types, or which items what he types matches.
