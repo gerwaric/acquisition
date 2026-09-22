@@ -7,8 +7,9 @@
 //!
 //! # As built
 //!
-//! The language (the build plan, step 1), the derivation (step 2) and the
-//! first surface (step 4): a request in, an answer out.
+//! The language (the build plan, step 1), the derivation (step 2), the
+//! first surface (step 4) and the counts view (step 5): a request in, an
+//! answer out.
 //!
 //! - [`tree`] — the query tree (C91): one typed value, and [`check`], what
 //!   a tree must satisfy to be one the language can say.
@@ -38,7 +39,10 @@
 //!   (C92, C93).
 //! - [`mod@answer`] — the request and the answer (C100, C96): scope, basis,
 //!   every term's counts with a route each, the total, the rows, the zero
-//!   block.
+//!   block; and the one maker of a route.
+//! - [`counts`] — the counts view (C95, C105) and the vocabulary read
+//!   (C97): the matches by a key, one table each or one crossed table, a
+//!   sum beside each count, every bucket a term with its route.
 //! - [`mod@describe`] — the language as this build knows it (C97), and the
 //!   limits it states (C102). [`mod@show`] — one item as the deriver sees it.
 //!
@@ -66,6 +70,11 @@
 //!   built, the route property, invariants 2 and 6), `tests/acceptance.rs`
 //!   (the acceptance set's rows green at step 4, the limits' wording) and
 //!   `tests/refusal.rs` (the refusal walk, invariant 3).
+//! - **C95, C97, C105.** The counts view and the vocabulary are
+//!   [`counts`]'s doc; pinned by `tests/counts.rs`: AQ1, C105's two
+//!   invariants on a one-value key, C95's sum over the three kinds, the
+//!   vocabulary's pasted term selecting its row, every bucket's route
+//!   followed by id.
 //! - **C104.** Pinned by `tests/language.rs`: the round trip over
 //!   generated trees and over the corpus (`tests/language.toml`), where
 //!   every construct of the reference has a case.
@@ -77,6 +86,7 @@
 pub mod answer;
 pub mod bind;
 pub mod corpus;
+pub mod counts;
 pub mod derive;
 pub mod describe;
 pub mod error;

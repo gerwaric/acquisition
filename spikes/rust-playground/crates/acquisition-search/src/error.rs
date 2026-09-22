@@ -62,6 +62,9 @@ pub enum ErrorKind {
     OperatorMismatch,
     /// A `~` pattern that does not compile.
     BadPattern,
+    /// A view the request cannot have: a key named twice, `--sum` with no
+    /// count beside it, a crossed table of other than two keys.
+    View,
     /// A construct of the reference this build does not evaluate yet: an
     /// error of its own, never the unknown-name error, never undecided,
     /// never an empty answer (the build plan, rule 1).

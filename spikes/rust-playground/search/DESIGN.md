@@ -67,8 +67,9 @@ acq search [--account A] [--realm pc|xbox|sony|poe2|all] ['<query>']    no query
               [--fields name,…] [--sort value [--desc]] [--limit n] [--next token]
    discover   --describe [name,…]             the language: fields, what a line takes, what has a
                                               value, how terms compose, operators, closed value
-                                              sets, computed values with their definitions, slots;
-                                              a name asks for one entry, or a block by its name;
+                                              sets, computed values with their definitions, slots,
+                                              what a count takes; a name asks for one entry, or a
+                                              block by its name;
                                               structured under --json. This is the help C97 names.
               --count line[:text,…]           the vocabulary: templates by kind, ranked, slot ranges,
                                               each with its exact selector; several texts in one call

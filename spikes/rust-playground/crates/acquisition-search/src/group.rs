@@ -272,14 +272,69 @@ impl Group {
 
 /// The exact term that selects one template: `line("T")`.
 pub(crate) fn line_of(template: &str) -> Node {
+    line_exactly(template, false, LineKind::Any)
+}
+
+/// A line's kind, as far as one test names it (C90: both coordinates the
+/// body gives, neither chosen for the author).
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum LineKind<'a> {
+    Any,
+    Source(&'a str),
+    Flag(&'a str),
+}
+
+/// The exact term that selects one template's occurrences of one kind, as
+/// a vocabulary row carries it (C97). `=` is any-case, so where the corpus
+/// holds another spelling of the template — `twin` — the term is a pattern
+/// that turns case back on, which selects this spelling alone (the
+/// reference, *Members*).
+pub(crate) fn line_exactly(template: &str, twin: bool, kind: LineKind<'_>) -> Node {
+    let test = |attr: &str, op: Op, text: String| Member::Test {
+        attr: attr.to_string(),
+        op,
+        value: Value::Text(text),
+    };
+    let named = if twin {
+        test("template", Op::Match, bind::exact_pattern(template))
+    } else {
+        test("template", Op::Eq, template.to_string())
+    };
+    let where_ = match kind {
+        LineKind::Any => named,
+        LineKind::Source(source) => {
+            Member::All(vec![named, test("source", Op::Eq, source.to_string())])
+        }
+        LineKind::Flag(flag) => Member::All(vec![named, Member::Is(flag.to_string())]),
+    };
     Node::Members {
         of: Collection::Lines,
-        where_: Box::new(Member::Test {
-            attr: "template".to_string(),
-            op: Op::Eq,
-            value: Value::Text(template.to_string()),
-        }),
+        where_: Box::new(where_),
     }
+}
+
+/// What a vocabulary read is narrowed by, as the term it is — `line(true())`
+/// for every line, `line(template:words)`, `line(template~"pattern")` — and
+/// that term bound: the lines a row is made of are the ones it selects, its
+/// `none` bucket is its not and its `undecided` bucket is `undecided( … )`
+/// of it (C105).
+pub(crate) fn narrowing(narrow: Option<&(Op, String)>) -> Result<(Node, Group), LanguageError> {
+    let where_ = match narrow {
+        None => Member::Const(true),
+        Some((op, text)) => Member::Test {
+            attr: "template".to_string(),
+            op: *op,
+            value: Value::Text(text.clone()),
+        },
+    };
+    let group = Group::bind(&where_)?;
+    Ok((
+        Node::Members {
+            of: Collection::Lines,
+            where_: Box::new(where_),
+        },
+        group,
+    ))
 }
 
 fn admits(member: &BMember, source: &str) -> bool {

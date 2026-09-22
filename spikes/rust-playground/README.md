@@ -101,7 +101,8 @@ acq shop render [--size N] [--template FILE] [--page N] [--expand]   # forum pag
 acq tabs [--league L] [--realm R]   # tab tree and live item counts
 acq store characters [--realm R] [--league L]   # character locations, ages and live items
 acq search [--realm R] ['<query>'] [--sort V [--desc]] [--limit N] [--routes]   # item search: scope, basis, counts per term, rows
-acq search --describe [name,…]   # the query language, and what is not built yet
+acq search ['<query>'] --count KEY,… | --cross KEY,KEY [--sum V]   # the matches counted by key, one table each or one crossed; line[:text,…] is the vocabulary
+acq search --describe [name,…]   # the query language, what a count takes, and what is not built yet
 acq show <id> [--body]   # one item as the search derives it; the stored body on request
 acq items search <text> [--removed] | show <id>   # substring search; one item verbatim
 acq store status | events [--hours N] | refused [id]   # counts; ingest events; malformed bodies

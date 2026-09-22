@@ -23,8 +23,9 @@
 
 use std::io::Read as _;
 
-use acquisition_search::answer::{Answer, Count, Request, Rows, Scope, View};
+use acquisition_search::answer::{Answer, Count, Request, Rows, Scope, View, ViewOut};
 use acquisition_search::corpus::Realm;
+use acquisition_search::counts::{Bucket, CrossOut, Label, SumOf, Summed, Table};
 use acquisition_search::describe::Describe;
 use acquisition_search::show::Shown;
 use acquisition_search::{Corpus, SearchError, answer, describe, not_built, show};
@@ -58,7 +59,8 @@ pub struct SearchArgs {
     /// Largest first.
     #[arg(long, requires = "sort")]
     pub desc: bool,
-    /// How many rows to return; the rest are counted.
+    /// How many rows to return — or, of a count, how many values a table
+    /// lists; the rest are counted.
     #[arg(long, default_value_t = acquisition_search::answer::DEFAULT_LIMIT)]
     pub limit: usize,
     /// Print every count's route — the command that returns exactly its
@@ -70,13 +72,25 @@ pub struct SearchArgs {
     /// limits stated; or only the entries named (`--describe league,line`).
     #[arg(long, value_name = "NAME,…", num_args = 0..=1, value_delimiter = ',')]
     pub describe: Option<Vec<String>>,
-    /// Not built (step 5): counts by key, one table each.
+    /// Count the matches by a key, one table for each key named, and show
+    /// no rows: a field (`tab`, `league`, `rarity`, `base`, …; `--describe
+    /// counts` lists them), or `line`, the vocabulary — the templates the
+    /// matching items carry, ranked, each with the term that selects it and
+    /// the range of its numbers. `line:` takes the rest of the list as
+    /// texts to narrow by, a table each, and `~` before one makes it a
+    /// pattern: `--count tab,line:resist,life`. An item with no value is
+    /// counted under `none`, one whose value could not be read under
+    /// `undecided` (C105); every count has its route (`--routes`).
     #[arg(long, value_name = "KEY,…")]
     pub count: Option<String>,
-    /// Not built (step 5): one crossed table.
+    /// Count the matches by two fields at once, one table of the cells
+    /// that hold an item: `--cross league,tab`.
     #[arg(long, value_name = "KEY,KEY")]
     pub cross: Option<String>,
-    /// Not built (step 5): one summed value beside a count.
+    /// Beside each count, the sum of one number over its items: `stack`,
+    /// `ilvl`, `'sum("T")'`. An item lacking the thing adds nothing and is
+    /// counted as lacking; one unread leaves a subtotal marked incomplete
+    /// (C95).
     #[arg(long, value_name = "VALUE")]
     pub sum: Option<String>,
     /// Not built (step 10): the caller names a row's fields.
@@ -154,9 +168,6 @@ fn emit<T: Serialize>(value: &T, json: bool, text: impl FnOnce(&T) -> String) ->
 
 pub fn search(args: SearchArgs, json: bool) -> Result<()> {
     let unbuilt = [
-        ("--count", args.count.is_some()),
-        ("--cross", args.cross.is_some()),
-        ("--sum", args.sum.is_some()),
         ("--fields", args.fields.is_some()),
         ("--next", args.next.is_some()),
         ("--explain", args.explain.is_some()),
@@ -187,26 +198,76 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         Some(word) => Some(Realm::parse(word).map_err(|e| fail(e, json))?),
         None => None,
     };
+    let view = View::of(
+        args.count.as_deref().map(keys),
+        args.cross.as_deref().map(keys),
+        args.sum.clone(),
+        Rows {
+            limit: Some(args.limit),
+            sort: args.sort.clone(),
+            desc: args.desc,
+        },
+    )
+    .map_err(|e| fail(e.into(), json))?;
     let request = Request {
         scope: Scope::default(),
         query: acquisition_search::answer::QueryInput {
             text: Some(text.trim().to_string()),
             tree: None,
         },
-        view: View {
-            rows: Rows {
-                limit: Some(args.limit),
-                sort: args.sort.clone(),
-                desc: args.desc,
-            },
-        },
+        view,
     };
     // an authoring error is said before the store is read
-    request.bind().map_err(|e| fail(e.into(), json))?;
+    request.check().map_err(|e| fail(e.into(), json))?;
     let store = store_cmd::open()?;
     let corpus = Corpus::load(&store, realm.as_ref()).map_err(|e| fail(e, json))?;
     let answered = answer(&corpus, &request).map_err(|e| fail(e, json))?;
     emit(&answered, json, |a| answer_text(a, args.routes))
+}
+
+/// The keys of `--count`, as a terminal spells them: a comma list, where
+/// `line:` takes the rest of the list as its texts — `line:resist,life` is
+/// the vocabulary narrowed twice, a table each (the reference's synopsis,
+/// `--count line[:text,…]`) — and a text is a pattern after `~`. A text
+/// with a comma in it is quoted, its escapes the language's.
+fn keys(raw: &str) -> Vec<String> {
+    let mut parts: Vec<String> = Vec::new();
+    let (mut part, mut quoted, mut escaped) = (String::new(), false, false);
+    for c in raw.chars() {
+        match c {
+            _ if escaped => {
+                part.push(if c == 'n' { '\n' } else { c });
+                escaped = false;
+            }
+            '\\' if quoted => escaped = true,
+            '"' => quoted = !quoted,
+            ',' if !quoted => parts.push(std::mem::take(&mut part)),
+            _ => part.push(c),
+        }
+    }
+    parts.push(part);
+    let mut narrowing = false;
+    parts
+        .into_iter()
+        .map(|part| part.trim().to_string())
+        .map(|part| {
+            let lower = part.to_ascii_lowercase();
+            if lower.starts_with("line:") || lower.starts_with("line~") {
+                narrowing = true;
+                // `line:~pattern` is `line~pattern`
+                match part[5..].strip_prefix('~') {
+                    Some(pattern) if lower.starts_with("line:") => format!("line~{pattern}"),
+                    _ => part,
+                }
+            } else if !narrowing {
+                part
+            } else if let Some(pattern) = part.strip_prefix('~') {
+                format!("line~{pattern}")
+            } else {
+                format!("line:{part}")
+            }
+        })
+        .collect()
 }
 
 pub fn show_item(args: ShowArgs, json: bool) -> Result<()> {
@@ -385,7 +446,7 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                         "template" => "line",
                         field => field,
                     };
-                    values.push(format!("{more} more: --count {key}, not built (step 5)"));
+                    values.push(format!("{more} more: --count {key} lists them"));
                 }
                 if !values.is_empty() {
                     line(format!("       → {}", values.join(" · ")));
@@ -460,12 +521,26 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         }
         line(format!("            id {}", row.id));
     }
-    let rows = &a.view.rows;
-    if rows.left_out > 0 {
-        line(format!(
+    match &a.view {
+        ViewOut::Rows(rows) if rows.left_out > 0 => line(format!(
             "more    {} of {} shown: a larger --limit returns the rest (--next: not built, step 10)",
             rows.returned, a.total.matched
-        ));
+        )),
+        ViewOut::Rows(_) => {}
+        ViewOut::Counts(counts) => {
+            if let Some(sum) = &counts.sum {
+                line(format!("sum     {}", sum_of_text(sum)));
+            }
+            for table in &counts.tables {
+                table_text(table).into_iter().for_each(&mut line);
+            }
+        }
+        ViewOut::Cross(cross) => {
+            if let Some(sum) = &cross.sum {
+                line(format!("sum     {}", sum_of_text(sum)));
+            }
+            cross_text(cross).into_iter().for_each(&mut line);
+        }
     }
 
     if let Some(zero) = &a.zero {
@@ -544,6 +619,39 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         rest.push((format!("term {} failed", term.path), &term.failed));
         rest.push((format!("term {} lacked", term.path), &term.lacked));
     }
+    let mut buckets: Vec<(String, &Count)> = Vec::new();
+    match &a.view {
+        ViewOut::Rows(_) => {}
+        ViewOut::Counts(counts) => {
+            for table in &counts.tables {
+                for bucket in &table.buckets {
+                    let what = format!("{} {}", table.key, label_text(&bucket.label));
+                    for kind in bucket.sources.iter().chain(&bucket.flags) {
+                        buckets.push((format!("{what}, {}", kind.kind), &kind.count));
+                    }
+                    buckets.push((what, &bucket.count));
+                }
+            }
+        }
+        ViewOut::Cross(cross) => {
+            for cell in &cross.cells {
+                let of: Vec<String> = cell.of.iter().map(label_text).collect();
+                buckets.push((of.join(" × "), &cell.count));
+            }
+            for margin in &cross.margins {
+                first.push((format!("{} (none)", margin.key), &margin.none));
+                first.push((format!("{} (undecided)", margin.key), &margin.undecided));
+            }
+        }
+    }
+    // what a count could not place is what a next step hangs on
+    for (what, count) in buckets {
+        if what.ends_with("(none)") || what.ends_with("(undecided)") {
+            first.push((what, count));
+        } else {
+            rest.push((what, count));
+        }
+    }
     let routed = |routes: Vec<(String, &'_ Count)>| -> Vec<(String, usize, String)> {
         routes
             .into_iter()
@@ -575,6 +683,162 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
     out
 }
 
+// ---- a count's text ------------------------------------------------------------------------------------
+
+fn json_text(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(text) => text.replace('\n', "\\n"),
+        other => other.to_string(),
+    }
+}
+
+/// A bucket's name: its value, or `(none)`, `(undecided)` — in brackets,
+/// since a tab may be named `none`.
+fn label_text(label: &Label) -> String {
+    let mut out = match (label.bucket, &label.value) {
+        ("value", Some(value)) => json_text(value),
+        ("value", None) => "(no name)".to_string(),
+        (bucket, _) => format!("({bucket})"),
+    };
+    if let Some(realm) = &label.realm {
+        out.push_str(&format!(" · {realm}"));
+    }
+    if label.id.is_some() {
+        out.push_str(&format!(
+            " · {}",
+            label.league.as_deref().unwrap_or("no league")
+        ));
+    }
+    out
+}
+
+fn summed_text(sum: &Summed) -> String {
+    let mut out = number(&sum.value);
+    if sum.lacking > 0 {
+        out.push_str(&format!(" · {} lacking", sum.lacking));
+    }
+    if sum.incomplete {
+        out.push_str(&format!(" · incomplete: {} unread", sum.unread));
+    }
+    out
+}
+
+fn sum_of_text(sum: &SumOf) -> String {
+    format!("{} over every match: {}", sum.name, summed_text(&sum.total))
+}
+
+fn bucket_text(bucket: &Bucket) -> Vec<String> {
+    let mut first = format!("  {:>7}  {}", bucket.count.count, label_text(&bucket.label));
+    if let Some(sum) = &bucket.sum {
+        first.push_str(&format!("   sum {}", summed_text(sum)));
+    }
+    let slots: Vec<String> = bucket
+        .slots
+        .iter()
+        .map(|s| {
+            let end = |n: &Option<serde_json::Value>| n.as_ref().map_or("?".to_string(), number);
+            format!(
+                "{} {}..{}{}",
+                s.slot,
+                end(&s.min),
+                end(&s.max),
+                if s.incomplete { " (incomplete)" } else { "" }
+            )
+        })
+        .collect();
+    if !slots.is_empty() {
+        first.push_str(&format!("   {}", slots.join(" · ")));
+    }
+    if !bucket.tally.is_empty() {
+        let tally: Vec<String> = bucket
+            .tally
+            .iter()
+            .map(|t| format!("{} unread {}", t.unread, t.items))
+            .collect();
+        first.push_str(&format!("   {}", tally.join(" · ")));
+    }
+    let mut out = vec![first];
+    // a vocabulary row carries the term that selects it, ready to paste
+    if !bucket.sources.is_empty() {
+        if let Some(term) = &bucket.label.term {
+            out.push(format!("           {term}"));
+        }
+        let kinds: Vec<String> = bucket
+            .sources
+            .iter()
+            .chain(&bucket.flags)
+            .map(|k| format!("{} {}", k.kind, k.count.count))
+            .collect();
+        out.push(format!("           {}", kinds.join(" · ")));
+    }
+    if let Some(needs) = &bucket.label.needs {
+        out.push(format!("           {needs}"));
+    }
+    out
+}
+
+fn table_text(table: &Table) -> Vec<String> {
+    let (one, many) = if table.key.starts_with("line") {
+        ("template", "templates")
+    } else {
+        ("value", "values")
+    };
+    let mut head = format!(
+        "count   {} · {}",
+        table.key,
+        plural(table.values, one, many)
+    );
+    if table.left_out > 0 {
+        head.push_str(&format!(
+            " · {} shown: a larger --limit returns the rest",
+            table.values - table.left_out
+        ));
+    }
+    std::iter::once(head)
+        .chain(table.buckets.iter().flat_map(bucket_text))
+        .collect()
+}
+
+fn cross_text(cross: &CrossOut) -> Vec<String> {
+    let mut head = format!(
+        "cross   {} · {}",
+        cross.keys.join(" × "),
+        plural(cross.cells_in_all, "cell", "cells")
+    );
+    if cross.left_out > 0 {
+        head.push_str(&format!(
+            " · {} shown: a larger --limit returns the rest",
+            cross.cells_in_all - cross.left_out
+        ));
+    }
+    let mut out = vec![head];
+    for cell in &cross.cells {
+        let of: Vec<String> = cell.of.iter().map(label_text).collect();
+        let mut row = format!("  {:>7}  {}", cell.count.count, of.join(" × "));
+        if let Some(sum) = &cell.sum {
+            row.push_str(&format!("   sum {}", summed_text(sum)));
+        }
+        out.push(row);
+    }
+    for margin in &cross.margins {
+        if margin.none.count + margin.undecided.count > 0 {
+            out.push(format!(
+                "           {}: {} none · {} undecided",
+                margin.key, margin.none.count, margin.undecided.count
+            ));
+        }
+    }
+    if !cross.tally.is_empty() {
+        let tally: Vec<String> = cross
+            .tally
+            .iter()
+            .map(|t| format!("{} unread {}", t.unread, t.items))
+            .collect();
+        out.push(format!("           undecided: {}", tally.join(" · ")));
+    }
+    out
+}
+
 fn describe_text(d: &Describe) -> String {
     let mut out = String::new();
     let mut block = |head: &str, entries: &[acquisition_search::describe::Named]| {
@@ -599,6 +863,7 @@ fn describe_text(d: &Describe) -> String {
     block("operators", &d.operators);
     block("slots", &d.slots);
     block("computed values", &d.computed);
+    block("counts", &d.counts);
     if !d.not_built.is_empty() {
         out.push_str("not built, refused by name\n");
         for n in &d.not_built {

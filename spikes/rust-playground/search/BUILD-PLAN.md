@@ -495,6 +495,7 @@ record's step ledger and its observations.
 | 2 · the derivation | `ef720323` | `derive.rs`: `derive(facts, body) -> Item`, pure and total — the header, `rarity` and `frameTypeId` as given, `ilvl`, `stackSize`, the note, every yes the body says; properties and requirements as displayed strings, name and values kept apart; lines as (source, flags, template, numbers) with `slot` and the ranged rule; `displayed()`, the rows a phrase will be tested against; and what could not be read, by part, the readable rest still derived. `tests/derive.rs`: 12 fixtures worked by hand and a property test that no text and no JSON panics it. M2 below: no unexplained difference. `template::typed` gained the thousands comma. |
 | 3 · the store's read | `c0a8f918` | `acquisition-store/src/corpus.rs`: `Store::read_corpus` — the header (the revision, the account, the realms the file holds, the latest listing of each list in scope, every live location in scope with its `type`, `listed_at` and `fetched_at`) and then every live item at a live location, streamed to the caller's closure inside one read transaction, league joined as `read_items` joins it, the body as text — and `Store::revision`. Seven store tests, `REFRESH-SLICE.md`'s findings as the checklist: the one-snapshot test over two handles on one file (it fails when the snapshot is ended after the header — tried), the league join over a character the listing moved and a league-less one, live by full coordinate (one tab id under `pc` and `xbox`) in one realm or all, the revision through every write door, no derived column in the read or its order, a store with no account refused, and the header's coverage — a folder told from an unfetched tab, a retired tab's substash no live location (it fails without the exclusion — tried), an empty listing still seen. The revision's line-by-line read is that module's doc. C103's second decision is C108 (`decisions/store.md`), its wording approved by the owner (2026-09-20: "All is approved"). M1 below. |
 | 4 · the first surface | `28606ed4` | `acquisition-search` links the store (C89) and gains `bind.rs` (the vocabulary as closed lists, near names, the one list of what is not built, a bare word's closed-set readings), `corpus.rs` (every live item of a scope derived from one `read_corpus`, held with its basis, its places and the coverage the scope block states), `eval.rs` (matched, failed, lacked, undecided; witnesses; three-valued composition and the `holds` interval; sums with their status; the sort scalar; the together count), `answer.rs` (the request and the answer: a route on every count that is not zero, what a `:` or `~` selector resolved to, rows with what matched, the zero block), `describe.rs`, `show.rs`. The CLI gains `acq search` and `acq show` (`search_cmd.rs`), text rendered from the value `--json` prints, the flags of steps 5 and 10 refused by name; README tour lines; `CLI-REFERENCE.md` regenerated. Tests at the crate's boundary, every count worked by hand first: `tests/answer.rs` (the worked example reduced, the route property, invariants 2 and 6, C93's composition, C92's scalar, C96's scope, C98 at the answer's boundary), `tests/acceptance.rs` (OQ1–OQ4, OQ7, AQ2–AQ5 as far as step 4 builds them; S12, S52 and S107 by their wording), `tests/refusal.rs` (the walk over `language.toml`, invariant 3, S53), and the CLI's `tests/search_json.rs`. Three mutants tried, each caught: unread beating a witness, a line's failed route as `-term`, not-undecided as true. M3 and M4 below. |
+| 5 · counts and the vocabulary | (this commit) | `counts.rs`: the view is one of rows, `--count` and `--cross` (C95); a bucket is a term — `<key>=<value>`, `none` by `-has:<key>`, `undecided` by `undecided(<key>)` (C105) — its count the evaluator's own outcome on the matches and its route the query and that term, made by the one maker of a route (`answer::Router`); `tab` counted by the tab and routed by its id; two spellings of a value two buckets, each routed by a pattern that turns case back on (`bind::exact_pattern`), told apart by the matcher's own fold (`bind::folded`, `regex-syntax`); a value outside a closed list counted with no route; tables cut by the data, `none` and `undecided` never; the vocabulary as the key `line`, narrowed by `line:text` and `line~pattern`, a row per (realm, template) with its term, each number's range, and its sources and flags each with a term (C97); `--sum` over the three kinds, exact (C95); a tally by what was unread beneath `undecided`. `--describe counts`. The CLI: the three flags real, `line:` taking the rest of the list, the tables and their routes rendered; `CLI-REFERENCE.md` regenerated; README tour line. `tests/counts.rs` (AQ1; C105's two invariants on `rarity`; C95's sum over an item with the value, one lacking it, one unread; the vocabulary's pasted term selecting its row, source and flag both; all-realms rows; the crossed table; the cut; every view error) — fourteen items, every count by hand, every route followed by id; `bind.rs`'s two properties, the fold against any-case `=` and the exact pattern against its text, each shown to fail (below); the CLI's terminal-level route check. What it met is below. |
 | 4b · the properties | `39e7667a`–`36a9738a` | Three properties beside the outside agent's routes, each through the crate's boundary over generated queries and generated items with unread evidence, from one set of generators (`tests/common/generated.rs`: a query tree of the test's own with its normal form, and bodies with holes that a completion fills): `tests/generated_equivalence.rs` (invariant 7), `tests/generated_completion.rs` (C93's definition, its measured half run by hand), `tests/generated_cross_checks.rs` (transformations 10 and 13). Then `group.rs`: what `line( … )` means, computed once at binding and read from there, the bound form private to it; `tools/docs-check.sh` §7 refuses a source file that names a group's tree outside `tree`, `parse`, `print`, `json`, `template` and `group`, with five breakers (`tools/docs-check-breakers.sh`, 56 ok). No test of step 4 was touched and the answer's JSON did not move. What they met is below. |
 
 **Found by step 1's own tests, in the builder's code:** a computed value
@@ -1145,6 +1146,70 @@ basis names no evaluator — so two builds can label different answers
 with one basis, which was already true of every evaluator fix of step 4.
 M3 once more, the build at `3c7d31f3`, 2026-09-21: first ask 491 ms;
 warm, release, 266 to 296 ms (AQ2, the sum, 296), debug 1,729 to 2,441.
+
+### Step 5 — what the counts view met
+
+**M3 again** — the same command as step 4's, with step 5's asks added to
+the script, 2026-09-22, this build: first ask 435 ms; warm, release, 269
+to 305 ms over the thirteen asks of step 4 (AQ2 305), and the six of step
+5: AQ1 276, OQ7's count by tab 274, the crossed table 274, the sum 273,
+the vocabulary twice narrowed 286, the vocabulary whole 302 — every
+template of 22,623 items ranked, 6,113 rows, 20 listed. Debug 1,756 to
+2,480. Every release ask is under 500 ms.
+
+**The vocabulary against M2.** Over all realms the vocabulary is 6,181
+rows keyed by (realm, template); the deriver's census rows of M2
+(`item-facts/raw/m2/rust.json`, 6,606 by (source, template)) hold 6,148
+distinct templates, and 6,181 less the 33 templates the copy carries in
+both realms is 6,148.
+
+**Every property passed at its first run, and each time that was a
+signal.** The fold property was written over one pool of characters drawn
+at random for both texts, and the fold swapped for `to_lowercase` survived
+4,000 cases: a pair like `s` and `ſ` was never drawn. Both texts are now
+drawn from one case family at each place, and two mutants — `to_lowercase`,
+and ASCII folded down where the rest folds up — fail within a few cases.
+The exact pattern's mutant (only `\` escaped) failed at once, at `(`.
+
+**Holes — each changes what a user types or pastes, so they are the
+owner's.** None blocked the step: each is built in the direction that
+breaks least if he rules the other way.
+
+| # | Hole | Built as | Recommendation |
+| --- | --- | --- | --- |
+| E1 | What a value bucket's term is. The reference gives `none` and `undecided` theirs (C105) and says a crossed cell "carries both keys"; nothing says a value's | `<key>=<value>`; where the corpus holds another spelling of the value, `<key>~"(?-i)^…$"` — the reference's own form for a template, applied to every text; a `tab` bucket is the tab, routed by `id:<its id>`, since a name is no identity (two leagues' `Dump`, a substash named as a tab) and `tab=` would return what other buckets counted | keep |
+| E2 | What `--sum` takes. The reference: `[--sum value]`, and `line(P).<slot>` is a value — for `--sort`, the largest satisfying occurrence. Summed over items it would add each item's largest, and `--sum '"# to maximum Life"'` would give 75 for an item with 20 and 75 | a field or `sum( … )`; a projection is an error offering `sum(line(P).<slot>)`, so the item's total is what a count adds | keep: allowing it later breaks nothing; a sum of largests, if wanted, is a value with a name of its own |
+| E3 | The vocabulary's `undecided` bucket. C105 puts an item whose key "cannot be established" there; `line` has many values on an item, and the language has no term for "its lines could not all be read" | the bucket is `undecided(line(<narrowing>))`: no selected line read, and a part unread that could hold one. An item with a line read and an array unread is in its rows and not there — its row's count says how many items are known to carry the template, never how many might | keep; a term for the other question is a hole of the language, if a seat asks it |
+| E4 | `--sort` beside `--count`, `--sum` alone, `--count` beside `--cross`. The synopsis puts the view on one line and `--sort`, `--limit` on the next | each is a view error saying which flag goes with which; `--limit` bounds a table as it bounds rows | keep |
+| E5 | `line` in a crossed table (`--cross tab,line`) | refused: a crossed table takes two fields; the vocabulary is its own table | keep until a seat asks for one; adding it later breaks nothing |
+
+**Observations — the builder's.**
+
+- Which bucket an item is in comes from the evaluator's outcome of
+  `has:<key>` on it, and what the value is from the accessor its term
+  reads: rule 10, so that a bucket and its route have one maker. The
+  fixture's `r3`, whose rarity is a number, is the case: unread, so
+  `undecided`, and `undecided(rarity)` returns it.
+- A value outside a closed list — a rarity, a source, a flag GGG adds —
+  is counted, has no route, and says so (rule 5): the reference already
+  says such a word cannot be asked for until the list gains it. Over the
+  copy none occurs.
+- The tally beneath `undecided` is by what was unread (`` `rarity` ``,
+  `explicit lines`), the kinds `eval::why` names, once per item per kind;
+  in a crossed table once per item for the table.
+- `--count line:resist,tab` makes `tab` a text: the synopsis's
+  `line[:text,…]` takes the rest of the list. A key goes before `line:`.
+  A text with a comma is quoted, the language's escapes.
+- The reference's line "computed values whose name or definition matches
+  are listed beside them, marked computed" waits on step 7: none exists.
+- `Resolved.more_needs` in a term's block now names a built flag, and the
+  text says `--count <key> lists them`.
+- A route's spelling for a bucket under the empty query is the term alone,
+  never `() term`: the router folds an empty root away, which is the one
+  simplification a generated tree makes (as the selector's folding is).
+- The M2 output read above is the third review's (derivation 4); the
+  fifth changed how an unread part is joined to its occurrence and no
+  template, so the count stands. Rerun if in doubt.
 
 ## Gaps found while planning — rules the reference did not state
 

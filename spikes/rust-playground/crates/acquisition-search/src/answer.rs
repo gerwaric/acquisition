@@ -30,8 +30,8 @@
 //!   picks over the scope, whatever its comparisons then make of them; the
 //!   ten most carried listed and the rest counted. A quoted template
 //!   resolves to itself and lists nothing, unless it found two spellings
-//!   of one line, which any-case `=` can, and then both are listed. The route to the rest is the vocabulary read, which is not
-//!   built (rule 5 of the plan: the count, and the construct's name).
+//!   of one line, which any-case `=` can, and then both are listed. The
+//!   route to the rest is the vocabulary read, `--count line` (`counts.rs`).
 //! - **What a row shows of one term is bounded** and says how many it left
 //!   out; the item whole is `show <id>` (invariant 5). Of lines and
 //!   strings, six, a sum's value beside them. Of why an item is undecided,
@@ -42,7 +42,9 @@
 //! - **Rows** are the matching items in the store's stable order, or by
 //!   the sort scalar with items that have none last either way; past the
 //!   limit they are counted, and the way on is a larger limit until
-//!   `--next` is built.
+//!   `--next` is built. A counts view shows none: the matches are handed
+//!   to `counts.rs` instead, with the one maker of a route (`Router`,
+//!   private), so a bucket's route is made as a term's is.
 //! - **A zero total** prints, in place of rows: the selectors that
 //!   resolved to nothing in this scope — a group's bound selector picked
 //!   no occurrence, a field's term matched no item — each with the values
@@ -58,6 +60,7 @@ use serde_json::Value as Json;
 
 use crate::bind::{self, Atom, Query, Term, Thing};
 use crate::corpus::{Basis, Corpus, Coverage, Held, Place, Realm};
+use crate::counts;
 use crate::error::{LanguageError, SearchError};
 use crate::eval::{self, Outcome, Scalar, Truth};
 pub use crate::eval::{Evidence, Reason};
@@ -119,11 +122,36 @@ pub struct QueryInput {
     pub tree: Option<Json>,
 }
 
+/// What an answer shows of its matches: rows, or counts of them — one
+/// table for each key, or one crossed table of two (C95). One of the
+/// three, as the reference's synopsis has it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum View {
+    Rows(Rows),
+    Counts(Counts),
+    Cross(Counts),
+}
+
+impl Default for View {
+    fn default() -> View {
+        View::Rows(Rows::default())
+    }
+}
+
+/// A counts view: the keys, as `counts.rs` binds them — a field, `line`,
+/// `line:<text>`, `line~<pattern>` — and the one value summed beside each
+/// count, a value's text as `--sort` takes one.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct View {
-    #[serde(default)]
-    pub rows: Rows,
+pub struct Counts {
+    pub keys: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sum: Option<String>,
+    /// How many values a table lists, or cells a crossed one; the rest are
+    /// counted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -150,6 +178,94 @@ impl Request {
             (None, Some(tree)) => bind::bind(&json::from_json(tree)?),
             (None, None) => bind::parse_query(""),
         }
+    }
+
+    /// Every authoring error the request holds — the query's, the sort's,
+    /// the view's — with no store read: what an adapter asks before it
+    /// opens one.
+    pub fn check(&self) -> Result<(), LanguageError> {
+        self.bind()?;
+        self.view.bound().map(|_| ())
+    }
+}
+
+/// A view with its names bound.
+enum BoundView {
+    Rows {
+        sort: Option<(String, bind::SortKey)>,
+        desc: bool,
+        limit: usize,
+    },
+    Counts(counts::BoundCounts),
+    Cross(counts::BoundCounts),
+}
+
+impl View {
+    /// The view an adapter's flat arguments name: rows unless a count or a
+    /// crossed table is asked for, and never two of them. A sort orders
+    /// rows and a sum stands beside a count, so either with the other view
+    /// is an authoring error and not a flag ignored.
+    pub fn of(
+        count: Option<Vec<String>>,
+        cross: Option<Vec<String>>,
+        sum: Option<String>,
+        rows: Rows,
+    ) -> Result<View, LanguageError> {
+        let view_error =
+            |message: &str| Err(LanguageError::new(crate::error::ErrorKind::View, message));
+        let limit = rows.limit;
+        let keys = match (count, cross) {
+            (Some(_), Some(_)) => {
+                return view_error(
+                    "`--count` is a table for each key and `--cross` one table of two: an answer has one view",
+                );
+            }
+            (None, None) if sum.is_some() => {
+                return view_error(
+                    "`--sum` stands beside a count: name what to count by, `--count <key>` or `--cross <key>,<key>`",
+                );
+            }
+            (None, None) => return Ok(View::Rows(rows)),
+            (Some(keys), None) => (keys, false),
+            (None, Some(keys)) => (keys, true),
+        };
+        if rows.sort.is_some() {
+            return view_error(
+                "`--sort` orders rows, and a count shows none: a table is ranked by its counts",
+            );
+        }
+        let counts = Counts {
+            keys: keys.0,
+            sum,
+            limit,
+        };
+        Ok(if keys.1 {
+            View::Cross(counts)
+        } else {
+            View::Counts(counts)
+        })
+    }
+
+    fn bound(&self) -> Result<BoundView, LanguageError> {
+        Ok(match self {
+            View::Rows(rows) => BoundView::Rows {
+                sort: match &rows.sort {
+                    Some(text) => {
+                        let value = parse::parse_value(text)?;
+                        Some((print::print_value(&value), bind::bind_sort(&value)?))
+                    }
+                    None => None,
+                },
+                desc: rows.desc,
+                limit: rows.limit.unwrap_or(DEFAULT_LIMIT),
+            },
+            View::Counts(c) => {
+                BoundView::Counts(counts::bind(&c.keys, false, c.sum.as_deref(), c.limit)?)
+            }
+            View::Cross(c) => {
+                BoundView::Cross(counts::bind(&c.keys, true, c.sum.as_deref(), c.limit)?)
+            }
+        })
     }
 }
 
@@ -278,9 +394,13 @@ pub struct Why {
     pub reason: Reason,
 }
 
+/// The view as answered: the rows' bounds, or the tables (`counts.rs`).
 #[derive(Debug, Clone, Serialize)]
-pub struct ViewOut {
-    pub rows: RowsOut,
+#[serde(rename_all = "snake_case")]
+pub enum ViewOut {
+    Rows(RowsOut),
+    Counts(counts::CountsOut),
+    Cross(counts::CrossOut),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -395,41 +515,23 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
         ));
     }
     let query = request.bind()?;
-    let sort = match &request.view.rows.sort {
-        Some(text) => {
-            let value = parse::parse_value(text)?;
-            Some((print::print_value(&value), bind::bind_sort(&value)?))
-        }
-        None => None,
-    };
-    let limit = request.view.rows.limit.unwrap_or(DEFAULT_LIMIT);
+    let view = request.view.bound()?;
 
-    let scope = Scope {
-        account: Some(
-            corpus
-                .account_name
-                .clone()
-                .unwrap_or_else(|| corpus.basis.account.clone()),
-        ),
-        realm: Some(corpus.realm.clone()),
-        membership: request.scope.membership,
-    };
-    let route = |node: &Node| Route {
-        counted_at: corpus.basis.clone(),
-        denominator: "scope",
-        request: Request {
-            scope: scope.clone(),
-            query: QueryInput {
-                text: Some(print::print(node)),
-                tree: None,
-            },
-            view: View::default(),
+    let router = Router {
+        corpus,
+        scope: Scope {
+            account: Some(
+                corpus
+                    .account_name
+                    .clone()
+                    .unwrap_or_else(|| corpus.basis.account.clone()),
+            ),
+            realm: Some(corpus.realm.clone()),
+            membership: request.scope.membership,
         },
+        root: &query.root,
     };
-    let count = |n: usize, node: Option<&Node>| Count {
-        count: n,
-        route: node.filter(|_| n > 0).map(&route),
-    };
+    let count = |n: usize, node: Option<&Node>| router.count(n, node);
 
     // every term over every item, then the tree
     let n_terms = query.terms.len();
@@ -558,8 +660,20 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
             .collect(),
     };
 
-    // the order, then the limit
-    let scalars: Option<Vec<Scalar>> = sort.as_ref().map(|(_, key)| {
+    // the view: counts of the matches, or the rows — the order, then the
+    // limit
+    let at: Vec<usize> = matches.iter().map(|(at, _)| *at).collect();
+    let counted = counts::Matches {
+        corpus,
+        at: &at,
+        router: &router,
+    };
+    let (sort, desc, limit) = match &view {
+        BoundView::Rows { sort, desc, limit } => (sort.as_ref(), *desc, *limit),
+        // a count shows no rows (AQ1)
+        BoundView::Counts(_) | BoundView::Cross(_) => (None, false, 0),
+    };
+    let scalars: Option<Vec<Scalar>> = sort.map(|(_, key)| {
         matches
             .iter()
             .map(|(at, _)| eval::scalar(key, &corpus.items[*at]))
@@ -567,7 +681,6 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
     });
     let mut order: Vec<usize> = (0..matches.len()).collect();
     if let Some(scalars) = &scalars {
-        let desc = request.view.rows.desc;
         order.sort_by(|a, b| match (scalars[*a], scalars[*b]) {
             (Scalar::Value(x), Scalar::Value(y)) => {
                 let by = x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal);
@@ -644,6 +757,18 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
         not_built: vec!["--explain", "--context"],
     });
     let left_out = total.matched - rows.len();
+    let view = match &view {
+        BoundView::Rows { .. } => ViewOut::Rows(RowsOut {
+            limit,
+            returned: rows.len(),
+            left_out,
+            left_out_needs: (left_out > 0).then_some("--next"),
+            sort: sort.map(|(text, _)| text.clone()),
+            desc,
+        }),
+        BoundView::Counts(bound) => ViewOut::Counts(counts::tables(bound, &counted)),
+        BoundView::Cross(bound) => ViewOut::Cross(counts::crossed(bound, &counted)),
+    };
     Ok(Answer {
         query: QueryOut {
             text: query.text(),
@@ -665,16 +790,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
         basis: corpus.basis.clone(),
         terms,
         total,
-        view: ViewOut {
-            rows: RowsOut {
-                limit,
-                returned: rows.len(),
-                left_out,
-                left_out_needs: (left_out > 0).then_some("--next"),
-                sort: sort.map(|(text, _)| text),
-                desc: request.view.rows.desc,
-            },
-        },
+        view,
         rows,
         zero,
     })
@@ -698,6 +814,65 @@ fn label(held: &Held) -> Option<String> {
 }
 
 // ---- routes ------------------------------------------------------------------------------------------
+
+/// The one maker of a route (invariant 4): a request over the answer's
+/// scope, labelled with the basis it was counted at.
+pub(crate) struct Router<'a> {
+    corpus: &'a Corpus,
+    scope: Scope,
+    /// The query answered: what a bucket's route is a request under.
+    root: &'a Node,
+}
+
+impl Router<'_> {
+    fn route(&self, node: &Node, realm: Option<&str>) -> Route {
+        let mut scope = self.scope.clone();
+        if let Some(realm) = realm {
+            scope.realm = Some(Realm::One(realm.to_string()));
+        }
+        Route {
+            counted_at: self.corpus.basis.clone(),
+            denominator: "scope",
+            request: Request {
+                scope,
+                query: QueryInput {
+                    text: Some(print::print(node)),
+                    tree: None,
+                },
+                view: View::default(),
+            },
+        }
+    }
+
+    /// A count over the scope, with its route when it is not zero.
+    pub(crate) fn count(&self, n: usize, node: Option<&Node>) -> Count {
+        Count {
+            count: n,
+            route: node.filter(|_| n > 0).map(|node| self.route(node, None)),
+        }
+    }
+
+    /// A count of the answer's matches: its route is the query and the
+    /// terms that select it — the old query, parenthesised, and new terms
+    /// (C91) — never a fragment, and under one realm where a vocabulary row
+    /// is one realm's (C97).
+    pub(crate) fn under(&self, n: usize, terms: Vec<Node>, realm: Option<&str>) -> Count {
+        let mut all = match self.root {
+            Node::All(children) if children.is_empty() => Vec::new(),
+            root => vec![root.clone()],
+        };
+        all.extend(terms);
+        let node = if all.len() == 1 {
+            all.remove(0)
+        } else {
+            Node::All(all)
+        };
+        Count {
+            count: n,
+            route: (n > 0).then(|| self.route(&node, realm)),
+        }
+    }
+}
 
 struct Routes {
     failed: Option<Node>,

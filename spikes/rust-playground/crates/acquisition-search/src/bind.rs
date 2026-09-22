@@ -63,21 +63,6 @@ pub struct NotBuilt {
 /// that builds its construct.
 pub const NOT_BUILT: &[NotBuilt] = &[
     NotBuilt {
-        construct: "--count",
-        step: 5,
-        what: "counts by one or more keys, one table each",
-    },
-    NotBuilt {
-        construct: "--cross",
-        step: 5,
-        what: "one crossed table of two keys",
-    },
-    NotBuilt {
-        construct: "--sum",
-        step: 5,
-        what: "one summed value beside a count",
-    },
-    NotBuilt {
         construct: "class:",
         step: 6,
         what: "an item's class is not a field; a class the search names is a derivation it owns, and an item it cannot class is shown unclassed (S53)",
@@ -540,8 +525,136 @@ pub fn bind(root: &Node) -> Result<Query, LanguageError> {
     })
 }
 
+// ---- what a count groups by ---------------------------------------------------------------
+
+/// A key of the counts view (C95, C105): a field an item has or lacks, or
+/// `line`, the vocabulary read (C97), narrowed by a text or a pattern.
+pub(crate) enum Key {
+    Field(&'static FieldDef),
+    Line(Option<(Op, String)>),
+}
+
+/// Bind one key, as a request names it: a field's name, `line`,
+/// `line:<text>` or `line~<pattern>` — the rest of the string is the text,
+/// as it stands. A field is a key when `has:` can be asked of it, since
+/// `-has:<key>` is where its `none` bucket routes: every field but `text`
+/// and `id`. What a later step builds is refused by that step's name.
+pub(crate) fn bind_key(text: &str) -> Result<Key, LanguageError> {
+    let narrowed = text
+        .char_indices()
+        .find(|(_, c)| matches!(c, ':' | '~'))
+        .map(|(at, c)| (&text[..at], c, &text[at + 1..]));
+    if let Some((name, op, rest)) = narrowed {
+        if !name.eq_ignore_ascii_case("line") {
+            return Err(LanguageError::new(
+                ErrorKind::View,
+                format!("`{name}` is counted whole: only `line` takes a text to narrow by"),
+            )
+            .with_readings(vec![name.to_string()]));
+        }
+        if rest.is_empty() {
+            return Err(LanguageError::new(
+                ErrorKind::View,
+                "`line:` takes a text to narrow by; `line` alone is every template",
+            ));
+        }
+        let op = if op == ':' { Op::Contains } else { Op::Match };
+        return Ok(Key::Line(Some((op, rest.to_string()))));
+    }
+    if text.eq_ignore_ascii_case("line") {
+        return Ok(Key::Line(None));
+    }
+    let known = || -> Vec<&'static str> {
+        FIELDS
+            .iter()
+            .filter(|f| !matches!(f.thing, Thing::Text | Thing::Id))
+            .map(|f| f.name)
+            .chain(["line"])
+            .collect()
+    };
+    if let Some(construct) = unbuilt_field(text) {
+        return Err(not_built(construct));
+    }
+    match field(text) {
+        Some(def) if !matches!(def.thing, Thing::Text | Thing::Id) => Ok(Key::Field(def)),
+        Some(def) => Err(LanguageError::new(
+            ErrorKind::View,
+            format!(
+                "`{}` is no key: every item has it, and no two share a value worth a table — {}",
+                def.name,
+                known().join(", ")
+            ),
+        )),
+        None => Err(unknown("key", text, &known(), |near| near.to_string())),
+    }
+}
+
+/// What two texts share exactly when any-case `=` holds between them: each
+/// character replaced by the least of those the matcher takes for it. Read
+/// from the matcher's own tables (`regex-syntax`, which `regex` compiles
+/// with), never from `to_lowercase`, which is another relation — it keeps
+/// `ſ` from `s` where the matcher does not. A count tells two spellings of
+/// one value apart by it, so that a bucket's term selects that bucket and
+/// no other (invariant 4 of the surface).
+pub(crate) fn folded(text: &str) -> String {
+    use regex_syntax::hir::{ClassUnicode, ClassUnicodeRange};
+    text.chars()
+        .map(|c| {
+            if c.is_ascii() {
+                // an ASCII letter's capital is the least of its class
+                return c.to_ascii_uppercase();
+            }
+            let mut class = ClassUnicode::new([ClassUnicodeRange::new(c, c)]);
+            match class.try_case_fold_simple() {
+                Ok(()) => class.ranges().first().map_or(c, |r| r.start()),
+                Err(_) => c,
+            }
+        })
+        .collect()
+}
+
+/// The pattern that selects one spelling of a text and no other: `~` with
+/// case turned back on, anchored at both ends (the reference, *Members*:
+/// `template~"(?-i)^Gain # Life per enemy killed$"`). Escaped are the
+/// characters a pattern reads as syntax where a text stands, and no more —
+/// a template's `#` and `%` are themselves there — so that the term reads
+/// as the reference writes it.
+pub(crate) fn exact_pattern(text: &str) -> String {
+    let mut out = String::from("(?-i)^");
+    for c in text.chars() {
+        if r"\.+*?()|[]{}^$".contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out.push('$');
+    out
+}
+
 /// Bind what `--sort` takes.
 pub(crate) fn bind_sort(value: &ValueRef) -> Result<SortKey, LanguageError> {
+    bind_value("--sort", value)
+}
+
+/// Bind what `--sum` takes (C95): one number of an item, added over a
+/// bucket's items. A field, or the item's own `sum( … )`; never
+/// `line(P).<slot>`, which is one occurrence's and says nothing of which —
+/// the item's sum of it is offered instead.
+pub(crate) fn bind_sum(value: &ValueRef) -> Result<SortKey, LanguageError> {
+    if let ValueRef::Projection { lines, slot } = value {
+        return Err(LanguageError::new(
+            ErrorKind::View,
+            "`--sum` adds one number for each item, and a line's slot is one occurrence's: the item's sum of it is",
+        )
+        .with_readings(vec![print::print_value(&ValueRef::Sum {
+            lines: lines.clone(),
+            slot: slot.clone(),
+        })]));
+    }
+    bind_value("--sum", value)
+}
+
+fn bind_value(flag: &str, value: &ValueRef) -> Result<SortKey, LanguageError> {
     match value {
         ValueRef::Pseudo { .. } => Err(not_built("pseudo.*")),
         ValueRef::Field(name) => {
@@ -551,7 +664,7 @@ pub(crate) fn bind_sort(value: &ValueRef) -> Result<SortKey, LanguageError> {
                 _ => Err(LanguageError::new(
                     ErrorKind::OperatorMismatch,
                     format!(
-                        "`--sort` takes a number: `{}` is not one — ilvl, stack, a line's slot or a sum",
+                        "`{flag}` takes a number: `{}` is not one — ilvl, stack, a line's slot or a sum",
                         def.name
                     ),
                 )),
@@ -891,4 +1004,71 @@ fn closed_set_readings(mut e: LanguageError, text: &str) -> LanguageError {
     first.append(&mut e.readings);
     e.readings = first;
     e
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{exact_pattern, folded, text_test};
+    use crate::tree::{Op, Value};
+    use proptest::prelude::*;
+
+    /// Characters by the family a case-blind reader might put them in —
+    /// the Kelvin sign with `k`, the long s with `s`, the final sigma, the
+    /// dotted and dotless i, a title-case digraph: where the matcher and
+    /// `to_lowercase` disagree — and everything a pattern reads as syntax.
+    const FAMILIES: &[&[char]] = &[
+        &['a', 'A'],
+        &['k', 'K', '\u{212A}'],
+        &['s', 'S', 'ſ'],
+        &['σ', 'ς', 'Σ'],
+        &['ß', 'ẞ'],
+        &['İ', 'i', 'I', 'ı'],
+        &['é', 'É'],
+        &['ǆ', 'ǅ', 'Ǆ'],
+        &['#', '%', ' ', '\n', '"', '-', '&', '~'],
+        &[
+            '.', '(', ')', '[', ']', '\\', '^', '$', '|', '+', '*', '?', '{', '}',
+        ],
+    ];
+
+    /// Two texts of one length whose characters are of one family at each
+    /// place, so that a pair sharing a fold — and a pair a wrong fold would
+    /// wrongly join or part — is met often, never once in thousands. (The
+    /// first generator drew both from one pool at random, and the fold
+    /// swapped for `to_lowercase` survived 4,000 cases of it.)
+    fn pair() -> impl Strategy<Value = (String, String)> {
+        proptest::collection::vec((0..FAMILIES.len(), any::<usize>(), any::<usize>()), 0..4)
+            .prop_map(|places| {
+                let pick = |at: usize, n: usize| FAMILIES[at][n % FAMILIES[at].len()];
+                (
+                    places.iter().map(|(at, a, _)| pick(*at, *a)).collect(),
+                    places.iter().map(|(at, _, b)| pick(*at, *b)).collect(),
+                )
+            })
+    }
+
+    fn holds(op: Op, pattern: String, text: &str) -> bool {
+        text_test("name", op, &Value::Text(pattern))
+            .unwrap()
+            .holds(text)
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 4000, failure_persistence: None, ..ProptestConfig::default() })]
+
+        /// A count tells two spellings apart by `folded`, and routes a
+        /// bucket by any-case `=`: the two must be one relation, or a
+        /// bucket's term returns what another bucket counted.
+        #[test]
+        fn two_texts_share_a_fold_exactly_when_any_case_equals_holds((a, b) in pair()) {
+            prop_assert_eq!(folded(&a) == folded(&b), holds(Op::Eq, a.clone(), &b), "{:?} {:?}", a, b);
+        }
+
+        /// The pattern a spelling's term carries selects that spelling and
+        /// no other, whatever a pattern would make of its characters.
+        #[test]
+        fn an_exact_pattern_selects_its_text_alone((a, b) in pair()) {
+            prop_assert_eq!(holds(Op::Match, exact_pattern(&a), &b), a == b, "{:?} {:?}", a, b);
+        }
+    }
 }

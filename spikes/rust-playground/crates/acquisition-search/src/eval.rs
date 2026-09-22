@@ -212,7 +212,7 @@ pub(crate) fn texts(held: &Held, thing: Thing) -> Vec<&str> {
     }
 }
 
-fn number(held: &Held, thing: Thing) -> Option<f64> {
+pub(crate) fn number(held: &Held, thing: Thing) -> Option<f64> {
     match thing {
         Thing::Ilvl => held.item.ilvl.map(|n| n as f64),
         Thing::Stack => held.item.stack.map(|n| n as f64),
@@ -716,6 +716,19 @@ fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<&'a Unread> {
         },
         Atom::Id(_) | Atom::Const(_) | Atom::Undecided(BProbe::Term(_)) => Vec::new(),
     }
+}
+
+/// What left a term open on an item, by what was unread: the kinds the
+/// counts view tallies beneath an `undecided` bucket (C105). The reasons
+/// themselves stay on the item.
+pub(crate) fn unread_kinds(atom: &Atom, held: &Held) -> Vec<String> {
+    let mut kinds: Vec<String> = unread_of(atom, held)
+        .into_iter()
+        .map(|unread| reason(unread).unread)
+        .collect();
+    kinds.sort();
+    kinds.dedup();
+    kinds
 }
 
 fn reason(unread: &Unread) -> Reason {

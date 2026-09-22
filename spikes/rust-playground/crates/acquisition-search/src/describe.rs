@@ -1,12 +1,13 @@
 //! `--describe` (C97: the closed lists are printed in the help): the
 //! language as this build knows it — fields, what a line has, what has a
 //! value, how terms compose, operators, closed value sets, slots, computed
-//! values, what is not built, and the limits it states (C102). An entry is
-//! a name, a line and an example: the reference is `search/DESIGN.md`, and
-//! this is what a terminal can ask of it. Every example printed is a query
-//! this build binds (`tests/fifth_audit.rs`), and every word an entry is
-//! named by can be asked for alone. Printed from the binder's own tables, so the
-//! help cannot say a name the binder refuses.
+//! values, what a count takes, what is not built, and the limits it states
+//! (C102). An entry is a name, a line and an example: the reference is
+//! `search/DESIGN.md`, and this is what a terminal can ask of it. Every
+//! example printed is a query this build binds, or a key a count takes
+//! (`tests/fifth_audit.rs`, `tests/counts.rs`), and every word an entry is
+//! named by can be asked for alone. Printed from the binder's own tables,
+//! so the help cannot say a name the binder refuses.
 
 use serde::Serialize;
 
@@ -26,6 +27,8 @@ pub struct Describe {
     pub slots: Vec<Named>,
     /// `pseudo.<name>`: none is built yet.
     pub computed: Vec<Named>,
+    /// What `--count`, `--cross` and `--sum` take (C95, C97).
+    pub counts: Vec<Named>,
     pub not_built: Vec<NotBuilt>,
     pub limits: Vec<Limit>,
 }
@@ -263,6 +266,47 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             "on a ranged line — a template with exactly one `# to #`: that pair, and their mean",
         ),
     ];
+    let keys: Vec<&'static str> = FIELDS
+        .iter()
+        .filter(|f| !matches!(f.name, "text" | "id"))
+        .map(|f| f.name)
+        .chain(["line"])
+        .collect();
+    let counts = vec![
+        Named {
+            values: keys,
+            examples: vec!["tab,league,rarity", "base", "line", "line:resist,life"],
+            ..named(
+                "--count",
+                "view",
+                "the matches counted by each key, one table each, no rows: a field an item has or lacks — under `none` with none, `undecided` where it could not be read — or `line`, the vocabulary (every count has its route)",
+            )
+        },
+        Named {
+            examples: vec!["line:resist,life", "line~^adds", "line:life,~^adds"],
+            ..named(
+                "line:",
+                "view",
+                "the vocabulary narrowed: the templates the matching items carry whose text holds the words, ranked, with the term that selects each, its numbers' range, and its sources and flags; `line~` a pattern; the rest of the list is texts, one table each",
+            )
+        },
+        Named {
+            examples: vec!["league,tab", "rarity,base"],
+            ..named(
+                "--cross",
+                "view",
+                "one table of two fields: the cells that hold an item, each routed under both",
+            )
+        },
+        Named {
+            examples: vec!["stack", "ilvl", "sum(\"# to maximum Life\")"],
+            ..named(
+                "--sum",
+                "value",
+                "beside each count, one number of each item added: an item lacking it adds nothing and is counted as lacking; one unread leaves a subtotal marked incomplete, never a total",
+            )
+        },
+    ];
     let mut out = Describe {
         fields,
         line,
@@ -271,6 +315,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
         operators,
         slots,
         computed: Vec::new(),
+        counts,
         not_built: NOT_BUILT.to_vec(),
         limits: LIMITS.to_vec(),
     };
@@ -281,18 +326,21 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     // word of it, the positional slots to any `arg<N>`, a block to its own
     let answers = |entry: &str, asked: &str| {
         entry.eq_ignore_ascii_case(asked)
+            // a flag answers to its word: `count` is `--count`
+            || entry.trim_start_matches('-').eq_ignore_ascii_case(asked)
             || entry
                 .split_whitespace()
                 .any(|word| word != "…" && word.eq_ignore_ascii_case(asked))
             || (entry.starts_with("arg1") && crate::tree::arg_index(asked).is_some())
     };
-    const BLOCKS: [&str; 6] = [
+    const BLOCKS: [&str; 7] = [
         "fields",
         "line",
         "values",
         "composition",
         "operators",
         "slots",
+        "counts",
     ];
     let entries = |d: &Describe| -> Vec<String> {
         [
@@ -302,6 +350,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             &d.composition,
             &d.operators,
             &d.slots,
+            &d.counts,
         ]
         .into_iter()
         .flatten()
@@ -350,6 +399,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     // a line's numbers are named by its slots
     out.slots
         .retain(|n| wants("slots", &n.name) || wants("line", &n.name));
+    out.counts.retain(|n| wants("counts", &n.name));
     out.not_built.clear();
     out.limits.clear();
     Ok(out)

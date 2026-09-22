@@ -301,6 +301,99 @@ fn rule_5_every_command_printed_runs_with_a_second_account_known() {
     assert!(ran > 8, "{ran} commands ran");
 }
 
+/// The counts view at a terminal (step 5): `--count` spelled as the
+/// reference's synopsis spells it, `line:` taking the rest of the list; the
+/// JSON is the crate's view whole; and every route the text prints — a
+/// pattern that turns case back on, a name with an apostrophe, a not after
+/// `--` — runs through a shell and returns exactly the members counted.
+#[test]
+fn step_5_a_count_at_a_terminal_and_every_route_it_prints_returns_what_it_counted() {
+    let base = base();
+    seed(&base);
+    // the tab never fetched, fetched: a fire line GGG spelled two ways
+    let mut store = Store::open(&account_path(&base.join("mock"), USER)).unwrap();
+    let ring = |id: &str, line: &str| {
+        json!({ "id": id, "name": "", "typeLine": "Ruby Ring", "baseType": "Ruby Ring", "rarity": "Magic",
+                "frameTypeId": "Magic", "identified": true, "ilvl": 70, "x": 0, "y": 0, "explicitMods": [line] })
+    };
+    store
+        .record(
+            &Endpoint::Stash {
+                realm: "pc".into(),
+                league: "Standard".into(),
+                id: "t3".into(),
+                sub: None,
+            },
+            &json!({ "realm": "pc", "league": "Standard" }),
+            200,
+            &json!({ "stash": { "id": "t3", "name": "Never", "type": "PremiumStash", "items": [
+                ring("f1", "+10% to Fire Resistance"), ring("f2", "+12% to fire Resistance") ] } }),
+            40,
+        )
+        .unwrap();
+    drop(store);
+
+    let count = "tab,name,line:life,~\"resist|^adds\"";
+    let answer = sole_json(&acq(
+        &base,
+        &["--json", "search", "--count", count, "--sum", "ilvl"],
+    ));
+    let counts = &answer["view"]["counts"];
+    let keys: Vec<&str> = counts["tables"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["key"].as_str().unwrap())
+        .collect();
+    assert_eq!(keys, ["tab", "name", "line:life", "line~resist|^adds"]);
+    assert_eq!(answer["rows"], json!([]));
+    // seven items at ilvl 84 and 70: 5 × 84 + 2 × 70
+    assert_eq!(counts["sum"]["value"], 560);
+
+    let shown = text(&acq(
+        &base,
+        &["search", "--count", count, "--sum", "ilvl", "--routes"],
+    ));
+    assert!(shown.contains("count   tab · 3 values"), "{shown}");
+    assert!(
+        shown.contains("sum     ilvl over every match: 560"),
+        "{shown}"
+    );
+    // each route's heading says what it counted; the line after it is the
+    // command, which must return that many
+    let lines: Vec<&str> = shown.lines().collect();
+    let mut ran = 0;
+    for pair in lines.windows(2) {
+        let Some(counted) = pair[0]
+            .strip_suffix("), over the scope:")
+            .and_then(|head| head.rsplit_once('('))
+            .and_then(|(_, n)| n.parse::<u64>().ok())
+        else {
+            continue;
+        };
+        let command = pair[1].trim();
+        let out = run_printed(&base, command);
+        assert!(out.status.success(), "`{command}` does not run");
+        assert_eq!(
+            sole_json(&out)["total"]["matched"],
+            counted,
+            "`{command}` under `{}`",
+            pair[0]
+        );
+        ran += 1;
+    }
+    assert!(ran >= 12, "{ran} routes ran:\n{shown}");
+    for printed in ["'name=\"Kaom'\\''s Heart\"'", "(?-i)^", "-- -has:name"] {
+        assert!(shown.contains(printed), "`{printed}` in:\n{shown}");
+    }
+
+    let crossed = text(&acq(&base, &["search", "--cross", "tab,rarity"]));
+    assert!(
+        crossed.contains("cross   tab × rarity · 4 cells"),
+        "{crossed}"
+    );
+}
+
 const LIFE: &str = r##""+# to maximum Life">=90"##;
 
 #[test]
@@ -430,8 +523,16 @@ fn c11_a_failure_is_structured_and_a_later_steps_flag_is_refused_by_name() {
     for (args, kind) in [
         (vec!["search", "rare"], "bare_word"),
         (vec!["search", "class:ring"], "not_built"),
-        (vec!["search", "--count", "tab"], "not_built"),
+        (vec!["search", "--fields", "name"], "not_built"),
         (vec!["search", "--view", "locations"], "not_built"),
+        (vec!["search", "--count", "rarty"], "unknown_name"),
+        (vec!["search", "--count", "class"], "not_built"),
+        (vec!["search", "--sum", "stack"], "view"),
+        (vec!["search", "--count", "tab", "--sort", "ilvl"], "view"),
+        (
+            vec!["search", "--count", "tab", "--cross", "tab,league"],
+            "view",
+        ),
         (vec!["search", "--realm", "ps4"], "realm_unknown"),
         (vec!["search", "--sort", "name"], "operator_mismatch"),
         (vec!["search", "--describe", "clas"], "unknown_name"),
@@ -457,12 +558,12 @@ fn c11_a_failure_is_structured_and_a_later_steps_flag_is_refused_by_name() {
         bare["readings"],
         json!(["rarity=rare", "\"rare\"", "line(template:rare)"])
     );
-    let refused = sole_json(&acq(&base, &["--json", "search", "--count", "tab"]));
+    let refused = sole_json(&acq(&base, &["--json", "search", "--fields", "name"]));
     assert!(
         refused["error"]
             .as_str()
             .unwrap()
-            .starts_with("not built: --count (step 5)")
+            .starts_with("not built: --fields (step 10)")
     );
 }
 

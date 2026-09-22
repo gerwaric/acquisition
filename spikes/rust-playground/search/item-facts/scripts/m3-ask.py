@@ -34,6 +34,13 @@ ASKS = [
     ("M4 a phrase", ['"explode"']),
     ("M4 ~ over all displayed text", ['text~"explo(de|sion)s?"']),
     ("M4 ~ anchored, a class", ['text~"^adds [0-9]+ to [0-9]+"']),
+    # step 5: the seat's counts, the crossed table, the sum, the vocabulary
+    ("AQ1 --count tab,league,rarity", ["", "--count", "tab,league,rarity"]),
+    ("OQ7 --count tab", [LIFE, "--count", "tab"]),
+    ("--cross league,tab", ["rarity=unique", "--cross", "league,tab"]),
+    ("--count base --sum stack", ["frame=currency", "--count", "base", "--sum", "stack"]),
+    ("the vocabulary, twice narrowed", ["rarity=rare base:ring", "--count", "line:resist,life"]),
+    ("the vocabulary whole", ["", "--count", "line"]),
 ]
 
 def main():
