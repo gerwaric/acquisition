@@ -1,15 +1,23 @@
 # Item search — the build plan (stage 6)
 
-Status: draft for the owner's edit — 2026-09-19. Nothing is built until
-he has edited it. It is a brief: deleted at the slice's close and cited
-by hash, when the closed record (`SEARCH-SLICE.md`, in
-`PRICING-SLICE.md`'s mold) takes what survived.
+The brief for the build, read whole before any search step. What each
+step met — the audits and their fixes, the measurements, the holes ruled
+and the builder's observations — is `SEARCH-SLICE.md`, the record, read
+by section when a step needs its checklist or a number; which steps are
+built is the record's ledger, never this file. What this file held
+before the record was opened — every audit round, the step 4b brief, the
+first showing of the store's read — is this file at `2d25cb03`.
+
+Ruling (owner, 2026-09-21): SEARCH-SLICE.md is opened now, at step 5, in
+PRICING-SLICE.md's mold, rather than at the slice's close as
+search/BUILD-PLAN.md says. The plan stays the brief.
 
 Authorities, not restated here: `decisions/search.md` (C89–C107),
 `search/DESIGN.md` (the language reference and the contract detail),
 `search/DIGEST.md` (the acceptance set, the limits register), note 23
 (row 6, decision 15). Under decision 15 everything after the first seat
-is provisional, this plan's later steps included.
+is provisional, this plan's later steps included. This file is deleted
+at the slice's close and cited by hash.
 
 ## How a partial build stays honest
 
