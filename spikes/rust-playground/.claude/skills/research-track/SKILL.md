@@ -22,7 +22,9 @@ repeated two traps, so it is a skill (P6).
    left out and the one cut it would most want reversed — the reviewer
    restores from that line, never from the transcript (the digest run,
    2026-09-16: every restore came from it). The README already holds
-   the question; the brief holds only the procedure.
+   the question; the brief holds only the procedure — and says the
+   README is written last, from the script outputs, its headline block
+   last of all, with per-item detail in `data/`.
 2. Commit the brief before the run, so any session — or Codex — can
    run it.
 3. Launch one general-purpose subagent per track with a prompt that
@@ -52,3 +54,12 @@ repeated two traps, so it is a skill (P6).
   example, a sibling clone) yields open questions, not a stalled run:
   say in the brief that it may be absent.
 - `timeout` is not on macOS; a stdio smoke test is driven from Python.
+- A byte budget in a runner's prompt is filled to the byte, by every
+  model, and the cuts vanish into the runner's report: give a guide,
+  hold the reviewer to the whole, and put every budget cut on the kill
+  list by finding id (both pilot runners, 2026-09-16).
+- A runner's committed output runs two to three times any guide (note
+  25 at 38.8 KB against 16; the stage-5 check at 29 KB under a brief
+  that set none): a file past about 40 KB is read by section — `grep -n
+  '^##'`, then `sed -n` by line range — never whole, and a brief gives
+  a guide even for a check.

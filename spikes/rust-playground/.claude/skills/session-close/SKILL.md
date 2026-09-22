@@ -64,4 +64,6 @@ a "Parked" list are deleted, not kept; a park whose trigger fired goes with them
 
 One commit per concern. The message carries the narrative — what
 changed, what the review found, what the run showed — because that is
-where the next session will read it (`git log`, the slice's range).
+where the next session will read it (`git log`, the slice's range). A
+size stated in the message is measured with `wc -c` after the last
+edit, never recalled (four amended messages, 2026-09-16).

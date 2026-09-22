@@ -48,18 +48,13 @@ deleting one; nothing else encodes it. (Set 2026-09-12.)
    in a `Review` table at the bottom of the track README, split out only
    when the table outgrows a screen.
 
-## Traps (every track; add one when it bites twice)
+## Traps (the data and the tools; add one when it bites twice — a
+procedure's traps live with its skill)
 
 - A `cd` inside a compound shell command moves the working directory for every later call in the turn, and parallel calls then fail on relative paths: use absolute paths under `search/`.
 - Minified bundles defeat grep's regex limits; slice them with a short Python script.
 - Generated extracts are strict JSON (a header comment broke loaders) and CSV written with `lineterminator="\n"` (the default is CRLF and every regeneration diffs); a scrub guard asserts on value patterns such as `"account": {`, never on bare key names.
-- Write a track README last, from the script outputs, and its headline block last of all; the budget gets tight on a rich track, so per-item detail goes to `data/`.
 - engine-bench: a throwaway Rust crate is never a workspace member, or the quality gate builds and lints it; copy the facts database with sqlite's `.backup`, never `cp`, because it is under WAL.
-- agent-seat is written after item-facts, repoe and owner-seat, so its example queries use real field names and are checked against a human's questions.
-- A track run as a subagent (the research-track skill) never touches this index; the reviewer sets its row. And `git add search` while another subagent is still writing sweeps its files into the commit — add the track's directory, never the parent.
-- A byte budget in a runner's prompt is filled to the byte, by every model, and the cuts vanish into the runner's report: give a guide, hold the reviewer to the whole, and put every budget cut on the kill list by finding id (both pilot runners, 2026-09-16).
-- A commit message that states a file's size states it from memory: measure with `wc -c` after the last edit, before writing the message (four amended messages, 2026-09-16).
-- Astra's committed output runs two to three times any guide (note 25 at 38.8 KB against 16; the stage-5 check at 29 KB under a brief that set none): a file past about 40 KB is read by section — `grep -n '^##'`, then `sed -n` by line range — never whole, and a brief gives a guide even for a check.
 - Files from the game and from Path of Building end lines with CRLF — the `Mod*.lua` tables, the clipboard text in a `fetch`'s `extended.text`: strip `\r` before matching a line end (bit the mod-table parser and the `Item Class:` check in one session); `mod-templates.csv` carries a bare CR inside 260 templates, so open the census files with `newline="\n"` or every line number past the first is off (pseudo-stats, 2026-09-18).
 
 At the close this directory is expected to shrink into `SEARCH-SLICE.md`,
