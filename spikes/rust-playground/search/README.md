@@ -62,8 +62,9 @@ deleting one; nothing else encodes it. (Set 2026-09-12.)
 - Astra's committed output runs two to three times any guide (note 25 at 38.8 KB against 16; the stage-5 check at 29 KB under a brief that set none): a file past about 40 KB is read by section — `grep -n '^##'`, then `sed -n` by line range — never whole, and a brief gives a guide even for a check.
 - Files from the game and from Path of Building end lines with CRLF — the `Mod*.lua` tables, the clipboard text in a `fetch`'s `extended.text`: strip `\r` before matching a line end (bit the mod-table parser and the `Item Class:` check in one session); `mod-templates.csv` carries a bare CR inside 260 templates, so open the census files with `newline="\n"` or every line number past the first is off (pseudo-stats, 2026-09-18).
 
-At the close this directory is expected to shrink to a closed record in
-the mold of `PRICING-SLICE.md`, with the full text cited at a commit.
+At the close this directory is expected to shrink into `SEARCH-SLICE.md`,
+the slice's record in the mold of `PRICING-SLICE.md`, with the full text
+cited at a commit.
 
 ## Tracks
 
@@ -106,7 +107,7 @@ the two blind proposals it produced are
 `548ecc4f`)
 (`brainstorming-notes/26-search-review-by-fable.md`,
 `brainstorming-notes/27-search-review-by-astra.md`), and the reconciliation,
-`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the model page, the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17; its contract detail is `DESIGN.md`, which opens with the language reference — the surface on one page, an example per construct (the stage-5 audit's finding 5, harvested 2026-09-19). `search-forms/` is the design dialogue that chose that surface, history: files 10 and 11 are what was harvested, and the owner's words are whole in file 11. Stage 6 is the build, under `BUILD-PLAN.md`: a brief the owner edits before it runs, deleted at the close.
+`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the model page, the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17; its contract detail is `DESIGN.md`, which opens with the language reference — the surface on one page, an example per construct (the stage-5 audit's finding 5, harvested 2026-09-19). `search-forms/` is the design dialogue that chose that surface, history: files 10 and 11 are what was harvested, and the owner's words are whole in file 11. Stage 6 is the build, under `BUILD-PLAN.md`: a brief the owner edits before it runs, deleted at the close; its record is `SEARCH-SLICE.md`, opened at step 5 (the plan's header).
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search
