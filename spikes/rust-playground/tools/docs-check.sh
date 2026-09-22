@@ -9,7 +9,10 @@
 #      narrative landed where a ruling belongs (AGENTS.md, "Routing").
 #      Moving text to its home is compliance, not gaming. Past 90% the
 #      check says so without failing, so routing happens at a session
-#      close and never as a side quest in the middle of a slice.
+#      close and never as a side quest in the middle of a slice. The
+#      search build plan is budgeted too: not always loaded, but read
+#      whole by every session on the slice, and its record grew to 74 KB
+#      inside it before `SEARCH-SLICE.md` was opened.
 #   2. The decision registry: one bullet per decision under a length
 #      limit, a capped count of always-loaded ones, every cited id real,
 #      the uncited ones reported.
@@ -61,6 +64,7 @@ budget AGENTS.md        8000
 budget CONTEXT.md      20000
 budget README.md       15000
 budget LIVE-TESTING.md 15000
+budget search/BUILD-PLAN.md 28000  # the brief; its history is SEARCH-SLICE.md
 # RUN-LEDGER.md has no budget: one row per live run, append-only by
 # construction, read by its tail. Its rows cite decision ids (scanned
 # below) but are history, so the stale-identifier scan skips it.
@@ -101,7 +105,7 @@ done <"$reg"
 ids=$(grep -oE '^- \*\*C[0-9]+' "$reg" | sed 's/^- \*\*//' | sort -u)
 count=$(printf '%s\n' "$ids" | grep -c .)
 if ((over > 0)); then fail=1; else printf 'ok      %-18s %5d decisions, every entry within %d bytes\n' registry "$count" "$ENTRY_LIMIT"; fi
-cited=$(grep -rhoE '\bC[0-9]+\b' crates tools README.md search/DIGEST.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md SURFACES.md REFRESH-SLICE.md PRICING-SLICE.md DAEMON-SPLIT-SLICE.md NETWORK-CLEANUP.md AGENTS.md .claude 2>/dev/null \
+cited=$(grep -rhoE '\bC[0-9]+\b' crates tools README.md search/DIGEST.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md SURFACES.md REFRESH-SLICE.md PRICING-SLICE.md SEARCH-SLICE.md DAEMON-SPLIT-SLICE.md NETWORK-CLEANUP.md AGENTS.md .claude 2>/dev/null \
   --include='*.rs' --include='*.sh' --include='*.py' --include='*.md' | sort -u)
 unknown=$(comm -13 <(printf '%s\n' "$ids") <(printf '%s\n' "$cited") | grep . || true)
 if [[ -n $unknown ]]; then
@@ -450,7 +454,7 @@ fi
 # never a judgment call. The notes are not scanned for citations of each
 # other — a note cannot keep another alive.
 notes=$(ls brainstorming-notes/*.md 2>/dev/null | sed -E 's#.*/([0-9]+)-.*#\1#' | sort -u)
-note_cites=$(grep -rhoE 'brainstorming-notes[/ ][0-9]+' crates tools README.md CONTEXT.md AGENTS.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md SURFACES.md REFRESH-SLICE.md PRICING-SLICE.md DAEMON-SPLIT-SLICE.md NETWORK-CLEANUP.md decisions search .claude 2>/dev/null \
+note_cites=$(grep -rhoE 'brainstorming-notes[/ ][0-9]+' crates tools README.md CONTEXT.md AGENTS.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md SURFACES.md REFRESH-SLICE.md PRICING-SLICE.md SEARCH-SLICE.md DAEMON-SPLIT-SLICE.md NETWORK-CLEANUP.md decisions search .claude 2>/dev/null \
   --include='*.rs' --include='*.sh' --include='*.py' --include='*.md' | sed -E 's#.*[/ ]##' | sort -u)
 gone=$(comm -13 <(printf '%s\n' "$notes") <(printf '%s\n' "$note_cites") | grep . || true)
 if [[ -n $gone ]]; then
@@ -470,7 +474,7 @@ fi
 # module, and read from there. Four outside audits of the first surface
 # found one fault five times: a meaning read again off the syntax by the
 # function that needed it next, which parentheses then changed (invariant 7
-# of the surface; `search/BUILD-PLAN.md`, "Step 4b"). P5: a rule that can
+# of the surface; `SEARCH-SLICE.md`, the findings of step 4b). P5: a rule that can
 # be broken silently becomes structure. So no source file of any crate
 # names a group's tree, authored (`Member`) or bound (`BMember`), but the
 # modules that build, print and validate it, and that one — names, and not
