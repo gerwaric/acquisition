@@ -592,57 +592,24 @@ reference; the evidence is here.
 ## Observations still open
 
 The builder's observations that became neither a ruling nor a finding;
-each is data for the step or the seat that touches it.
+each is data for the step or the seat that touches it. What described a
+mechanism the crate's module docs carry, and what a later fix made
+history, was taken out on a read against those docs (the commit that
+did so lists them); what stays is measurements of the owner's copy,
+timings, coverage no fixture reaches, and questions for the seat.
 
 **Step 1 — the builder's.**
 
-- Parentheses are spelling for nesting and nothing else: `(a) b` is
-  `a b`, and a JSON tree holding a group of one is refused ("a group of
-  one is its member"); only the root may be empty, the empty query.
-- Canonical spellings the reference leaves open: and is whitespace, not
-  is `-`; `text:x` prints as the phrase `"x"`; a pattern is always
-  quoted; `sum("T")` prints lowered, `sum(line("T").arg1)`; a `holds`
-  bound is `>=n`, `<=n`, `=n` or `=a..b` (`>1` is `>=2`); `90.0` is `90`.
-- A quoted template means `template=` anywhere in a line's group, not
-  only leading, and prints as the bare `"T"` where it sits (never
-  reordered). Two in one and-group is valid and matches nothing.
-- The slot checks run when a group selects exactly one quoted template
-  at its own level; a template inside an or, under a not, or selected by
-  `:` or `~` states no numbers, and its slots are the evaluator's.
-- Not checked here: that a `~` pattern compiles (no regex dependency
-  yet — the binder's, step 4); that a field, flag, class or computed
-  value exists (the binder's). A bare word's readings are the two the
-  grammar knows, `"word"` and `line(template:word)`; the closed-set
-  readings (`rarity=rare`) arrive with the binder's vocabulary.
+- Two quoted templates in one and-group is valid and matches nothing.
 - The JSON keys beyond the worked example's: `holds` with `min`/`max`,
   `undecided` with `thing` or `term`, `const`, `has`, `is`, a range as
   `{from, to}`, `sum` and a projection as `{lines, slot}`. Reading is
   strict: an unknown or missing key is an error naming its path.
-- The wire reads an extreme float (1e122) to within one unit in the
-  last place (serde_json without `float_roundtrip`); the text is exact
-  for every finite number, and no typed bound is near that.
-
 **Step 2.**
 
-- S12 as built: a veiled line keeps the census's template (`Suffix#`)
-  and carries no number, so it names no slot and a value query never
-  matches it; its text shows the placeholder as given.
-- A line names a slot only while its numbers are its template's `#`s, so
-  a displayed literal `#` (none in this corpus) costs the line its slots
-  and nothing else.
-- The source word is the array's key without `Mods`, whatever GGG adds
-  (`enchant`, `utility`, `crucible`, `scourge`, `veiled`, `bonded`,
-  `rune` seen); a flag is any key the line's `flags` sets true, and an
-  item's `is:` words are every top-level true and the true keys of
-  `influences`, as GGG spells them (`abyssJewel`, `duplicated`,
-  `isRelic`). The language's spellings of all three are the binder's.
-- Lines are ordered by source word, then as the body orders them, so the
-  order never depends on how a JSON map was held.
 - Nothing was unread on this corpus, so C93's unread path is exercised
   by fixtures alone: a wrong type under a known key, an element that is
   no line, a `displayMode` outside 0–4, a body that is not an object.
-- Sockets are step 8's and are not derived yet.
-
 **Step 3.**
 
 - On this copy no character item's stamped league differs from its
@@ -659,10 +626,11 @@ each is data for the step or the seat that touches it.
 - 2,926 of 3,427 live tabs have never been fetched, the 17 folders
   apart, so "absent from a full refresh" is not a condition this
   account's store can often state.
-- `Folder` is now a word four consumers know — the planner, pricing, the
-  CLI's counts and, from step 4, search — each comparing GGG's `type`
-  for itself. The read followed that precedent; the store saying it once
-  is a small change if a fifth arrives or one of them gets it wrong.
+- `Folder` is a word four consumers know — the planner, pricing, the
+  CLI's counts and search — each comparing GGG's `type` for itself, and
+  the store's read hands the type over verbatim as they do; the store
+  saying it once is a small change if a fifth arrives or one of them
+  gets it wrong.
 - The header's listings are read by a scan of `responses`, which has no
   index on `endpoint`: nothing at 1,126 rows, unmeasured beyond, and it
   grows with every request. It is one of the costs the retention park's
@@ -670,60 +638,26 @@ each is data for the step or the seat that touches it.
 
 **Step 4.**
 
-- The walk found two cases of step 1's corpus using fields the builder
-  had invented (`quality`, `weight`), which no step builds and no list
-  could refuse; they now say `stack`. `reqlevel` (OQ5's) is the
-  reference's, from its contract detail, and joined the not-built list at
-  step 6, where OQ5 becomes askable.
-- Three of the builder's hand counts were wrong before the code was: the
-  order of a row's lines (by source word, step 2's observation), four
-  resistance templates counted as five, and a suggestion ranked by a rule
-  the builder had not read closely — a typed `Resistances` did not share
-  a word with `Resistance`. The first two were the tests'; the third was
-  the code's, and sharing a word now holds either way round.
-- The text was changed by its first sight of the real copy, which no
-  fixture had shown: the routes printed by default were the largest and
-  least useful (8,600 items that are not rare), so the default is now the
-  undecided and together routes, and each term's matched route when the
-  total is zero, with `--routes` for all; a template over several rows
-  broke the layout and prints its `\n`; ten resolved values ran off the
-  line, so the text lists five and the JSON ten.
-- `acq show` first loaded and derived the whole corpus to show one item;
-  it is one pass of the read now, deriving the one row it finds, and what
-  an item is socketed in is given by id, which `show` takes in turn.
 - Nothing on the copy is unread, so every undecided outcome — a term's,
   a sum's, the root's — is exercised by fixtures alone, as at step 2.
 - The scope says `in all leagues`; a league is a term, and the owner's
   seat forgetting it is the default-league park's trigger, not a step's.
-- Linking the store turned two of C89's breaker cases over, as step 1's
-  own comment said it would: the case adding the store added a key twice,
-  and the store linking the search became a cycle Cargo refuses before
-  the rule is asked. Both say so now (`tools/docs-check-breakers.sh`, 51
-  ok). The breakers are not in the gate, so nothing but running them by
-  hand would have shown it.
 - What B3 rests on, measured over the copy when the owner asked what
   `tab:maps` meant (2026-09-20): 15 map tabs hold 2,566 substashes and 29
   unique tabs 491, and a substash is named `1`, `4 (Remove-only)` or
   nothing, so without its tab's name an item in one could not be found by
   tab at all. `tab:` tests names and never GGG's `type`, of which the copy
   has 16; the type as a field is parked (`decisions/search.md`).
-- `Folder` has its fourth consumer, as step 3 said it would
-  (`corpus.rs`, `is_folder`).
 - Over the copy, `name="Ashes of the Stars"` finds ten, which is the
   variant park's first test (the plan, "Parks whose triggers the build
   fires"): step 4 has reached OQ2, and the question is the owner's.
 
 **Step 4b.**
 
-- *Failed against lacked under completion.* A line's group that failed as
-  stored lacked under a completion 19 times in 2,000 cases (21 on the
-  second day's generators): the selector
-  was open on an occurrence with unread flags, the whole was false on it
-  whatever the flag, and a completion answered the flag no. The property
-  lets this through and counts it: *failed* on a group says the truth is
-  established and the absence is not, *lacked* is the claim that needs
-  everything readable (C93), and no answer's members move (B7). A
-  matched, a lacked, and a failed that turned true would each be a defect.
+- A line's group that failed as stored lacked under a completion 19
+  times in 2,000 cases (21 on the second day's generators); why that is
+  allowed and counted is `group.rs`'s doc and the completion property's
+  header.
 - The transformations: 1–4 and 11 are equivalence's, the returned tree
   sent back among them; 5–8 completion's; 9 is the generators' one small
   range for values and bounds, zero and negatives in it; 10 and 13 are the
@@ -735,45 +669,26 @@ each is data for the step or the seat that touches it.
   renders; `--describe`; whether an error's readings are good ones. The
   hand-counted tests hold the first as far as they go, and the next audit
   is pointed at the rest.
-- The rule names and does not only match: `use … Member as M` was a way
-  round the first wording, found by asking how the check could be passed
-  without being obeyed, and is a breaker now.
 - The gate's cost, a debug build here: equivalence 14 s, the cross-checks
   15 s, completion 3 to 6 s, beside the routes' 16 s. 256, 192 and 256
   cases; `PROPTEST_CASES` runs any of them longer by hand.
-- The derivation's version stays 2: a body derives to the same item,
-  what moved is a slot computed from it, and the basis names no evaluator
-  — so two builds can label different answers with one basis, which was
-  already true of every evaluator fix of step 4.
+- The basis names no evaluator, so two builds can label different
+  answers with one basis — true of every evaluator fix since step 4;
+  `DERIVATION` moves only when a body derives to another item.
 
 **Step 5.**
 
-- Which bucket an item is in comes from the evaluator's outcome of
-  `has:<key>` on it, and what the value is from the accessor its term
-  reads: rule 10, so that a bucket and its route have one maker. The
-  fixture's `r3`, whose rarity is a number, is the case: unread, so
-  `undecided`, and `undecided(rarity)` returns it.
-- A value outside a closed list — a rarity, a source, a flag GGG adds —
-  is counted, has no route, and says so (rule 5): the reference already
-  says such a word cannot be asked for until the list gains it. Over the
-  copy none occurs.
-- The tally beneath `undecided` is by what was unread (`` `rarity` ``,
-  `explicit lines`), the kinds `eval::why` names, once per item per kind;
-  in a crossed table once per item for the table.
-- `--count line:resist,tab` makes `tab` a text: the synopsis's
-  `line[:text,…]` takes the rest of the list. A key goes before `line:`.
-  A text with a comma is quoted, the language's escapes.
+- Over the copy no value outside a closed list — a rarity, a source, a
+  flag GGG adds — occurs, so the counted-with-no-route path is exercised
+  by fixtures alone.
 - The reference's line "computed values whose name or definition matches
   are listed beside them, marked computed" waits on step 7: none exists.
-- `Resolved.more_needs` in a term's block now names a built flag, and the
-  text says `--count <key> lists them`.
 - A route's spelling for a bucket under the empty query is the term alone,
   never `() term`: the router folds an empty root away, which is the one
   simplification a generated tree makes (as the selector's folding is).
 - The M2 output read above is the third review's (derivation 4); the
   fifth changed how an unread part is joined to its occurrence and no
   template, so the count stands. Rerun if in doubt.
-
 - For the owner unless he wants it: C105's first test is worded with
   groupings above class (`armour`, `weapon`), which are the parked
   category — it will be pinned with class names and the same numbers.
