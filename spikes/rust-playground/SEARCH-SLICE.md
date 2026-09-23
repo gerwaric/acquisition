@@ -475,9 +475,25 @@ The exact pattern's mutant (only `\` escaped) failed at once, at `(`.
 ## Holes ruled, and where the rule went
 
 What the build met that the reference did not state and the owner
-ruled; the unruled ones — E1–E5, gaps 2 and 3 — are at the foot of the
+ruled; the unruled ones — E2, gaps 2 and 3 — are at the foot of the
 plan, his at the seat. A ruled hole keeps its evidence here and its rule
-in `search/DESIGN.md`.
+in the registry's cited contract detail or implementing module doc.
+
+**Step 5 — the owner's verdicts, 2026-09-22.** The accepted behavior
+already exists; these clarify C95 and C105, whose implementation is
+`crates/acquisition-search/src/counts.rs` ("As built") and
+`View::of` in `answer.rs`. The terminal reference is `search/DESIGN.md`.
+
+| # | Question and evidence | Owner's verdict, verbatim |
+| --- | --- | --- |
+| E1 | What a value bucket's term selects. Case-insensitive equality can select two separately counted spellings; a tab's name can select several tabs or a substash. The accepted links select the counted spelling or the tab's full coordinate (realm, league, id), including its substashes. | "accepted" |
+| E3 | Whether the vocabulary's `undecided` bucket includes an item with both a readable selected line and unread lines. The accepted meaning is uncertainty about presence, not a list of every incompletely read item. | "agree to keep" |
+| E4 | Which view options combine: counts with row sorting, a sum without a count, or both count shapes. Keep the existing errors and table limits; no standalone grand-total view is needed. | "I don't fully understand these options, so i accept your recommendation to keep these as errors for now. For sum, we don't need a grand total." |
+| E5 | Whether `line` can be a key in a crossed table. Keep it in its own vocabulary table; crossing two ordinary fields remains supported. | "accepted." |
+
+E2 is still the plan's open question: the owner asked "how does --sum
+handle pseudo mods?" rather than accepting the restriction on raw line
+projections. No runtime behavior changed with these verdicts.
 
 **Step 1 — what the parser met that the reference does not state.** None
 blocked step 1: each is built in the direction that breaks nothing if he

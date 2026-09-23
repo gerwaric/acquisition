@@ -59,8 +59,8 @@
 //!   `undecided(line( … ))` of the narrowing — no line read that it selects
 //!   and a part unread that could hold one — so an item with a line read
 //!   *and* an array unread is in its rows and not in `undecided`: the
-//!   language has no term for "its lines could not all be read" (the build
-//!   plan, step 5's holes). A source or flag beneath a row is counted by
+//!   language has no term for "its lines could not all be read" (C105;
+//!   E3 accepted, `SEARCH-SLICE.md`). A source or flag beneath a row is counted by
 //!   its legal spelling, which the evaluator matches in any case (B2), so
 //!   the kind's route returns what it counted; a spelling outside the list
 //!   is counted and has no route.
