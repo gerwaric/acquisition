@@ -10,6 +10,12 @@
 // clang-format off
 const PseudoModMap PseudoModManager::SUMMING_MODS = {
     {
+        "+# total maximum Life",
+        {
+            "+# to maximum Life"
+        }
+    },
+    {
         "+#% total to Cold Resistance",
         {
             "+#% to Cold Resistance",
