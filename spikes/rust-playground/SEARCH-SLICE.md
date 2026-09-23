@@ -142,6 +142,15 @@ by the builder before it was taken.
   completion property's measured half, run by hand. Yield of the three
   looks at step 5: 6, 3, 0. "The owner's seat, including E1–E5, is the
   right next step."
+- **Five blind seats at `f357de39` (2026-09-22)**: Sonnet, one question
+  each over the owner's real store, read-only under `ACQ_NO_SPAWN=1`, the
+  tool's own `--help` and `--describe` their only sources; the brief and
+  the five questions are in the message of the commit that added this
+  entry. Every answer matched the builder's reference command, in 3 to 6
+  invocations; none needed a stronger model, none read the repository.
+  Two findings in the CLI's surface text, fixed at `2cbf7787`; what the
+  seats said beyond them is data for the owner's seat ("Observations
+  still open", step 5).
 
 | Round | Fixed at | # | Finding | Held by |
 | --- | --- | --- | --- | --- |
@@ -193,6 +202,8 @@ by the builder before it was taken.
 | 5, review | `99bd0962` | 1 | Exactness ended at the item: units were read back off the float an item total became, and a total's decimal can be longer than a float prints — nine means of large pairs, their negatives and `0.0001` summed to `0.00011` split over two items, `0.0001` on one *Confirmed; the builder's claim in `exact.rs`, that a float's shortest print is the decimal it was made from, was false past fifteen significant digits* | `exact::Exact`, units carried: an item's sum, a bucket's sum of them and a sort scalar are `Exact`, and a float is made only to compare or print. Pinned in `exact.rs` and in `tests/counts.rs`, the review's own arrangement |
 | 5, review | `99bd0962` | 2 | A continuation's key was shell-quoted and not list-quoted: `--count 'line~Marker [a-z]{1,2}'` split at the comma | `answer::listed_text`: a text with a comma, a quote, a backslash, a row break, a leading `~` or whitespace at an end is quoted in the list's grammar with the language's escapes; the CLI runs continuations for a pattern with a comma and texts with a comma and a backslash, and a unit test reads every spelling back |
 | 5, review | `99bd0962` | 3 | The binder trimmed a narrowing text: `line:"Life "` became `line:Life` | `bind_key` trims a name and never a text; pinned at the terminal |
+| 5, seats | `2cbf7787` | 1 | The `--realm` help read as optional, and all five seats omitted it once over a two-realm store; C96's refusal, which lists the choices, recovered each in one step | the help says required over several realms, one of them or `all`; `CLI-REFERENCE.md` |
+| 5, seats | `2cbf7787` | 2 | The scope line's `2940 never fetched` was read as items by four of five; C96 says locations never fetched, and the render had dropped the word | `2940 locations never fetched`, `1 location` for one; the `search_json` needle |
 
 ## What the measurements taught
 
@@ -709,3 +720,16 @@ timings, coverage no fixture reaches, and questions for the seat.
 - For the owner unless he wants it: C105's first test is worded with
   groupings above class (`armour`, `weapon`), which are the parked
   category — it will be pinned with class names and the same numbers.
+- The five blind seats (the findings above), beyond their two fixes:
+  the together count steered one from `"# to maximum Life">=70` to
+  `sum("# to maximum Life")>=70` inside `holds`, 76 items to 79, and it
+  still said a first-timer writes the line form and undercounts unseen
+  — evidence for C95's sum rule, one of the six lines the seat revisits
+  first. "My stash" was read as `has:tab`, which nothing labels. With no
+  `class:`, the added-damage seat found its template by `--count
+  line:physical`, told it from the `to Attacks` twin and checked bases by
+  eye, calling the vocabulary-first walk essential and non-obvious (data
+  for step 6). Three of five wanted the fetch age and the unfetched count
+  more prominent than one line of the scope block: an opinion on order,
+  the seat's to weigh. Five recoveries from C96's refusal in one step
+  each is not the sticky-realm park's trigger, which is the owner's.
