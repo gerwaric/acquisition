@@ -44,7 +44,7 @@ pub struct SearchArgs {
     pub query: Option<String>,
     /// The realm searched: pc, xbox, sony, poe2, or all. Over a store
     /// holding one realm it may be omitted and the answer prints it; over
-    /// several, a search names one (C96).
+    /// several it is required, one of them or `all` (C96).
     #[arg(long)]
     pub realm: Option<String>,
     /// Read the query from a file, or from stdin with `-`: a query with an
@@ -423,8 +423,13 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
     }
     line(first);
     line(format!(
-        "        {} never fetched · location list seen {} · the full list: --view locations, not built (step 10)",
+        "        {} location{} never fetched · location list seen {} · the full list: --view locations, not built (step 10)",
         scope.coverage.never_fetched,
+        if scope.coverage.never_fetched == 1 {
+            ""
+        } else {
+            "s"
+        },
         ago(now, scope.coverage.list_seen),
     ));
     if scope.realm_not_held {

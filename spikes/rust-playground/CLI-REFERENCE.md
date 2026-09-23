@@ -230,7 +230,7 @@ Arguments:
   [QUERY]  The query (`acq search --describe` prints the language). None: every item in scope. One that starts with `-`, the language's not, goes after `--`, as every route prints it: `acq search --realm pc -- '-is:corrupted'`
 
 Options:
-      --realm <REALM>        The realm searched: pc, xbox, sony, poe2, or all. Over a store holding one realm it may be omitted and the answer prints it; over several, a search names one (C96)
+      --realm <REALM>        The realm searched: pc, xbox, sony, poe2, or all. Over a store holding one realm it may be omitted and the answer prints it; over several it is required, one of them or `all` (C96)
       --query-file <FILE|->  Read the query from a file, or from stdin with `-`: a query with an apostrophe needs no shell quoting this way
       --sort <VALUE>         Order the rows by a value: `ilvl`, `stack`, `'line("T").arg1'`, `'sum("T")'`. A line's scalar is its largest satisfying occurrence; an item with none sorts last either way (C92)
       --desc                 Largest first

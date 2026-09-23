@@ -614,7 +614,7 @@ fn c53_search_json_is_the_answer_whole_and_the_text_is_a_function_of_it() {
     for needle in [
         "query   line(\"# to maximum Life\" arg1>=90)",
         "scope   account Alice#1234 · pc · live · 5 items · 2 locations fetched",
-        "1 never fetched",
+        "1 location never fetched",
         "--view locations, not built (step 10)",
         &format!(
             "basis   store {} · snapshot {} · facts v",
