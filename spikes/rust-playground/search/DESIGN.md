@@ -103,6 +103,13 @@ Count views (C95; E4 and E5 accepted 2026-09-22): choose `--count` or
 counted in its own vocabulary table. `--sort` orders item rows and is an
 error with either count view; tables are ranked by their counts.
 `--sum` requires one of those count views: no standalone grand total.
+It adds one number per item: a numeric field or an explicit item
+`sum( … )`. A raw line projection is an error offering the item sum,
+never an implicit choice of its largest occurrence (C95; E2 accepted
+2026-09-22). For example, `--sum 'sum("# to maximum Life")'` adds all
+matching life lines on each item before adding the items' totals.
+Named numeric pseudo values already define their contributors (C94,
+C101); those values await step 7, and a ranged value needs a slot.
 `--limit` bounds rows or each table's values (a crossed table's cells),
 while `none` and `undecided` remain visible. The bucket selectors and
 the vocabulary's presence-based `undecided` (C105; E1 and E3 accepted

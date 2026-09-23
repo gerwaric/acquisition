@@ -275,12 +275,5 @@ review; their numbers are cited as such.
    retire; `removed` alone waits for someone asking. Step 4 builds `live`
    alone, which is all the store's read hands over.
 
-**Step 5's remaining hole.** E1, E3, E4 and E5 were accepted
+**Step 5's holes are ruled.** E1–E5 were accepted
 2026-09-22; their verdicts are in `SEARCH-SLICE.md`, "Holes ruled".
-E2 remains open pending the owner's response on pseudo mods: they
-produce one computed value per item (C94, C101), but `pseudo.*` is
-not built until step 7. The question was not acceptance of E2.
-
-| # | Hole | Built as | Recommendation |
-| --- | --- | --- | --- |
-| E2 | What `--sum` takes. The reference: `[--sum value]`, and `line(P).<slot>` is a value — for `--sort`, the largest satisfying occurrence. Summed over items it would add each item's largest, and `--sum '"# to maximum Life"'` would give 75 for an item with 20 and 75 | a field or `sum( … )`; a projection is an error offering `sum(line(P).<slot>)`, so the item's total is what a count adds | keep: allowing it later breaks nothing; a sum of largests, if wanted, is a value with a name of its own |
