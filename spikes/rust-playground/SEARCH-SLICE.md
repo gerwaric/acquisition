@@ -548,6 +548,26 @@ task the plan names before OQ5 counts as covered.
 | G5 | The licence. RePoE's `LICENSE.md`: the generated data is GGG's and "shall not be used or published without being in accordance with their terms of use" (`SURFACES.md`, the RePoE row); C106 says a surface's licence is read when its first definition needs it | the table carries base names and class names — the words the trade site, the wiki and every item filter publish — with the source cited on the file and the row; the C++ app on `master` fetches the same export at runtime with no attribution | the owner's read; nothing else in the table is GGG's beyond those names |
 | G6 | **The category park, fired**: OQ5 as the owner asked it — "my leveling gear" — names a grouping the class table has no word for (`armour`, `weapon`, `equipment`), and C105's first test as worded counts by `armour` and `weapon`. Note 31 K7: the site's 14 parents are unions of leaves, seven leaves need base-name rules, and "which categories count as equipment" is a definition nobody has given | not built: OQ5 is askable by class names — `(class:boots or class:gloves or class:helmet)` — and pinned so; C105's test pinned with class names and the same numbers | the owner's acceptance task before OQ5 counts as covered: which convention (C106) `category` follows — the trade site's category ids as its authority, generated as repoe F3 generates them, or a smaller equipment grouping of his own — and whether it is a second field beside `class` or a value `class:` also takes |
 
+G1–G5 stand as built (owner, 2026-09-23, verbatim: "Otherwise, accept
+all."). G6, his words verbatim the same day: "leveling gear is generally
+not defined by class, except indirectly. leveling gear is generally
+items that can be equipped at a low character level with basic
+resistance, life, and damage modifiers (although some leveling builds
+have some additional specific needs I have not mentioned). I'm not sure
+how that impacts us here." The builder's reading, a recommendation and
+no ruling: two of the three parts exist — `reqlevel=..30 or
+-has:reqlevel`, and the lines by template — and the third, *can be
+equipped*, is what nothing names: frame does not say it (a contract is
+frame rare, a map and a gem carry damage lines), and the class says it
+indirectly, as a spelled-out list of the wearable classes today, or as
+the category park's one word, whose definition his sentence supplies
+(equipment is what can be equipped: the wiki page C106 cites, the trade
+site's parents). Recommended: pin OQ5 from his words with the class list
+spelled out, and re-set the park's trigger to the seat showing that
+typing the list bites — adding `category` later breaks nothing. A flask
+is no distractor under his definition; whether it is leveling gear is
+his.
+
 **Step 1 — what the parser met that the reference does not state.** None
 blocked step 1: each is built in the direction that breaks nothing if he
 rules the other way.
