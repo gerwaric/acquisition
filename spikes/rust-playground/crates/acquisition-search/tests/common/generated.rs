@@ -347,6 +347,9 @@ fn plain() -> BoxedStrategy<Q> {
             "ilvl>=80",
             "ilvl=1..79",
             "has:ilvl",
+            "reqlevel<=30",
+            "reqlevel=20..45",
+            "has:reqlevel",
             "has:note",
             "has:name",
             "note:price",
@@ -455,7 +458,7 @@ pub enum Sort {
 pub fn sort() -> BoxedStrategy<Sort> {
     prop_oneof![
         3 => Just(Sort::None),
-        1 => proptest::sample::select(vec!["ilvl", "stack"]).prop_map(Sort::Field),
+        1 => proptest::sample::select(vec!["ilvl", "stack", "reqlevel"]).prop_map(Sort::Field),
         2 => (group(), slot_word()).prop_map(|(g, s)| Sort::Proj(g, s)),
         2 => (group(), slot_word()).prop_map(|(g, s)| Sort::Sum(g, s)),
     ]
@@ -778,6 +781,9 @@ pub struct Body {
     pub shaper: Tri,
     pub hunter: Tri,
     pub ilvl: Known<i64>,
+    /// The `Level` requirement; its hole is a `Level` row with no value
+    /// (the step-6 review, 1).
+    pub reqlevel: Known<i64>,
     pub name: Known<&'static str>,
     pub note: Known<&'static str>,
 }
@@ -855,6 +861,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
             tri(holes),
         ),
         known(vec![0, 1, 79, 80, 84], holes),
+        known(vec![1, 20, 30, 45], holes),
         known(vec!["Doom Knot", "Life Ring"], holes),
         known(vec!["~price 1 chaos", "keep"], holes),
     )
@@ -863,6 +870,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
                 (explicit, implicit, hybrid),
                 (corrupted, influences_hole, shaper, hunter),
                 ilvl,
+                reqlevel,
                 name,
                 note,
             )| Body {
@@ -874,6 +882,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
                 shaper,
                 hunter,
                 ilvl,
+                reqlevel,
                 name,
                 note,
             },
@@ -883,13 +892,14 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
 
 /// A body with something unread in it, whatever the dice gave.
 pub fn holed() -> BoxedStrategy<Body> {
-    (some_body(true), 0u8..4)
+    (some_body(true), 0u8..5)
         .prop_map(|(mut body, which)| {
             if !body.has_holes() {
                 match which {
                     0 => body.implicit = Lines::Hole,
                     1 => body.explicit = Lines::Hole,
                     2 => body.corrupted = Tri::Hole,
+                    3 => body.reqlevel = Known::Hole,
                     _ => body.ilvl = Known::Hole,
                 }
             }
@@ -911,6 +921,7 @@ impl Body {
             shaper: flag,
             hunter: flag,
             ilvl: Known::Absent,
+            reqlevel: Known::Absent,
             name: Known::Absent,
             note: Known::Absent,
         }
@@ -944,6 +955,14 @@ impl Body {
                 Known::Is(80),
                 Known::Is(84),
             ][n % 6]
+                .clone(),
+            reqlevel: [
+                Known::Absent,
+                Known::Is(1),
+                Known::Is(20),
+                Known::Is(30),
+                Known::Is(45),
+            ][n % 5]
                 .clone(),
             name: [
                 Known::Absent,
@@ -1034,6 +1053,7 @@ impl Body {
             || tri(self.shaper)
             || tri(self.hunter)
             || self.ilvl == Known::Hole
+            || self.reqlevel == Known::Hole
             || self.name == Known::Hole
             || self.note == Known::Hole
     }
@@ -1140,6 +1160,11 @@ impl Body {
                 (Known::Hole, from) => from.clone(),
                 (other, _) => other.clone(),
             },
+            reqlevel: match (&self.reqlevel, &fill.reqlevel) {
+                (Known::Hole, Known::Hole) => Known::Absent,
+                (Known::Hole, from) => from.clone(),
+                (other, _) => other.clone(),
+            },
             name: known(&self.name, &fill.name),
             note: known(&self.note, &fill.note),
         }
@@ -1234,6 +1259,18 @@ impl Body {
                 Known::Hole => json!(UNREAD),
             },
         );
+        // a Level requirement, or one whose value could not be read
+        let level =
+            |values: Value| json!([{ "name": "Level", "values": values, "displayMode": 0 }]);
+        match &self.reqlevel {
+            Known::Absent => {}
+            Known::Is(n) => {
+                body.insert("requirements".into(), level(json!([[n.to_string(), 0]])));
+            }
+            Known::Hole => {
+                body.insert("requirements".into(), level(json!([])));
+            }
+        }
         body.insert(
             "name".into(),
             match &self.name {

@@ -187,6 +187,8 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
             })
             .chain(held.class.open())
             .collect(),
+        // the deriver says under `reqlevel` when the Level row may have
+        // been lost, so a sibling that could not be read leaves it closed
         (Thing::ReqLevel, _) => held
             .item
             .unread
@@ -194,7 +196,6 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
             .filter(|u| match &u.part {
                 Part::Body => true,
                 Part::Field(key) => key == "reqlevel",
-                Part::Properties(array) => array == "requirements",
                 _ => false,
             })
             .collect(),

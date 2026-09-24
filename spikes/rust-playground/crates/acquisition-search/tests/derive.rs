@@ -463,6 +463,9 @@ fn what_could_not_be_read_is_named_by_collection() {
             &Part::Field("influences".into()),
             &Part::Properties("properties".into()),
             &Part::Properties("requirements".into()),
+            // the array being no array, the Level row may be among what
+            // was lost: `reqlevel` says so under its own name (step 6)
+            &Part::Field("reqlevel".into()),
             &Part::Lines("enchant".into()),
             &Part::Lines("explicit".into()),
             &Part::Lines("explicit".into()),

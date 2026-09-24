@@ -682,8 +682,12 @@ fn c100_show_is_the_derived_item_and_the_stored_body_on_request() {
     );
 }
 
-/// OQ5, askable as worded (step 6): a level bracket across tabs by
-/// class, with `reqlevel` and its absence. The fixture holds the
+/// OQ5, askable as the plan worded it (step 6): a level bracket across
+/// tabs by class, with `reqlevel` and its absence. The owner's own
+/// definition — wearable at a low level, with resistance, life or damage
+/// lines — is with him (`SEARCH-SLICE.md`, "Holes ruled", step 6, G6),
+/// and this test moves to his words when he rules; until then it pins
+/// the constructs, never the coverage. The fixture holds the
 /// distractors the bracket alone admits — a low-level gem, a flask, a
 /// currency stack with no level requirement at all — and none appears;
 /// a pair of boots whose requirements could not be read is undecided,

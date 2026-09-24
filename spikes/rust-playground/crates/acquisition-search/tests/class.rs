@@ -357,3 +357,118 @@ fn reqlevel_is_the_level_requirement_as_a_number() {
     assert_eq!(shown["item"]["reqlevel"], Value::Null);
     assert_eq!(shown["item"]["unread"][0]["of"], "reqlevel");
 }
+
+/// The step-6 review's findings 1 and 2, reproduced first: a `Level` row
+/// with no value, several values or a twin is no absence and no number —
+/// unread under `reqlevel`; and a `Level` that was read is a witness to
+/// its number whatever else in `requirements` could not be read, so a
+/// comparison, a sort and a sum agree.
+#[test]
+fn review_a_malformed_level_row_is_unread_and_a_read_one_is_a_witness() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("r1", "Req")]), 10);
+    let req = |rows: Value| json!({ "requirements": rows });
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "r1",
+        "Req",
+        vec![
+            item(
+                "empty",
+                "",
+                "Iron Ring",
+                "Rare",
+                req(json!([{ "name": "Level", "values": [], "displayMode": 0 }])),
+            ),
+            item(
+                "two",
+                "",
+                "Iron Ring",
+                "Rare",
+                req(
+                    json!([{ "name": "Level", "values": [["10", 0], ["20", 0]], "displayMode": 0 }]),
+                ),
+            ),
+            item(
+                "twin",
+                "",
+                "Iron Ring",
+                "Rare",
+                req(
+                    json!([{ "name": "Level", "values": [["10", 0]], "displayMode": 0 },
+                                                             { "name": "Level", "values": [["40", 0]], "displayMode": 0 }]),
+                ),
+            ),
+            item(
+                "beside",
+                "",
+                "Iron Ring",
+                "Rare",
+                req(
+                    json!([{ "name": "Level", "values": [["10", 0]], "displayMode": 0 },
+                                                               { "name": "Str", "values": "no" }]),
+                ),
+            ),
+            item(
+                "plain",
+                "",
+                "Iron Ring",
+                "Rare",
+                req(json!([{ "name": "Level", "values": [["10", 0]], "displayMode": 0 }])),
+            ),
+        ],
+        20,
+    );
+    // finding 1: none of the three malformed rows is an absence
+    assert_eq!(asked(&s, "pc", "-has:reqlevel")["total"]["matched"], 0);
+    assert_eq!(
+        ids(&asked(&s, "pc", "undecided(reqlevel)")),
+        ["empty", "twin", "two"]
+    );
+    assert_eq!(ids(&asked(&s, "pc", "reqlevel=10")), ["beside", "plain"]);
+    // finding 2: a read Level is a witness beside an unread sibling
+    assert_eq!(ids(&asked(&s, "pc", "reqlevel>30")), [] as [&str; 0]);
+    let over = asked(&s, "pc", "reqlevel>30");
+    assert_eq!(counts(&over, "0"), (0, 2, 0, 3));
+    assert_eq!(asked(&s, "pc", "has:reqlevel")["total"]["matched"], 2);
+    let summed: Request = serde_json::from_value(json!({
+        "scope": { "realm": "pc" },
+        "query": { "text": "reqlevel=10" },
+        "view": { "counts": { "keys": ["tab"], "sum": "reqlevel" } },
+    }))
+    .unwrap();
+    let c = as_json(&answer(&load(&s, Some("pc")), &summed).unwrap());
+    assert_eq!(
+        c["view"]["counts"]["sum"],
+        json!({ "name": "reqlevel", "value": 20, "lacking": 0 })
+    );
+    // the phrase over the row is still a hit: the row was displayed —
+    // `Requires Level 10, 20`, `Requires Level 10, Level 40` among them
+    assert_eq!(
+        asked(&s, "pc", r#""Requires Level 10""#)["total"]["matched"],
+        4
+    );
+}
+
+/// The review's finding 3: every reading a class error offers is a
+/// query that binds — a name with a space is quoted by the printer.
+#[test]
+fn review_every_reading_a_class_error_offers_binds() {
+    let s = stash();
+    let corpus = load(&s, Some("pc"));
+    for text in ["class:bodyarmour", "class=body", "class:nosuchclass"] {
+        let e = ask(&corpus, text).unwrap_err().to_json();
+        assert_eq!(e["kind"], "unknown_value", "{text}");
+        for reading in e["readings"].as_array().unwrap() {
+            let reading = reading.as_str().unwrap();
+            assert!(
+                ask(&corpus, reading).is_ok(),
+                "`{text}` offers `{reading}`, which does not bind"
+            );
+        }
+    }
+    let e = ask(&corpus, "class:bodyarmour").unwrap_err().to_json();
+    assert_eq!(e["readings"][0], "class=\"Body Armours\"");
+}

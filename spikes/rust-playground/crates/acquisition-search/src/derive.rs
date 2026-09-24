@@ -61,12 +61,17 @@
 //!   2026-09-19). A phrase is tested against the row.
 //! - **The item level** is a field, `ilvl`, and a displayed string, `Item
 //!   Level: 84`, where the item has one (owner, 2026-09-19).
-//! - **The level required** is a field, `reqlevel`: the `Level`
-//!   requirement's number, read from the row the item displays (the build
-//!   plan, step 6). An item with no such requirement lacks it — known
-//!   absence, so `-has:reqlevel` finds it while `requirements` was
-//!   readable — and one whose value is no whole number is unread under
-//!   `reqlevel` alone, the row itself still a displayed string.
+//! - **The level required** is a field, `reqlevel`: the one `Level` row
+//!   of `requirements`, its one value as a whole number (the build plan,
+//!   step 6). An item with no such row lacks it — known absence, so
+//!   `-has:reqlevel` finds it — and every other shape is unread under
+//!   `reqlevel`, said here and nowhere else (rule 8 of the plan): a
+//!   `Level` row with no value, several, or a value that is no whole
+//!   number; two `Level` rows; an element of `requirements` that could not
+//!   be read and might be the `Level` row — its name unreadable or
+//!   `Level` — and the array itself not being one. A `Level` that was read
+//!   is a witness to its number whatever else in the array was not (the
+//!   step-6 review, 1 and 2). The row itself stays a displayed string.
 //! - **The class is not the deriver's** (C103, C106): `class.rs` reads it
 //!   from the base in the class table, and says under [`Part::Class`] why
 //!   it could not.
@@ -464,25 +469,47 @@ impl Item {
         }
     }
 
-    /// The `Level` requirement's number (the module doc): a value that is
-    /// no whole number is unread under `reqlevel`, and only that.
+    /// The `Level` requirement's number (the module doc): one row, one
+    /// value, a whole number; any other shape is unread under `reqlevel`.
     fn read_reqlevel(&mut self) -> Option<i64> {
-        let value = self
+        let levels: Vec<&Property> = self
             .requirements
             .iter()
-            .find(|r| r.name.eq_ignore_ascii_case("Level"))?
-            .values
-            .first()?
-            .clone();
-        match value.trim().parse::<i64>() {
-            Ok(n) => Some(n),
-            Err(_) => {
-                self.unread(
-                    Part::Field("reqlevel".to_string()),
-                    format!("`requirements`: `Level` is `{value}`, not a whole number"),
-                );
-                None
-            }
+            .filter(|r| r.name.eq_ignore_ascii_case("Level"))
+            .collect();
+        let problem = match levels.as_slice() {
+            [] => return None,
+            [one] => match one.values.as_slice() {
+                [value] => match value.trim().parse::<i64>() {
+                    Ok(n) => return Some(n),
+                    Err(_) => format!("`requirements`: `Level` is `{value}`, not a whole number"),
+                },
+                values => format!(
+                    "`requirements`: `Level` has {} values, not one",
+                    values.len()
+                ),
+            },
+            several => format!(
+                "`requirements`: `Level` appears {} times, not once",
+                several.len()
+            ),
+        };
+        self.unread(Part::Field("reqlevel".to_string()), problem);
+        None
+    }
+
+    /// An element of `requirements` that could not be read, or the array
+    /// itself: the `Level` row may be among what was lost.
+    fn level_may_be_lost(&mut self, at: &str, element: Option<&Value>) {
+        let could_be_level = match element.and_then(|e| e.get("name")) {
+            Some(Value::String(name)) => name.eq_ignore_ascii_case("Level"),
+            _ => true,
+        };
+        if could_be_level {
+            self.unread(
+                Part::Field("reqlevel".to_string()),
+                format!("{at} could not be read and may be the `Level` requirement"),
+            );
         }
     }
 
@@ -535,7 +562,11 @@ impl Item {
             Some(Value::Array(elements)) => elements,
             Some(other) => {
                 let problem = format!("`{array}` is {}, not an array", json_kind(other));
-                return self.unread(part(), problem);
+                self.unread(part(), problem);
+                if array == "requirements" {
+                    self.level_may_be_lost(&format!("`{array}`"), None);
+                }
+                return;
             }
         };
         for (i, element) in elements.iter().enumerate() {
@@ -543,7 +574,12 @@ impl Item {
                 Ok(Some(property)) if array == "requirements" => self.requirements.push(property),
                 Ok(Some(property)) => self.properties.push(property),
                 Ok(None) => {}
-                Err(problem) => self.unread(part(), format!("`{array}[{i}]`: {problem}")),
+                Err(problem) => {
+                    self.unread(part(), format!("`{array}[{i}]`: {problem}"));
+                    if array == "requirements" {
+                        self.level_may_be_lost(&format!("`{array}[{i}]`"), Some(element));
+                    }
+                }
             }
         }
     }

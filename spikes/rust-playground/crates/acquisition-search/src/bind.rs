@@ -1016,7 +1016,20 @@ pub(crate) fn closed(
         ErrorKind::UnknownValue,
         format!("`{word}` is no `{name}`: {}", list.join(", ")),
     )
-    .with_readings(offered.iter().map(|v| format!("{name}={v}")).collect()))
+    // through the printer, so a value with a space is quoted (the step-6
+    // review, 3)
+    .with_readings(
+        offered
+            .iter()
+            .map(|v| {
+                print::print(&Node::Test {
+                    field: name.to_string(),
+                    op: Op::Eq,
+                    value: Value::Text((*v).to_string()),
+                })
+            })
+            .collect(),
+    ))
 }
 
 // ---- a bare word's closed-set readings -------------------------------------------------
