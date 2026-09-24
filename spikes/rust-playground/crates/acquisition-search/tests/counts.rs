@@ -238,12 +238,15 @@ fn apart<'a>(table: &'a Value, which: &str) -> &'a Value {
         .unwrap_or_else(|| panic!("no `{which}` bucket in {table}"))
 }
 
-/// A table's buckets as (label, count), in the order printed.
+/// A table's buckets as (label, count), in the order printed — the
+/// computed values a narrowing matches apart, which `tests/pseudo.rs`
+/// pins.
 fn shape(table: &Value) -> Vec<(String, u64)> {
     table["buckets"]
         .as_array()
         .unwrap()
         .iter()
+        .filter(|b| b["bucket"] != "computed")
         .map(|b| {
             let label = match b["bucket"].as_str().unwrap() {
                 "value" => match &b["value"] {

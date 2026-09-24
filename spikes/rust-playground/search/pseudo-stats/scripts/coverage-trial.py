@@ -12,11 +12,13 @@ its items and lines, in the crate's template form), and the shipped table
 (crates/acquisition-search/reference/totals-v1.toml). For each word
 (default: resist, strength, dexterity, intelligence, attack speed, cast
 speed, level of socketed) every template holding it is listed with its
-items, and marked with the totals whose rows name it; the rest is what no
-total counts, ranked by items. A word-based trial measures coverage, not
-membership: a line the word finds and no total counts is a candidate for
-the owner to rule on, never a row added here. Never in the gate: the input
-is raw/.
+lines, and marked with the totals whose rows name it; the rest is what no
+total counts, ranked by lines. Lines, not items: the census counts items
+per (source, template), so summed over sources and templates an item is
+counted once per incidence — the second column says so (outside audit,
+2026-09-24). A word-based trial measures coverage, not membership: a line
+the word finds and no total counts is a candidate for the owner to rule
+on, never a row added here. Never in the gate: the input is raw/.
 """
 import collections
 import json
@@ -64,13 +66,13 @@ def main():
         counted = {t: v for t, v in hits.items() if t in counted_by}
         missed = {t: v for t, v in hits.items() if t not in counted_by}
         print()
-        print(f"== {word!r}: {len(hits)} templates, {sum(v[0] for v in hits.values())} items, {sum(v[1] for v in hits.values())} lines")
-        print(f"   counted by a total: {len(counted)} templates, {sum(v[0] for v in counted.values())} items, {sum(v[1] for v in counted.values())} lines")
-        print(f"   counted by none:    {len(missed)} templates, {sum(v[0] for v in missed.values())} items, {sum(v[1] for v in missed.values())} lines")
-        print(f"   {'items':>7} {'lines':>7}  template  [sources]  (totals)")
-        for t, (items, lines, sources) in sorted(hits.items(), key=lambda kv: (-kv[1][0], kv[0])):
+        print(f"== {word!r}: {len(hits)} templates, {sum(v[1] for v in hits.values())} lines ({sum(v[0] for v in hits.values())} item-source-template incidences)")
+        print(f"   counted by a total: {len(counted)} templates, {sum(v[1] for v in counted.values())} lines ({sum(v[0] for v in counted.values())} incidences)")
+        print(f"   counted by none:    {len(missed)} templates, {sum(v[1] for v in missed.values())} lines ({sum(v[0] for v in missed.values())} incidences)")
+        print(f"   {'lines':>7} {'incid.':>7}  template  [sources]  (totals)")
+        for t, (items, lines, sources) in sorted(hits.items(), key=lambda kv: (-kv[1][1], kv[0])):
             names = ", ".join(counted_by.get(t, [])) or "-"
-            print(f"   {items:>7} {lines:>7}  {t!r}  [{', '.join(sorted(sources))}]  ({names})")
+            print(f"   {lines:>7} {items:>7}  {t!r}  [{', '.join(sorted(sources))}]  ({names})")
     # every row of the table against the corpus: a template no item carries
     # is a row the corpus cannot exercise, said here and not guessed
     unseen = sorted(t for t in counted_by if t not in templates)

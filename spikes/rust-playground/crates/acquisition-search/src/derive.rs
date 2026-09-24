@@ -207,6 +207,13 @@ pub struct Unread {
     /// explained by that occurrence, never by another of its array.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub line: Option<usize>,
+    /// The property's displayed name, when it is one element of a
+    /// property-shaped array whose name could be read: what reads that
+    /// property is left open by it, and nothing else is (rule 8 of the
+    /// plan, at the element's grain; outside audit, 2026-09-24). An
+    /// element with no readable name may be any property.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 /// The collection a reading belongs to: what C93's "everything that could
@@ -438,6 +445,7 @@ impl Item {
             part,
             problem: problem.into(),
             line: None,
+            name: None,
         });
     }
 
@@ -448,6 +456,7 @@ impl Item {
             part,
             problem,
             line,
+            name: None,
         });
     }
 
@@ -590,7 +599,18 @@ impl Item {
                 Ok(Some(property)) => self.properties.push(property),
                 Ok(None) => {}
                 Err(problem) => {
-                    self.unread(part(), format!("`{array}[{i}]`: {problem}"));
+                    // the element's name, where it could be read: what reads
+                    // that property is left open, and nothing else is
+                    let name = match element.get("name") {
+                        Some(Value::String(name)) => Some(shown(name)),
+                        _ => None,
+                    };
+                    self.unread.push(Unread {
+                        part: part(),
+                        problem: format!("`{array}[{i}]`: {problem}"),
+                        line: None,
+                        name,
+                    });
                     if array == "requirements" {
                         self.level_may_be_lost(&format!("`{array}[{i}]`"), Some(element));
                     }

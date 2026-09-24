@@ -389,6 +389,7 @@ impl TotalsTable {
                 file.version
             ),
             line: None,
+            name: None,
         };
         Ok(TotalsTable {
             unavailable: REALMS

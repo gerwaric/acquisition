@@ -275,6 +275,181 @@ fn c101_dps_and_pdps_read_the_displayed_properties() {
     assert_eq!(ids(&asked(&s, "pc", "undecided(pseudo.dps)")), ["odd"]);
 }
 
+/// Outside audit, 2026-09-24 (3): an unread element of `properties`
+/// leaves a derived field open only when it may be a property the field
+/// reads — a malformed `Quality` hides no physical dps, a malformed
+/// `Elemental Damage` hides the dps and not the pdps, and an element with
+/// no readable name hides both.
+#[test]
+fn audit_an_unrelated_malformed_property_hides_no_derived_field() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("g1", "Gear")]), 10);
+    let property =
+        |name: &str, values: Value| json!({ "name": name, "values": values, "displayMode": 0 });
+    let weapon = |id: &str, more: Vec<Value>| {
+        let mut properties = vec![
+            property("Physical Damage", json!([["10-20", 1]])),
+            property("Attacks per Second", json!([["2", 0]])),
+        ];
+        properties.extend(more);
+        item(
+            id,
+            &format!("Item {id}"),
+            "Rusted Sword",
+            "Rare",
+            json!({ "properties": properties }),
+        )
+    };
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "g1",
+        "Gear",
+        vec![
+            weapon("quality", vec![property("Quality", json!(7))]),
+            weapon("ele", vec![property("Elemental Damage", json!("no"))]),
+            weapon("nameless", vec![json!(7)]),
+            weapon("clean", vec![]),
+        ],
+        20,
+    );
+    let a = asked(&s, "pc", "pseudo.pdps=30");
+    assert_eq!(counts(&a["terms"][0]), [3, 0, 0, 1]);
+    assert_eq!(ids(&a), ["clean", "ele", "quality"]);
+    let a = asked(&s, "pc", "pseudo.dps=30");
+    assert_eq!(counts(&a["terms"][0]), [2, 0, 0, 2]);
+    assert_eq!(ids(&a), ["clean", "quality"]);
+    assert_eq!(
+        ids(&asked(&s, "pc", "undecided(pseudo.dps)")),
+        ["ele", "nameless"]
+    );
+    // the reason is the element's own, named (`derive::Unread::name`)
+    let shown = serde_json::to_value(show(&s, "ele", false).unwrap()).unwrap();
+    assert_eq!(
+        (
+            &shown["item"]["unread"][0]["name"],
+            &shown["item"]["unread"][0]["of"]
+        ),
+        (&json!("Elemental Damage"), &json!("properties"))
+    );
+}
+
+/// Outside audit, 2026-09-24 (4): the vocabulary lists beside its
+/// templates the computed values whose name or definition the narrowing
+/// matches, marked computed, each counting the matches that carry it —
+/// established and not zero — with a route that returns exactly them;
+/// `line` alone lists none.
+#[test]
+fn audit_the_vocabulary_lists_the_computed_values_a_narrowing_matches() {
+    let s = stash();
+    let a = view(
+        &s,
+        "",
+        json!({ "counts": { "keys": ["line:fire resist"] } }),
+    )
+    .unwrap();
+    let table = &a["view"]["counts"]["tables"][0];
+    let computed: Vec<(&str, u64)> = table["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|b| b["bucket"] == "computed")
+        .map(|b| (b["value"].as_str().unwrap(), b["count"].as_u64().unwrap()))
+        .collect();
+    // the totals whose definition names a fire-resistance line: ring_a
+    // carries each, ring_b's subtotal is incomplete, the rest are zero
+    assert_eq!(
+        computed,
+        [
+            ("pseudo.total_fire_res", 1),
+            ("pseudo.total_ele_res", 1),
+            ("pseudo.total_res", 1)
+        ]
+    );
+    let row = table["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["value"] == "pseudo.total_res")
+        .unwrap();
+    assert_eq!(row["term"], "pseudo.total_res>0 or pseudo.total_res<0");
+    // the count is flattened into the row, as every bucket's is
+    assert_eq!(follow(&s, "pc", row), ["ring_a"]);
+    // a template row is still a template row, and the values counted are
+    // theirs alone: the one template holding both words
+    assert_eq!(table["values"], 1);
+    // by name: the derived fields, counting the weapons that have one
+    let a = view(&s, "", json!({ "counts": { "keys": ["line:dps"] } })).unwrap();
+    let table = &a["view"]["counts"]["tables"][0];
+    let computed: Vec<(&str, u64)> = table["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|b| b["bucket"] == "computed")
+        .map(|b| (b["value"].as_str().unwrap(), b["count"].as_u64().unwrap()))
+        .collect();
+    assert_eq!(computed, [("pseudo.dps", 2), ("pseudo.pdps", 1)]);
+    let a = view(&s, "", json!({ "counts": { "keys": ["line"] } })).unwrap();
+    assert!(
+        a["view"]["counts"]["tables"][0]["buckets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|b| b["bucket"] != "computed")
+    );
+}
+
+/// Outside audit, 2026-09-24 (5): a reason made beyond the item's parts —
+/// a derived field's malformed property — is a part of its own under the
+/// six-part bound, and what the bound leaves out is counted: five unread
+/// arrays and four malformed properties are nine parts, six shown.
+#[test]
+fn audit_reasons_beyond_the_items_parts_are_bounded_and_counted() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("g1", "Gear")]), 10);
+    let property = |name: &str| json!({ "name": name, "values": [["fast", 0]], "displayMode": 0 });
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "g1",
+        "Gear",
+        vec![item(
+            "nine",
+            "Nine Ways",
+            "Rusted Sword",
+            "Rare",
+            json!({
+                "implicitMods": 1, "explicitMods": 2, "craftedMods": 3, "enchantMods": 4, "fracturedMods": 5,
+                "properties": [
+                    property("Attacks per Second"), property("Physical Damage"),
+                    property("Elemental Damage"), property("Chaos Damage")]
+            }),
+        )],
+        20,
+    );
+    let a = asked(&s, "pc", "pseudo.total_res>=1 pseudo.dps>=1");
+    let item = &a["total"]["undecided_items"][0];
+    assert_eq!(item["id"], "nine");
+    let parts: Vec<String> = item["why"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|w| w["problem"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(parts.len(), 6, "{parts:?}");
+    assert_eq!(item["why_left_out"], 3);
+    // the item's own parts first, in its order, then the reasons made
+    // beyond them in the order met
+    assert!(parts[0].starts_with("`craftedMods`"));
+    assert!(parts[4].starts_with("`implicitMods`"));
+    assert_eq!(
+        parts[5],
+        "`Attacks per Second` is `fast`: no number the search reads"
+    );
+}
+
 /// C92, C95: a computed value sorts the rows and sums beside a count, with
 /// the statuses a sum has — an item lacking it last and counted as
 /// lacking, an incomplete one last with what was readable, a subtotal

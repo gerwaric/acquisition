@@ -677,20 +677,37 @@ pub(crate) fn evidence(
 const SHOWN: usize = 6;
 
 /// Why these terms are open on an item: each term with each unread part
-/// it rests on. The bound is on the item's parts, the first [`SHOWN`] in
-/// the item's own order, every term's pair with each kept — how many terms
-/// a query has is its author's — and the parts past the bound are counted.
+/// it rests on. The bound is on the parts, the first [`SHOWN`] in the
+/// item's own order — a reason made beyond the item's parts (the class
+/// table's, a total's, a derived field's) is a part of its own, told from
+/// another by what it says, after the item's and in the order met, never
+/// one part for all of them (outside audit, 2026-09-24) — every term's
+/// pair with each kept, how many terms a query has being its author's,
+/// and the parts past the bound are counted.
 pub(crate) fn why<'a>(
     terms: &'a [Term],
     blamed: &[usize],
     held: &Held,
 ) -> (Vec<(&'a Term, Reason)>, usize) {
-    let at = |unread: &Unread| {
-        held.item
+    let mut beyond: Vec<(Part, String)> = Vec::new();
+    let mut at = |unread: &Unread| {
+        if let Some(i) = held
+            .item
             .unread
             .iter()
             .position(|u| std::ptr::eq(u, unread))
-            .unwrap_or(usize::MAX)
+        {
+            return i;
+        }
+        let key = (unread.part.clone(), unread.problem.clone());
+        let i = match beyond.iter().position(|k| *k == key) {
+            Some(i) => i,
+            None => {
+                beyond.push(key);
+                beyond.len() - 1
+            }
+        };
+        held.item.unread.len() + i
     };
     let mut pairs: Vec<(usize, usize, Cow<'_, Unread>)> = blamed
         .iter()

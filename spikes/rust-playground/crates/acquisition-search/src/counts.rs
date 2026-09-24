@@ -64,7 +64,13 @@
 //!   E3 accepted, `SEARCH-SLICE.md`). A source or flag beneath a row is counted by
 //!   its legal spelling, which the evaluator matches in any case (B2), so
 //!   the kind's route returns what it counted; a spelling outside the list
-//!   is counted and has no route.
+//!   is counted and has no route. A narrowed vocabulary lists beside its
+//!   templates the computed values whose name or definition the narrowing
+//!   matches (the reference: "marked computed"; `pseudo::matching`), each
+//!   with the count of the matches carrying it — established and not
+//!   zero — and its route; never cut, not among the values counted, and
+//!   none under `line` alone, which narrows by nothing (outside audit,
+//!   2026-09-24).
 //! - **The sum** (C95) adds one number of each item of a bucket, exactly
 //!   (`exact.rs`): an item lacking the thing adds nothing and is counted as
 //!   lacking; one whose number could not be read adds what was readable of
@@ -999,6 +1005,32 @@ fn vocabulary(
             }
         })
         .collect();
+    // the computed values the narrowing matches, marked computed
+    if let Some((op, text)) = group.sole_template_test() {
+        for (name, named, term) in crate::pseudo::matching(op, &text).unwrap_or_default() {
+            let n = matches
+                .held()
+                .filter(|held| crate::pseudo::carried(named, held))
+                .count();
+            buckets.push(Bucket {
+                label: Label {
+                    bucket: "computed",
+                    value: Some(Json::from(name)),
+                    id: None,
+                    league: None,
+                    realm: None,
+                    term: Some(print::print(&term)),
+                    needs: None,
+                },
+                count: matches.router.under(n, vec![term], None),
+                sum: None,
+                slots: Vec::new(),
+                sources: Vec::new(),
+                flags: Vec::new(),
+                tally: Vec::new(),
+            });
+        }
+    }
     let apart = |bucket: &'static str, term: Node, pile: &Pile, tally: Vec<Tallied>| Bucket {
         label: Label {
             bucket,

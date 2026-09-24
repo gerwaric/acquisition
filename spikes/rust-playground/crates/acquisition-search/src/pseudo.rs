@@ -24,7 +24,12 @@
 //!   `Attacks per Second` property, or none of the damage properties a
 //!   field reads, *lacks* the field — known absence, false and never zero
 //!   (C93) — where a property the field reads is unread, or is displayed
-//!   as no number and no range, the field is undecided with that reason.
+//!   as no number and no range, or its product needs more decimals than
+//!   the units hold (`exact::Exact::times`), the field is undecided with
+//!   that reason. An unread element of `properties` leaves a field open
+//!   only when it may be one the field reads: its name unread, or one of
+//!   the field's (`derive::Unread::name`; rule 8 at the element's grain,
+//!   outside audit 2026-09-24).
 //!   The base defence percentile the same paragraph names is not built
 //!   (`bind::NOT_BUILT`, its formula unpinned: `search/pseudo-stats/README.md`,
 //!   open question 3).
@@ -53,6 +58,12 @@
 //! - **What a row shows** of a computed value: its value, then the lines
 //!   the total's rows named on the item, or the properties the derived
 //!   field read, bounded as every term's evidence is (`eval::evidence`).
+//! - **The vocabulary lists a computed value beside the templates** whose
+//!   name or definition its narrowing matches (the reference, `--count
+//!   line[:text]`; `counts.rs`), marked computed, with the count of the
+//!   matches on which the value is established and not zero, routed by
+//!   `pseudo.<name>>0 or pseudo.<name><0` — exactly those (a lacked
+//!   derived field and an incomplete total are neither).
 //!   Why it is open is the open contributors' own reasons (rule 8): a
 //!   source a row admits unread, an occurrence whose number or flag is,
 //!   the property that could not be read.
@@ -67,6 +78,7 @@ use crate::error::{ErrorKind, LanguageError};
 use crate::eval::{self, Evidence};
 use crate::exact::{self, Exact};
 use crate::totals::{self, Total, TotalsTable};
+use crate::tree::{Node, Number, Op, Value, ValueRef};
 
 /// A computed value, bound by name.
 #[derive(Debug, Clone, Copy)]
@@ -303,17 +315,33 @@ fn derived_of(derived: Derived, held: &Held) -> Valued {
     }
 }
 
+/// The properties a derived field reads.
+fn reads(derived: Derived) -> &'static [&'static str] {
+    match derived {
+        Derived::Pdps => &[ATTACKS_PER_SECOND, PHYSICAL],
+        Derived::Dps => &[ATTACKS_PER_SECOND, PHYSICAL, ELEMENTAL, CHAOS],
+    }
+}
+
 /// The one reading of a derived field's inputs: what was unread of the
-/// properties leaves every derived field open — an element that could
-/// not be read may be the one the field needs — and a property displayed
-/// as no number and no range is unread under `properties`, said here.
+/// properties leaves the field open where it may be a property the field
+/// reads — the array itself, an element with no readable name, or one
+/// named as the field's — and a property displayed as no number and no
+/// range, or whose product the units cannot hold, is unread under
+/// `properties`, said here.
 fn inputs(derived: Derived, held: &Held) -> Result<Read<'_>, Inputs<'_>> {
     let item = &held.item;
     let properties = Part::Properties("properties".to_string());
     let unread: Vec<Cow<'_, Unread>> = item
         .unread
         .iter()
-        .filter(|u| u.part == Part::Body || u.part == properties)
+        .filter(|u| {
+            u.part == Part::Body
+                || (u.part == properties
+                    && u.name.as_deref().is_none_or(|name| {
+                        reads(derived).iter().any(|r| r.eq_ignore_ascii_case(name))
+                    }))
+        })
         .map(Cow::Borrowed)
         .collect();
     if !unread.is_empty() {
@@ -330,6 +358,7 @@ fn inputs(derived: Derived, held: &Held) -> Result<Read<'_>, Inputs<'_>> {
             part: properties.clone(),
             problem: format!("`{}` is `{}`: {what}", p.name, p.values.join(", ")),
             line: None,
+            name: Some(p.name.clone()),
         }));
     };
     // the mean of a damage property: the sum of its ranges' means
@@ -375,19 +404,74 @@ fn inputs(derived: Derived, held: &Held) -> Result<Read<'_>, Inputs<'_>> {
         }
     };
     let means: Vec<Option<Exact>> = damage.iter().map(|p| mean_of(p, &mut problem)).collect();
+    let product = match (speed, means.into_iter().collect::<Option<Vec<Exact>>>()) {
+        (Some(speed), Some(means)) => {
+            let mean = Exact::sum(means);
+            let product = mean.times(speed);
+            if product.is_none() {
+                problem(
+                    aps,
+                    &format!(
+                        "times the damage's mean {}, a product of more decimals than the search reads",
+                        mean.as_f64()
+                    ),
+                );
+            }
+            product
+        }
+        _ => None,
+    };
     if !problems.is_empty() {
         return Err(Inputs::Unread(problems));
     }
-    let (Some(speed), Some(means)) = (speed, means.into_iter().collect::<Option<Vec<Exact>>>())
-    else {
+    let Some(value) = product else {
         return Err(Inputs::Unread(Vec::new()));
     };
     let mut shown: Vec<&Property> = std::iter::once(aps).chain(damage).collect();
     shown.sort_by_key(|p| item.properties.iter().position(|q| std::ptr::eq(q, *p)));
-    Ok(Read {
-        value: Exact::sum(means).times(speed),
-        shown,
-    })
+    Ok(Read { value, shown })
+}
+
+// ---- the vocabulary -----------------------------------------------------------------------------------
+
+/// The computed values a vocabulary narrowing matches by name or
+/// definition (the module doc), each with the term that selects the items
+/// carrying it.
+pub(crate) fn matching(op: Op, text: &str) -> Result<Vec<(String, Named, Node)>, LanguageError> {
+    let test = crate::bind::text_test("line", op, &Value::Text(text.to_string()))?;
+    let mut out = Vec::new();
+    for entry in DESCRIBED.iter() {
+        if !(test.holds(&entry.name) || test.holds(&entry.what)) {
+            continue;
+        }
+        let name = entry.name.trim_start_matches("pseudo.");
+        let Some(named) = lookup(name)? else {
+            continue;
+        };
+        let value = ValueRef::Pseudo {
+            name: name.to_string(),
+            slot: named.ranged().then(|| "avg".to_string()),
+        };
+        let compare = |op: Op| Node::Compare {
+            value: value.clone(),
+            op,
+            rhs: Value::Number(Number::Int(0)),
+        };
+        out.push((
+            entry.name.clone(),
+            named,
+            Node::Any(vec![compare(Op::Gt), compare(Op::Lt)]),
+        ));
+    }
+    Ok(out)
+}
+
+/// Whether the item carries the computed value: established, and not zero.
+pub(crate) fn carried(named: Named, held: &Held) -> bool {
+    matches!(
+        value(named, named.ranged().then_some("avg"), held),
+        Valued::Value(n) if n != Exact::default()
+    )
 }
 
 /// A displayed number the search reads, or none.
@@ -653,6 +737,66 @@ mod tests {
         assert_eq!(
             f64_of(value(Named::Derived(Derived::Dps), None, &wand)),
             Some(76.3)
+        );
+        // a number the game never displays, and a product the units cannot
+        // hold, are unread to the field — never a panic, never a rounding
+        // (outside audit, 2026-09-24: `1e34` overflowed, 0.000025 read 0.00003)
+        for (aps, phys, problem) in [
+            (
+                "1e34",
+                "1",
+                "`Attacks per Second` is `1e34`: no number the search reads",
+            ),
+            (
+                "0.25",
+                "0.0001",
+                "`Attacks per Second` is `0.25`: times the damage's mean 0.0001, a product of more decimals than the search reads",
+            ),
+        ] {
+            let odd = held(
+                "pc",
+                &format!(
+                    r#"{{"properties": [
+                        {{"name": "Attacks per Second", "values": [["{aps}", 0]], "displayMode": 0}},
+                        {{"name": "Physical Damage", "values": [["{phys}", 1]], "displayMode": 0}}]}}"#
+                ),
+            );
+            assert_eq!(
+                value(Named::Derived(Derived::Pdps), None, &odd),
+                Valued::Incomplete(None)
+            );
+            assert_eq!(
+                super::unread_of(Named::Derived(Derived::Pdps), &odd)[0].problem,
+                problem
+            );
+        }
+        // an unread element leaves a field open only when it may be one
+        // the field reads (outside audit, 2026-09-24)
+        let quality = held(
+            "pc",
+            r#"{"properties": [
+                {"name": "Quality", "values": 7, "displayMode": 0},
+                {"name": "Elemental Damage", "values": "no", "displayMode": 0},
+                {"name": "Attacks per Second", "values": [["2", 0]], "displayMode": 0},
+                {"name": "Physical Damage", "values": [["10-20", 1]], "displayMode": 0}]}"#,
+        );
+        assert_eq!(
+            f64_of(value(Named::Derived(Derived::Pdps), None, &quality)),
+            Some(30.0)
+        );
+        assert_eq!(
+            value(Named::Derived(Derived::Dps), None, &quality),
+            Valued::Incomplete(None)
+        );
+        let nameless = held(
+            "pc",
+            r#"{"properties": [7,
+                {"name": "Attacks per Second", "values": [["2", 0]], "displayMode": 0},
+                {"name": "Physical Damage", "values": [["10-20", 1]], "displayMode": 0}]}"#,
+        );
+        assert_eq!(
+            value(Named::Derived(Derived::Pdps), None, &nameless),
+            Valued::Incomplete(None)
         );
         let odd = held(
             "pc",

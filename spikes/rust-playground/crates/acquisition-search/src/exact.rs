@@ -44,11 +44,25 @@ const DECIMALS: usize = 4;
 const UNITS: f64 = 100_000.0;
 
 /// Whether the search reads this number, as written: digits, a point and
-/// digits, a sign before them or none, its thousands commas gone.
+/// digits, a sign before them or none, its thousands commas gone — and
+/// nothing else: `1e34` is no number the game displays, and read as one
+/// it overflowed the units (outside audit, 2026-09-24).
 pub(crate) fn reads(literal: &str) -> bool {
-    let digits = literal.trim_start_matches(['+', '-']);
-    let (whole, decimals) = digits.split_once('.').unwrap_or((digits, ""));
-    whole.trim_start_matches('0').len() <= WHOLE && decimals.len() <= DECIMALS
+    let digits = literal
+        .strip_prefix('+')
+        .or_else(|| literal.strip_prefix('-'))
+        .unwrap_or(literal);
+    let (whole, decimals) = match digits.split_once('.') {
+        Some((whole, decimals)) if !decimals.is_empty() => (whole, decimals),
+        Some(_) => return false,
+        None => (digits, ""),
+    };
+    let all_digits = |s: &str| s.bytes().all(|b| b.is_ascii_digit());
+    !whole.is_empty()
+        && all_digits(whole)
+        && all_digits(decimals)
+        && whole.trim_start_matches('0').len() <= WHOLE
+        && decimals.len() <= DECIMALS
 }
 
 /// A number in whole units: a displayed number, a mean, or a total of
@@ -89,16 +103,16 @@ impl Exact {
     }
 
     /// The product of two displayed numbers — a weapon's attacks per second
-    /// and the mean of its damage (`pseudo.rs`, C101). A product may need
-    /// more decimals than a sum: the game displays at most two on either
-    /// (a mean adds a half), so the product is exact in units, and one that
-    /// is not is rounded to the unit, a hundred-thousandth, and never a
-    /// float's rounding.
-    pub fn times(self, other: Exact) -> Exact {
+    /// and the mean of its damage (`pseudo.rs`, C101) — where it is a whole
+    /// count of units, and none where it is not: a product may need more
+    /// decimals than a sum, and one the units cannot hold is unread to what
+    /// asked it, never rounded (outside audit, 2026-09-24; the game
+    /// displays at most two decimals on either, so no displayed weapon
+    /// meets it).
+    pub fn times(self, other: Exact) -> Option<Exact> {
         let units = UNITS as i128;
-        let product = self.0 * other.0;
-        let (whole, rest) = (product.div_euclid(units), product.rem_euclid(units));
-        Exact(whole + i128::from(rest * 2 >= units))
+        let product = self.0.checked_mul(other.0)?;
+        (product % units == 0).then_some(Exact(product / units))
     }
 }
 
@@ -201,12 +215,17 @@ mod tests {
         assert_eq!(Exact::of(-9.0).halved(1).as_f64(), -4.5);
         assert_eq!(Exact::of(59.0).mid(Exact::of(88.0)).as_f64(), 73.5);
         assert_eq!(Exact::of(0.1).mid(Exact::of(0.2)).as_f64(), 0.15);
-        assert_eq!(Exact::of(73.5).times(Exact::of(1.25)).as_f64(), 91.875);
-        assert_eq!(Exact::of(225.5).times(Exact::of(1.25)).as_f64(), 281.875);
-        assert_eq!(Exact::of(0.0001).times(Exact::of(0.5)).as_f64(), 0.00005);
-        // six decimals do not fit: rounded to the unit, the half up
-        assert_eq!(Exact::of(0.0001).times(Exact::of(0.25)).as_f64(), 0.00003);
-        assert_eq!(Exact::of(0.0001).times(Exact::of(0.1)).as_f64(), 0.00001);
+        let times = |a: f64, b: f64| Exact::of(a).times(Exact::of(b)).map(Exact::as_f64);
+        assert_eq!(times(73.5, 1.25), Some(91.875));
+        assert_eq!(times(225.5, 1.25), Some(281.875));
+        assert_eq!(times(0.0001, 0.5), Some(0.00005));
+        // six decimals do not fit the units: no product, never a rounding
+        // (outside audit, 2026-09-24: 0.000025 read as 0.00003)
+        assert_eq!(times(0.0001, 0.25), None);
+        assert_eq!(times(0.0001, 0.1), Some(0.00001));
+        // the rule's largest number squared is within i128 and exact
+        assert_eq!(times(9999999999.9999, 2.0), Some(19999999999.9998));
+        assert!(times(9999999999.9999, 9999999999.9999).is_none());
     }
 
     #[test]
@@ -222,7 +241,21 @@ mod tests {
         ] {
             assert!(reads(read), "{read}");
         }
-        for unread in ["10000000000", "0.00001", "+10000000000000000000000000000"] {
+        for unread in [
+            "10000000000",
+            "0.00001",
+            "+10000000000000000000000000000",
+            // no number the game displays: read as one, `1e34` overflowed
+            // the units (outside audit, 2026-09-24)
+            "1e34",
+            "inf",
+            "NaN",
+            "1.",
+            ".5",
+            "",
+            "+-5",
+            "1 000",
+        ] {
             assert!(!reads(unread), "{unread}");
         }
     }

@@ -306,6 +306,7 @@ impl ClassTable {
                 part: Part::Class(gap),
                 problem,
                 line: None,
+                name: None,
             })
         };
         if !self.realms.contains(&item.facts.realm) {

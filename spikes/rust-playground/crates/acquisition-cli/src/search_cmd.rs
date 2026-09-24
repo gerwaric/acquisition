@@ -776,6 +776,7 @@ fn label_text(label: &Label, all_realms: bool) -> String {
     let mut out = match (label.bucket, &label.value) {
         ("value", Some(value)) => json_text(value),
         ("value", None) => "(no name)".to_string(),
+        ("computed", Some(value)) => format!("{} (computed)", json_text(value)),
         (bucket, _) => format!("({bucket})"),
     };
     if let Some(realm) = label.realm.as_ref().filter(|_| all_realms) {
