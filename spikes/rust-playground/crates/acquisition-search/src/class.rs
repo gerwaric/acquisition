@@ -4,8 +4,8 @@
 //!
 //! What reference data admits, and the admission test the table passed,
 //! is `search/DESIGN.md`'s contract detail (C106 — what reference data
-//! admits, and the test; C101 — the derived-field pseudos; C105 — the
-//! buckets of a count), cited and not restated (the build plan, rule 6).
+//! admits, and the test; C101 — the derived-field pseudos), cited and not
+//! restated; the buckets of a count are `counts.rs`'s (C105).
 //!
 //! # As built
 //!

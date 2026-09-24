@@ -3,9 +3,9 @@
 //! evaluator, the answer's routes, what a selector resolved to, the zero
 //! block, the sort.
 //!
-//! The rules are `search/DESIGN.md`'s reference (*Members*, *Slots*) and
-//! its contract detail (C92, C93), cited and not restated (the build plan,
-//! rule 6).
+//! The words are `search/DESIGN.md`'s reference (*Members*, *Slots*); the
+//! rules that decide what a group means are this doc's and `eval.rs`'s
+//! (C92, C93; taken from the contract detail 2026-09-23).
 //!
 //! # Decisions as recorded
 //!

@@ -53,12 +53,14 @@ at the slice's close and cited by hash.
    prints that route only when it runs; until then it prints the count
    left out and names the unbuilt construct. The route property's test
    covers it: every command an answer prints parses and is not refused.
-6. **The reference stays whole in `search/DESIGN.md` until the first
-   seat has ruled.** Module docs cite it by section and take no
-   paragraph before then: the seat reads that page and may reopen it,
-   and two copies would rot. The header there says a paragraph leaves
-   when a module doc carries it; this delays the carrying, not the rule.
-   Owner, 2026-09-19: "accepted".
+6. **The language reference stays whole in `search/DESIGN.md` until the
+   first seat has ruled.** Module docs cite it by section and take no
+   paragraph of it before then: the seat may reopen that page, and two
+   copies would rot. Owner, 2026-09-19: "accepted". The contract detail
+   below it leaves as its header says, when a module doc carries the
+   paragraph — the delay was withdrawn for the detail 2026-09-23, since
+   a seat reads the tool and not the page (five blind seats opened
+   neither), and the detail had grown to three copies.
 7. **Whose store.** The agent tests on fixtures built through the
    store's own ingest, and measures on a sqlite `.backup` copy under a
    track's `raw/`, always with `ACQ_STORE_DIR` set. The owner's store is

@@ -2,9 +2,11 @@
 //! items of an answer grouped by a key, one table for each key or one
 //! crossed table of two, with one summed value beside each count.
 //!
-//! The shapes are `search/DESIGN.md`'s (*The request at a terminal*; the
-//! contract detail, C94–C95 and C105), cited and not restated (the build
-//! plan, rule 6).
+//! The shapes are `search/DESIGN.md`'s reference (*The request at a
+//! terminal*, the worked example); the rules that decide a count are this
+//! doc's (C95, C105; taken from the contract detail 2026-09-23). The
+//! totals table a sum may name is still the contract detail's (C94, step
+//! 7).
 //!
 //! # As built
 //!
@@ -70,7 +72,10 @@
 //!   it and marks the subtotal incomplete, never a total; nothing sums to
 //!   zero.
 //! - **Beneath `undecided`, a tally by what was unread** — a diagnostic,
-//!   never a partition: an item unread twice counts twice (C105).
+//!   never a partition: an item unread twice counts twice (C105). A
+//!   crossed table gains at most one `none` and one `undecided` row or
+//!   column per key, and the tally once per table; a part that left both
+//!   keys open is one part.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 

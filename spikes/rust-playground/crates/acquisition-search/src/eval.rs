@@ -1,9 +1,31 @@
 //! Evaluation (C92, C93): one bound term asked of one held item, and the
 //! tree composed over the answers.
 //!
-//! The rules are `search/DESIGN.md`'s contract detail (C92 — slots, the
-//! sort scalar, the together count; C93 — composition and witnesses; C94,
-//! C95 — a sum's status), cited and not restated (the build plan, rule 6).
+//! The words are `search/DESIGN.md`'s reference (*Slots*, *Composition*,
+//! *A sum's status*); the rules that decide an answer are this doc's,
+//! taken from the contract detail 2026-09-23 (C92 — slots, the sort
+//! scalar, the together count; C93 — composition and witnesses; C95 — a
+//! sum's status).
+//!
+//! # Decisions as recorded
+//!
+//! - **C93 — composition.** `true or undecided` is true; `false and
+//!   undecided` is false; `not undecided` is undecided; at-least-N-of with
+//!   `t` true and `u` undecided children has the count interval `[t, t+u]`:
+//!   true when wholly inside the bound, false when disjoint, otherwise
+//!   undecided, an omitted upper bound unbounded (`truth`, below). The four
+//!   counts are taken per atomic term before outer composition, over the
+//!   fixed item scope, before any limit, with no short-circuit omission;
+//!   root matches and root undecided are separate answer counts
+//!   (`answer.rs`).
+//! - **C92 — the together count** is a diagnostic beside C93's counts,
+//!   never a fifth bucket: for a lower bound on a one-slot line selector,
+//!   an item counts once when no occurrence meets the bound and the
+//!   complete sum of its occurrences does — 20 + 75 counts for ≥ 90, 95 + 5
+//!   does not; an unreadable possible contributor cannot establish it, nor
+//!   does an item none of whose occurrences counts; upper bounds, equality
+//!   and compound terms are not applicable, never zero (`group.rs`, the
+//!   together bound).
 //!
 //! # As built
 //!
