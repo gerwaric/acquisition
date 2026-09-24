@@ -221,12 +221,14 @@ of the copy that has a `Level` requirement.
 `python3 search/pseudo-stats/scripts/coverage-trial.py` over the
 deriver's census of the copy (`item-facts/raw/m2/rust.json`: 22,721
 items, 6,148 templates) against the shipped table (46 templates named by
-a total), 2026-09-23. For each word, the templates holding it, the items
-carrying those templates, and how many a total counts; a word-based
-trial measures coverage, never membership. Every row of the table is
-carried by the corpus.
+a total), 2026-09-23. For each word, the templates holding it, the lines
+displaying those templates, and how many a total counts — lines, since
+the census counts items per (source, template) and an item carrying a
+template twice, or two of them, is two incidences and one item (outside
+audit, 2026-09-24); a word-based trial measures coverage, never
+membership. Every row of the table is carried by the corpus.
 
-| Word | Templates · items | Counted by a total | Counted by none | What none counts |
+| Word | Templates · lines | Counted by a total | Counted by none | What none counts |
 | --- | ---: | ---: | ---: | --- |
 | resist | 187 · 7,499 | 11 · 5,047 | 176 · 2,452 | maximum resistances (144, 133, 128), `Resistant Monsters` (123), players' and monsters' (119, 105, 105), per Alert Level (84–45), `Added Small Passive Skills also grant` (75–30), during flask effect (62, 7), minions' and allies' (47, 42, 32), exposure and penetration, conditional (`while on Low Life` 10, `while affected by Herald of …` 13, 9, 6; `when Socketed with a … Gem` 4 each), `(#-#)` descriptions |
 | strength | 70 · 1,021 | 4 · 827 | 66 · 194 | `Added Small Passive Skills also grant: # to Strength` (41), `#% increased Strength` (26), requirements, per-Strength lines, `Other Item: (#-#) to Strength` (6) |
@@ -503,10 +505,17 @@ timings, coverage no fixture reaches, and questions for the seat.
 - A derived field's lacked item sorts last with the status `no
   satisfying occurrence`, which is a line's wording; a field's and a
   computed value's is the same status today.
-- An unread element of `properties` leaves every derived field open,
-  whichever property it was: the deriver keeps no name for an element
-  it could not read, so the grain is the array's (rule 8's "no more than
-  was lost" is met for the array and not for the element).
+- The one outside audit of the step (Astra, 2026-09-24) found six
+  faults the gate had not: a number in scientific notation panicked the
+  units (`exact::reads` now reads decimal syntax alone), a product past
+  five decimals was rounded in silence (`Exact::times` now has none), an
+  unread element of `properties` left every derived field open
+  (`Unread::name`: rule 8 at the element's grain), the vocabulary listed
+  no computed value beside its templates (the reference's own line, put
+  off at step 5), a reason made beyond the item's parts fell outside the
+  six-part bound (`eval::why`), and the trial's item column summed
+  incidences (relabelled: lines). Each is a test named for it in
+  `tests/pseudo.rs` or the module.
 - `pseudo.dps` counts every damage property the item displays and
   `pseudo.pdps` the physical alone; the C++ app reads 0 where a property
   is missing and this build says *lacked* — the one departure, C93's.
