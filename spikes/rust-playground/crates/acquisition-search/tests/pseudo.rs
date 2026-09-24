@@ -391,9 +391,9 @@ fn audit_the_vocabulary_lists_the_computed_values_a_narrowing_matches() {
         .map(|b| (b["value"].as_str().unwrap(), b["count"].as_u64().unwrap()))
         .collect();
     assert_eq!(computed, [("pseudo.dps", 2), ("pseudo.pdps", 1)]);
-    // `line` alone narrows by nothing and lists every computed value, and
-    // the limit bounds them as it bounds the templates, counted apart
-    // (the audit's second round): 37 computed, ranked by count then name
+    // `line` alone lists none (T5, the owner's ruling 2026-09-24, after
+    // the audit's second round had it list every one): the templates are
+    // cut by the limit as before, and the computed count is zero
     let a = view(
         &s,
         "",
@@ -401,21 +401,21 @@ fn audit_the_vocabulary_lists_the_computed_values_a_narrowing_matches() {
     )
     .unwrap();
     let table = &a["view"]["counts"]["tables"][0];
-    let computed: Vec<(&str, u64)> = table["buckets"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|b| b["bucket"] == "computed")
-        .map(|b| (b["value"].as_str().unwrap(), b["count"].as_u64().unwrap()))
-        .collect();
-    assert_eq!(computed, [("pseudo.dps", 2), ("pseudo.pdps", 1)]);
+    assert!(
+        table["buckets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|b| b["bucket"] != "computed"),
+        "{table}"
+    );
     assert_eq!(
         (
             &table["computed"],
             &table["computed_left_out"],
             &table["left_out_needs"]
         ),
-        (&json!(37), &json!(35), &json!("--limit"))
+        (&json!(null), &json!(null), &json!("--limit"))
     );
     assert_eq!(table["values"], 5);
     // a requested sum is summed over a computed row's members too

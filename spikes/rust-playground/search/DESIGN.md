@@ -75,7 +75,8 @@ acq search [--account A] [--realm pc|xbox|sony|poe2|all] ['<query>']    no query
               --count line[:text,…]           the vocabulary: templates by kind, ranked, slot ranges,
                                               each with its exact selector; several texts in one call
                                               (`~pattern` narrows too). Computed values whose name or
-                                              definition matches are listed beside them, marked computed.
+                                              definition a narrowing matches are listed beside them,
+                                              marked computed; `line` alone lists none (T5).
               --context matches | corpus      corpus evaluates the EMPTY query over the bound scope
                                               and prints that effective query
               --view locations                the full coverage list the scope block summarises

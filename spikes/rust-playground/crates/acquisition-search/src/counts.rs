@@ -66,8 +66,9 @@
 //!   the kind's route returns what it counted; a spelling outside the list
 //!   is counted and has no route. The vocabulary lists beside its
 //!   templates the computed values whose name or definition its
-//!   narrowing matches — every one under `line` alone (the reference:
-//!   "marked computed"; `pseudo::matching`), each with the count of the
+//!   narrowing matches — none under `line` alone (T5, `SEARCH-SLICE.md`,
+//!   "Holes ruled"; the reference: "marked computed"; `pseudo::matching`),
+//!   each with the count of the
 //!   matches carrying it — established and not zero, which the help says
 //!   — its route, and the sum beside it; ranked by that count, then by
 //!   name, and cut by the same limit, the rest counted apart from the

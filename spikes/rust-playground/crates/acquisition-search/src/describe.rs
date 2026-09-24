@@ -314,7 +314,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             ..named(
                 "line:",
                 "view",
-                "the vocabulary narrowed: the templates the matching items carry whose text holds the words, ranked, with the term that selects each, its numbers' range, and its sources and flags; `line~` a pattern; the rest of the list is texts, one table each. Beside them, marked computed, the computed values whose name or definition holds the words — every one under `line` alone — each counting the matches that carry it: its value established and not zero",
+                "the vocabulary narrowed: the templates the matching items carry whose text holds the words, ranked, with the term that selects each, its numbers' range, and its sources and flags; `line~` a pattern; the rest of the list is texts, one table each. Beside them, marked computed, the computed values whose name or definition holds the words — none under `line` alone, which `--describe` names — each counting the matches that carry it: its value established and not zero",
             )
         },
         Named {
