@@ -152,6 +152,12 @@ by the builder before it was taken.
   regressions are in `tests/class.rs`; `reqlevel` is in the generators
   (`tests/common/generated.rs`), its hole the first finding's shape, and
   the completion property catches that finding undone — tried.
+- **Its review of those fixes (`20558843`), the same day**: the
+  reproducers pass, the OQ5 narrowing accepted ("explicitly pending, not
+  falsely claimed as covered"); three follow-ups and two corrections of
+  the record, each reproduced first, fixed at `457f6e71`; the
+  reproducer shown failing under each fix undone. Yield of the two
+  looks: 5, 3.
 - **Five blind seats at `f357de39` (2026-09-22)**: Sonnet, one question
   each over the owner's real store, read-only under `ACQ_NO_SPAWN=1`, the
   tool's own `--help` and `--describe` their only sources; the brief and
@@ -216,7 +222,11 @@ by the builder before it was taken.
 | 6, review 1 | `20558843` | 2 | Every unread element of `requirements` left `reqlevel` open: a read `Level 10` beside a malformed `Str` made `reqlevel>30` undecided while `--sum reqlevel` summed a complete 10 *Confirmed: the unread was recorded a grain too wide (rule 8), and the sort and the sum read the number where the comparison read the part* | the deriver says under `reqlevel` when the `Level` row may be among what was lost — the array not an array, an element unread whose name is `Level` or unreadable — and the evaluator asks that key alone, so a read `Level` is a witness and the three consumers agree |
 | 6, review 1 | `20558843` | 3 | A class error's readings were spelled by hand: `class:bodyarmour` offered `class=Body Armours`, which does not parse (rule 5 for readings) | `bind::closed` offers through the printer, which quotes a value with a space; a test binds every reading a class error offers |
 | 6, review 1 | — | 4 | OQ5's test still pins the plan's wording — three wearable classes and a bracket, a flask a distractor — after the owner's definition changed the reading *Narrowed: the record never claimed OQ5 covered, and the owner's line is pending (G6)* | the test's doc says it pins the constructs and moves to his words when he rules; nothing built for it, as the review agreed it need not be |
-| 6, review 1 | `20558843` | 5 | The reference's worked example still used the illustrative `class=ring` and C105's example the parked `armour`/`weapon`; the ledger row carried the table's numbers from before G3 was reversed (81, 4,483, 213 against 82, 4,547, 225) | `search/DESIGN.md` says `class=Rings` and `Rings 6, Wands 3`; the row says what the shipped table holds |
+| 6, review 1 | `2b759766` | 5 | The reference's worked example still used the illustrative `class=ring` and C105's example the parked `armour`/`weapon`; the ledger row carried the table's numbers from before G3 was reversed (81, 4,483, 213 against 82, 4,547, 225) | `search/DESIGN.md` says `class=Rings` and `Rings 6, Wands 3`; the row says what the shipped table holds |
+| 6, review 2 | `457f6e71` | 1 | A read `Level 10` beside an unread element that may be a second `Level` row — an unnamed `42`, or `{"name": "Level", "values": "no"}` — kept its number: `reqlevel=10` matched, `reqlevel>30` was undecided, `--sum reqlevel` summed a complete 10 *Confirmed: the first review's fix said the unread and left the value standing beside it, two statuses for one thing* | one status: the number is established exactly when nothing is unread under `reqlevel` (`derive`, after `read_reqlevel`), so a comparison, the sort and the sum agree; a read `Level` beside an unread `Str` still stands |
+| 6, review 2 | `457f6e71` | 2 | `[Level]` with a value that could not be read was told as no `Level` row, so `-has:reqlevel` matched: the reader shows `[Level]` as `Level`, the loss check read the raw name | `level_may_be_lost` compares the name as `shown` renders it |
+| 6, review 2 | `457f6e71` | 3 | `DERIVATION` stayed 6 across the first review's fixes, which derive the same body to another item — the rule on the constant, and the second audit's finding 4 over again | 7; pinned on `show`'s basis |
+| 6, review 2 | `457f6e71` | — | The observations still said the generators exclude `reqlevel`; finding 5 of the first review was credited to the code commit, not the record's | this record |
 | 5, seats | `2cbf7787` | 1 | The `--realm` help read as optional, and all five seats omitted it once over a two-realm store; C96's refusal, which lists the choices, recovered each in one step | the help says required over several realms, one of them or `all`; `CLI-REFERENCE.md` |
 | 5, seats | `2cbf7787` | 2 | The scope line's `2940 never fetched` was read as items by four of five; C96 says locations never fetched, and the render had dropped the word | `2940 locations never fetched`, `1 location` for one; the `search_json` needle |
 
@@ -838,8 +848,9 @@ timings, coverage no fixture reaches, and questions for the seat.
   RePoE class display name lowercased, so the owner's old dropdown and
   `--describe class` say the same words.
 - The generated properties (equivalence, completion, the cross-checks)
-  generate no `class` or `reqlevel` term; both are held by hand-counted
-  tests alone, as `rarity` and `frame` are.
+  generate no `class` term: it is held by hand-counted tests alone, as
+  `rarity` and `frame` are. `reqlevel` joined the generators at the
+  first review, its hole a `Level` row with no value.
 - A poe2 body carries its class as a property (G4); the table covers
   none, and `--realm all` counts every poe2 item under `undecided` with
   that reason.
