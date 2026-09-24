@@ -405,7 +405,7 @@ hand from those facts.
 { "scope":  { "account": "A", "realm": "pc", "membership": "live" },
   "query":  { "tree": { "all": [
       { "field": "league", "op": "=", "value": "Standard" },
-      { "field": "class",  "op": "=", "value": "ring" },
+      { "field": "class",  "op": "=", "value": "Rings" },
       { "field": "rarity", "op": "=", "value": "rare" },
       { "exists": "lines", "where": { "all": [
           { "attr": "template", "op": "=",  "value": "# to maximum Life" },
@@ -417,13 +417,13 @@ hand from those facts.
 **The answer at a terminal:**
 
 ```
-query   league=Standard class=ring rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60
+query   league=Standard class=Rings rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60
 scope   account A · pc · live · 7 items · 2 locations fetched (oldest 3d, newest 2h)
         1 never fetched · location list seen 2h ago                       more: --view locations
 basis   store 3f9a1c0be27d · snapshot 41 · intent 12 · totals v1 · classes v3
 terms   each term evaluated independently over live pc items in all leagues
   0    league=Standard                        7 matched
-  1    class=ring                             6 matched · 1 undecided
+  1    class=Rings                            6 matched · 1 undecided
   2    rarity=rare                            6 matched · 1 failed
   3    line("# to maximum Life" arg1>=90)     5 matched · 1 failed · 1 lacked · 1 reaches 90 only together
   4    pseudo.total_res>=60                   5 matched · 1 failed · 1 undecided
@@ -611,7 +611,8 @@ since none has a trigger yet. Meeting one is a listed limit (C102).
   item in several buckets, so for it only the first invariant holds; the
   exact sum to the total holds for a key with one value per item (class,
   league, tab, rarity), and the first counts test pins that case — ten
-  rare items by class: armour 6, weapon 3, undecided 1, total 10.
+  rare items by class: Rings 6, Wands 3, undecided 1, total 10 (the
+  class names are the game's; step 6).
   Beneath `undecided`, a tally by kind of reason — C93's closed list: a
   body unread, a base the class table lacks, a price unresolved — where
   it costs no undue complexity (owner, 2026-09-18: "If
