@@ -254,8 +254,10 @@ conditional resistances — is coverage the rows never claimed; whether
 any joins a recipe is the owner's (the plan's foot, T4).
 
 **M3 at each later build** — the same command, the release build judged
-against 500 ms; every release ask of every build below is under it, so
-the persisted-projection park's trigger has not fired. The debug build
+against 500 ms; every release ask of every build below is under it but
+one — the vocabulary whole at the audited step 7 build, measured beneath
+the table — so whether the persisted-projection park's trigger has fired
+is the owner's (the plan's foot, T5). The debug build
 is what the seat feels behind the README's alias. Step 4's per-ask
 table is above; here the first ask after the copy is written, and the
 range of the warm medians, in ms.
@@ -272,6 +274,7 @@ range of the warm medians, in ms.
 | `99bd0962` | step 5, the review's fixes | — | 270–306 | — |
 | `eeaec66e` | step 6, with its three asks added to the script | 291 | 275–309 | 1,789–2,514 |
 | `b5d62d92` | step 7, with its four asks added to the script | 507 | 278–359 | 1,851–2,748 |
+| `4237d2f3` | step 7, the two audits' fixes | 465 | 275–360, the vocabulary whole 954 | 1,852–2,748, the vocabulary whole 6,555 |
 
 Step 7's four asks at its build (release · debug): AQ2 as worded,
 `pseudo.total_res>=60` over OQ1, 359 · 2,748; the worked example whole
@@ -280,6 +283,21 @@ Step 7's four asks at its build (release · debug): AQ2 as worded,
 every item is the dearest ask yet, its 19 rows each a group asked of
 each line, 80 ms over the empty query; the totals table's parse is
 within the noise (the empty query 278, step 6's 275).
+**The vocabulary whole at `4237d2f3`, 954 ms** (an outside review's
+finding, 2026-09-24, its own medians 284 · 988 · 312 for the empty
+query, the vocabulary whole and the vocabulary twice narrowed;
+reproduced here as 275 · 954 · 306): step 7's own build asked the
+vocabulary whole in 302, and the cost came with the second audit round
+(`e63c86a8`), on whose advice `line` alone lists every computed value.
+The cause, measured and not read: the same binary with that scan
+skipped asks it in 323, so the scan is about 630 of the 954; it costs
+by the table's rows, not its names — `line:total_res` (one total, 19
+rows) 356, `line:total_fire_res` 315, `line:pdps` 279, `line:resist`
+(11 totals) 524 — each row a group asked of every line of every match,
+walked three times in `eval::sum`, and the limit cannot cut it since
+the ranking needs every count first. The load is unchanged (the empty
+query 275), so the park's candidates — a persisted projection of the
+lines — would not remove this cost.
 Step 6's three asks at its build: OQ1 as worded (`class:ring`) 297,
 OQ5 by class and level 277, `--count class` 277 — the class table's
 parse is within the noise of the empty query. Step 5's six asks at
@@ -516,3 +534,12 @@ timings, coverage no fixture reaches, and questions for the seat.
 - `pseudo.dps` counts every damage property the item displays and
   `pseudo.pdps` the physical alone; the C++ app reads 0 where a property
   is missing and this build says *lacked* — the one departure, C93's.
+- The vocabulary whole is the one release ask over 500 ms (M3 at
+  `4237d2f3`), and it is the computed-value scan, not the load: the
+  park's trigger fired by its letter and not by its purpose, which is
+  T5 at the plan's foot. What would make the scan cheap without a second
+  maker — a group knowing at binding the one exact template it requires,
+  and the evaluator asking many groups of an item in one walk over its
+  lines, the single sum being the batch of one — is the shape of a step
+  7b, 4b's precedent: the generators reaching `pseudo` first, then the
+  structural change, no new surface and no rule changed.
