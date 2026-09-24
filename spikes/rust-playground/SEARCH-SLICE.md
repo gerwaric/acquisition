@@ -514,8 +514,18 @@ timings, coverage no fixture reaches, and questions for the seat.
   no computed value beside its templates (the reference's own line, put
   off at step 5), a reason made beyond the item's parts fell outside the
   six-part bound (`eval::why`), and the trial's item column summed
-  incidences (relabelled: lines). Each is a test named for it in
-  `tests/pseudo.rs` or the module.
+  incidences (relabelled: lines). Its second round found four more: a
+  reason beyond the item's parts was ordered by the term that met it,
+  so a rewrite changed which six were shown (now by what it says, rule
+  9); the vocabulary's computed rows bypassed the limit (bounded, counted
+  apart); they carried no sum (they do); the derivation had changed
+  without moving its version (8). Each is a test named for it in
+  `tests/pseudo.rs` or the module. On its advice, `line` alone lists
+  every computed value, and the help says what a computed row counts —
+  established and not zero, a counting rule and not presence.
+- The generated properties (equivalence, completion, the cross-checks)
+  generate no `pseudo` term, as they generate no `class`: a computed
+  value is held by hand-counted tests alone.
 - `pseudo.dps` counts every damage property the item displays and
   `pseudo.pdps` the physical alone; the C++ app reads 0 where a property
   is missing and this build says *lacked* — the one departure, C93's.
