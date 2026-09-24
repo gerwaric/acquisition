@@ -148,10 +148,11 @@ acq search --describe
 ```
 
 Composition whole (`and or not - ( ) holds undecided`); phrases and
-`text:`; `name` and `base` with `:` `=` `~`; `rarity`, `frame`, `ilvl`, `is:`,
-`has:`; place (`league: tab: character: container:`); `id:`; `line(…)`
-whole, the shorthand, `sum(…)`; `--sort --desc --limit --json`;
-`--count`, `--cross`, `--sum`, and the vocabulary.
+`text:`; `name` and `base` with `:` `=` `~`; `rarity`, `frame`, `class`
+(step 6: the game's names, `--describe class`), `ilvl`, `reqlevel`,
+`is:`, `has:`; place (`league: tab: character: container:`); `id:`;
+`line(…)` whole, the shorthand, `sum(…)`; `--sort --desc --limit
+--json`; `--count`, `--cross`, `--sum`, and the vocabulary.
 
 A row shows the lines the query touched (C100), so an item's other
 lines are read through `acq show <id>`, or by naming them in the query;
@@ -161,7 +162,7 @@ past `--limit` (a larger `--limit` serves; `--next` is step 10); the
 coverage list (`acq tabs` and `acq store characters` exist today;
 `--view locations` is step 10).
 
-What it refuses by name: `class:` (6), `pseudo.*` (7), `sockets` `links`
+What it refuses by name: `pseudo.*` (7), `sockets` `links`
 `linked(…)` (8), `has:priced` and `price.*` (9), `--fields`, `--next`, `--explain`,
 `--context`, `--view locations`, `--print-request` `--request`
 `--rebind`, `show --against` (10).
