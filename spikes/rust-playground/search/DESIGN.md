@@ -109,8 +109,9 @@ It adds one number per item: a numeric field or an explicit item
 never an implicit choice of its largest occurrence (C95; E2 accepted
 2026-09-22). For example, `--sum 'sum("# to maximum Life")'` adds all
 matching life lines on each item before adding the items' totals.
-Named numeric pseudo values already define their contributors (C94,
-C101); those values await step 7, and a ranged value needs a slot.
+A computed value (`pseudo.<name>`; C94, C101) defines its own
+contributors and is summed as a numeric field is; a ranged one needs a
+slot word, and none is shipped yet (`pseudo.rs`).
 `--limit` bounds rows or each table's values (a crossed table's cells),
 while `none` and `undecided` remain visible. The bucket selectors and
 the vocabulary's presence-based `undecided` (C105; E1 and E3 accepted
