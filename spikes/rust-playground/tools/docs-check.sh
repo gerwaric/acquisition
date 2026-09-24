@@ -10,9 +10,11 @@
 #      Moving text to its home is compliance, not gaming. Past 90% the
 #      check says so without failing, so routing happens at a session
 #      close and never as a side quest in the middle of a slice. The
-#      search build plan is budgeted too: not always loaded, but read
-#      whole by every session on the slice, and its record grew to 74 KB
-#      inside it before `SEARCH-SLICE.md` was opened.
+#      search slice's documents are budgeted too — the brief, the record,
+#      the reference, the area's rulings: not always loaded, but read by
+#      every session on the slice, and the unbudgeted three held two
+#      thirds of a step's read while the budgeted files stayed flat
+#      (2026-09-23).
 #   2. The decision registry: one bullet per decision under a length
 #      limit, a capped count of always-loaded ones, every cited id real,
 #      the uncited ones reported.
@@ -65,6 +67,9 @@ budget CONTEXT.md      20000
 budget README.md       15000
 budget LIVE-TESTING.md 15000
 budget search/BUILD-PLAN.md 28000  # the brief; its history is SEARCH-SLICE.md
+budget SEARCH-SLICE.md 50000  # the record: a ledger row per step, holes one line each, measurements as tables
+budget search/DESIGN.md 46000  # the reference whole until the seat; the contract detail empties as modules take it
+budget decisions/search.md 28000
 # RUN-LEDGER.md has no budget: one row per live run, append-only by
 # construction, read by its tail. Its rows cite decision ids (scanned
 # below) but are history, so the stale-identifier scan skips it.
