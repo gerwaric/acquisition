@@ -163,6 +163,16 @@ by the builder before it was taken.
   are present; "No further implementation blocker found; OQ5/G6 remains
   explicitly pending your ruling." Yield of the three looks at step 6:
   5, 3, 0. Whether the step closes on that is the owner's, with G6.
+- **Step 6 closed** (owner, 2026-09-23: "Yes, let's close step 6").
+  What it closed on, against the plan's step row: OQ1's slot — OQ1 as
+  worded, `class:ring`, and OQ4 with it; OQ5 — pinned from the owner's
+  words, the grouping above class kept parked on his ruling (G6);
+  C105's test as worded — ten rare items by class, Rings 6, Wands 3,
+  undecided 1, the class names the game's (G1). Beside them: the source
+  chosen under C106's admission test and recorded in the table's header;
+  the reason *base not in the class table* among four the table gives;
+  the outside review's three looks, 5, 3, 0; M2 0 unread and 0
+  unexplained; M3 within the step 5 rows; the gate green at `0d3c65af`.
 - **Five blind seats at `f357de39` (2026-09-22)**: Sonnet, one question
   each over the owner's real store, read-only under `ACQ_NO_SPAWN=1`, the
   tool's own `--help` and `--describe` their only sources; the brief and
