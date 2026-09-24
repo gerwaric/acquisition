@@ -200,7 +200,7 @@ evidence at step 1. Names are illustrative, as in the reference.
 | OQ2 | `name="<a unique>"`: one item or a zero answer naming the scope, and its place; then `acq show <id>` for every line with its values, which is what the owner reads the version from; nothing says legacy (C107) | 4 — and it fires the variant park |
 | OQ3 | a mod, a base, a unique, socket colours, each its own query | 4 · sockets 8 |
 | OQ4 | a staff by what is remembered of it (`class:`, `base:`, a phrase), item and tab; `--describe league` says place, never origin (S177) | `base:` 4 · `class:` 6 |
-| OQ5 | a level bracket across tabs, counted by tab: `(class:… or class:…) (reqlevel=..30 or -has:reqlevel)`. The fixture holds distractors the bracket alone admits — a low-level gem, a flask, a currency stack, which has no level requirement at all — and none may appear | askable 6, counts 5; **not covered** until the owner has ruled on the category park it fires |
+| OQ5 | from the owner's words (2026-09-23): items that can be equipped at a low character level with basic resistance, life and damage modifiers — `(class:… or class:…) (reqlevel=..30 or -has:reqlevel) (line(template:resistance) or line(template:life) or line(template:damage))`, the wearable classes spelled out while the grouping above class stays parked. The fixture holds distractors the bracket alone admits — a gem and a map with a damage line, a currency stack with no level requirement at all — and none may appear | 6 (ruled 2026-09-23: "yes, lets keep this parked") |
 | OQ6 | the item found, `has:priced`, the price as the owner set it; no valuation | 9 |
 | OQ7 | one line across every tab and character, item and tab on each row; `--count tab` | rows 4 · count 5 |
 | AQ1 | `--count tab,league,rarity`: three tables, no rows | 5 |
@@ -226,7 +226,7 @@ the new verb to answer what `--removed` answers: `--membership all`, step
 | Park | Fired by | Then |
 | --- | --- | --- |
 | the totals coverage trial (`decisions/search.md`) | step 7, before the first recipe is accepted | one script over the census; the result decides the recipe's rows |
-| a grouping above class | step 6 reaching OQ5 | brought to the owner as an acceptance task before OQ5 counts as covered |
+| a grouping above class | step 6 reaching OQ5 — fired 2026-09-23 | brought to the owner; kept parked, OQ5 pinned from his words, the trigger now the seat (`decisions/search.md`) |
 | a unique's variant as a field (C107) | step 4 reaching OQ2 | the trigger reopens the question, not the build: brought to the owner with his Ashes of the Stars as the first test |
 | the digest's kill list | step 11, the last acceptance test written | recheck against the tests and the reference before any removal |
 | a persisted projection; the store's search-at-scale park | M3, only if a CLI ask exceeds 500 ms | reported with the numbers; it opens the experiment among the candidates, never persistence by default. The seat goes ahead: slow is not wrong |

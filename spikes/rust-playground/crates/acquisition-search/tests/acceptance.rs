@@ -682,20 +682,19 @@ fn c100_show_is_the_derived_item_and_the_stored_body_on_request() {
     );
 }
 
-/// OQ5, askable as the plan worded it (step 6): a level bracket across
-/// tabs by class, with `reqlevel` and its absence. The owner's own
-/// definition — wearable at a low level, with resistance, life or damage
-/// lines — is with him (`SEARCH-SLICE.md`, "Holes ruled", step 6, G6),
-/// and this test moves to his words when he rules; until then it pins
-/// the constructs, never the coverage. The fixture holds the
-/// distractors the bracket alone admits — a low-level gem, a flask, a
-/// currency stack with no level requirement at all — and none appears;
-/// a pair of boots whose requirements could not be read is undecided,
-/// since an unread requirements array satisfies neither side. Whether
-/// OQ5 is *covered* — a grouping above class — is the owner's (the plan,
-/// "Parks whose triggers the build fires").
+/// OQ5 from the owner's words (2026-09-23, G6): leveling gear is "items
+/// that can be equipped at a low character level with basic resistance,
+/// life, and damage modifiers". The level and the lines are the
+/// language's; what can be equipped is the class, spelled out — the
+/// grouping above class stays parked (owner: "yes, lets keep this
+/// parked"), so the list here is the fixture's wearable classes and
+/// claims no more. The distractors the bracket alone admits: a gem with a
+/// damage line at level 1, a map with a damage line, a currency stack;
+/// none appears. A pair of boots whose requirements could not be read is
+/// undecided. A flask is wearable too; whether it is leveling gear waits
+/// with the park's list.
 #[test]
-fn oq5_leveling_gear_by_class_and_level_bracket_askable_as_worded() {
+fn oq5_leveling_gear_from_the_owners_words_wearable_low_level_with_the_lines() {
     let mut s = store();
     list_tabs(
         &mut s,
@@ -704,7 +703,14 @@ fn oq5_leveling_gear_by_class_and_level_bracket_askable_as_worded() {
         json!([tab("l1", "Leveling"), tab("l2", "Odds")]),
         10,
     );
-    let requires = |level: &str| json!({ "requirements": [{ "name": "Level", "values": [[level, 0]], "displayMode": 0 }] });
+    let with = |level: Option<&str>, lines: Value| {
+        let mut body = json!({ "explicitMods": lines });
+        if let Some(level) = level {
+            body["requirements"] =
+                json!([{ "name": "Level", "values": [[level, 0]], "displayMode": 0 }]);
+        }
+        body
+    };
     fetch_tab(
         &mut s,
         "pc",
@@ -717,19 +723,20 @@ fn oq5_leveling_gear_by_class_and_level_bracket_askable_as_worded() {
                 "Dusk Stride",
                 "Iron Greaves",
                 "Rare",
-                requires("20"),
+                with(Some("20"), json!(["+30 to maximum Life"])),
             ),
             item(
                 "gloves",
                 "Grim Grip",
                 "Iron Gauntlets",
                 "Rare",
-                requires("45"),
+                with(Some("45"), json!(["+20% to Fire Resistance"])),
             ),
-            item("helm", "", "Iron Hat", "Normal", json!({})),
+            item("helm", "", "Iron Hat", "Normal", with(None, json!([]))),
             json!({ "id": "gem", "name": "", "typeLine": "Fireball", "baseType": "Fireball",
                     "frameTypeId": "Gem", "identified": true, "ilvl": 0, "x": 0, "y": 0,
-                    "requirements": [{ "name": "Level", "values": [["1", 0]], "displayMode": 0 }] }),
+                    "requirements": [{ "name": "Level", "values": [["1", 0]], "displayMode": 0 }],
+                    "explicitMods": ["Deals 9 to 14 Fire Damage"] }),
         ],
         20,
     );
@@ -740,7 +747,20 @@ fn oq5_leveling_gear_by_class_and_level_bracket_askable_as_worded() {
         "l2",
         "Odds",
         vec![
-            item("flask", "", "Small Life Flask", "Normal", requires("3")),
+            item(
+                "ring",
+                "",
+                "Iron Ring",
+                "Magic",
+                with(None, json!(["+15% to Cold Resistance"])),
+            ),
+            item(
+                "map",
+                "",
+                "Beach Map",
+                "Normal",
+                with(None, json!(["Monsters deal 20% extra Physical Damage"])),
+            ),
             json!({ "id": "chaos", "name": "", "typeLine": "Chaos Orb", "baseType": "Chaos Orb",
                     "frameTypeId": "Currency", "identified": true, "ilvl": 0, "stackSize": 7, "x": 1, "y": 0 }),
             item(
@@ -748,72 +768,55 @@ fn oq5_leveling_gear_by_class_and_level_bracket_askable_as_worded() {
                 "Odd Tread",
                 "Iron Greaves",
                 "Rare",
-                json!({ "requirements": "Level 12" }),
+                json!({ "requirements": "Level 12", "explicitMods": ["+25 to maximum Life"] }),
             ),
         ],
         21,
     );
-    let a = asked(
-        &s,
-        "(class:boots or class:gloves or class:helmet) (reqlevel=..30 or -has:reqlevel)",
-    );
-    assert_eq!(ids(&a), ["boots", "helm"]);
+    const WEARABLE: &str = "(class:boots or class:gloves or class:helmet or class:ring)";
+    const LOW: &str = "(reqlevel=..30 or -has:reqlevel)";
+    const LINES: &str =
+        "(line(template:resistance) or line(template:life) or line(template:damage))";
+    let query = format!("{WEARABLE} {LOW} {LINES}");
+    let a = asked(&s, &query);
+    assert_eq!(ids(&a), ["boots", "ring"]);
     assert_eq!(a["total"]["undecided"]["count"], 1);
-    // the level required is a number; its absence is known only where
-    // the requirements were readable
-    let term = |path: &str| {
-        a["terms"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|t| t["path"] == path)
-            .unwrap()
-            .clone()
-    };
-    assert_eq!(term("1.0")["term"], "reqlevel=..30");
+    assert_eq!(a["scope"]["items"], 8);
+    // each part alone admits what the others refuse: the gem and the map
+    // by their damage lines, the helm by its level, the gloves by class
     assert_eq!(
-        (
-            &term("1.0")["matched"]["count"],
-            &term("1.0")["failed"]["count"],
-            &term("1.0")["lacked"]["count"],
-            &term("1.0")["undecided"]["count"]
-        ),
-        (&json!(3), &json!(1), &json!(2), &json!(1))
+        ids(&asked(&s, LINES)),
+        ["boots", "gem", "gloves", "map", "odd", "ring"]
     );
-    // the not's child is the atomic term; its absence is known on the two
-    // items whose requirements were read and hold none
-    assert_eq!(term("1.1.0")["term"], "has:reqlevel");
     assert_eq!(
-        (
-            &term("1.1.0")["matched"]["count"],
-            &term("1.1.0")["lacked"]["count"],
-            &term("1.1.0")["undecided"]["count"]
-        ),
-        (&json!(4), &json!(2), &json!(1))
+        ids(&asked(&s, LOW)),
+        ["boots", "chaos", "gem", "helm", "map", "ring"]
     );
-    // the same bracket counted by tab: a set of items across tabs
+    assert_eq!(
+        ids(&asked(&s, WEARABLE)),
+        ["boots", "gloves", "helm", "odd", "ring"]
+    );
+    // a set of items across tabs, counted by tab
     let counted: Request = serde_json::from_value(json!({
         "scope": { "realm": "pc" },
-        "query": { "text": "(class:boots or class:gloves or class:helmet) (reqlevel=..30 or -has:reqlevel)" },
-        "view": { "counts": { "keys": ["tab", "class"] } },
+        "query": { "text": query },
+        "view": { "counts": { "keys": ["tab"] } },
     }))
     .unwrap();
     let c = as_json(&acquisition_search::answer(&load(&s, Some("pc")), &counted).unwrap());
-    let table = &c["view"]["counts"]["tables"][1];
-    assert_eq!(table["key"], "class");
-    assert_eq!(
-        (&table["buckets"][0]["value"], &table["buckets"][0]["count"]),
-        (&json!("Boots"), &json!(1))
-    );
-    assert_eq!(
-        (&table["buckets"][1]["value"], &table["buckets"][1]["count"]),
-        (&json!("Helmets"), &json!(1))
-    );
-    assert_eq!(c["view"]["counts"]["tables"][0]["key"], "tab");
-    // `--sort reqlevel` orders the bracket, an item with none last
+    let table = &c["view"]["counts"]["tables"][0];
+    let by_tab: Vec<(&str, u64)> = table["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| (b["value"].as_str().unwrap(), b["count"].as_u64().unwrap()))
+        .collect();
+    assert_eq!(by_tab, [("Leveling", 1), ("Odds", 1)]);
+    // `--sort reqlevel` orders the wearable set, the unlevelled and the
+    // unread last
     let sorted: Request = serde_json::from_value(json!({
         "scope": { "realm": "pc" },
-        "query": { "text": "class:boots or class:gloves or class:helmet" },
+        "query": { "text": WEARABLE },
         "view": { "rows": { "sort": "reqlevel", "desc": true } },
     }))
     .unwrap();
@@ -824,5 +827,8 @@ fn oq5_leveling_gear_by_class_and_level_bracket_askable_as_worded() {
         .iter()
         .map(|r| r["id"].as_str().unwrap())
         .collect();
-    assert_eq!(order, ["gloves", "boots", "helm", "odd"]);
+    assert_eq!(&order[..2], ["gloves", "boots"]);
+    let mut rest = order[2..].to_vec();
+    rest.sort_unstable();
+    assert_eq!(rest, ["helm", "odd", "ring"]);
 }

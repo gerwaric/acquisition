@@ -595,7 +595,10 @@ site's parents). Recommended: pin OQ5 from his words with the class list
 spelled out, and re-set the park's trigger to the seat showing that
 typing the list bites — adding `category` later breaks nothing. A flask
 is no distractor under his definition; whether it is leveling gear is
-his.
+his. **Ruled 2026-09-23**, verbatim: "yes, lets keep this parked." OQ5
+is pinned from his words (`tests/acceptance.rs`, `oq5_…`): the level
+and the lines are the language's, the wearable classes spelled out as
+the fixture's and claiming no more; the park's trigger is the seat.
 
 **Step 1 — what the parser met that the reference does not state.** None
 blocked step 1: each is built in the direction that breaks nothing if he
