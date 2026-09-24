@@ -555,6 +555,7 @@ fn review_two_reqlevel_has_one_status_and_markup_hides_no_level_row() {
             .iter()
             .any(|u| u["of"] == "reqlevel")
     );
-    // the review's third finding: the derivation moved
-    assert_eq!(shown["basis"]["derivation"], 7);
+    // the review's third finding: the derivation moved — to 7 then, to 8
+    // when an unread property gained its name (the step-7 audit, 2026-09-24)
+    assert_eq!(shown["basis"]["derivation"], 8);
 }

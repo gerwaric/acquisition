@@ -680,36 +680,18 @@ const SHOWN: usize = 6;
 /// it rests on. The bound is on the parts, the first [`SHOWN`] in the
 /// item's own order — a reason made beyond the item's parts (the class
 /// table's, a total's, a derived field's) is a part of its own, told from
-/// another by what it says, after the item's and in the order met, never
-/// one part for all of them (outside audit, 2026-09-24) — every term's
-/// pair with each kept, how many terms a query has being its author's,
-/// and the parts past the bound are counted.
+/// another by what it says, after the item's and ordered by what it says
+/// — its part, then its problem — never by the term that met it first,
+/// which a rewrite that changes no meaning may reorder (rule 9 of the
+/// plan; outside audit, 2026-09-24, twice) — every term's pair with each
+/// kept, how many terms a query has being its author's, and the parts
+/// past the bound are counted.
 pub(crate) fn why<'a>(
     terms: &'a [Term],
     blamed: &[usize],
     held: &Held,
 ) -> (Vec<(&'a Term, Reason)>, usize) {
-    let mut beyond: Vec<(Part, String)> = Vec::new();
-    let mut at = |unread: &Unread| {
-        if let Some(i) = held
-            .item
-            .unread
-            .iter()
-            .position(|u| std::ptr::eq(u, unread))
-        {
-            return i;
-        }
-        let key = (unread.part.clone(), unread.problem.clone());
-        let i = match beyond.iter().position(|k| *k == key) {
-            Some(i) => i,
-            None => {
-                beyond.push(key);
-                beyond.len() - 1
-            }
-        };
-        held.item.unread.len() + i
-    };
-    let mut pairs: Vec<(usize, usize, Cow<'_, Unread>)> = blamed
+    let met: Vec<(usize, Cow<'_, Unread>)> = blamed
         .iter()
         .filter_map(|i| terms.get(*i).map(|term| (*i, term)))
         .flat_map(|(i, term)| {
@@ -717,6 +699,32 @@ pub(crate) fn why<'a>(
                 .into_iter()
                 .map(move |unread| (i, unread))
         })
+        .collect();
+    let own = |unread: &Unread| {
+        held.item
+            .unread
+            .iter()
+            .position(|u| std::ptr::eq(u, unread))
+    };
+    let key = |unread: &Unread| {
+        (
+            serde_json::to_string(&unread.part).unwrap_or_default(),
+            unread.problem.clone(),
+        )
+    };
+    let mut beyond: Vec<(String, String)> = met
+        .iter()
+        .filter(|(_, u)| own(u).is_none())
+        .map(|(_, u)| key(u))
+        .collect();
+    beyond.sort();
+    beyond.dedup();
+    let at = |unread: &Unread| match own(unread) {
+        Some(i) => i,
+        None => held.item.unread.len() + beyond.binary_search(&key(unread)).unwrap_or(beyond.len()),
+    };
+    let mut pairs: Vec<(usize, usize, Cow<'_, Unread>)> = met
+        .into_iter()
         .map(|(i, unread)| (at(&unread), i, unread))
         .collect();
     pairs.sort_by_key(|(part, term, _)| (*part, *term));

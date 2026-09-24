@@ -883,6 +883,18 @@ fn table_text(table: &Table, all_realms: bool) -> Vec<String> {
             table.values - table.left_out
         ));
     }
+    if table.computed > 0 {
+        head.push_str(&format!(
+            " · {} computed",
+            plural(table.computed, "value", "values")
+        ));
+        if table.computed_left_out > 0 {
+            head.push_str(&format!(
+                " · {} shown: a larger --limit returns the rest",
+                table.computed - table.computed_left_out
+            ));
+        }
+    }
     std::iter::once(head)
         .chain(
             table

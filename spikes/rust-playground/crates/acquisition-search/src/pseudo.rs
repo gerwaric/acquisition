@@ -59,10 +59,12 @@
 //!   the total's rows named on the item, or the properties the derived
 //!   field read, bounded as every term's evidence is (`eval::evidence`).
 //! - **The vocabulary lists a computed value beside the templates** whose
-//!   name or definition its narrowing matches (the reference, `--count
-//!   line[:text]`; `counts.rs`), marked computed, with the count of the
-//!   matches on which the value is established and not zero, routed by
-//!   `pseudo.<name>>0 or pseudo.<name><0` — exactly those (a lacked
+//!   name or definition its narrowing matches, every one under `line`
+//!   alone (the reference, `--count line[:text]`; `counts.rs`), marked
+//!   computed, with the count of the matches on which the value is
+//!   established and not zero — a counting rule of this build's, said in
+//!   the help, and not presence: a valid zero is not counted — routed by
+//!   `pseudo.<name>>0 or pseudo.<name><0`, exactly those (a lacked
 //!   derived field and an incomplete total are neither).
 //!   Why it is open is the open contributors' own reasons (rule 8): a
 //!   source a row admits unread, an occurrence whose number or flag is,
@@ -435,13 +437,25 @@ fn inputs(derived: Derived, held: &Held) -> Result<Read<'_>, Inputs<'_>> {
 // ---- the vocabulary -----------------------------------------------------------------------------------
 
 /// The computed values a vocabulary narrowing matches by name or
-/// definition (the module doc), each with the term that selects the items
-/// carrying it.
-pub(crate) fn matching(op: Op, text: &str) -> Result<Vec<(String, Named, Node)>, LanguageError> {
-    let test = crate::bind::text_test("line", op, &Value::Text(text.to_string()))?;
+/// definition — every one when it narrows by nothing (the module doc) —
+/// each with the term that selects the items carrying it.
+pub(crate) fn matching(
+    narrow: Option<&(Op, String)>,
+) -> Result<Vec<(String, Named, Node)>, LanguageError> {
+    let test = match narrow {
+        Some((op, text)) => Some(crate::bind::text_test(
+            "line",
+            *op,
+            &Value::Text(text.clone()),
+        )?),
+        None => None,
+    };
     let mut out = Vec::new();
     for entry in DESCRIBED.iter() {
-        if !(test.holds(&entry.name) || test.holds(&entry.what)) {
+        if test
+            .as_ref()
+            .is_some_and(|test| !(test.holds(&entry.name) || test.holds(&entry.what)))
+        {
             continue;
         }
         let name = entry.name.trim_start_matches("pseudo.");

@@ -357,13 +357,14 @@ fn audit_the_vocabulary_lists_the_computed_values_a_narrowing_matches() {
         .filter(|b| b["bucket"] == "computed")
         .map(|b| (b["value"].as_str().unwrap(), b["count"].as_u64().unwrap()))
         .collect();
-    // the totals whose definition names a fire-resistance line: ring_a
-    // carries each, ring_b's subtotal is incomplete, the rest are zero
+    // the totals whose definition names a fire-resistance line — ring_a
+    // carries each, ring_b's subtotal is incomplete, the rest are zero —
+    // ranked by count, then by name
     assert_eq!(
         computed,
         [
-            ("pseudo.total_fire_res", 1),
             ("pseudo.total_ele_res", 1),
+            ("pseudo.total_fire_res", 1),
             ("pseudo.total_res", 1)
         ]
     );
@@ -390,14 +391,47 @@ fn audit_the_vocabulary_lists_the_computed_values_a_narrowing_matches() {
         .map(|b| (b["value"].as_str().unwrap(), b["count"].as_u64().unwrap()))
         .collect();
     assert_eq!(computed, [("pseudo.dps", 2), ("pseudo.pdps", 1)]);
-    let a = view(&s, "", json!({ "counts": { "keys": ["line"] } })).unwrap();
-    assert!(
-        a["view"]["counts"]["tables"][0]["buckets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|b| b["bucket"] != "computed")
+    // `line` alone narrows by nothing and lists every computed value, and
+    // the limit bounds them as it bounds the templates, counted apart
+    // (the audit's second round): 37 computed, ranked by count then name
+    let a = view(
+        &s,
+        "",
+        json!({ "counts": { "keys": ["line"], "limit": 2 } }),
+    )
+    .unwrap();
+    let table = &a["view"]["counts"]["tables"][0];
+    let computed: Vec<(&str, u64)> = table["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|b| b["bucket"] == "computed")
+        .map(|b| (b["value"].as_str().unwrap(), b["count"].as_u64().unwrap()))
+        .collect();
+    assert_eq!(computed, [("pseudo.dps", 2), ("pseudo.pdps", 1)]);
+    assert_eq!(
+        (
+            &table["computed"],
+            &table["computed_left_out"],
+            &table["left_out_needs"]
+        ),
+        (&json!(37), &json!(35), &json!("--limit"))
     );
+    assert_eq!(table["values"], 5);
+    // a requested sum is summed over a computed row's members too
+    let a = view(
+        &s,
+        "",
+        json!({ "counts": { "keys": ["line:fire resist"], "sum": "ilvl" } }),
+    )
+    .unwrap();
+    let row = a["view"]["counts"]["tables"][0]["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["value"] == "pseudo.total_res")
+        .unwrap();
+    assert_eq!(row["sum"], json!({ "value": 84, "lacking": 0 }));
 }
 
 /// Outside audit, 2026-09-24 (5): a reason made beyond the item's parts —
@@ -418,7 +452,7 @@ fn audit_reasons_beyond_the_items_parts_are_bounded_and_counted() {
         vec![item(
             "nine",
             "Nine Ways",
-            "Rusted Sword",
+            "Mystery Blade",
             "Rare",
             json!({
                 "implicitMods": 1, "explicitMods": 2, "craftedMods": 3, "enchantMods": 4, "fracturedMods": 5,
@@ -429,25 +463,53 @@ fn audit_reasons_beyond_the_items_parts_are_bounded_and_counted() {
         )],
         20,
     );
-    let a = asked(&s, "pc", "pseudo.total_res>=1 pseudo.dps>=1");
-    let item = &a["total"]["undecided_items"][0];
-    assert_eq!(item["id"], "nine");
-    let parts: Vec<String> = item["why"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|w| w["problem"].as_str().unwrap().to_string())
-        .collect();
+    let why = |text: &str| -> (Vec<String>, u64) {
+        let a = asked(&s, "pc", text);
+        let item = &a["total"]["undecided_items"][0];
+        assert_eq!(item["id"], "nine");
+        let mut parts: Vec<String> = item["why"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|w| w["problem"].as_str().unwrap().to_string())
+            .collect();
+        parts.dedup();
+        (parts, item["why_left_out"].as_u64().unwrap())
+    };
+    let (parts, left_out) = why("pseudo.total_res>=1 pseudo.dps>=1");
     assert_eq!(parts.len(), 6, "{parts:?}");
-    assert_eq!(item["why_left_out"], 3);
+    assert_eq!(left_out, 3);
     // the item's own parts first, in its order, then the reasons made
-    // beyond them in the order met
+    // beyond them by what they say — never by the term that met them, which
+    // a rewrite may reorder (rule 9; the audit's second round)
     assert!(parts[0].starts_with("`craftedMods`"));
     assert!(parts[4].starts_with("`implicitMods`"));
     assert_eq!(
         parts[5],
         "`Attacks per Second` is `fast`: no number the search reads"
     );
+    assert_eq!(why("pseudo.dps>=1 pseudo.total_res>=1"), (parts, left_out));
+    // with the class's reason among them: a spelling never changes the six
+    let a = asked(&s, "pc", "class=Rings pseudo.dps>=1 pseudo.total_res>=1");
+    let b = asked(&s, "pc", "pseudo.total_res>=1 pseudo.dps>=1 class=Rings");
+    let shown = |a: &Value| -> Vec<String> {
+        let mut parts: Vec<String> = a["total"]["undecided_items"][0]["why"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|w| w["problem"].as_str().unwrap().to_string())
+            .collect();
+        parts.sort();
+        parts.dedup();
+        parts
+    };
+    assert_eq!(shown(&a), shown(&b));
+    assert!(
+        shown(&a)
+            .iter()
+            .any(|p| p.contains("not in the class table"))
+    );
+    assert_eq!(a["total"]["undecided_items"][0]["why_left_out"], 4);
 }
 
 /// C92, C95: a computed value sorts the rows and sums beside a count, with

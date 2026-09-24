@@ -64,13 +64,15 @@
 //!   E3 accepted, `SEARCH-SLICE.md`). A source or flag beneath a row is counted by
 //!   its legal spelling, which the evaluator matches in any case (B2), so
 //!   the kind's route returns what it counted; a spelling outside the list
-//!   is counted and has no route. A narrowed vocabulary lists beside its
-//!   templates the computed values whose name or definition the narrowing
-//!   matches (the reference: "marked computed"; `pseudo::matching`), each
-//!   with the count of the matches carrying it — established and not
-//!   zero — and its route; never cut, not among the values counted, and
-//!   none under `line` alone, which narrows by nothing (outside audit,
-//!   2026-09-24).
+//!   is counted and has no route. The vocabulary lists beside its
+//!   templates the computed values whose name or definition its
+//!   narrowing matches — every one under `line` alone (the reference:
+//!   "marked computed"; `pseudo::matching`), each with the count of the
+//!   matches carrying it — established and not zero, which the help says
+//!   — its route, and the sum beside it; ranked by that count, then by
+//!   name, and cut by the same limit, the rest counted apart from the
+//!   templates (`computed`, `computed_left_out`), since a computed value
+//!   is no value the items carry (outside audit, 2026-09-24, twice).
 //! - **The sum** (C95) adds one number of each item of a bucket, exactly
 //!   (`exact.rs`): an item lacking the thing adds nothing and is counted as
 //!   lacking; one whose number could not be read adds what was readable of
@@ -244,6 +246,12 @@ pub struct Table {
     pub left_out: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub left_out_needs: Option<&'static str>,
+    /// A vocabulary's computed values the narrowing matched, and those
+    /// past the limit.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub computed: usize,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub computed_left_out: usize,
 }
 
 /// What a bucket is of: a value, `none` or `undecided` — a word of its own,
@@ -706,6 +714,8 @@ fn field_table(
         buckets,
         left_out,
         left_out_needs: (left_out > 0).then_some("--limit"),
+        computed: 0,
+        computed_left_out: 0,
     }
 }
 
@@ -1005,14 +1015,29 @@ fn vocabulary(
             }
         })
         .collect();
-    // the computed values the narrowing matches, marked computed
-    if let Some((op, text)) = group.sole_template_test() {
-        for (name, named, term) in crate::pseudo::matching(op, &text).unwrap_or_default() {
-            let n = matches
-                .held()
-                .filter(|held| crate::pseudo::carried(named, held))
-                .count();
-            buckets.push(Bucket {
+    // the computed values the narrowing matches, marked computed: ranked
+    // by the matches carrying each, cut by the limit, counted apart
+    let narrow = group.sole_template_test();
+    let mut computed: Vec<(String, Pile, Node)> = crate::pseudo::matching(narrow.as_ref())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, named, term)| {
+            let mut pile = Pile::default();
+            for (m, held) in matches.held().enumerate() {
+                if crate::pseudo::carried(named, held) {
+                    pile.add(scalars.as_ref().map(|s| s[m]));
+                }
+            }
+            (name, pile, term)
+        })
+        .collect();
+    computed.sort_by(|(a, x, _), (b, y, _)| y.items.cmp(&x.items).then_with(|| a.cmp(b)));
+    let computed_in_all = computed.len();
+    buckets.extend(
+        computed
+            .into_iter()
+            .take(limit)
+            .map(|(name, pile, term)| Bucket {
                 label: Label {
                     bucket: "computed",
                     value: Some(Json::from(name)),
@@ -1022,15 +1047,15 @@ fn vocabulary(
                     term: Some(print::print(&term)),
                     needs: None,
                 },
-                count: matches.router.under(n, vec![term], None),
-                sum: None,
+                count: matches.router.under(pile.items, vec![term], None),
+                sum: scalars.as_ref().map(|_| pile.summed()),
                 slots: Vec::new(),
                 sources: Vec::new(),
                 flags: Vec::new(),
                 tally: Vec::new(),
-            });
-        }
-    }
+            }),
+    );
+    let computed_left_out = computed_in_all.saturating_sub(limit);
     let apart = |bucket: &'static str, term: Node, pile: &Pile, tally: Vec<Tallied>| Bucket {
         label: Label {
             bucket,
@@ -1062,6 +1087,8 @@ fn vocabulary(
         values: in_all,
         buckets,
         left_out,
-        left_out_needs: (left_out > 0).then_some("--limit"),
+        left_out_needs: (left_out > 0 || computed_left_out > 0).then_some("--limit"),
+        computed: computed_in_all,
+        computed_left_out,
     }
 }
