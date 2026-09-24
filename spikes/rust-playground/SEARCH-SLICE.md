@@ -516,6 +516,3 @@ timings, coverage no fixture reaches, and questions for the seat.
 - `pseudo.dps` counts every damage property the item displays and
   `pseudo.pdps` the physical alone; the C++ app reads 0 where a property
   is missing and this build says *lacked* — the one departure, C93's.
-- The C94 and C101 entries of `decisions/search.md` are at 786 and 796
-  bytes of the registry's 800: a *Details:* pointer to `totals.rs` and
-  `pseudo.rs` did not fit, and the owner trims a ruling himself.
