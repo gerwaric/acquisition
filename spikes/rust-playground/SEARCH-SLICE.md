@@ -284,7 +284,7 @@ against (M3).
 
 **Departures from the first showing of the read (the plan at
 `2d25cb03`), each the builder's.** No membership and no `removed_at`:
-removed items are not read until `all` is built (gap 3), and a read that
+removed items are not read until `all` is built (gap 3, ruled), and a read that
 handed them over would change under a prune with no response written
 (owner, 2026-09-20: retention starts as a verb, "which means we can
 think about triggers for that verb later rather than now"). The order is
@@ -486,9 +486,9 @@ The exact pattern's mutant (only `\` escaped) failed at once, at `(`.
 ## Holes ruled, and where the rule went
 
 What the build met that the reference did not state and the owner
-ruled; the unruled ones — gaps 2 and 3 — are at the foot of the
-plan, his at the seat. A ruled hole keeps its evidence here and its rule
-in the registry's cited contract detail or implementing module doc.
+ruled; none is unruled today. A ruled hole keeps its evidence here and
+its rule in the registry's cited contract detail or implementing module
+doc.
 
 **Step 5 — the owner's verdicts, 2026-09-22.** The accepted behavior
 already exists; these clarify C95 and C105, whose implementation is
@@ -567,7 +567,7 @@ back on.
 | B9 | A query that starts with `-`, the language's not, at a terminal, where it is a flag: `acq search -is:corrupted` is clap's error, and `-has:note` would be read as `-h` (audit finding 1) | it goes after `--`, as every route prints it and the verb's help says: `acq search --realm pc -- '-is:corrupted'` | keep: accepting a leading hyphen as the query would turn a mistyped flag into a query |
 | B10 | The order of an item whose largest occurrence is not established (the second audit, finding 3). C92 gives no scalar to an item with no satisfying occurrence; it says nothing of one that has a readable occurrence and an unread source the group admits | it sorts last either way, as an incomplete sum does, the readable value shown with `incomplete` beside it. A term is another matter: a readable 95 is a witness to `>=90` still | keep: an order that may be wrong is worse than a place at the end that says why |
 | B11 | Whether parentheses may change what is an error. Step 1 checked a slot against a quoted template only at the group's own level, so a nested template took any slot word — and the answer then printed a route the build refuses (the fourth audit, finding 1) | the check reads the group's conjuncts, through nested ands: the tighter reading, which the owner's own test prefers — allowing a query later breaks nothing, forbidding one later would. A template under an or or a not states no numbers still, as step 1 says | keep |
-| B8 | Gap 2, as the plan recommended | (b): `--query-file <file\|->`; a route is printed shell-quoted, an apostrophe as `'\''`. (c) is untouched | the seat's |
+| B8 | Gap 2, as the plan recommended | (b): `--query-file <file\|->`; a route is printed shell-quoted, an apostrophe as `'\''`. (c) closed 2026-09-23 (gap 2, below) | — |
 
 *B1's measurement* (2026-09-20, `item-facts/data/mod-templates.csv`,
 its three inputs): of 6,549 distinct templates, six pairs differ only by
@@ -595,8 +595,9 @@ term (C100's); the synopsis's `--describe` line says what it prints now.
 
 **Gaps found while planning, ruled** — each changes what a user types,
 or which items what he types matches; 4, 5 and 6 came from an outside
-review of the plan (2026-09-19). The rule is in `search/DESIGN.md`'s
-reference; the evidence is here.
+review of the plan (2026-09-19); 2 and 3 were ruled 2026-09-23. The
+rule is in `search/DESIGN.md`'s reference (gap 3's once its wording is
+approved); the evidence is here.
 
 1. **A line break inside a template — ruled; the reference, *Strings*.**
    540 of the census's 6,928 templates are one mod displayed over
@@ -616,6 +617,45 @@ reference; the evidence is here.
    `pseudo-stats/data/pseudo-classes.csv`). Whether a fractional total
    is ever rounded is step 7's to show the owner: the one capture
    printed `+94.5`.
+2. **An apostrophe at a shell — (b) built at step 4; (c) closed
+   2026-09-23.** 306 templates carry one, and so does the reference's own
+   `name="Kaom's Heart"`, which cannot be typed plainly inside the
+   shell's single quotes. (a) nothing: the shell's `'\''`; (b) the
+   adapter reads the query from stdin or a file; (c) the language also
+   accepts `'…'` strings, printing `"…"`. *Recommendation:* (b) at step
+   4, and (c) left for the seat — adding it later breaks nothing. Built
+   so at step 4 (hole B8). (c) closed on the builder's read, owner
+   2026-09-23, verbatim: "Yes, close (c)". The read: a single-quoted
+   string would need an escape for the very apostrophe that motivated
+   it; the shell's double quotes with the language's `\"`, `--query-file`,
+   and every printed command shell-quoted already answer it; and `'` as
+   a delimiter would reach bare words and the `line:` keys, for one
+   surface only. If typing an apostrophe by hand bites at the seat, the
+   fix is the adapter's or the help's, never the grammar's.
+3. **The values of `membership` — ruled 2026-09-23.**
+   The request carries it, the terminal synopsis has no word for it,
+   and `live` is the only value shown; `acq items search --removed`
+   exists today. *Recommendation:* `live` alone at the first seat; `all`
+   (live and removed, each row marked) at step 11, so the old verb can
+   retire; `removed` alone waits for someone asking. Step 4 builds `live`
+   alone, which is all the store's read hands over. Ruled on the
+   builder's line — membership is a scope value, `live` by default and
+   `all` on request with every removed row marked; `removed` alone waits
+   for a question; the prune verb advances the revision — owner,
+   2026-09-23, verbatim: "accepted." The case that decided it is an
+   agent's: a handle held from an earlier answer that no longer answers.
+   So under either scope an `id:` term that matches nothing live says
+   whether the id is among the removed, with its removal time, and
+   prints the `all` route (rule 5 until `all` runs); `acq show` shows a
+   removed item, marked; the scope block states membership and the count
+   of each; `--describe` lists the values and the default. The store's
+   half is C108 as ruled (the revision advances on a membership change,
+   and nothing that prunes may take it back) and the retention park,
+   whose trigger names search reading removed items. The builder
+   proposed moving `all` from step 11 to step 10, whose theme is
+   continuing across a changed basis, so the MCP's agent seat validates
+   it (P2); the reorder is the owner's. The reference's wording lands
+   once the owner approves it.
 
 ## Observations still open
 

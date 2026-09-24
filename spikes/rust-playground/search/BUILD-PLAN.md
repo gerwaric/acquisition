@@ -217,7 +217,8 @@ already answered by `acq show <id>` with its raw flag, there since step
 4, so no inspection is lost), the MCP's substring tool, `Store::search`, and the
 `items_names` index it never used (S124, S136) — the README tour line,
 `CLI-REFERENCE.md` and `MCP-REFERENCE.md` regenerated. Retiring it needs
-the new verb to answer what `--removed` answers, which is gap 3 below.
+the new verb to answer what `--removed` answers: membership `all`, ruled
+2026-09-23 (`SEARCH-SLICE.md`, "Holes ruled", gap 3).
 
 ## Parks whose triggers the build fires
 
@@ -253,27 +254,7 @@ submit the job (C98) — a resident client's question, the GUI's.
 
 ## Holes not yet ruled — the owner's, at the seat
 
-Each changes what a user types or pastes, or which items it matches, and
-a recommendation is no ruling (the record: step 4, audit 1, finding 8).
-The ruled holes, with their evidence, are in `SEARCH-SLICE.md`; the rule
-of each is in `search/DESIGN.md`. Gaps 2 and 3 are from the planning
-review; their numbers are cited as such.
-
-2. **An apostrophe at a shell — open; does not block step 1 unless
-   (c).** 306 templates carry one, and so does the reference's own
-   `name="Kaom's Heart"`, which cannot be typed plainly inside the
-   shell's single quotes. (a) nothing: the shell's `'\''`; (b) the
-   adapter reads the query from stdin or a file; (c) the language also
-   accepts `'…'` strings, printing `"…"`. *Recommendation:* (b) at step
-   4, and (c) left for the seat — adding it later breaks nothing. Built
-   so at step 4 (hole B8).
-3. **The values of `membership` — open; does not block before step 4.**
-   The request carries it, the terminal synopsis has no word for it,
-   and `live` is the only value shown; `acq items search --removed`
-   exists today. *Recommendation:* `live` alone at the first seat; `all`
-   (live and removed, each row marked) at step 11, so the old verb can
-   retire; `removed` alone waits for someone asking. Step 4 builds `live`
-   alone, which is all the store's read hands over.
-
-**Step 5's holes are ruled.** E1–E5 were accepted
-2026-09-22; their verdicts are in `SEARCH-SLICE.md`, "Holes ruled".
+None. Every hole the build met is ruled, each with its evidence in
+`SEARCH-SLICE.md`, "Holes ruled", and its rule in `search/DESIGN.md`; a
+new one comes here under rule 4, with a recommendation, which is no
+ruling (the record: step 4, audit 1, finding 8).
