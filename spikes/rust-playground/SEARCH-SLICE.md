@@ -158,6 +158,11 @@ by the builder before it was taken.
   the record, each reproduced first, fixed at `457f6e71`; the
   reproducer shown failing under each fix undone. Yield of the two
   looks: 5, 3.
+- **Its last look, at `457f6e71`, the same day**: "No new findings" —
+  the three fixes hold, its reproducers pass, the record's corrections
+  are present; "No further implementation blocker found; OQ5/G6 remains
+  explicitly pending your ruling." Yield of the three looks at step 6:
+  5, 3, 0. Whether the step closes on that is the owner's, with G6.
 - **Five blind seats at `f357de39` (2026-09-22)**: Sonnet, one question
   each over the owner's real store, read-only under `ACQ_NO_SPAWN=1`, the
   tool's own `--help` and `--describe` their only sources; the brief and
