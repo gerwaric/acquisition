@@ -3,6 +3,14 @@
 //! tree and only text crosses the crate's boundary, and item bodies with
 //! holes — something the deriver cannot read — that a completion fills.
 //!
+//! Since step 7's third look the generators reach the computed values
+//! (`SEARCH-SLICE.md`, "Findings"): `pseudo.total_res` over resistance
+//! lines of three templates and two weights, `pseudo.dps` and
+//! `pseudo.pdps` over a `properties` array — as comparisons, `has:`,
+//! probes and sorts in the one composition — and the array's own holes:
+//! no array, an element that is no property, a property whose values
+//! cannot be read, and a value the fields cannot read as a number.
+//!
 //! Nothing here reads the crate's tree, binder or evaluator: a query is
 //! rendered to text and asked, and a body enters through `Store::record`.
 
@@ -24,6 +32,10 @@ pub const FROZEN: &str = "Cannot be Frozen";
 pub const SPIRIT: &str = "# to Spirit";
 /// A line whose numbers are decimals: tenths, from the same small range.
 pub const LEECH: &str = "#% of Damage Leeched as Life";
+/// Two more rows of `pseudo.total_res` beside `COLD`'s: one at weight 1,
+/// one at weight 3, so the total sums several templates by weight.
+pub const FIRE: &str = "#% to Fire Resistance";
+pub const ALL_RES: &str = "#% to all Elemental Resistances";
 
 /// Values and bounds share one small range, so that a bound lands
 /// immediately below, at and above a value, zero and negatives included
@@ -47,11 +59,13 @@ fn quoted(template: &str) -> String {
 
 fn template_leaf() -> BoxedStrategy<String> {
     prop_oneof![
-        2 => proptest::sample::select(vec![LIFE, COLD, ADDS, FROZEN, SPIRIT]).prop_map(quoted),
+        2 => proptest::sample::select(vec![LIFE, COLD, ADDS, FROZEN, SPIRIT, FIRE, ALL_RES])
+            .prop_map(quoted),
         3 => proptest::sample::select(vec![
             "template:life",
             "template:resistance",
             "template:cold",
+            "template:fire",
             "template:Frozen",
             "template:spirit",
             "template:nothing",
@@ -138,6 +152,8 @@ fn template_and_comparison() -> BoxedStrategy<(String, String)> {
         (ADDS, "high"),
         (ADDS, "avg"),
         (LEECH, "arg1"),
+        (FIRE, "arg1"),
+        (ALL_RES, "arg1"),
     ])
     .prop_map(|(template, slot)| (quoted(template), slot));
     let worded = (
@@ -294,6 +310,11 @@ pub enum Q {
     Proj(G, String, String),
     /// `undecided(line(G).slot)`, or of the sum when `true`.
     Open(G, String, bool),
+    /// `undecided(pseudo.<name>)`: a computed value's probe.
+    Probe(String),
+    /// A named total's comparison, `pseudo.total_res>=6`: a sum over the
+    /// item's lines (C94), so it moves as a sum does.
+    Total(String),
     And(Vec<Q>),
     Or(Vec<Q>),
     Not(Box<Q>),
@@ -375,6 +396,24 @@ fn plain() -> BoxedStrategy<Q> {
     .boxed()
 }
 
+/// The computed values (`pseudo.rs`): a total over the resistance lines
+/// and the two derived fields over the properties, compared within the
+/// bounds of `comparison()`; `has:` of a derived field; and — one time in
+/// nine — `has:` of a total, the authoring error T2 rules.
+pub const PSEUDO: [&str; 3] = ["pseudo.total_res", "pseudo.dps", "pseudo.pdps"];
+
+fn pseudo_leaf() -> BoxedStrategy<Q> {
+    prop_oneof![
+        2 => comparison().prop_map(|cmp| Q::Total(format!("pseudo.total_res{cmp}"))),
+        4 => (proptest::sample::select(vec!["pseudo.dps", "pseudo.pdps"]), comparison())
+            .prop_map(|(value, cmp)| Q::Plain(format!("{value}{cmp}"))),
+        2 => proptest::sample::select(vec!["has:pseudo.dps", "has:pseudo.pdps"])
+            .prop_map(|text| Q::Plain(text.to_string())),
+        1 => Just(Q::Plain("has:pseudo.total_res".to_string())),
+    ]
+    .boxed()
+}
+
 fn alt() -> BoxedStrategy<Q> {
     let pairs: Vec<(String, String, TermKind)> = vec![
         ("\"life\"".into(), "text:life".into(), TermKind::Plain),
@@ -404,6 +443,17 @@ fn alt() -> BoxedStrategy<Q> {
             format!("-line({})", quoted(COLD)),
             TermKind::Group,
         ),
+        // a computed value's name in any case (B1)
+        (
+            "pseudo.TOTAL_RES>=9".into(),
+            "pseudo.total_res>=9".into(),
+            TermKind::Sum,
+        ),
+        (
+            "pseudo.PDPS>=9".into(),
+            "pseudo.pdps>=9".into(),
+            TermKind::Plain,
+        ),
     ];
     proptest::sample::select(pairs)
         .prop_map(|(spelled, explicit, kind)| Q::Alt(spelled, explicit, kind))
@@ -417,7 +467,10 @@ fn q_leaf(probes: bool) -> BoxedStrategy<Q> {
         3 => (group(), slot_word(), comparison()).prop_map(|(g, s, c)| Q::Sum(g, s, c)),
         2 => (group(), slot_word(), comparison()).prop_map(|(g, s, c)| Q::Proj(g, s, c)),
         open => (group(), slot_word(), any::<bool>()).prop_map(|(g, s, sum)| Q::Open(g, s, sum)),
+        open => proptest::sample::select(PSEUDO.to_vec())
+            .prop_map(|value| Q::Probe(format!("undecided({value})"))),
         4 => plain(),
+        3 => pseudo_leaf(),
         2 => alt(),
     ]
     .boxed()
@@ -459,6 +512,7 @@ pub fn sort() -> BoxedStrategy<Sort> {
     prop_oneof![
         3 => Just(Sort::None),
         1 => proptest::sample::select(vec!["ilvl", "stack", "reqlevel"]).prop_map(Sort::Field),
+        1 => proptest::sample::select(PSEUDO.to_vec()).prop_map(Sort::Field),
         2 => (group(), slot_word()).prop_map(|(g, s)| Sort::Proj(g, s)),
         2 => (group(), slot_word()).prop_map(|(g, s)| Sort::Sum(g, s)),
     ]
@@ -518,7 +572,7 @@ fn text(q: &Q, top: bool, spelling: Spelling) -> String {
             .join(joiner)
     };
     match q {
-        Q::Plain(term) => term.clone(),
+        Q::Plain(term) | Q::Probe(term) | Q::Total(term) => term.clone(),
         Q::Alt(spelled, explicit, _) => match spelling {
             Spelling::Authored => spelled.clone(),
             Spelling::Explicit => explicit.clone(),
@@ -547,7 +601,7 @@ fn text(q: &Q, top: bool, spelling: Spelling) -> String {
 /// levels: nested ands and ors flattened, a doubled not cancelled.
 pub fn normal(q: &Q) -> Q {
     match q {
-        Q::Plain(_) | Q::Alt(..) => q.clone(),
+        Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Alt(..) => q.clone(),
         Q::Line(g) => Q::Line(g_normal(g)),
         Q::Sum(g, slot, cmp) => Q::Sum(g_normal(g), slot.clone(), cmp.clone()),
         Q::Proj(g, slot, cmp) => Q::Proj(g_normal(g), slot.clone(), cmp.clone()),
@@ -599,7 +653,7 @@ pub fn shuffled(q: &Q, seed: u64) -> Q {
             children
         };
         match q {
-            Q::Plain(_) | Q::Alt(..) => q.clone(),
+            Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Alt(..) => q.clone(),
             Q::Line(g) => Q::Line(g_shuffled(g, rng)),
             Q::Sum(g, slot, cmp) => Q::Sum(g_shuffled(g, rng), slot.clone(), cmp.clone()),
             Q::Proj(g, slot, cmp) => Q::Proj(g_shuffled(g, rng), slot.clone(), cmp.clone()),
@@ -632,7 +686,7 @@ fn sorted(q: &Q) -> Q {
         children
     };
     match q {
-        Q::Plain(_) | Q::Alt(..) => q.clone(),
+        Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Alt(..) => q.clone(),
         Q::Line(g) => Q::Line(g_sorted(g)),
         Q::Sum(g, slot, cmp) => Q::Sum(g_sorted(g), slot.clone(), cmp.clone()),
         // a projection's comparison is one more conjunct of its group
@@ -662,8 +716,8 @@ pub fn terms(q: &Q) -> Vec<(String, TermKind)> {
             Q::Plain(_) => out.push((key(q), TermKind::Plain)),
             Q::Alt(_, _, kind) => out.push((key(q), *kind)),
             Q::Line(_) | Q::Proj(..) => out.push((key(q), TermKind::Group)),
-            Q::Sum(..) => out.push((key(q), TermKind::Sum)),
-            Q::Open(..) => out.push((key(q), TermKind::Probe)),
+            Q::Sum(..) | Q::Total(_) => out.push((key(q), TermKind::Sum)),
+            Q::Open(..) | Q::Probe(_) => out.push((key(q), TermKind::Probe)),
             Q::And(children) | Q::Or(children) | Q::Holds(children, _) => {
                 children.iter().for_each(|c| walk(c, out));
             }
@@ -763,6 +817,84 @@ pub enum Lines {
     Of(Vec<Elem>),
 }
 
+/// The properties a derived field reads (`pseudo.rs`, C101), and one it
+/// does not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PropName {
+    Aps,
+    Physical,
+    Elemental,
+    Chaos,
+    Quality,
+}
+
+impl PropName {
+    const ALL: [PropName; 5] = [
+        PropName::Aps,
+        PropName::Physical,
+        PropName::Elemental,
+        PropName::Chaos,
+        PropName::Quality,
+    ];
+
+    pub fn shown(self) -> &'static str {
+        match self {
+            PropName::Aps => "Attacks per Second",
+            PropName::Physical => "Physical Damage",
+            PropName::Elemental => "Elemental Damage",
+            PropName::Chaos => "Chaos Damage",
+            PropName::Quality => "Quality",
+        }
+    }
+
+    /// The values a completion may give the property: the ends of a
+    /// small range and what the dice pick between them.
+    fn readable(self) -> &'static [&'static str] {
+        match self {
+            PropName::Aps => &["0.5", "1", "1.25", "1.4", "2"],
+            PropName::Physical => &["0-0", "1", "5-9", "10-17", "12-19"],
+            PropName::Elemental => &["0-0", "2-4", "5-9", "10-17", "12-19"],
+            PropName::Chaos => &["0-0", "1-3", "3", "8-11", "12-19"],
+            PropName::Quality => &["+0%", "+20%"],
+        }
+    }
+}
+
+/// One element of the `properties` array.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Prop {
+    /// A property as displayed: its name and its values, one or several.
+    Read(PropName, Vec<String>),
+    /// Its values are no array: unread, the name kept (`Unread::name`).
+    Malformed(PropName),
+    /// A value the fields cannot read as a number: `fast`, `1e34`,
+    /// nothing. The element reads; the field is undecided by it.
+    Unreadable(PropName, &'static str),
+    /// An element that is no property: may be any property.
+    Nameless,
+}
+
+impl Prop {
+    fn name(&self) -> Option<PropName> {
+        match self {
+            Prop::Read(name, _) | Prop::Malformed(name) | Prop::Unreadable(name, _) => Some(*name),
+            Prop::Nameless => None,
+        }
+    }
+
+    fn has_hole(&self) -> bool {
+        !matches!(self, Prop::Read(..))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Props {
+    Absent,
+    /// The array is no array.
+    Hole,
+    Of(Vec<Prop>),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Known<T> {
     Absent,
@@ -786,6 +918,8 @@ pub struct Body {
     pub reqlevel: Known<i64>,
     pub name: Known<&'static str>,
     pub note: Known<&'static str>,
+    /// The `properties` array the derived fields read.
+    pub props: Props,
 }
 
 fn tri(holes: bool) -> BoxedStrategy<Tri> {
@@ -800,7 +934,7 @@ pub fn line(holes: bool) -> BoxedStrategy<LineM> {
         hole => Just(Flags::Hole),
     ];
     (
-        0u8..7,
+        0u8..9,
         LOW..=HIGH,
         proptest::bool::weighted(if holes { 0.15 } else { 0.0 }),
         flags,
@@ -812,6 +946,61 @@ pub fn line(holes: bool) -> BoxedStrategy<LineM> {
             flags,
         })
         .boxed()
+}
+
+/// A readable property of the name: one value, or two for the elemental
+/// damage, which the game may display as several ranges.
+fn prop_read(name: PropName) -> BoxedStrategy<Prop> {
+    let values = proptest::sample::select(name.readable().to_vec()).prop_map(str::to_string);
+    let several = if name == PropName::Elemental { 1 } else { 0 };
+    prop_oneof![
+        3 => values.clone().prop_map(|v| vec![v]),
+        several => (values.clone(), values).prop_map(|(a, b)| vec![a, b]),
+    ]
+    .prop_map(move |values| Prop::Read(name, values))
+    .boxed()
+}
+
+fn prop(name: PropName, holes: bool) -> BoxedStrategy<Prop> {
+    let hole = if holes { 1 } else { 0 };
+    prop_oneof![
+        6 => prop_read(name),
+        hole => Just(Prop::Malformed(name)),
+        hole => proptest::sample::select(vec!["fast", "1e34", ""])
+            .prop_map(move |v| Prop::Unreadable(name, v)),
+    ]
+    .boxed()
+}
+
+/// The `properties` array: some of the five names, each once, in any
+/// order; with `holes`, an element that is no property among them, or
+/// no array at all.
+fn props(holes: bool) -> BoxedStrategy<Props> {
+    let hole = if holes { 1 } else { 0 };
+    let elems = proptest::sample::subsequence(PropName::ALL.to_vec(), 0..=5)
+        .prop_flat_map(move |names| {
+            names
+                .into_iter()
+                .map(|n| prop(n, holes))
+                .collect::<Vec<_>>()
+        })
+        .prop_shuffle();
+    let nameless = if holes {
+        proptest::option::weighted(0.15, 0usize..6).boxed()
+    } else {
+        Just(None).boxed()
+    };
+    prop_oneof![
+        3 => Just(Props::Absent),
+        hole => Just(Props::Hole),
+        5 => (elems, nameless).prop_map(|(mut elems, nameless)| {
+            if let Some(at) = nameless {
+                elems.insert(at.min(elems.len()), Prop::Nameless);
+            }
+            Props::Of(elems)
+        }),
+    ]
+    .boxed()
 }
 
 fn lines(holes: bool) -> BoxedStrategy<Lines> {
@@ -864,6 +1053,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
         known(vec![1, 20, 30, 45], holes),
         known(vec!["Doom Knot", "Life Ring"], holes),
         known(vec!["~price 1 chaos", "keep"], holes),
+        props(holes),
     )
         .prop_map(
             |(
@@ -873,6 +1063,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
                 reqlevel,
                 name,
                 note,
+                props,
             )| Body {
                 explicit,
                 implicit,
@@ -885,6 +1076,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
                 reqlevel,
                 name,
                 note,
+                props,
             },
         )
         .boxed()
@@ -892,7 +1084,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
 
 /// A body with something unread in it, whatever the dice gave.
 pub fn holed() -> BoxedStrategy<Body> {
-    (some_body(true), 0u8..5)
+    (some_body(true), 0u8..6)
         .prop_map(|(mut body, which)| {
             if !body.has_holes() {
                 match which {
@@ -900,6 +1092,7 @@ pub fn holed() -> BoxedStrategy<Body> {
                     1 => body.explicit = Lines::Hole,
                     2 => body.corrupted = Tri::Hole,
                     3 => body.reqlevel = Known::Hole,
+                    4 => body.props = Props::Hole,
                     _ => body.ilvl = Known::Hole,
                 }
             }
@@ -924,14 +1117,20 @@ impl Body {
             reqlevel: Known::Absent,
             name: Known::Absent,
             note: Known::Absent,
+            props: Props::Absent,
         }
     }
 
     /// A readable body whose arrays hold `lines`, and whose numbers, names
     /// and yes-or-noes are the `n`th of a fixed round — so that a handful
     /// of completions tries an unread number as several, a name as two and
-    /// as none, and three flags every way, whatever the dice gave.
+    /// as none, and three flags every way, whatever the dice gave — and
+    /// whose properties are none, a whole weapon's, an attack speed with
+    /// no damage, or a damage with no attack speed.
     pub fn nth(n: usize, lines: Vec<LineM>) -> Body {
+        let read = |name: PropName, values: &[&str]| {
+            Prop::Read(name, values.iter().map(|v| v.to_string()).collect())
+        };
         let flag = |bit: usize| if n >> bit & 1 == 1 { Tri::Yes } else { Tri::No };
         let of = |lines: &[LineM]| Lines::Of(lines.iter().cloned().map(Elem::Line).collect());
         let half = lines.len().div_ceil(2);
@@ -976,12 +1175,27 @@ impl Body {
                 Known::Is("~price 1 chaos"),
             ][n / 3 % 3]
                 .clone(),
+            props: [
+                Props::Absent,
+                Props::Of(vec![
+                    read(PropName::Aps, &["1.25"]),
+                    read(PropName::Physical, &["59-88"]),
+                    read(PropName::Elemental, &["38-71", "57-108"]),
+                    read(PropName::Chaos, &["10-20"]),
+                ]),
+                Props::Of(vec![
+                    read(PropName::Quality, &["+20%"]),
+                    read(PropName::Aps, &["2"]),
+                ]),
+                Props::Of(vec![read(PropName::Physical, &["10-20"])]),
+            ][n % 4]
+                .clone(),
         }
     }
 
     /// One line of every kind at each of four values, its flags as given.
     pub fn every_line(flag: Tri) -> Vec<LineM> {
-        (0u8..7)
+        (0u8..9)
             .flat_map(|kind| {
                 [LOW, 0, 1, HIGH].map(|n| LineM {
                     kind,
@@ -997,7 +1211,7 @@ impl Body {
     }
 
     /// The body with the elements of every array in the opposite order
-    /// (transformation 4).
+    /// (transformation 4), the properties too.
     pub fn every_line_reversed(&self) -> Body {
         let reversed = |lines: &Lines| match lines {
             Lines::Of(elems) => Lines::Of(elems.iter().rev().cloned().collect()),
@@ -1007,12 +1221,16 @@ impl Body {
             explicit: reversed(&self.explicit),
             implicit: reversed(&self.implicit),
             hybrid: reversed(&self.hybrid),
+            props: match &self.props {
+                Props::Of(elems) => Props::Of(elems.iter().rev().cloned().collect()),
+                other => other.clone(),
+            },
             ..self.clone()
         }
     }
 
-    /// The body with every element of every array written twice
-    /// (transformation 10).
+    /// The body with every element of every line array written twice
+    /// (transformation 10); the properties, which no line is, as they are.
     pub fn every_line_twice(&self) -> Body {
         let twice = |lines: &Lines| match lines {
             Lines::Of(elems) => {
@@ -1056,6 +1274,11 @@ impl Body {
             || self.reqlevel == Known::Hole
             || self.name == Known::Hole
             || self.note == Known::Hole
+            || match &self.props {
+                Props::Absent => false,
+                Props::Hole => true,
+                Props::Of(elems) => elems.iter().any(Prop::has_hole),
+            }
     }
 
     /// The body with every hole filled from `fill`, which has none: an
@@ -1147,10 +1370,54 @@ impl Body {
         };
         let influence =
             |t: Tri, from: Tri| filled(if self.influences_hole { Tri::Hole } else { t }, from);
+        // a property whose values could not be read, or read as no
+        // number, may be any value of its name: the ends of the range, or
+        // one the dice pick; an element that is no property may be a
+        // property of a name the array lacks, or nothing
+        let readable = |name: PropName| {
+            let of = name.readable();
+            let value = match coins {
+                Coins::No => of[0],
+                Coins::Yes => of[of.len() - 1],
+                Coins::Tossed(_) => of[pick(of.len())],
+            };
+            Prop::Read(name, vec![value.to_string()])
+        };
+        let props = match &self.props {
+            Props::Absent => Props::Absent,
+            Props::Hole => fill.props.clone(),
+            Props::Of(elems) => {
+                let mut spare: Vec<Prop> = match &fill.props {
+                    Props::Of(from) => from
+                        .iter()
+                        .filter(|p| !elems.iter().any(|e| e.name() == p.name()))
+                        .cloned()
+                        .collect(),
+                    _ => Vec::new(),
+                };
+                let mut out = Vec::new();
+                for elem in elems {
+                    match elem {
+                        Prop::Read(..) => out.push(elem.clone()),
+                        Prop::Malformed(name) | Prop::Unreadable(name, _) => {
+                            out.push(readable(*name));
+                        }
+                        Prop::Nameless => {
+                            let at = pick(spare.len());
+                            if coin() && !spare.is_empty() {
+                                out.push(spare.remove(at));
+                            }
+                        }
+                    }
+                }
+                Props::Of(out)
+            }
+        };
         Body {
             explicit,
             implicit,
             hybrid,
+            props,
             corrupted: filled(self.corrupted, fill.corrupted),
             influences_hole: false,
             shaper: influence(self.shaper, fill.shaper),
@@ -1182,7 +1449,7 @@ impl Body {
         let line = |l: &LineM| {
             // five decimals: one more than the search reads
             let description = match l.kind {
-                0 | 1 | 4 | 6 if l.unread_number => {
+                0 | 1 | 4 | 6 | 7 | 8 if l.unread_number => {
                     let of = [
                         "to maximum Life",
                         "% to Cold Resistance",
@@ -1191,8 +1458,10 @@ impl Body {
                         "to Spirit",
                         "",
                         "to maximum life",
+                        "% to Fire Resistance",
+                        "% to all Elemental Resistances",
                     ][usize::from(l.kind)];
-                    let gap = if l.kind == 1 { "" } else { " " };
+                    let gap = if of.starts_with('%') { "" } else { " " };
                     format!("{:+}.12345{gap}{of}", l.n)
                 }
                 5 if l.unread_number => format!("{}2345% of Damage Leeched as Life", tenths(l.n)),
@@ -1203,7 +1472,9 @@ impl Body {
                 4 => format!("{:+} to Spirit", l.n),
                 5 => format!("{}% of Damage Leeched as Life", tenths(l.n)),
                 // GGG has spelled some lines two ways
-                _ => format!("{:+} to maximum life", l.n),
+                6 => format!("{:+} to maximum life", l.n),
+                7 => format!("{:+}% to Fire Resistance", l.n),
+                _ => format!("{:+}% to all Elemental Resistances", l.n),
             };
             let flags = match &l.flags {
                 Flags::Hole => json!(UNREAD),
@@ -1288,6 +1559,31 @@ impl Body {
                 body.insert("note".into(), json!(5));
             }
         }
+        // the properties as GGG displays them: `[text, style]` pairs
+        let prop = |p: &Prop| match p {
+            Prop::Read(name, values) => json!({
+                "name": name.shown(),
+                "values": values.iter().map(|v| json!([v, 0])).collect::<Vec<_>>(),
+                "displayMode": 0,
+            }),
+            Prop::Malformed(name) => json!({ "name": name.shown(), "values": 7, "displayMode": 0 }),
+            Prop::Unreadable(name, value) => {
+                json!({ "name": name.shown(), "values": [[value, 0]], "displayMode": 0 })
+            }
+            Prop::Nameless => json!(7),
+        };
+        match &self.props {
+            Props::Absent => {}
+            Props::Hole => {
+                body.insert("properties".into(), json!(UNREAD));
+            }
+            Props::Of(elems) => {
+                body.insert(
+                    "properties".into(),
+                    Value::Array(elems.iter().map(prop).collect()),
+                );
+            }
+        }
         Value::Object(body)
     }
 }
@@ -1299,8 +1595,14 @@ fn flagless(template: &str, from: i32) -> Vec<Value> {
         .collect()
 }
 
-/// The six items the audits' reproductions were made of, and a seventh
-/// that is past every bound.
+/// A property whose value no field reads as a number.
+fn fast(name: &str) -> Value {
+    json!({ "name": name, "values": [["fast", 0]], "displayMode": 0 })
+}
+
+/// The six items the audits' reproductions were made of, a seventh that
+/// is past every bound, and an eighth past the bound on the reasons a
+/// computed value makes beyond the item's own parts.
 pub fn anchors() -> Vec<Value> {
     vec![
         json!({"explicitMods": ["+95 to maximum Life"]}),
@@ -1320,6 +1622,15 @@ pub fn anchors() -> Vec<Value> {
             "corrupted": "unread", "split": "unread", "duplicated": "unread",
             "replica": "unread", "mutated": "unread",
             "influences": {"shaper": "unread", "hunter": "unread"}}),
+        // past the bound on reasons: three line arrays unread, which a
+        // total rests on, and four properties the derived fields read
+        // that are no number — seven parts, four of them made beyond the
+        // item's own (step 7's outside audit, 5)
+        json!({
+            "implicitMods": "unread", "explicitMods": "unread", "craftedMods": "unread",
+            "properties": [
+                fast("Attacks per Second"), fast("Physical Damage"),
+                fast("Elemental Damage"), fast("Chaos Damage")]}),
     ]
 }
 

@@ -86,14 +86,18 @@ fn walk(
                 fields.remove("request");
                 fields.insert("ids".into(), json!(ids));
             }
-            // a sum's evidence is named by its authored text
+            // a value's evidence is named by its authored text: a sum by
+            // the whole of it, a field or a computed value in the case it
+            // was typed (`ILVL`, `pseudo.TOTAL_RES`; B1)
             if fields.contains_key("value")
-                && fields
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .is_some_and(|name| name.starts_with("sum("))
+                && let Some(name) = fields.get("name").and_then(Value::as_str)
             {
-                fields.insert("name".into(), json!("sum"));
+                let folded = if name.starts_with("sum(") {
+                    "sum".to_string()
+                } else {
+                    name.to_ascii_lowercase()
+                };
+                fields.insert("name".into(), json!(folded));
             }
             for (name, child) in fields.iter_mut() {
                 walk(child, corpus, scope, by_path, cache)?;

@@ -364,6 +364,9 @@ fn checked(case: &Case, tally: &mut Tally) -> Result<(), String> {
         Sort::Proj(projection.0.clone(), projection.1.clone()),
         Sort::Sum(sum.0.clone(), sum.1.clone()),
         Sort::Field("ilvl"),
+        Sort::Field("pseudo.total_res"),
+        Sort::Field("pseudo.dps"),
+        Sort::Field("pseudo.pdps"),
     ];
     check(&corpus, &scope, q, &sorts, &stored.json(), tally)
 }

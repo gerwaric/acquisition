@@ -152,7 +152,8 @@ fn zero_block_is_terms_block(corpus: &Corpus, answer: &Value) -> Result<(), Stri
 }
 
 /// A reason is of something its term asked: a line's unread flags explain
-/// a term that asks a flag, its unread numbers one that asks a number.
+/// a term that asks a flag, its unread numbers one that asks a number — a
+/// computed value asks the numbers of the lines its rows name (C94).
 /// (Which occurrence a reason is of is pinned by hand, `surface_faults.rs`.)
 fn a_reason_is_of_what_its_term_asked(answer: &Value) -> Result<(), String> {
     fn walk(value: &Value, out: &mut Vec<Value>) {
@@ -174,7 +175,7 @@ fn a_reason_is_of_what_its_term_asked(answer: &Value) -> Result<(), String> {
             reason["unread"].as_str().unwrap_or_default(),
             reason["term"].as_str().unwrap_or_default(),
         );
-        let asks_a_number = ["arg", "low", "high", "avg"]
+        let asks_a_number = ["arg", "low", "high", "avg", "pseudo."]
             .iter()
             .any(|w| term.contains(w));
         if (unread.starts_with("the flags of") && !term.contains("is:"))
@@ -375,7 +376,7 @@ fn every_occurrence_twice(
     ) && a != b
     {
         return Err(format!(
-            "`--sort {projection}`: a largest moved when every occurrence was written twice"
+            "`--sort {projection}`: a value that is no sum moved when every occurrence was written twice"
         ));
     }
     if let (Some(a), Some(b)) = (scalars(&once, &scope, sum), scalars(&twice, &scope, sum)) {
@@ -406,7 +407,7 @@ proptest! {
         all.extend(bodies.iter().map(Body::json));
         let (store, corpus, scope) = fixture_with_store(all.clone());
         let text = q_text(&q, Spelling::Authored);
-        for value in [&projection, &sum, &"ilvl".to_string()] {
+        for value in [projection.as_str(), sum.as_str(), "ilvl", "pseudo.total_res", "pseudo.dps", "pseudo.pdps"] {
             probe_is_sort_status(&corpus, &scope, value).map_err(TestCaseError::fail)?;
         }
         for sort in [None, Some(projection.as_str()), Some(sum.as_str())] {
@@ -427,6 +428,38 @@ proptest! {
         every_occurrence_twice(&bodies, &q, &projection, &sum).map_err(TestCaseError::fail)?;
         every_occurrence_in_another_order(&bodies, &q, &projection, &sum)
             .map_err(TestCaseError::fail)?;
+        // a total is a sum over lines and doubles with them (C94); a
+        // derived field reads the properties, which no line is, and stays
+        // (C101); neither moves when the occurrences are reordered
+        every_occurrence_twice(&bodies, &q, "pseudo.dps", "pseudo.total_res").map_err(TestCaseError::fail)?;
+        every_occurrence_in_another_order(&bodies, &q, "pseudo.pdps", "pseudo.total_res")
+            .map_err(TestCaseError::fail)?;
+    }
+}
+
+/// Past the bound on the reasons a computed value makes beyond the item's
+/// own parts (step 7's outside audit, 5): the eighth anchor, asked by a
+/// probe over a derived field and a total in both orders, shows six parts
+/// and counts the rest. The generated property meets this one run in two
+/// at the gate's count, so the case is fixed here beside it.
+#[test]
+fn a_row_s_reasons_are_bounded_where_a_computed_value_makes_them() {
+    let (store, corpus, _) = fixture_with_store(anchors());
+    // under `and`, a field lacked is false and closes the item: the eighth
+    // alone; under `or`, lacked or undecided is undecided: the fourth (its
+    // implicit lines unread) and the sixth (its hybrid) join it
+    for (text, undecided) in [
+        ("undecided(pseudo.dps>=1 pseudo.total_res>=1)", vec!["i7"]),
+        ("undecided(pseudo.total_res>=1 pseudo.dps>=1)", vec!["i7"]),
+        (
+            "undecided(pseudo.pdps>=1 or pseudo.total_res>=1)",
+            vec!["i3", "i5", "i7"],
+        ),
+    ] {
+        let answer = run(&corpus, &request(text, None, false, 10)).unwrap();
+        assert_eq!(common::ids(&answer), undecided, "`{text}`");
+        evidence_is_the_items(&store, &answer).unwrap();
+        a_reason_is_of_what_its_term_asked(&answer).unwrap();
     }
 }
 
