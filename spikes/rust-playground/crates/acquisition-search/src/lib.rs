@@ -3,7 +3,8 @@
 //! Rulings: `decisions/search.md`, C89–C107. The language on one page, an
 //! example per construct, and the contract detail that decides answers:
 //! `search/DESIGN.md`, binding until a module doc here takes a paragraph;
-//! the build's order and evidence: `search/BUILD-PLAN.md`.
+//! the build's order: `search/BUILD-PLAN.md`; what each step met — the
+//! audits, the measurements, the holes ruled: `SEARCH-SLICE.md`.
 //!
 //! # As built
 //!
