@@ -94,15 +94,15 @@ is under "Observations still open", step 5.
 
 ## What the measurements taught
 
-**Step 1's own tests (`080a8581`).** In the builder's code: a computed
-value named alone (`pseudo.total_res`) was answered as a bare word; a
-whole number between 9.0e18 and 2^63 printed as digits the parser read
-back as another tree (`Number::from_f64` now agrees with the parser at
-the edge of an i64, pinned); `ilvl >= 84`, `tab:q-20` and a template
-typed with two numbers each got a misleading error and now get their
-own.
+Each on the `.backup` copy the plan names, with the command that
+produced it; a number here was measured, never recalled. The story
+behind each — what a run first said and what was withdrawn, the
+mutants tried against the properties, why the suites had passed over
+what an audit found — is this file at `aeeba6d3`; what a property
+means and what it cannot reach is its own header.
 
-**M2 — the deriver against the census (step 2, `ef720323`).** `python3
+**M2 — the deriver against the census (step 2, `ef720323`; rerun at
+every change of the deriver since — 0 unread, 0 unexplained each time).** `python3
 search/item-facts/scripts/m2-differential.py`, after `cargo build
 --workspace`; input the live items of
 `item-facts/raw/spike-GERWARIC_7694-2026-09-13.db` (22,721), 2026-09-19.
@@ -126,8 +126,8 @@ whether the ranged rule takes it (`ranged-split.py`'s cases A and B).
 | items with anything unread | | **0** of 22,721 |
 | ranged (one `# to #`): rows / lines | | 201 / 3,708 — 186 the pair alone, 15 with a further number; 2 rows with two pairs, 387 with several numbers and no pair, 166 `(#-#)`, none of them ranged |
 
-The departures, each counted by the script (lines whose template moved /
-census templates touched):
+The departures, each a rule of `derive.rs` ("As built"), counted by the
+script (lines whose template moved / census templates touched):
 
 | Departure | Count | Why |
 | --- | ---: | --- |
@@ -139,12 +139,7 @@ census templates touched):
 | `[Tag|Display]` and `[Display]` reduced | 286 / 62 | S4, C90 |
 | `1,500` is one number | 1 / 1 | read as 1 and 500 it is a wrong value, silently; the template is `#x Vivid Crystallised Lifeforce` |
 
-The differential caught two misreadings in the builder's code before any
-fixture did: those 362 empty lines became lines with an empty template,
-and a heist trinket's `Any Heist member can equip this item.` —
-`displayMode` 3, one empty value, no `{0}` — was counted unread on 135
-items. Deriving took 1.4 s for the 22,721 in a debug build, the parse
-included; M1 is step 3's.
+Deriving took 1.4 s for the 22,721 in a debug build, the parse included.
 
 **M1 — the streaming body read (step 3, `c0a8f918`).** `/usr/bin/time -l
 target/<profile>/examples/read-corpus
@@ -160,26 +155,15 @@ lie within 9 ms of each other.
 | `hold`: every item kept as text to the end | 37 ms | 96 ms | 51.7 MB |
 | `parse`: each body parsed as JSON, then dropped | 113 ms | 829 ms | 9.3 MB |
 
-The header is 6 ms of each release read (16 ms debug). It was 13 ms
-while the realms were read from `items` as well as from `tabs` and
-`characters`: a scan of the largest table for a value its locations
-already give — 4 ms without it, and 6 with the listings and the orphan
-exclusion the step 3 audit added (Findings). With M2's 1.4 s to derive in a
-debug build, an ask at the seat's debug build is about 2 s before
-anything is evaluated; the release build is what 500 ms is judged
-against (M3).
-
-**Departures from the first showing of the read (the plan at
-`2d25cb03`), each the builder's.** No membership and no `removed_at`:
-removed items are not read until `all` is built (gap 3, ruled), and a read that
-handed them over would change under a prune with no response written
-(owner, 2026-09-20: retention starts as a verb, "which means we can
-think about triggers for that verb later rather than now"). The order is
-location kind and id, then realm, then item id: realm first sorted the
-whole corpus, bodies included (43 MB resident against 10 MB, 0.13 s
-against 0.04 s in the `sqlite3` shell). The realms are those the file
-has a tab or a character under (owner, 2026-09-20: `pc`, `xbox`, `sony`
-and `poe2` are "the full list").
+The header is 6 ms of each release read (16 ms debug): 4 ms with the
+realms read from the locations alone, 6 with the listings and the
+orphan exclusion. With M2's 1.4 s to derive in a debug build, an ask at
+the seat's debug build is about 2 s before anything is evaluated; the
+release build is what 500 ms is judged against (M3). The read's order —
+location kind and id, then realm, then item id — was chosen on a
+measurement: realm first sorted the whole corpus, bodies included,
+43 MB resident against 10 MB and 0.13 s against 0.04 s in the `sqlite3`
+shell.
 
 **M3, M4 — a CLI ask, and `~` over all text (step 4, `28606ed4`).**
 `python3 search/item-facts/scripts/m3-ask.py
@@ -211,14 +195,10 @@ trigger does not fire. An ask is its load: the empty query, which
 evaluates nothing, is 268 ms, the dearest query adds 29 ms, and `~` over
 every displayed string of every item adds 9 ms (M4). The debug build is
 1.7 to 2.4 s, which is what the seat feels behind the README's alias.
-
-What the audits' fixes cost was measured apart, the two release binaries
-asked in turn on the same copy in the same minutes (the pre-fix one built
-from a worktree at `28606ed4`), the median of eleven: the empty query 257
-against 269 ms, OQ1 277 against 295, AQ2 277 against 301, a flag asked
-inside a group 262 against 293, `~` over all text 264 against 279 — 12
-to 31 ms, five to twelve in a hundred, the deriver's flag checks in every
-ask and the three-valued group in those that have one.
+What step 4's audit fixes cost, the two release binaries asked in turn
+on the same copy in the same minutes, the median of eleven: 12 to 31 ms
+an ask, five to twelve in a hundred — the deriver's flag checks in
+every ask and the three-valued group in those that have one.
 
 **The class table against the census (step 6, `eeaec66e`).**
 `target/release/acq --json search --realm all --count class --limit 100`
@@ -254,66 +234,14 @@ range of the warm medians, in ms.
 
 Step 6's three asks at its build: OQ1 as worded (`class:ring`) 297,
 OQ5 by class and level 277, `--count class` 277 — the class table's
-parse is within the noise of the empty query (278 against 270 at the
-step 5 rows). The run before this one, on the same copy the same hour,
-gave its first thirteen asks at 554–621 ms release and 3.1–4.9 s debug
-and the last nine at 277–309: what slowed the machine for its first
-half is not known, as at the second audit's finding 5, and the second
-run is what is claimed.
-
-At `36a9738a` each release figure was within 9 ms of the audited build's
-column, taken the same day (OQ2 the furthest, 269 to 278); the two builds
-were not run against each other, so that part 2 cost nothing is not
-claimed. Step 5's six asks at `31b5f09d`: AQ1 276, OQ7's count by tab
-274, the crossed table 274, the sum 273, the vocabulary twice narrowed
-286, the vocabulary whole 302 — every template of 22,623 items ranked,
-6,113 rows, 20 listed.
-
-**No defect of the build was found by any property** — of the first
-surface as the fourth audit's fixes left it (`c3de464d`). That is a claim
-about the properties as much as the build, so each was shown able to fail
-before it was believed, and the outside audit this step closes on is the
-check of both.
-
-**Every property passed at its first run, and each time that was a
-signal and not a result.** Equivalence: a third of its queries were
-authoring errors (a slot its quoted template lacks) and 837 of 870 bodies
-had a hole; rebalanced, 7 queries in 100 err and a third of bodies are
-fully readable. Its one failure since was the test's — the reasons an
-`undecided( … )` shows follow the order its terms were written in.
-Completion: its completions were too few and too random to move an
-equality or an element that is no line, so its measurement said little;
-the fifteen it tries now are in its header. Cross-checks: believed only
-after the three mutants below.
-
-**The mutants (step 4b)** — each a fix of step 4's audits undone, or a
-fault of the same kind; tried against the three generated properties
-before part 2, and A–E, G and H again after it, in `group.rs`, with the
-same result. `·` survived; blank, not tried.
-
-| | Mutant | routes | equivalence | completion | cross-checks |
-| --- | --- | --- | --- | --- | --- |
-| A | the together bound looked for among the group's immediate members | · | caught | · | |
-| B | which sources a group admits, read off its immediate members | caught | caught | caught | |
-| C | the slot check at the group's own level only | · | caught | · | |
-| D | the selector dropping a whole member that holds a comparison | caught | caught | caught | |
-| E | the selector ignoring a not | caught | caught | caught | |
-| F | unread beating a witness | · | · | · — seen by the measurement | |
-| G | a line's unread flag read as a no | · | · | caught | |
-| H | an unread array read as empty | caught | · | caught | |
-| I | a sum ignoring an occurrence it may select | · | · | caught | |
-| J | a largest ignoring a larger that may be selected | · | · | caught | |
-| K | the zero block reading a group's first template alone | · | · | · | caught |
-| L | an unread `ilvl` read as absent | · | · | caught | |
-| N | `undecided(V)` missing an incomplete value with nothing readable | | | | caught |
-| O | a sum counting one text once | | | | caught |
-
-Every reading of a group off its syntax (A–E) is caught by equivalence,
-which is what part 2 was made under. F makes an answer more careful and
-never wrong, so nothing that binds can see it: step 4's hand test does
-(`tests/answer.rs`), and so does the measurement. K is the same wrong in
-every spelling and under every completion; only a second part of the
-answer contradicts it.
+parse is within the noise of the empty query. Step 5's six asks at
+`31b5f09d`: AQ1 276, OQ7's count by tab 274, the crossed table 274, the
+sum 273, the vocabulary twice narrowed 286, the vocabulary whole 302 —
+every template of 22,623 items ranked, 6,113 rows, 20 listed. A run can
+have a slow half of unknown cause (the run before step 6's row: 554–621
+ms release for its first thirteen asks, 277–309 for the last nine), so
+a run is claimed only when its halves agree, and a slowdown's cause is
+never named before it is measured.
 
 **The completion property's measured half** —
 `cargo test -p acquisition-search --test generated_completion -- --ignored --nocapture`,
@@ -333,65 +261,21 @@ counterexamples, none. What was undecided as stored:
 | the root | 227 | 226 | 85 |
 | a sort scalar | 953 | 888 with one value | |
 
-The kinds that did not differ, read from the examples the run prints:
-
-- *The sampler cannot reach it.* An element that is no line becomes one
-  line at most, and the term wants a template at one value (`arg1=11`); a
-  selector nothing carries (`template:nothing`); a phrase no generated
-  line says (`"Level: 8"` where an array is unread); an upper bound no
-  generated value breaks (`sum( … )<=21`, values to 12). Each is
-  undecided rightly: a completion that differs exists and was not tried.
-- *A group no occurrence can satisfy* — two quoted templates in one and,
-  `arg1<2 arg1>=12`. Every completion says no, and the evaluator says
-  undecided while a source the group admits is unread: it asks which
-  sources a group admits and never whether anything could satisfy it.
-  Careful on purpose; no rule of the reference asks for more.
-- *A comparison on an incomplete subtotal*, undecided whatever the
-  subtotal already reaches: the reference's sum-status table, and this
-  section's own example of a rule careful on purpose. The eight the
-  first run printed of its 110 sums every completion made true were this
-  kind or the first, and the eight roots it printed inherited a sum or a
-  negated group; the rest were not read.
-- The column that matters is the empty one: **no undecided group, field,
-  flag or phrase was made true by every completion**, which is where a
-  missed witness shows. With mutant F applied, 83 groups and 18 fields in
-  600 cases are.
-
-The generators write a number with five decimals, which a completion
-fills; with an unread slot read as a no again the completion property
-refuses at once, shrunk to `line("# to maximum Life" arg1>=0)` over
-`+0.12345 to maximum Life`.
-
-**Why the suites had passed over what the fifth audit found**, which is the audit's other half:
-the generators made whole numbers only and never reordered an item's
-occurrences, though transformation 4 asks for it and this record had
-claimed 1–4 covered; the zero-block check looked only at entries
-present, so an emptied block passed it; a suggestion's count is named
-`items`, which no walk over `count` sees; nothing bounded a row; and no
-property reads the CLI's text or `--describe`, as the step 4b observations below
-already said. The generators have decimal lines and bounds, a second
-spelling of one line and selectors that resolve to nothing; the
-cross-checks ask every occurrence in another order, the zero block both
-ways, every suggestion's term, a row's bound, and two misspellings of
-every corpus; negative controls refuse an emptied zero block, a
-miscounted suggestion and a doubled row. Each fix undone is caught by
-them: P a sum in float order, Q a suggestion counting its spelling
-(survived 192 cases until the misspellings were asked of every corpus),
-R a pattern dropped from the zero block, S a row unbounded.
+The column that matters is the empty one: no undecided group, field,
+flag or phrase was made true by every completion, which is where a
+missed witness would show — with an unread slot read as a no again, 83
+groups and 18 fields in 600 cases are, and the property refuses at once.
+The rest are undecided rightly: a case the sampler cannot reach (a
+template at one value, a selector nothing carries, a bound no generated
+value breaks), a group no occurrence can satisfy (two quoted templates
+in one and), and a comparison on an incomplete subtotal, undecided
+whatever the subtotal already reaches.
 
 **The vocabulary against M2 (step 5, `31b5f09d`).** Over all realms the
 vocabulary is 6,181 rows keyed by (realm, template); the deriver's
 census rows of M2 (`item-facts/raw/m2/rust.json`, 6,606 by (source,
 template)) hold 6,148 distinct templates, and 6,181 less the 33
 templates the copy carries in both realms is 6,148.
-
-**Every property passed at its first run, and each time that was a
-signal.** The fold property was written over one pool of characters drawn
-at random for both texts, and the fold swapped for `to_lowercase` survived
-4,000 cases: a pair like `s` and `ſ` was never drawn. Both texts are now
-drawn from one case family at each place, and two mutants — `to_lowercase`,
-and ASCII folded down where the rest folds up — fail within a few cases.
-The exact pattern's mutant (only `\` escaped) failed at once, at `(`.
 
 ## Holes ruled, and where the rule went
 
