@@ -825,9 +825,14 @@ fn a_view_that_cannot_be_is_an_authoring_error() {
             "`--sum` takes a number",
         ),
         (
-            json!({ "counts": { "keys": ["tab"], "sum": "pseudo.total_res" } }),
+            json!({ "counts": { "keys": ["tab"], "sum": "pseudo.defence_pct" } }),
             "not_built",
-            "pseudo.*",
+            "pseudo.defence_pct",
+        ),
+        (
+            json!({ "counts": { "keys": ["tab"], "sum": "pseudo.total_res.avg" } }),
+            "slot_unknown",
+            "takes no slot word",
         ),
     ] {
         let e = view(&s, "pc", "", view_json.clone()).unwrap_err();

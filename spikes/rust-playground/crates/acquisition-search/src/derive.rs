@@ -101,6 +101,7 @@ use serde_json::{Map, Value};
 
 pub use crate::class::ClassGap;
 use crate::template;
+pub use crate::totals::TotalGap;
 use crate::tree::Number;
 
 /// One item's ingest facts, as the store's read hands them over (C103): a
@@ -230,6 +231,9 @@ pub enum Part {
     /// The class, which the class table could not give the base
     /// (`class.rs`): only what asks the class.
     Class(ClassGap),
+    /// A named total the totals table has no definition of for the item's
+    /// realm (`totals.rs`): only what asks that total.
+    Total(TotalGap),
 }
 
 /// What a slot word names on one occurrence.

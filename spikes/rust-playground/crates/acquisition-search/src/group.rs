@@ -336,6 +336,38 @@ pub(crate) fn line_exactly(template: &str, twin: bool, kind: LineKind<'_>) -> No
     }
 }
 
+/// A total's row as the group it is (`totals.rs`, C94): the template,
+/// exact, and the source and the flag where the row names them — bound
+/// here, so that what a row admits, selects and says of one occurrence is
+/// read as every other group's is, and never worked out again.
+pub(crate) fn row(
+    template: &str,
+    source: Option<&str>,
+    flag: Option<&str>,
+) -> Result<(Node, Group), LanguageError> {
+    let test = |attr: &str, text: &str| Member::Test {
+        attr: attr.to_string(),
+        op: Op::Eq,
+        value: Value::Text(text.to_string()),
+    };
+    let mut members = vec![test("template", template)];
+    members.extend(source.map(|source| test("source", source)));
+    members.extend(flag.map(|flag| Member::Is(flag.to_string())));
+    let where_ = if members.len() == 1 {
+        members.remove(0)
+    } else {
+        Member::All(members)
+    };
+    let node = Node::Members {
+        of: Collection::Lines,
+        where_: Box::new(where_.clone()),
+    };
+    // the tree's own checks on the template: no sign before a #, no number typed into it
+    tree::check(&node)?;
+    let group = Group::bind(&where_)?;
+    Ok((node, group))
+}
+
 /// What a vocabulary read is narrowed by, as the term it is — `line(true())`
 /// for every line, `line(template:words)`, `line(template~"pattern")` — and
 /// that term bound: the lines a row is made of are the ones it selects, its

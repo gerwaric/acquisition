@@ -45,6 +45,11 @@ ASKS = [
     ("OQ1 as worded (class:ring)", ['class:ring rarity=rare (line(template:resistance) or line(template:strength))']),
     ("OQ5 by class and level", ['(class:boots or class:gloves or class:helmet) (reqlevel=..30 or -has:reqlevel)']),
     ("--count class", ["", "--count", "class"]),
+    # step 7: the computed values
+    ("AQ2 as worded (pseudo.total_res)", ['(class:ring rarity=rare (line(template:resistance) or line(template:strength))) pseudo.total_res>=60']),
+    ("the worked example whole", ['league=Standard class=Rings rarity=rare "# to maximum Life">=90 pseudo.total_res>=60']),
+    ("pseudo.dps sorted", ["pseudo.dps>=100", "--sort", "pseudo.dps", "--desc", "--limit", "10"]),
+    ("--count class --sum pseudo.total_res", ["rarity=rare", "--count", "class", "--sum", "pseudo.total_res"]),
 ]
 
 def main():

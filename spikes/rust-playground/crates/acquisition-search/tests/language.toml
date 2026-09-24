@@ -581,8 +581,14 @@ error = "slot_missing"
 
 [[case]]
 construct = "values.pseudo"
-text = '''pseudo.total_res>=60 pseudo.dps>=400.5 pseudo.pdps<300 pseudo.defence_pct=90..100'''
-canonical = '''pseudo.total_res>=60 pseudo.dps>=400.5 pseudo.pdps<300 pseudo.defence_pct=90..100'''
+text = '''pseudo.total_res>=60 pseudo.dps>=400.5 pseudo.pdps<300 pseudo.total_str=90..100'''
+canonical = '''pseudo.total_res>=60 pseudo.dps>=400.5 pseudo.pdps<300 pseudo.total_str=90..100'''
+
+# A computed value the reference names and no step of the plan builds: refused by name.
+[[case]]
+construct = "values.pseudo_unbuilt"
+text = '''pseudo.defence_pct=90..100'''
+canonical = '''pseudo.defence_pct=90..100'''
 
 # A ranged computed value takes a slot word last.
 [[case]]

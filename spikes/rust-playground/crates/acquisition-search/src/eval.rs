@@ -74,6 +74,14 @@
 //!   whose largest is not established — a source `P` admits is unread, or
 //!   an occurrence `P` may select holds a larger number — with what was
 //!   readable shown and its status beside it, as an incomplete sum is.
+//! - **A computed value** (`pseudo.rs`; C94, C101) is asked as a sum is:
+//!   complete, its comparison is decided; an incomplete subtotal, or a
+//!   total with no definition for the realm, is undecided; a derived
+//!   field whose input the item lacks is lacked. Its sort scalar and its
+//!   reasons are the same functions', and a total's arithmetic is this
+//!   module's own sum over each row's group.
+
+use std::borrow::Cow;
 
 use serde::Serialize;
 
@@ -83,6 +91,7 @@ use crate::derive::{Line, Part, Shown, Slot, Unread};
 use crate::exact::{self, Exact};
 pub(crate) use crate::group::Truth;
 use crate::group::{Asked, Group};
+use crate::pseudo::{self, Valued};
 use crate::tree::Number;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -193,7 +202,7 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
                         "name" | "typeLine" | "baseType" | "ilvl" | "hybrid"
                     )
                 }
-                Part::Flags(_) | Part::Numbers(_) | Part::Class(_) => false,
+                Part::Flags(_) | Part::Numbers(_) | Part::Class(_) | Part::Total(_) => false,
             })
             .collect(),
         // the base, or the body, unread leaves the class open; the table's
@@ -310,7 +319,11 @@ fn unread_lines<'a>(held: &'a Held, group: &Group) -> Vec<&'a Unread> {
             Part::Field(key) => key == "hybrid" && group.admits("hybrid"),
             // a line's flags and numbers: the occurrence itself says so
             // (`Asked::of`)
-            Part::Flags(_) | Part::Numbers(_) | Part::Properties(_) | Part::Class(_) => false,
+            Part::Flags(_)
+            | Part::Numbers(_)
+            | Part::Properties(_)
+            | Part::Class(_)
+            | Part::Total(_) => false,
         })
         .collect()
 }
@@ -364,6 +377,16 @@ pub(crate) fn sum(held: &Held, group: &Group, slot: &str) -> (Exact, bool) {
     let complete =
         unread_lines(held, group).is_empty() && !open_with_the_slot(held, &group.whole, slot);
     (total, complete)
+}
+
+/// How many occurrences satisfy the group, in units — a total's row with
+/// no slot (`totals.rs`, C94) — and whether every possible one was
+/// readable: a source the group admits unread, or an occurrence its flag
+/// leaves open, leaves the count open.
+pub(crate) fn count(held: &Held, group: &Group) -> (Exact, bool) {
+    let n = satisfying(held, &group.whole).count();
+    let complete = unread_lines(held, group).is_empty() && !open_on_a_line(held, &group.whole);
+    (Exact::of(n as f64), complete)
 }
 
 /// C92's together count, asked of an item the group failed on: no
@@ -473,6 +496,13 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
         Atom::Sum { group, slot, test } => match sum(held, group, slot) {
             (total, true) => decided(test.holds(total.as_f64()), true, false),
             (_, false) => Outcome::Undecided,
+        },
+        Atom::Pseudo {
+            named, slot, test, ..
+        } => match pseudo::value(*named, slot.as_deref(), held) {
+            Valued::Value(n) => decided(test.holds(n.as_f64()), true, false),
+            Valued::Incomplete(_) => Outcome::Undecided,
+            Valued::Lacked => Outcome::Lacked,
         },
         Atom::Undecided(probe) => {
             let open = match probe {
@@ -588,7 +618,7 @@ pub(crate) fn touched(bound: &Bound, outcomes: &[Outcome], positive: bool, out: 
 
 // ---- what an answer prints of one item --------------------------------------------------
 
-fn line_evidence(line: &Line) -> Evidence {
+pub(crate) fn line_evidence(line: &Line) -> Evidence {
     Evidence::Line {
         source: line.source.clone(),
         flags: line.flags.clone(),
@@ -662,7 +692,7 @@ pub(crate) fn why<'a>(
             .position(|u| std::ptr::eq(u, unread))
             .unwrap_or(usize::MAX)
     };
-    let mut pairs: Vec<(usize, usize, &Unread)> = blamed
+    let mut pairs: Vec<(usize, usize, Cow<'_, Unread>)> = blamed
         .iter()
         .filter_map(|i| terms.get(*i).map(|term| (*i, term)))
         .flat_map(|(i, term)| {
@@ -670,7 +700,7 @@ pub(crate) fn why<'a>(
                 .into_iter()
                 .map(move |unread| (i, unread))
         })
-        .map(|(i, unread)| (at(unread), i, unread))
+        .map(|(i, unread)| (at(&unread), i, unread))
         .collect();
     pairs.sort_by_key(|(part, term, _)| (*part, *term));
     let mut parts: Vec<usize> = pairs.iter().map(|(part, _, _)| *part).collect();
@@ -680,7 +710,7 @@ pub(crate) fn why<'a>(
     let shown = pairs
         .into_iter()
         .filter(|(part, _, _)| last.is_none_or(|last| *part <= last))
-        .map(|(_, i, unread)| (&terms[i], reason(unread)))
+        .map(|(_, i, unread)| (&terms[i], reason(&unread)))
         .collect();
     (shown, left_out)
 }
@@ -745,52 +775,79 @@ fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
             .chain(satisfying(held, &group.whole).map(line_evidence))
             .collect()
         }
+        Atom::Pseudo {
+            named, name, slot, ..
+        } => {
+            let value = match pseudo::value(*named, slot.as_deref(), held) {
+                Valued::Value(n) | Valued::Incomplete(Some(n)) => number_json(n.as_f64()),
+                Valued::Incomplete(None) | Valued::Lacked => serde_json::Value::Null,
+            };
+            std::iter::once(Evidence::Value {
+                name: name.clone(),
+                value,
+            })
+            .chain(pseudo::evidence(*named, held))
+            .collect()
+        }
         _ => Vec::new(),
     }
 }
 
-/// What left a term open on an item.
-fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<&'a Unread> {
-    let of_group = |group: &Group, slot: Option<&str>| {
-        let mut unread = unread_lines(held, group);
-        // what an occurrence itself left open, explained by that occurrence
-        // and by what the group asked of it: its flags where a flag is
-        // asked, its numbers where a number is
-        let open: Vec<usize> = held
-            .item
-            .lines
-            .iter()
-            .enumerate()
-            .filter(|(_, l)| match slot {
-                Some(slot) => leaves_the_slot_open(&group.whole, slot, l),
-                None => group.whole.of(l) == Truth::Undecided,
-            })
-            .map(|(at, _)| at)
-            .collect();
-        unread.extend(held.item.unread.iter().filter(|u| {
-            let asked = match &u.part {
-                Part::Flags(_) => group.asks_a_flag,
-                Part::Numbers(_) => slot.is_some() || !group.selects_only,
-                _ => false,
-            };
-            asked && u.line.is_some_and(|at| open.contains(&at))
-        }));
-        unread
-    };
+/// What a sum over a group's occurrences rests on that was unread: a
+/// source the group admits, and what an occurrence itself left open,
+/// explained by that occurrence and by what was asked of it — its flags
+/// where a flag is asked, its numbers where a number is (`slot`), or
+/// where the group is more than a selector.
+pub(crate) fn unread_of_sum<'a>(
+    held: &'a Held,
+    group: &Group,
+    slot: Option<&str>,
+) -> Vec<&'a Unread> {
+    let mut unread = unread_lines(held, group);
+    let open: Vec<usize> = held
+        .item
+        .lines
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| match slot {
+            Some(slot) => leaves_the_slot_open(&group.whole, slot, l),
+            None => group.whole.of(l) == Truth::Undecided,
+        })
+        .map(|(at, _)| at)
+        .collect();
+    unread.extend(held.item.unread.iter().filter(|u| {
+        let asked = match &u.part {
+            Part::Flags(_) => group.asks_a_flag,
+            Part::Numbers(_) => slot.is_some() || !group.selects_only,
+            _ => false,
+        };
+        asked && u.line.is_some_and(|at| open.contains(&at))
+    }));
+    unread
+}
+
+/// What left a term open on an item: the item's own unread parts, borrowed,
+/// and a reason made where the evidence is read — a total with no
+/// definition for the realm, a property displayed as no number
+/// (`pseudo.rs`).
+fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<Cow<'a, Unread>> {
+    let borrowed = |unread: Vec<&'a Unread>| unread.into_iter().map(Cow::Borrowed).collect();
     match atom {
         Atom::Text { thing, .. }
         | Atom::Closed { thing, .. }
         | Atom::Number { thing, .. }
         | Atom::Has(thing)
-        | Atom::Undecided(BProbe::Field(thing)) => unread_for(held, *thing),
-        Atom::Is(flag) => unread_flag(held, flag),
-        Atom::Lines(group) => of_group(group, None),
-        Atom::Sum { group, slot, .. } => of_group(group, Some(slot.as_str())),
+        | Atom::Undecided(BProbe::Field(thing)) => borrowed(unread_for(held, *thing)),
+        Atom::Is(flag) => borrowed(unread_flag(held, flag)),
+        Atom::Lines(group) => borrowed(unread_of_sum(held, group, None)),
+        Atom::Sum { group, slot, .. } => borrowed(unread_of_sum(held, group, Some(slot.as_str()))),
+        Atom::Pseudo { named, .. } => pseudo::unread_of(*named, held),
         Atom::Undecided(BProbe::Value(key)) => match key.as_ref() {
             SortKey::Projection { group, slot } | SortKey::Sum { group, slot } => {
-                of_group(group, Some(slot.as_str()))
+                borrowed(unread_of_sum(held, group, Some(slot.as_str())))
             }
-            SortKey::Number(thing) => unread_for(held, *thing),
+            SortKey::Number(thing) => borrowed(unread_for(held, *thing)),
+            SortKey::Pseudo { named, .. } => pseudo::unread_of(*named, held),
         },
         Atom::Id(_) | Atom::Const(_) | Atom::Undecided(BProbe::Term(_)) => Vec::new(),
     }
@@ -802,7 +859,7 @@ fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<&'a Unread> {
 pub(crate) fn unread_kinds(atom: &Atom, held: &Held) -> Vec<String> {
     let mut kinds: Vec<String> = unread_of(atom, held)
         .into_iter()
-        .map(|unread| reason(unread).unread)
+        .map(|unread| reason(&unread).unread)
         .collect();
     kinds.sort();
     kinds.dedup();
@@ -819,10 +876,12 @@ fn reason(unread: &Unread) -> Reason {
             Part::Flags(source) => format!("the flags of {source} lines"),
             Part::Numbers(source) => format!("the numbers of {source} lines"),
             Part::Class(gap) => gap.unread().to_string(),
+            Part::Total(gap) => gap.unread().to_string(),
         },
         problem: unread.problem.clone(),
         hint: match &unread.part {
             Part::Class(_) => crate::class::CLASS_HINT,
+            Part::Total(_) => crate::totals::TOTAL_HINT,
             _ => UNREAD_HINT,
         },
     }
@@ -871,6 +930,11 @@ pub(crate) fn scalar(key: &SortKey, held: &Held) -> Scalar {
         SortKey::Sum { group, slot } => match sum(held, group, slot) {
             (total, true) => Scalar::Value(total),
             (subtotal, false) => Scalar::Incomplete(Some(subtotal)),
+        },
+        SortKey::Pseudo { named, slot, .. } => match pseudo::value(*named, slot.as_deref(), held) {
+            Valued::Value(n) => Scalar::Value(n),
+            Valued::Incomplete(n) => Scalar::Incomplete(n),
+            Valued::Lacked => Scalar::None,
         },
     }
 }

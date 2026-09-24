@@ -9,8 +9,8 @@
 //! # As built
 //!
 //! The language (the build plan, step 1), the derivation (step 2), the
-//! first surface (step 4), the counts view (step 5) and the class table
-//! (step 6): a request in, an answer out.
+//! first surface (step 4), the counts view (step 5), the class table
+//! (step 6) and the computed values (step 7): a request in, an answer out.
 //!
 //! - [`tree`] — the query tree (C91): one typed value, and [`check`], what
 //!   a tree must satisfy to be one the language can say.
@@ -36,6 +36,10 @@
 //! - [`class`] — the class table (C106): reviewed reference data shipped
 //!   in the binary, the item's class read from its base, and what the
 //!   search says when the table cannot class it (C93).
+//! - [`totals`] — the totals table (C94): a named total as reviewed
+//!   reference data, one meaning on every surface; `pseudo` — the
+//!   computed values, `pseudo.<name>`: the totals and the derived fields
+//!   (C101), asked as a sum is.
 //! - [`corpus`] — every live item of a scope, derived and classed from one
 //!   snapshot of the store's read (C108) and held with its basis (C98).
 //! - `eval` — a term asked of an item: matched, failed, lacked or
@@ -87,6 +91,13 @@
 //!   (the shipped file, every reason the table gives, `undecided(class)`,
 //!   the count's tally, `show`) and `tests/acceptance.rs` (OQ1 and OQ4 as
 //!   worded, OQ5 askable).
+//! - **C94, C101.** The totals table is [`totals`]'s doc and
+//!   `reference/totals-v1.toml`'s header; the computed values, their three
+//!   statuses and the derived fields are `pseudo`'s doc; pinned by
+//!   `tests/pseudo.rs` (the shipped table through the boundary, a total's
+//!   three statuses, `dps` and `pdps`, the sort and the sum over one),
+//!   `tests/answer.rs` (the reference's worked example whole) and
+//!   `tests/acceptance.rs` (AQ2 as worded).
 
 // The lint ratchet (C47): malformed input — a text, a tree — is a
 // structured error, never a panic. Tests may unwrap.
@@ -106,8 +117,10 @@ mod group;
 pub mod json;
 pub mod parse;
 pub mod print;
+mod pseudo;
 pub mod show;
 mod template;
+pub mod totals;
 pub mod tree;
 
 pub use answer::{Answer, Request, answer};
@@ -121,4 +134,5 @@ pub use json::{from_json, to_json};
 pub use parse::{parse, parse_value};
 pub use print::{print, print_value};
 pub use show::show;
+pub use totals::{TOTALS_TABLE_VERSION, TotalGap, TotalsTable, TotalsTableError};
 pub use tree::{Collection, Member, Node, Number, Op, Probe, Value, ValueRef, check};

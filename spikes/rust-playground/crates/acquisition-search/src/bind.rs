@@ -43,6 +43,12 @@
 //! - **A bare word's closed-set readings** arrive here: the parser offers
 //!   `"rare"` and `line(template:rare)`, and [`parse_query`] puts
 //!   `rarity=rare` before them.
+//! - **A computed value is bound by name** (`pseudo.rs`; the build plan,
+//!   step 7): a total of the table or a derived field, in any case, with
+//!   its slot word checked against what it is — a ranged total takes one,
+//!   nothing else does. A name nothing defines is an unknown name with the
+//!   near ones offered, or, with a slot word, the refusal of a ranged
+//!   total, which this build ships none of.
 
 use regex::{Regex, RegexBuilder};
 
@@ -54,11 +60,12 @@ use crate::tree::{self, Collection, Node, Number, Op, Probe, Value, ValueRef};
 // ---- what is not built -------------------------------------------------------
 
 /// A construct of the reference this build refuses, and the step of
-/// `search/BUILD-PLAN.md` that builds it.
+/// `search/BUILD-PLAN.md` that builds it — none, where no step of the plan
+/// names it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct NotBuilt {
     pub construct: &'static str,
-    pub step: u8,
+    pub step: Option<u8>,
     pub what: &'static str,
 }
 
@@ -66,98 +73,118 @@ pub struct NotBuilt {
 /// that builds its construct.
 pub const NOT_BUILT: &[NotBuilt] = &[
     NotBuilt {
-        construct: "pseudo.*",
-        step: 7,
-        what: "computed values: named totals and derived fields",
+        construct: "pseudo.defence_pct",
+        step: None,
+        what: "the base defence percentile (C101): its formula is not pinned against the site's (search/pseudo-stats/README.md, open question 3)",
+    },
+    NotBuilt {
+        construct: "pseudo.<name>.<slot>",
+        step: None,
+        what: "a ranged total: the totals table admits one, and this build ships none — which lines a site's ranged pseudo sums is unread (search/pseudo-stats/README.md, open question 2)",
     },
     NotBuilt {
         construct: "sockets",
-        step: 8,
+        step: Some(8),
         what: "how many sockets an item has",
     },
     NotBuilt {
         construct: "links",
-        step: 8,
+        step: Some(8),
         what: "the size of an item's largest link group",
     },
     NotBuilt {
         construct: "sockets.<colour>",
-        step: 8,
+        step: Some(8),
         what: "how many sockets of one colour",
     },
     NotBuilt {
         construct: "linked(…)",
-        step: 8,
+        step: Some(8),
         what: "conditions that hold together on one link group",
     },
     NotBuilt {
         construct: "has:priced",
-        step: 9,
+        step: Some(9),
         what: "whether the item carries an effective price",
     },
     NotBuilt {
         construct: "price.*",
-        step: 9,
+        step: Some(9),
         what: "the effective price: amount, currency, lot",
     },
     NotBuilt {
         construct: "--fields",
-        step: 10,
+        step: Some(10),
         what: "the caller names a row's fields",
     },
     NotBuilt {
         construct: "--next",
-        step: 10,
+        step: Some(10),
         what: "continue an answer past its limit, refused across a changed basis",
     },
     NotBuilt {
         construct: "--explain",
-        step: 10,
+        step: Some(10),
         what: "one node forced true and forced false",
     },
     NotBuilt {
         construct: "--context",
-        step: 10,
+        step: Some(10),
         what: "the empty query over the bound scope",
     },
     NotBuilt {
         construct: "--view locations",
-        step: 10,
+        step: Some(10),
         what: "the full coverage list the scope block summarises",
     },
     NotBuilt {
         construct: "--print-request",
-        step: 10,
+        step: Some(10),
         what: "print the request as JSON without running it",
     },
     NotBuilt {
         construct: "--request",
-        step: 10,
+        step: Some(10),
         what: "run a request read from a file",
     },
     NotBuilt {
         construct: "--rebind",
-        step: 10,
+        step: Some(10),
         what: "run another account's request deliberately",
     },
     NotBuilt {
         construct: "show --against",
-        step: 10,
+        step: Some(10),
         what: "why one item does or does not match a query",
     },
     NotBuilt {
         construct: "show --basis",
-        step: 10,
+        step: Some(10),
         what: "one item as a named basis held it",
     },
 ];
+
+impl NotBuilt {
+    /// The step as the refusal and the help print it.
+    pub fn step_text(&self) -> String {
+        match self.step {
+            Some(step) => format!("step {step}"),
+            None => "no step of the plan".to_string(),
+        }
+    }
+}
 
 /// The refusal of one construct of [`NOT_BUILT`], by its name there.
 pub fn not_built(construct: &str) -> LanguageError {
     match NOT_BUILT.iter().find(|n| n.construct == construct) {
         Some(n) => LanguageError::new(
             ErrorKind::NotBuilt,
-            format!("not built: {} (step {}) — {}", n.construct, n.step, n.what),
+            format!(
+                "not built: {} ({}) — {}",
+                n.construct,
+                n.step_text(),
+                n.what
+            ),
         ),
         // a name outside the list is a bug in the caller, said as loudly
         None => LanguageError::new(
@@ -459,6 +486,14 @@ pub(crate) enum Atom {
         slot: String,
         test: NumTest,
     },
+    /// A computed value compared (`pseudo.rs`): `name` as printed,
+    /// `pseudo.total_res`.
+    Pseudo {
+        named: crate::pseudo::Named,
+        name: String,
+        slot: Option<String>,
+        test: NumTest,
+    },
     Const(bool),
     Undecided(BProbe),
 }
@@ -516,8 +551,20 @@ impl Query {
 #[derive(Debug, Clone)]
 pub(crate) enum SortKey {
     Number(Thing),
-    Projection { group: Group, slot: String },
-    Sum { group: Group, slot: String },
+    Projection {
+        group: Group,
+        slot: String,
+    },
+    Sum {
+        group: Group,
+        slot: String,
+    },
+    /// A computed value; the printed name is the caller's (`--sort` and
+    /// `--sum` print the value they were given).
+    Pseudo {
+        named: crate::pseudo::Named,
+        slot: Option<String>,
+    },
 }
 
 /// Parse and bind a query's text.
@@ -676,7 +723,10 @@ pub(crate) fn bind_sum(value: &ValueRef) -> Result<SortKey, LanguageError> {
 
 fn bind_value(flag: &str, value: &ValueRef) -> Result<SortKey, LanguageError> {
     match value {
-        ValueRef::Pseudo { .. } => Err(not_built("pseudo.*")),
+        ValueRef::Pseudo { name, slot } => {
+            let (named, slot) = bind_pseudo(name, slot.as_deref())?;
+            Ok(SortKey::Pseudo { named, slot })
+        }
         ValueRef::Field(name) => {
             let def = known_field(name, |near| near.to_string())?;
             match def.kind {
@@ -703,6 +753,67 @@ fn bind_value(flag: &str, value: &ValueRef) -> Result<SortKey, LanguageError> {
             group: Group::bind(lines)?,
             slot: slot.clone(),
         }),
+    }
+}
+
+/// A computed value by name (the module doc): the total or the derived
+/// field, and its slot word where it takes one.
+fn bind_pseudo(
+    name: &str,
+    slot: Option<&str>,
+) -> Result<(crate::pseudo::Named, Option<String>), LanguageError> {
+    let printed = |slot: Option<&str>| {
+        print::print_value(&ValueRef::Pseudo {
+            name: name.to_string(),
+            slot: slot.map(str::to_string),
+        })
+    };
+    if name.eq_ignore_ascii_case("defence_pct") {
+        return Err(not_built("pseudo.defence_pct"));
+    }
+    let known = crate::pseudo::names();
+    let Some(named) = crate::pseudo::lookup(name)? else {
+        let near: Vec<String> = near(name, known)
+            .into_iter()
+            .map(|n| {
+                print::print_value(&ValueRef::Pseudo {
+                    name: n.to_string(),
+                    slot: None,
+                })
+            })
+            .collect();
+        return Err(if slot.is_some() {
+            not_built("pseudo.<name>.<slot>").with_readings(near)
+        } else {
+            unknown("computed value", name, known, |near| {
+                print::print_value(&ValueRef::Pseudo {
+                    name: near.to_string(),
+                    slot: None,
+                })
+            })
+        });
+    };
+    match (named.ranged(), slot) {
+        (true, Some(slot)) => Ok((named, Some(slot.to_string()))),
+        (true, None) => Err(LanguageError::new(
+            ErrorKind::SlotMissing,
+            format!("`{}` is a range: name low, high or avg", printed(None)),
+        )
+        .with_readings(
+            ["avg", "low", "high"]
+                .into_iter()
+                .map(|s| printed(Some(s)))
+                .collect(),
+        )),
+        (false, None) => Ok((named, None)),
+        (false, Some(_)) => Err(LanguageError::new(
+            ErrorKind::SlotUnknown,
+            format!(
+                "`{}` is one number, not a range: it takes no slot word",
+                printed(None)
+            ),
+        )
+        .with_readings(vec![printed(None)])),
     }
 }
 
@@ -796,7 +907,16 @@ impl Binder {
                     slot: slot.clone(),
                     test: num_test("sum( … )", *op, rhs)?,
                 }),
-                ValueRef::Pseudo { .. } => Err(not_built("pseudo.*")),
+                ValueRef::Pseudo { name, slot } => {
+                    let (named, slot) = bind_pseudo(name, slot.as_deref())?;
+                    let printed = print::print_value(value);
+                    Ok(Atom::Pseudo {
+                        named,
+                        test: num_test(&printed, *op, rhs)?,
+                        name: printed,
+                        slot,
+                    })
+                }
                 // `tree::check` has refused both
                 ValueRef::Field(_) | ValueRef::Projection { .. } => Err(LanguageError::new(
                     ErrorKind::Tree,
@@ -804,13 +924,14 @@ impl Binder {
                 )),
             },
             Node::Undecided(probe) => Ok(Atom::Undecided(match probe {
-                Probe::Thing(ValueRef::Pseudo { .. }) => return Err(not_built("pseudo.*")),
                 Probe::Thing(ValueRef::Field(name)) => {
                     BProbe::Field(known_field(name, |near| format!("undecided({near})"))?.thing)
                 }
-                Probe::Thing(value @ (ValueRef::Sum { .. } | ValueRef::Projection { .. })) => {
-                    BProbe::Value(Box::new(bind_sort(value)?))
-                }
+                Probe::Thing(
+                    value @ (ValueRef::Sum { .. }
+                    | ValueRef::Projection { .. }
+                    | ValueRef::Pseudo { .. }),
+                ) => BProbe::Value(Box::new(bind_sort(value)?)),
                 Probe::Term(inner) => {
                     BProbe::Term(Box::new(self.node(inner, format!("{path}.0"))?))
                 }

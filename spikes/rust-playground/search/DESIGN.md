@@ -513,52 +513,32 @@ since none has a trigger yet. Meeting one is a listed limit (C102).
 
 ## Contract detail, by decision
 
-What remains is detail no module carries yet: the totals table (step
-7), the derived-field pseudos and the sockets (steps 7 and 8), what
-reference data admits (every table to come), the trade translation
-(not in this plan). The paragraphs the crate took on 2026-09-23 —
-C89/C103, C90/C102, C92, C93, C95, C105, C96, C97, C98, C100, the
-derivation's shape — are their module docs' now (`eval.rs`,
+What remains is detail no module carries yet: the derived fields not
+yet built and the sockets (step 8), what reference data admits (every
+table to come), the trade translation (not in this plan). The
+paragraphs the crate took on 2026-09-23 — C89/C103, C90/C102, C92,
+C93, C95, C105, C96, C97, C98, C100, the derivation's shape, and C94
+with C101's DPS at step 7 — are their module docs' now (`eval.rs`,
 `group.rs`, `counts.rs`, `answer.rs`, `corpus.rs`, `derive.rs`,
-`show.rs`) and this file at `aeeba6d3`.
+`show.rs`, `totals.rs`, `pseudo.rs`) and this file at `aeeba6d3`. The
+site's 298 pseudo stats by the mechanism each needs, with the input
+that admits each, is `search/pseudo-stats/README.md` (2026-09-18; 109
+unresolved, each with the one read that closes it).
 
-- **C94 — the totals table.** A readable line absent from a recipe is
-  not an unknown contributor: the recipe answers its declared
-  definition. A total's row: template, kind (source and flag) where it
-  matters, realm, slot or none, weight. For each matching line
-  occurrence, a row with a slot contributes that slot's value multiplied
-  by its weight: an all-elemental resistance line with `arg1` = 20 and
-  weight 3 contributes 60 to `pseudo.total_res`
-  (`search/cpp-search/data/pseudomods.toml`, "+#% total Resistance",
-  which lists that template three times). A row without a slot
-  contributes its weight per matching occurrence; weight 1 counts
-  occurrences; a total whose
-  rows are ranged lines sums low with low and high with high and is a
-  ranged value taking `low`, `high`, `avg`. The site's 298 pseudo stats
-  by the mechanism each needs, per entry with the input that admits it
-  (`search/pseudo-stats/`, 2026-09-18): 123 a field or property the
-  private item carries (63 of them by an attested sibling, flagged);
-  36 a weighted sum (the C++ app's 35 tables, S29, plus the site's own
-  `pseudoMods` line proving a 0.5 weight — `+94.5 total maximum Life`
-  over `+90` life and `+9` Strength, `search/pseudo-stats/README.md`); 15 a ranged total; 14
-  needing the mod behind the line (S52; one crafted modifier renders as
-  two lines); 1 a count of lines; 0 computed; and **109 unresolved**,
-  each with the one read that closes it. The pattern classification of
-  2026-09-17, which partitioned all 298, is withdrawn (the stage-5
-  audit, finding 1); it is history at `3c4331f5`.
-- **C101 — the derived-field pseudos and the sockets.** DPS is attacks
-  per second times the average of the range (S22); base defence
-  percentile is the item's defence against its base's range from
-  reference data (C68, C106) — the RePoE export carries the ranges
+- **C101 — the derived fields not yet built, and the sockets.** Base
+  defence percentile is the item's defence against its base's range
+  from reference data (C68, C106) — the RePoE export carries the ranges
   (`search/repoe/data/base-defences.csv`: 476 bases, 466 with armour,
   evasion or energy shield, 9 with ward; pseudo-stats open question 3,
   closed); an item above its base's current maximum reads over 100 %,
   and a realm with no table is undecided with that reason, never zero;
-  a quality-normalised defence follows S26; each is
-  a named pure function in the search crate, listed with the totals
-  under `pseudo.` by `--describe` (C97; the reference). Socket shapes the census shows and the deriver does
-  not decode stay counted as unread (S16); a combined link-count and
-  colour request is bound to one group when S58's shape is built.
+  a quality-normalised defence follows S26; each is a named pure
+  function in the search crate, listed with the totals under `pseudo.`
+  by `--describe` (C97; the reference), as `pseudo.dps` and
+  `pseudo.pdps` are (`pseudo.rs`). Socket shapes the census shows and
+  the deriver does not decode stay counted as unread (S16); a combined
+  link-count and colour request is bound to one group when S58's shape
+  is built.
 - **C106 — what reference data admits, and the test.** Three kinds:
   *data*, what the game files state and a registered surface exports;
   *convention*, a concept the community has published a definition for

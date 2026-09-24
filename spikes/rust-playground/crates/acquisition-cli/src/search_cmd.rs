@@ -52,8 +52,9 @@ pub struct SearchArgs {
     #[arg(long, value_name = "FILE|-", conflicts_with = "query")]
     pub query_file: Option<String>,
     /// Order the rows by a value: `ilvl`, `stack`, `'line("T").arg1'`,
-    /// `'sum("T")'`. A line's scalar is its largest satisfying occurrence;
-    /// an item with none sorts last either way (C92).
+    /// `'sum("T")'`, `pseudo.total_res`. A line's scalar is its largest
+    /// satisfying occurrence; an item with none sorts last either way
+    /// (C92).
     #[arg(long, value_name = "VALUE")]
     pub sort: Option<String>,
     /// Largest first.
@@ -68,8 +69,9 @@ pub struct SearchArgs {
     #[arg(long)]
     pub routes: bool,
     /// The language as this build knows it: fields, what a line has,
-    /// operators, closed value sets, slots, what is not built and the
-    /// limits stated; or only the entries named (`--describe league,line`).
+    /// operators, closed value sets, slots, the computed values with
+    /// their definitions, what is not built and the limits stated; or
+    /// only the entries named (`--describe league,line,total_res`).
     #[arg(long, value_name = "NAME,…", num_args = 0..=1, value_delimiter = ',')]
     pub describe: Option<Vec<String>>,
     /// Count the matches by a key, one table for each key named, and show
@@ -88,9 +90,9 @@ pub struct SearchArgs {
     #[arg(long, value_name = "KEY,KEY")]
     pub cross: Option<String>,
     /// Beside each count, the sum of one number over its items: `stack`,
-    /// `ilvl`, `'sum("T")'`. An item lacking the thing adds nothing and is
-    /// counted as lacking; one unread leaves a subtotal marked incomplete
-    /// (C95).
+    /// `ilvl`, `'sum("T")'`, `pseudo.total_res`. An item lacking the thing
+    /// adds nothing and is counted as lacking; one unread leaves a
+    /// subtotal marked incomplete (C95).
     #[arg(long, value_name = "VALUE")]
     pub sum: Option<String>,
     /// Not built (step 10): the caller names a row's fields.
@@ -444,12 +446,13 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         ));
     }
     line(format!(
-        "basis   store {} · snapshot {} · facts v{} · derivation {} · classes v{}",
+        "basis   store {} · snapshot {} · facts v{} · derivation {} · classes v{} · totals v{}",
         a.basis.store,
         a.basis.snapshot.response,
         a.basis.snapshot.facts_version,
         a.basis.derivation,
-        a.basis.classes
+        a.basis.classes,
+        a.basis.totals
     ));
 
     if !a.terms.is_empty() {
@@ -961,14 +964,18 @@ fn describe_text(d: &Describe) -> String {
     block("composition", &d.composition);
     block("operators", &d.operators);
     block("slots", &d.slots);
-    block("computed values", &d.computed);
+    // the totals' table is named once, over the block, with its version
+    // and source (C106's clause (c))
+    block(&format!("computed values — {}", d.totals), &d.computed);
     block("counts", &d.counts);
     if !d.not_built.is_empty() {
         out.push_str("not built, refused by name\n");
         for n in &d.not_built {
             out.push_str(&format!(
-                "  {:<18}step {:<3}{}\n",
-                n.construct, n.step, n.what
+                "  {:<22}{:<20}{}\n",
+                n.construct,
+                n.step_text(),
+                n.what
             ));
         }
     }
@@ -1070,12 +1077,13 @@ fn shown_text(s: &Shown) -> String {
         ));
     }
     out.push_str(&format!(
-        "basis   store {} · snapshot {} · facts v{} · derivation {} · classes v{}\n",
+        "basis   store {} · snapshot {} · facts v{} · derivation {} · classes v{} · totals v{}\n",
         s.basis.store,
         s.basis.snapshot.response,
         s.basis.snapshot.facts_version,
         s.basis.derivation,
-        s.basis.classes
+        s.basis.classes,
+        s.basis.totals
     ));
     if let Some(body) = &s.body {
         out.push_str(&format!("body    {body}\n"));

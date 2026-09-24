@@ -27,8 +27,12 @@ pub struct Describe {
     pub composition: Vec<Named>,
     pub operators: Vec<Named>,
     pub slots: Vec<Named>,
-    /// `pseudo.<name>`: none is built yet.
+    /// `pseudo.<name>`: every named total with its definition, then the
+    /// derived fields (C94, C101; `pseudo.rs`).
     pub computed: Vec<Named>,
+    /// The totals table's version and source (C106's clause (c)), or why
+    /// it does not load.
+    pub totals: String,
     /// What `--count`, `--cross` and `--sum` take (C95, C97).
     pub counts: Vec<Named>,
     pub not_built: Vec<NotBuilt>,
@@ -337,7 +341,8 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
         composition,
         operators,
         slots,
-        computed: Vec::new(),
+        computed: crate::pseudo::described(),
+        totals: crate::pseudo::provenance(),
         counts,
         not_built: NOT_BUILT.to_vec(),
         limits: LIMITS.to_vec(),
@@ -346,23 +351,30 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
         return Ok(out);
     }
     // narrow to what was named: an entry answers to its name and to each
-    // word of it, the positional slots to any `arg<N>`, a block to its own
+    // word of it, a computed value to its name without `pseudo.`, the
+    // positional slots to any `arg<N>`, a block to its own
     let answers = |entry: &str, asked: &str| {
         entry.eq_ignore_ascii_case(asked)
             // a flag answers to its word: `count` is `--count`
             || entry.trim_start_matches('-').eq_ignore_ascii_case(asked)
             || entry
+                .strip_prefix("pseudo.")
+                .is_some_and(|name| name.eq_ignore_ascii_case(asked))
+            || entry
                 .split_whitespace()
                 .any(|word| word != "…" && word.eq_ignore_ascii_case(asked))
             || (entry.starts_with("arg1") && crate::tree::arg_index(asked).is_some())
     };
-    const BLOCKS: [&str; 7] = [
+    // `pseudo` names the computed block, as the reference's namespace does
+    const BLOCKS: [&str; 9] = [
         "fields",
         "line",
         "values",
         "composition",
         "operators",
         "slots",
+        "computed",
+        "pseudo",
         "counts",
     ];
     let entries = |d: &Describe| -> Vec<String> {
@@ -373,6 +385,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             &d.composition,
             &d.operators,
             &d.slots,
+            &d.computed,
             &d.counts,
         ]
         .into_iter()
@@ -386,9 +399,11 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             || all.iter().any(|entry| answers(entry, name));
         if !known {
             if let Some(unbuilt) = NOT_BUILT.iter().find(|n| {
-                n.construct
-                    .trim_end_matches([':', '*', '.'])
-                    .eq_ignore_ascii_case(name)
+                let construct = n.construct.trim_end_matches([':', '*', '.']);
+                construct.eq_ignore_ascii_case(name)
+                    || construct
+                        .strip_prefix("pseudo.")
+                        .is_some_and(|c| c.eq_ignore_ascii_case(name))
             }) {
                 return Err(bind::not_built(unbuilt.construct));
             }
@@ -422,6 +437,8 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     // a line's numbers are named by its slots
     out.slots
         .retain(|n| wants("slots", &n.name) || wants("line", &n.name));
+    out.computed
+        .retain(|n| wants("computed", &n.name) || wants("pseudo", &n.name));
     out.counts.retain(|n| wants("counts", &n.name));
     out.not_built.clear();
     out.limits.clear();

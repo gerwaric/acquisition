@@ -232,14 +232,14 @@ Arguments:
 Options:
       --realm <REALM>        The realm searched: pc, xbox, sony, poe2, or all. Over a store holding one realm it may be omitted and the answer prints it; over several it is required, one of them or `all` (C96)
       --query-file <FILE|->  Read the query from a file, or from stdin with `-`: a query with an apostrophe needs no shell quoting this way
-      --sort <VALUE>         Order the rows by a value: `ilvl`, `stack`, `'line("T").arg1'`, `'sum("T")'`. A line's scalar is its largest satisfying occurrence; an item with none sorts last either way (C92)
+      --sort <VALUE>         Order the rows by a value: `ilvl`, `stack`, `'line("T").arg1'`, `'sum("T")'`, `pseudo.total_res`. A line's scalar is its largest satisfying occurrence; an item with none sorts last either way (C92)
       --desc                 Largest first
       --limit <LIMIT>        How many rows to return — or, of a count, how many values a table lists; the rest are counted [default: 20]
       --routes               Print every count's route — the command that returns exactly its members — instead of the first few
-      --describe [<NAME,…>]  The language as this build knows it: fields, what a line has, operators, closed value sets, slots, what is not built and the limits stated; or only the entries named (`--describe league,line`)
+      --describe [<NAME,…>]  The language as this build knows it: fields, what a line has, operators, closed value sets, slots, the computed values with their definitions, what is not built and the limits stated; or only the entries named (`--describe league,line,total_res`)
       --count <KEY,…>        Count the matches by a key, one table for each key named, and show no rows: a field (`tab`, `league`, `rarity`, `base`, …; `--describe counts` lists them), or `line`, the vocabulary — the templates the matching items carry, ranked, each with the term that selects it and the range of its numbers. `line:` takes the rest of the list as texts to narrow by, a table each, and `~` before one makes it a pattern: `--count tab,line:resist,life`. An item with no value is counted under `none`, one whose value could not be read under `undecided` (C105); every count has its route (`--routes`)
       --cross <KEY,KEY>      Count the matches by two fields at once, one table of the cells that hold an item: `--cross league,tab`
-      --sum <VALUE>          Beside each count, the sum of one number over its items: `stack`, `ilvl`, `'sum("T")'`. An item lacking the thing adds nothing and is counted as lacking; one unread leaves a subtotal marked incomplete (C95)
+      --sum <VALUE>          Beside each count, the sum of one number over its items: `stack`, `ilvl`, `'sum("T")'`, `pseudo.total_res`. An item lacking the thing adds nothing and is counted as lacking; one unread leaves a subtotal marked incomplete (C95)
       --fields <NAME,…>      Not built (step 10): the caller names a row's fields
       --next <TOKEN>         Not built (step 10): continue an answer past its limit
       --explain <PATH>       Not built (step 10): one node forced true and forced false

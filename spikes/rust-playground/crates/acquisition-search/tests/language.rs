@@ -103,6 +103,7 @@ const CONSTRUCTS: &[&str] = &[
     "values.sum",
     "values.sum_slotless",
     "values.pseudo",
+    "values.pseudo_unbuilt",
     "values.pseudo_slot",
     "values.pseudo_needs_comparison",
     "values.names",

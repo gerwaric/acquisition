@@ -5,8 +5,7 @@
 //! The shapes are `search/DESIGN.md`'s reference (*The request at a
 //! terminal*, the worked example); the rules that decide a count are this
 //! doc's (C95, C105; taken from the contract detail 2026-09-23). The
-//! totals table a sum may name is still the contract detail's (C94, step
-//! 7).
+//! totals table a sum may name is `totals.rs` (C94).
 //!
 //! # As built
 //!

@@ -172,7 +172,8 @@ past `--limit` (a larger `--limit` serves; `--next` is step 10); the
 coverage list (`acq tabs` and `acq store characters` exist today;
 `--view locations` is step 10).
 
-What it refuses by name: `pseudo.*` (7), `sockets` `links`
+What it refuses by name: `pseudo.defence_pct` and a ranged total,
+`pseudo.<name>.<slot>` (no step: the plan's foot), `sockets` `links`
 `linked(…)` (8), `has:priced` and `price.*` (9), `--fields`, `--next`, `--explain`,
 `--context`, `--view locations`, `--print-request` `--request`
 `--rebind`, `show --against` (10).
@@ -235,7 +236,7 @@ the new verb to answer what `--removed` answers: `--membership all`, step
 
 | Park | Fired by | Then |
 | --- | --- | --- |
-| the totals coverage trial (`decisions/search.md`) | step 7, before the first recipe is accepted | one script over the census; the result decides the recipe's rows |
+| the totals coverage trial | step 7, before the first recipe was accepted — fired 2026-09-23 | `search/pseudo-stats/scripts/coverage-trial.py` over the deriver's census; the rows stood (M6, `SEARCH-SLICE.md`) |
 | a grouping above class | step 6 reaching OQ5 — fired 2026-09-23 | brought to the owner; kept parked, OQ5 pinned from his words, the trigger now the seat (`decisions/search.md`) |
 | a unique's variant as a field (C107) | step 4 reaching OQ2 | the trigger reopens the question, not the build: brought to the owner with his Ashes of the Stars as the first test |
 | the digest's kill list | step 11, the last acceptance test written | recheck against the tests and the reference before any removal |
@@ -265,7 +266,13 @@ submit the job (C98) — a resident client's question, the GUI's.
 
 ## Holes not yet ruled — the owner's, at the seat
 
-None. Every hole the build met is ruled, one line each in
-`SEARCH-SLICE.md`, "Holes ruled", its rule in `search/DESIGN.md`; a
-new one comes here under rule 4, with a recommendation, which is no
-ruling (an outside audit's finding, 2026-09-20).
+Each under rule 4, with the builder's recommendation, which is no
+ruling (an outside audit's finding, 2026-09-20); a ruled one becomes a
+line in `SEARCH-SLICE.md`, "Holes ruled", its rule in `search/DESIGN.md`.
+
+| # | Hole | Built meanwhile | Recommendation |
+| --- | --- | --- | --- |
+| T1 | gap 6: is a fractional total ever rounded? The site prints its own `+94.5 total maximum Life`; the reference's arithmetic rule (*Slots*) is exact in decimals | never rounded: `94.5` prints as `94.5`, and `>=94.5` compares to it (`totals.rs`, `exact::Exact::halved`; pinned in `pseudo.rs`) | keep it: a rounded total would be a second arithmetic beside the sum's |
+| T2 | an item lacking what a derived field reads — a ring asked `pseudo.dps>=100` — is *lacked* (C93), and the language has no term for that count: `has:` does not apply to a computed value (the owner, 2026-09-19, on a total, where it read as its opposite) | the lacked count is shown with no route (`tests/pseudo.rs`) | admit `-has:pseudo.dps` on a derived field alone, where absence is a property's and not a sum's; keep the refusal on a total |
+| T3 | the reference names computed values no step builds: `pseudo.defence_pct` (C101, its formula unpinned) and a ranged total (`pseudo.cold_damage.avg`; which lines a site ranged pseudo sums is unread) | each refused by name, the entry naming no step | a step of the owner's choosing, or the seat: the table admits a ranged total the day one is evidenced |
+| T4 | the trial's uncounted lines (M6): `#% increased Attack and Cast Speed` (46 items) counts in neither speed total; `# to Level of Socketed AoE Gems` (20) and `Duration Gems` (12) have no total; conditional resistances (`while on Low Life`, `during any Flask Effect`, `while affected by Herald of …`) are counted by none | the C++ app's rows, unchanged: a row added is a definition changed | rule per line at the seat; a word-based trial measures coverage, never membership |

@@ -1,8 +1,8 @@
 //! The crate's boundary (`search/BUILD-PLAN.md`, rule 3): a request in, an
-//! answer out, as JSON. The reference's worked example reduced to what is
-//! built, every count worked by hand; the route property; invariants 2 and
-//! 6 of the surface; C93's composition; C92's sort scalar; C96's scope;
-//! C98's basis at the answer's boundary.
+//! answer out, as JSON. The reference's worked example whole, every count
+//! as printed there and worked by hand; the route property; invariants 2
+//! and 6 of the surface; C93's composition; C92's sort scalar; C96's
+//! scope; C98's basis at the answer's boundary.
 
 mod common;
 
@@ -25,10 +25,11 @@ fn lines(life: &[i64], res: i64) -> Vec<String> {
 }
 
 /// The reference's seven pc items (`search/DESIGN.md`, "One worked
-/// example"), two fetched locations and one never fetched. `class` and
-/// `pseudo.total_res` are not built, so the base stands for the class,
-/// one resistance line summed for the total, and r5 — whose base the class
-/// table lacks — is an ordinary rare ring.
+/// example"), two fetched locations and one never fetched: rare rings r1
+/// (life 95, res 65), r2 (20 implicit + 75 explicit, 60), r3 (100, 55),
+/// r6 (readable 95, implicit array unread, res subtotal 65 incomplete),
+/// r7 (no life line, 65); r4 a magic ring (95, 70); r5 rare, life 95, res
+/// 65, its base missing from the class table.
 fn worked() -> Store {
     let mut s = store();
     list_tabs(
@@ -63,7 +64,13 @@ fn worked() -> Store {
         "t2",
         "Dump",
         vec![
-            ring("r5", "Rare", json!({ "explicitMods": lines(&[95], 65) })),
+            item(
+                "r5",
+                "Ring r5",
+                "Mystery Ring",
+                "Rare",
+                json!({ "explicitMods": lines(&[95], 65) }),
+            ),
             // its implicit array is not one: unread
             ring(
                 "r6",
@@ -77,7 +84,8 @@ fn worked() -> Store {
     s
 }
 
-const WORKED: &str = r##"league=Standard base:ring rarity=rare "+# to maximum Life">=90 sum("+#% to Fire Resistance")>=60"##;
+const WORKED: &str =
+    r##"league=Standard class=Rings rarity=rare "+# to maximum Life">=90 pseudo.total_res>=60"##;
 
 fn counts(term: &Value) -> [u64; 4] {
     ["matched", "failed", "lacked", "undecided"].map(|k| term[k]["count"].as_u64().unwrap())
@@ -97,7 +105,7 @@ fn follow(corpus: &Corpus, count: &Value) -> Vec<String> {
 }
 
 #[test]
-fn c100_the_worked_example_reduced_to_what_is_built_counts_as_worked_by_hand() {
+fn c100_the_worked_example_whole_counts_as_printed_there() {
     let s = worked();
     let corpus = load(&s, Some("pc"));
     let a = as_json(&ask(&corpus, WORKED).unwrap());
@@ -105,7 +113,7 @@ fn c100_the_worked_example_reduced_to_what_is_built_counts_as_worked_by_hand() {
     // the canonical query, as text and as tree (C104)
     assert_eq!(
         a["query"]["text"],
-        r##"league=Standard base:ring rarity=rare line("# to maximum Life" arg1>=90) sum(line("#% to Fire Resistance").arg1)>=60"##
+        r##"league=Standard class=Rings rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60"##
     );
     assert!(a["query"]["tree"]["all"].is_array());
 
@@ -134,13 +142,17 @@ fn c100_the_worked_example_reduced_to_what_is_built_counts_as_worked_by_hand() {
         a["basis"]["snapshot"]["response"],
         s.revision().unwrap().response
     );
+    assert_eq!(
+        (&a["basis"]["classes"], &a["basis"]["totals"]),
+        (&json!(1), &json!(1))
+    );
 
     // each term over the seven, independently (C93)
     let terms = a["terms"].as_array().unwrap();
     let paths: Vec<&str> = terms.iter().map(|t| t["path"].as_str().unwrap()).collect();
     assert_eq!(paths, ["0", "1", "2", "3", "4"]);
     assert_eq!(counts(&terms[0]), [7, 0, 0, 0]);
-    assert_eq!(counts(&terms[1]), [7, 0, 0, 0]);
+    assert_eq!(counts(&terms[1]), [6, 0, 0, 1]); // r5's base is in no class table
     assert_eq!(counts(&terms[2]), [6, 1, 0, 0]); // r4 is magic
     // r2 holds 20 and 75: failed, and the one that reaches 90 only
     // together; r7 has no life line; r6's explicit 95 is a witness
@@ -153,18 +165,29 @@ fn c100_the_worked_example_reduced_to_what_is_built_counts_as_worked_by_hand() {
         ),
         (&json!("arg1"), &json!(90))
     );
-    // r3 sums to 55; r6's sum is an incomplete subtotal
+    // r3 totals 55; r6's total is an incomplete subtotal
     assert_eq!(counts(&terms[4]), [5, 1, 0, 1]);
     assert!(
         terms[0].get("together").is_none(),
         "not applicable is absent, never zero"
     );
 
-    // r1 and r5; r6 is undecided at the root and is no match (C93)
-    assert_eq!(a["total"]["matched"], 2);
-    assert_eq!(a["total"]["undecided"]["count"], 1);
-    assert_eq!(ids(&a), ["r1", "r5"]);
+    // r1; r5 and r6 are undecided at the root and are no match (C93), and
+    // each says why and what might help — hints, never guarantees
+    assert_eq!(a["total"]["matched"], 1);
+    assert_eq!(a["total"]["undecided"]["count"], 2);
+    assert_eq!(ids(&a), ["r1"]);
     let why = &a["total"]["undecided_items"][0];
+    assert_eq!(why["id"], "r5");
+    assert_eq!(why["why"][0]["path"], "1");
+    assert_eq!(why["why"][0]["unread"], "the class: base not in the table");
+    assert!(
+        why["why"][0]["hint"]
+            .as_str()
+            .unwrap()
+            .contains("a refresh will not help; a reference update may")
+    );
+    let why = &a["total"]["undecided_items"][1];
     assert_eq!(why["id"], "r6");
     assert_eq!(why["why"][0]["path"], "4");
     assert_eq!(why["why"][0]["unread"], "implicit lines");
@@ -190,9 +213,7 @@ fn c100_the_worked_example_reduced_to_what_is_built_counts_as_worked_by_hand() {
     assert!(shows.contains(
         &&json!({ "line": { "source": "explicit", "flags": [], "text": "+95 to maximum Life" } })
     ));
-    assert!(shows.contains(
-        &&json!({ "value": { "name": "sum(line(\"#% to Fire Resistance\").arg1)", "value": 65 } })
-    ));
+    assert!(shows.contains(&&json!({ "value": { "name": "pseudo.total_res", "value": 65 } })));
     assert!(a.get("zero").is_none());
 
     // the routes the example names, by their members
@@ -203,8 +224,9 @@ fn c100_the_worked_example_reduced_to_what_is_built_counts_as_worked_by_hand() {
     );
     assert_eq!(follow(&corpus, &terms[3]["together"]), ["r2"]);
     assert_eq!(follow(&corpus, &terms[3]["lacked"]), ["r7"]);
+    assert_eq!(follow(&corpus, &terms[1]["undecided"]), ["r5"]);
     assert_eq!(follow(&corpus, &terms[4]["undecided"]), ["r6"]);
-    assert_eq!(follow(&corpus, &a["total"]["undecided"]), ["r6"]);
+    assert_eq!(follow(&corpus, &a["total"]["undecided"]), ["r5", "r6"]);
     assert_eq!(terms[3]["failed"]["counted_at"], a["basis"]);
 }
 
@@ -223,6 +245,7 @@ fn the_route_property_every_count_routes_to_exactly_its_members() {
         r##"-rarity=magic -line("# to maximum Life" arg1>=90)"##,
         r##"holds(rarity=rare, "+# to maximum Life">=95, sum("+#% to Fire Resistance")>=65)>=2"##,
         r##"undecided(sum("+#% to Fire Resistance")>=60) or tab:dump"##,
+        r##"undecided(pseudo.total_res) or (pseudo.total_fire_res=..60 -pseudo.total_res>=65)"##,
         r##"line(template:life source=implicit) name:r2 has:note -has:ilvl is:identified "two-stone""##,
         r##"line("# to maximum Life" (arg1>=100 or arg1<=20))"##,
         r##"character:mover league:hard ilvl=80..86 id:t2 true() false()"##,
@@ -284,7 +307,7 @@ fn invariant_2_a_selector_is_printed_as_authored_with_its_binding_beside_it() {
     let terms = a["terms"].as_array().unwrap();
     assert_eq!(
         terms[0]["resolved"],
-        json!({ "of": "base", "values": [{ "value": "Two-Stone Ring", "items": 7 }], "more": 0 })
+        json!({ "of": "base", "values": [{ "value": "Two-Stone Ring", "items": 6 }, { "value": "Mystery Ring", "items": 1 }], "more": 0 })
     );
     assert_eq!(
         terms[1]["resolved"],

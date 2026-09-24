@@ -434,30 +434,41 @@ fn oq7_one_line_across_every_tab_and_character() {
     );
 }
 
-/// AQ2: the old query parenthesised and one new term. The fixture holds
-/// OQ1 matches under 60 — `ring_frac` at 35, `ring_str` at an honest zero —
-/// and the test fails unless they leave.
+/// AQ2 as worded: the old query parenthesised and one new term,
+/// `pseudo.total_res>=60`. The fixture holds OQ1 matches under 60 —
+/// `ring_frac` at 35, `ring_str` at an honest zero — and the test fails
+/// unless they leave. `ring_res` is 12 on a two-resistance line, which the
+/// total counts twice (C94's weight), 40 and 30.
 #[test]
 fn aq2_a_refinement_is_the_old_query_parenthesised_and_a_new_term() {
     let s = stash();
-    let a = asked(
-        &s,
-        &format!("({OQ1}) sum(line(template:resistance).arg1)>=60"),
-    );
+    let a = asked(&s, &format!("({OQ1}) pseudo.total_res>=60"));
     assert_eq!(ids(&a), ["ring_res"]);
-    // 12 + 40 + 30
-    let sum = a["rows"][0]["matched"]
+    let total = a["rows"][0]["matched"]
         .as_array()
         .unwrap()
         .iter()
         .find(|m| m["path"] == "1")
         .unwrap();
-    assert_eq!(sum["shows"][0]["value"]["value"], 82);
-    // a sum of nothing is zero: matched or failed, never lacked (C94, C95)
     assert_eq!(
-        a["terms"].as_array().unwrap().last().unwrap()["lacked"]["count"],
-        0
+        total["shows"][0],
+        json!({ "value": { "name": "pseudo.total_res", "value": 94 } })
     );
+    // the lines the total counted are what the row shows of it (C100)
+    assert_eq!(total["shows"].as_array().unwrap().len(), 4);
+    // a total of nothing is zero: matched or failed, never lacked (C94, C95)
+    // — every other pc item fails at zero, or at ring_frac's 35
+    let term = a["terms"].as_array().unwrap().last().unwrap().clone();
+    assert_eq!(
+        (&term["failed"]["count"], &term["lacked"]["count"]),
+        (&json!(11), &json!(0))
+    );
+    // the mechanism, as step 4 built it: the same refinement as a `sum`
+    let by_sum = asked(
+        &s,
+        &format!("({OQ1}) sum(line(template:resistance).arg1)>=60"),
+    );
+    assert_eq!(ids(&by_sum), ["ring_res"]);
 }
 
 /// AQ3: each row names what matched; a zero answer names the scope

@@ -71,6 +71,35 @@ impl Exact {
     pub fn sum(values: impl IntoIterator<Item = Exact>) -> Exact {
         Exact(values.into_iter().map(|e| e.0).sum())
     }
+
+    /// This many halves of the number: a weight of the totals table (C94)
+    /// is a whole number or a half, and units hold the half of a displayed
+    /// number, a sum of them or a count exactly — each is a whole count of
+    /// ten units — and not the half of a mean, which the table refuses a
+    /// half weight on (`totals.rs`).
+    pub fn halved(self, halves: i64) -> Exact {
+        Exact(self.0 * i128::from(halves) / 2)
+    }
+
+    /// The mean of two totals, a ranged total's `avg`: exact while both are
+    /// whole counts of ten units, which whole weights on displayed numbers
+    /// keep them (`totals.rs`).
+    pub fn mid(self, other: Exact) -> Exact {
+        Exact((self.0 + other.0) / 2)
+    }
+
+    /// The product of two displayed numbers — a weapon's attacks per second
+    /// and the mean of its damage (`pseudo.rs`, C101). A product may need
+    /// more decimals than a sum: the game displays at most two on either
+    /// (a mean adds a half), so the product is exact in units, and one that
+    /// is not is rounded to the unit, a hundred-thousandth, and never a
+    /// float's rounding.
+    pub fn times(self, other: Exact) -> Exact {
+        let units = UNITS as i128;
+        let product = self.0 * other.0;
+        let (whole, rest) = (product.div_euclid(units), product.rem_euclid(units));
+        Exact(whole + i128::from(rest * 2 >= units))
+    }
 }
 
 fn units(value: f64) -> i128 {
@@ -158,6 +187,26 @@ mod tests {
         assert_eq!(sum([0.5, 0.25]), 0.75);
         assert_eq!(sum([1e-5]), 0.00001);
         assert_eq!(sum([84.0, 70.0]), 154.0);
+    }
+
+    /// A weight is applied in halves and stays exact on what the table
+    /// admits a half on; a ranged total's mean and a product are exact in
+    /// units where the game's decimals allow, and said so where not.
+    #[test]
+    fn a_weight_a_mean_and_a_product_are_exact_in_units() {
+        assert_eq!(Exact::of(9.0).halved(1).as_f64(), 4.5);
+        assert_eq!(Exact::of(9.0).halved(2).as_f64(), 9.0);
+        assert_eq!(Exact::of(20.0).halved(6).as_f64(), 60.0);
+        assert_eq!(Exact::of(0.0001).halved(1).as_f64(), 0.00005);
+        assert_eq!(Exact::of(-9.0).halved(1).as_f64(), -4.5);
+        assert_eq!(Exact::of(59.0).mid(Exact::of(88.0)).as_f64(), 73.5);
+        assert_eq!(Exact::of(0.1).mid(Exact::of(0.2)).as_f64(), 0.15);
+        assert_eq!(Exact::of(73.5).times(Exact::of(1.25)).as_f64(), 91.875);
+        assert_eq!(Exact::of(225.5).times(Exact::of(1.25)).as_f64(), 281.875);
+        assert_eq!(Exact::of(0.0001).times(Exact::of(0.5)).as_f64(), 0.00005);
+        // six decimals do not fit: rounded to the unit, the half up
+        assert_eq!(Exact::of(0.0001).times(Exact::of(0.25)).as_f64(), 0.00003);
+        assert_eq!(Exact::of(0.0001).times(Exact::of(0.1)).as_f64(), 0.00001);
     }
 
     #[test]
