@@ -16,7 +16,10 @@ The rulings are `decisions/search.md` (C89–C107) and `decisions/store.md`
 (C108); the language reference and the contract detail are
 `search/DESIGN.md`; the acceptance set and the limits register are
 `search/DIGEST.md`; the properties are pinned by the tests named below.
-Nothing here is a second authority.
+Nothing here is a second authority. A step writes here once, at its
+close — its ledger row, its holes, the measurements it repeated — and
+never during: until then the commit message is the journal
+(2026-09-23, after the record had been kept as one).
 
 Reviewing a search change: the shapes of fault below are the
 checklist, and `REFRESH-SLICE.md`'s findings table beside them for the

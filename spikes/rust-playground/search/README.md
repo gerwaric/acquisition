@@ -10,9 +10,10 @@ here is an authority for either — with one exception the registry cites:
 `DESIGN.md`, the language reference and the binding contract detail of
 the search rulings until code takes each paragraph (owner, 2026-09-18).
 
-**Bootstrap:** load this file, then `DIGEST.md` — accepted 2026-09-17, the
-entry point in place of the track READMEs. Reach a README only to verify a
-claim, and `data/` and `raw/` by pointer only.
+**Bootstrap:** load this file. `DIGEST.md` (accepted 2026-09-17) is
+where an `S<n>` citation is looked up, by id, and is never loaded whole:
+the design it fed is code and rulings now. Reach a track README only to
+verify a claim, and `data/` and `raw/` by pointer only.
 
 ## Rules in force
 

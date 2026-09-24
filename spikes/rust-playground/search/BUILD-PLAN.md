@@ -12,6 +12,14 @@ Ruling (owner, 2026-09-21): SEARCH-SLICE.md is opened now, at step 5, in
 PRICING-SLICE.md's mold, rather than at the slice's close as
 search/BUILD-PLAN.md says. The plan stays the brief.
 
+What a step reads (2026-09-23, after a measured read of the slice's
+documents: 308 KB before any code, seven times what a step needs):
+this file whole; `decisions/search.md`; what its row's *Reads* names;
+the record by section — the checklist, the holes of the steps it
+touches, the measurement it will repeat; a module doc before touching
+its module; the reference by the section a row names. `search/DIGEST.md`
+is looked up by `S<n>` and never loaded; a closed track by citation.
+
 Authorities, not restated here: `decisions/search.md` (C89–C107),
 `search/DESIGN.md` (the language reference and the contract detail),
 `search/DIGEST.md` (the acceptance set, the limits register), note 23
@@ -176,14 +184,14 @@ printed, C104's text.
 
 ## After the seat — provisional, his to reorder
 
-| Step | Builds | Needs | Closes on |
-| --- | --- | --- | --- |
-| 6 · class | the class table as reference data, its source chosen under C106's admission test (`item-facts/data/class-evidence.csv` is where the read starts); `class:`; the reason *base not in the class table* | 4 | OQ1's slot, OQ5; C105's test as worded (ten rare items by class) |
-| 7 · computed values | the totals table (C94) after the coverage trial; `pseudo.total_res`; a weight may be a fraction (the site's own `+94.5 total maximum Life` over `+90` life and `+9` Strength, `pseudo-stats/README.md`), and whether a total is ever rounded is shown to the owner first (gap 6); the sum-status table; then `pseudo.dps`, `pseudo.pdps` (C101) | 6 for the worked example | AQ2; the reference's worked example whole, every count as printed there |
-| 8 · sockets | `sockets`, `links`, `sockets.<colour>`, `linked(…)` (C101); undecoded shapes counted unread (S16) | 4 | OQ3's socket reading |
-| 9 · price | the effective price joined read-only (C81, C100); the crate links `acquisition-plan`; the basis gains the intent revision; the reason *price unresolved* | 4 | OQ6: the item found with the owner's own price; a valuation asked for is a stated limit (C102) |
-| 10 · continuing and exchanging | `--next` refused across a changed basis; `--membership all` (the reference, *Membership*): the read hands removed items over with `removed_at`, every such row marked, the scope block counting each, an `id:` term that matches nothing live naming the removed id and its route, `acq show` on a removed item; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | AQ3 whole; AQ4 across a refresh that removed the item; M5 |
-| 11 · the close | the MCP tool over the same request, with an agent's seat as its own consumer (P2), `--membership all` among what it validates; `acq items search` retired (below); the closed record; this file deleted; `search/` shrunk; `DESIGN.md`'s paragraphs into module docs | all | AQ1–AQ5 driven through the MCP; the gate; the kill-list recheck |
+| Step | Builds | Needs | Reads | Closes on |
+| --- | --- | --- | --- | --- |
+| 6 · class | the class table as reference data, its source chosen under C106's admission test (`item-facts/data/class-evidence.csv` is where the read starts); `class:`; the reason *base not in the class table* | 4 | built | OQ1's slot, OQ5; C105's test as worded (ten rare items by class) |
+| 7 · computed values | the totals table (C94) after the coverage trial; `pseudo.total_res`; a weight may be a fraction (the site's own `+94.5 total maximum Life` over `+90` life and `+9` Strength, `pseudo-stats/README.md`), and whether a total is ever rounded is shown to the owner first (gap 6); the sum-status table; then `pseudo.dps`, `pseudo.pdps` (C101) | 6 for the worked example | C94, C95; the contract detail, C94 and C101; the reference, *Values* and *A sum's status*; `counts.rs`, `eval.rs`, `exact.rs`; `search/pseudo-stats/README.md`, `cpp-search/data/pseudomods.toml`; gap 6 and E2 (the record, "Holes ruled"); the coverage-trial park | AQ2; the reference's worked example whole, every count as printed there |
+| 8 · sockets | `sockets`, `links`, `sockets.<colour>`, `linked(…)` (C101); undecoded shapes counted unread (S16) | 4 | C101; the contract detail, C101; `derive.rs`; S16, S58, S59; `item-facts/README.md`, the socket shapes | OQ3's socket reading |
+| 9 · price | the effective price joined read-only (C81, C100); the crate links `acquisition-plan`; the basis gains the intent revision; the reason *price unresolved* | 4 | C81 (`decisions/pricing.md`), C98, C100; `corpus.rs`, `answer.rs`; the planner's effective-price read | OQ6: the item found with the owner's own price; a valuation asked for is a stated limit (C102) |
+| 10 · continuing and exchanging | `--next` refused across a changed basis; `--membership all` (the reference, *Membership*): the read hands removed items over with `removed_at`, every such row marked, the scope block counting each, an `id:` term that matches nothing live naming the removed id and its route, `acq show` on a removed item; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | C98, C100, C104, C108; the reference, *Membership*, *Explain*, *Outside the first surface*; `answer.rs`, `corpus.rs`; gap 3 (the record) | AQ3 whole; AQ4 across a refresh that removed the item; M5 |
+| 11 · the close | the MCP tool over the same request, with an agent's seat as its own consumer (P2), `--membership all` among what it validates; `acq items search` retired (below); the closed record; this file deleted; `search/` shrunk; `DESIGN.md`'s paragraphs into module docs | all | everything above; `decisions/frontends.md`; the kill list (`DIGEST.md`); `MCP-REFERENCE.md`; "What happens to `acq items search`" below | AQ1–AQ5 driven through the MCP; the gate; the kill-list recheck |
 
 Not in this plan: the trade translation (C99, headed "Direction"). No
 acceptance question needs it; whether it is a step here or the next
