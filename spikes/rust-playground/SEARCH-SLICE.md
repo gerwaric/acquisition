@@ -396,216 +396,27 @@ The exact pattern's mutant (only `\` escaped) failed at once, at `(`.
 ## Holes ruled, and where the rule went
 
 What the build met that the reference did not state and the owner
-ruled; none is unruled today. A ruled hole keeps its evidence here and
-its rule in the registry's cited contract detail or implementing module
-doc.
+ruled; none is unruled today. The rule is in the reference or the
+registry and the mechanism in a module doc; the evidence each was
+decided on — the census numbers, the builder's recommendation, the
+owner's words verbatim — is this file at `aeeba6d3` and the ruling
+commit's message. One line each.
 
-**Step 5 — the owner's verdicts, 2026-09-22.** The accepted behavior
-already exists; these clarify C95 and C105, whose implementation is
-`crates/acquisition-search/src/counts.rs` ("As built") and
-`View::of` in `answer.rs`, with E2 in `bind_sum` in `bind.rs`.
-The terminal reference is `search/DESIGN.md`.
-
-| # | Question and evidence | Owner's verdict, verbatim |
-| --- | --- | --- |
-| E1 | What a value bucket's term selects. Case-insensitive equality can select two separately counted spellings; a tab's name can select several tabs or a substash. The accepted links select the counted spelling or the tab's full coordinate (realm, league, id), including its substashes. | "accepted" |
-| E2 | What `--sum` takes when one item has several matching lines. Reusing the sort's largest occurrence would contribute 75 from lines of 20 and 75; the accepted rule rejects a raw line projection and offers the item's explicit `sum( … )`, which contributes 95. A pseudo value already has its own definition of how contributors combine; its implementation waits for step 7. | "ok, agreed" |
-| E3 | Whether the vocabulary's `undecided` bucket includes an item with both a readable selected line and unread lines. The accepted meaning is uncertainty about presence, not a list of every incompletely read item. | "agree to keep" |
-| E4 | Which view options combine: counts with row sorting, a sum without a count, or both count shapes. Keep the existing errors and table limits; no standalone grand-total view is needed. | "I don't fully understand these options, so i accept your recommendation to keep these as errors for now. For sum, we don't need a grand total." |
-| E5 | Whether `line` can be a key in a crossed table. Keep it in its own vocabulary table; crossing two ordinary fields remains supported. | "accepted." |
-
-All five E-numbered holes are ruled. No runtime behavior changed with
-these verdicts.
-
-**Step 6 — each changes which items `class:` matches, so they are the
-owner's.** None blocked the step: each is built in the direction that
-breaks least if he rules the other way, and every one is a rule of the
-table's generator (`tools/class-table.py`, its docstring) or of
-`class.rs`, so ruling the other way is a regenerated file or one arm.
-The park the step fires — a grouping above class — is G6, the acceptance
-task the plan names before OQ5 counts as covered.
-
-| # | Hole | Built as | Recommendation |
+| Step | Hole, as ruled | The rule is in | Ruled at |
 | --- | --- | --- | --- |
-| G1 | The class vocabulary. The reference's names are illustrative (`class:ring`, `class:staff`); three GGG-authored surfaces name a class — the clipboard's `Item Class: Rings`, an item filter's `Class "Rings"`, the trade site's category `Staff` — and the export carries the first two's spelling as each class's display name (repoe F3: 46 of 46 listed bases agree) | the game's display names, plural: `Rings`, `Staves`, `Warstaves`, `Body Armours`; `:` picks by the word, so `class:ring` is `Rings` and `class:sword` three classes, `=` names one in any case; a word no name holds is an authoring error with the near names, and `class:staff` — three edits from `Staves` — is offered the whole list of 81 | keep: the names are the game's, not the builder's, and `--describe class` and `--count class` list them; the trade site's singular words belong to the category park (G6) |
-| G2 | A base the source lists under more than one class: 31 names — the Maven's and the Eldritch invitations (`Quest Items` and `Misc Map Items`), the breachstones, the resonators, `Energy Blade` (three) — 300 items on the census copy | listed under each; the item is undecided, *base under several classes*, naming them; the table never chooses | keep: a rule that picks one is a reading of the source the source does not make (C106); if the owner names the class an invitation is, it is one reviewed row of a later table version |
-| G3 | The export's release states: 54 `unreleased` bases, 9 `legacy`, 15 `unique_only`. The first draft excluded `unreleased` as what no stash holds, and the copy refuted it in its first count: the owner holds a Blade Trap in a Remove-only tab, a gem the game removed and the export marks `unreleased` | every state enters: a stash keeps what the game removed, and a release state is the export's history, which the search never judges (C107) | keep |
-| G4 | The realm `poe2`: the export is PoE1's, and a poe2 body carries its class itself, as `properties[].type == 109` (item-facts F5; 98 items on the copy) | no table for the realm: every poe2 item undecided with that reason (C94's rule for a realm with no recipe, C101's for no table); nothing read from the body | the PoE2 park's December trigger, not this step's: reading the body's class for one realm is a second deriver of one fact (C103) and is the owner's |
-| G5 | The licence. RePoE's `LICENSE.md`: the generated data is GGG's and "shall not be used or published without being in accordance with their terms of use" (`SURFACES.md`, the RePoE row); C106 says a surface's licence is read when its first definition needs it | the table carries base names and class names — the words the trade site, the wiki and every item filter publish — with the source cited on the file and the row; the C++ app on `master` fetches the same export at runtime with no attribution | the owner's read; nothing else in the table is GGG's beyond those names |
-| G6 | **The category park, fired**: OQ5 as the owner asked it — "my leveling gear" — names a grouping the class table has no word for (`armour`, `weapon`, `equipment`), and C105's first test as worded counts by `armour` and `weapon`. Note 31 K7: the site's 14 parents are unions of leaves, seven leaves need base-name rules, and "which categories count as equipment" is a definition nobody has given | not built: OQ5 is askable by class names — `(class:boots or class:gloves or class:helmet)` — and pinned so; C105's test pinned with class names and the same numbers | the owner's acceptance task before OQ5 counts as covered: which convention (C106) `category` follows — the trade site's category ids as its authority, generated as repoe F3 generates them, or a smaller equipment grouping of his own — and whether it is a second field beside `class` or a value `class:` also takes |
-
-G1–G5 stand as built (owner, 2026-09-23, verbatim: "Otherwise, accept
-all."). G6, his words verbatim the same day: "leveling gear is generally
-not defined by class, except indirectly. leveling gear is generally
-items that can be equipped at a low character level with basic
-resistance, life, and damage modifiers (although some leveling builds
-have some additional specific needs I have not mentioned). I'm not sure
-how that impacts us here." The builder's reading, a recommendation and
-no ruling: two of the three parts exist — `reqlevel=..30 or
--has:reqlevel`, and the lines by template — and the third, *can be
-equipped*, is what nothing names: frame does not say it (a contract is
-frame rare, a map and a gem carry damage lines), and the class says it
-indirectly, as a spelled-out list of the wearable classes today, or as
-the category park's one word, whose definition his sentence supplies
-(equipment is what can be equipped: the wiki page C106 cites, the trade
-site's parents). Recommended: pin OQ5 from his words with the class list
-spelled out, and re-set the park's trigger to the seat showing that
-typing the list bites — adding `category` later breaks nothing. A flask
-is no distractor under his definition; whether it is leveling gear is
-his. **Ruled 2026-09-23**, verbatim: "yes, lets keep this parked." OQ5
-is pinned from his words (`tests/acceptance.rs`, `oq5_…`): the level
-and the lines are the language's, the wearable classes spelled out as
-the fixture's and claiming no more; the park's trigger is the seat.
-
-**Step 1 — what the parser met that the reference does not state.** None
-blocked step 1: each is built in the direction that breaks nothing if he
-rules the other way.
-
-| # | Hole | Built as | Recommendation |
-| --- | --- | --- | --- |
-| H1 | A phrase that is a template: `"# to maximum Life"` alone was a text search for a literal `#`. Over the census's store copy (22,721 items) no displayed string — name, type line, base, mod line, property — contains one, so it could never match | **ruled 2026-09-19: a template alone means the line** (the reference, *Item-level*); `text:"…#…"` keeps the literal search | — |
-| H2 | A sign before `#` in a quoted template (`"+# to maximum Life"`, as the game, the C++ tables and the trade site write it): the sign is carried in the number (C90), and 0 of the census's 6,928 templates start with `+#` | **ruled 2026-09-19: `+#` is spelling and is dropped; `-#` is an error offering `argN<0`** (the reference, *Strings*) | — |
-| H3 | Whitespace around an operator: `ilvl >= 84` | an error that says an operator sits against its name and value, since whitespace separates terms | keep |
-| H4 | A quoted value after `:` — `template:"maximum life"`, `tab:"$ dump 1"`; the reference shows only a bare word there | accepted; a value that is more than one plain word must be quoted, and the error offers it quoted | keep |
-| H5 | `AND`, `Or`, `NOT` | accepted in any case, printed as whitespace, `or`, `-` | keep |
-
-H3, H4 and H5 stand as built (owner, 2026-09-19: "Otherwise I accept
-your recommendations"). H1 and H2 were ruled the same day, his words in
-the reference, and built in the commit after step 1's: the trade site
-writes `+# to maximum Life`, and people and agents will type what it
-writes. Measured over its stat texts (`trade-query/data/stats-2026-09-12.json`,
-13,707 outside `pseudo`): 1,048 carry `+#` and none `-#`; typed as the
-site writes them 0 name a census template, with the sign dropped 359 do
-(the rest are lines this corpus does not hold); only 3 sign-free forms
-are shared by two site texts (block chance, with and without `+`). `#%`
-needs nothing: the `%` is part of a template here as there.
-
-**Step 2 — they change which items a query matches, so they are the
-owner's.** None blocked step 2: the deriver reads and does not interpret
-(`derive.rs`, "As built"). D1–D3 were ruled the day the step landed
-(owner, 2026-09-19; his words in the reference), D4 and D5 after his two
-questions on them; D2, D3 and D5 were built in the commits after the
-step's; D1 needed no code, the deriver carrying both, and D4 none.
-
-| # | Hole | Built as | Recommendation |
-| --- | --- | --- | --- |
-| D1 | `rarity` on an item whose body carries none: 8,297 of 22,721 — gems 5,747, currency 1,720, cards 490, normal-frame 339, a quest item. `frameTypeId` is on every item and differs from `rarity` on 7 (foils; one currency item marked normal) | **ruled: two fields, `rarity` and `frame`, each what GGG gives** (the reference, *Item-level*) — the builder's fallback from one to the other was not taken, and this plan's seat line became `frame=currency`. `--count rarity` puts those 8,297 under `none` (C105); `--count frame` has no `none` | — |
-| D2 | `ilvl` is 0 on 7,903 items (every gem and card, most currency): the game shows them no item level | **ruled: 0 is absent** (the reference, *Item-level*) | — |
-| D3 | A vaal gem's base skill sits under `hybrid` — 2,251 lines and its properties on 457 items — and is displayed on the item | **ruled: its lines are the source `hybrid`, its properties displayed strings** (the reference, *Members*) | — |
-| D4 | The other property-shaped arrays: `nextLevelRequirements` (265 items), `supportGemRequirements` (19), `weaponRequirements` (6), and `gemTabs`, `grantedSkills` on poe2 (42, 4); `notableProperties` never seen | **ruled: not read until a question needs one** ("I agree with you on D4"); `nextLevelRequirements` as text would make `"Level 21"` find a level-20 gem | — |
-| D5 | A requirement as a displayed string. The builder had made each its own string from memory of the tooltip; the trade site (the owner) and the C++ app (`src/ui/itemtooltiptext.cpp`) both show one row | **ruled: one displayed row, `Requires Level 67, 159 Str`, each requirement kept on its own beneath it** (the reference, *Item-level*), GGG's `displayMode` ordering each | — |
-
-**Step 4 — each changes what a user types or which items it matches, so
-they are the owner's.** None blocked the step: each is built in the
-direction that breaks least if he rules the other way. B2–B11 ruled as
-recommended, 2026-09-20 (B8's recommendation being the seat's); B1 ruled
-the same day on the measurement beneath the table — "i agree with
-any-case everywhere after this investigation" — as built, the builder's
-split withdrawn: a quoted template that found two spellings lists them,
-and step 5 gives such a pair's vocabulary rows a pattern that turns case
-back on.
-
-| # | Hole | Built as | Recommendation |
-| --- | --- | --- | --- |
-| B1 | The case of `=` on text. The reference gives any case to a phrase, `:` and `~`, and says nothing of `=`; `rarity=rare` must find GGG's `Rare`, so `=` is any-case on a closed set already | every text comparison is any-case: `name="kaom's heart"` finds `Kaom's Heart`, and a quoted template finds its line however its capitals were typed | keep: one rule, and tightening later removes matches where loosening only adds them |
-| B2 | Which words `is:`, `source=` and a line's `is:` take. Invariant 3 forbids asking the corpus, and the deriver's lists are open (a key GGG adds is read the day it appears) | closed lists in `bind.rs`, GGG's spellings in any case, as the census copy holds them (measured 2026-09-20: 25 item flags with the four influences, 10 sources, 3 line flags); an unknown word is an authoring error with the near ones. A flag GGG adds is derived and shown by `acq show`, and cannot be asked for until the list gains it | keep; the differential (`m2-differential.py`) is where a word outside the list would first be seen, and nothing checks that yet |
-| B3 | `tab:` on an item in a substash | tests the substash's name and its tab's, so `tab:maps` finds a map; a folder's name is no part of it | keep; a `folder:` field is an addition if asked for |
-| B4 | What `id:` matches. The reference: "any id an answer printed", and a row prints its place's id beside its own | the item's id, or its tab's, substash's or character's, whole; `:` and `=` mean the same. `acq show` takes an item's id alone and says what a location's id is, with the search that lists it | keep |
-| B5 | What `--sort` takes | a number: `ilvl`, `stack`, `line(P).<slot>`, `sum( … )`; a text field is an error that says so | keep until someone sorts by name |
-| B6 | A bare word's readings. The reference shows two for `rare` (`rarity=rare · "rare"`) and the parser has offered `"rare" · line(template:rare)` since step 1 | the closed-set readings first, the parser's two after: three for `rare` | keep: a third valid reading costs a line |
-| B7 | Failed against lacked on a line's group — both false, so no answer's members move, only how the false are split | the selector is the group without its slot comparisons: an item with no occurrence the selector picks lacked it; one with such an occurrence and none satisfying the whole failed. A group comparing no slot never fails | keep |
-| B9 | A query that starts with `-`, the language's not, at a terminal, where it is a flag: `acq search -is:corrupted` is clap's error, and `-has:note` would be read as `-h` (audit finding 1) | it goes after `--`, as every route prints it and the verb's help says: `acq search --realm pc -- '-is:corrupted'` | keep: accepting a leading hyphen as the query would turn a mistyped flag into a query |
-| B10 | The order of an item whose largest occurrence is not established (the second audit, finding 3). C92 gives no scalar to an item with no satisfying occurrence; it says nothing of one that has a readable occurrence and an unread source the group admits | it sorts last either way, as an incomplete sum does, the readable value shown with `incomplete` beside it. A term is another matter: a readable 95 is a witness to `>=90` still | keep: an order that may be wrong is worse than a place at the end that says why |
-| B11 | Whether parentheses may change what is an error. Step 1 checked a slot against a quoted template only at the group's own level, so a nested template took any slot word — and the answer then printed a route the build refuses (the fourth audit, finding 1) | the check reads the group's conjuncts, through nested ands: the tighter reading, which the owner's own test prefers — allowing a query later breaks nothing, forbidding one later would. A template under an or or a not states no numbers still, as step 1 says | keep |
-| B8 | Gap 2, as the plan recommended | (b): `--query-file <file\|->`; a route is printed shell-quoted, an apostrophe as `'\''`. (c) closed 2026-09-23 (gap 2, below) | — |
-
-*B1's measurement* (2026-09-20, `item-facts/data/mod-templates.csv`,
-its three inputs): of 6,549 distinct templates, six pairs differ only by
-capitals, every one a line GGG has spelled two ways — `# Maximum Stages`
-16 items and `# maximum Stages` 30; `#% chance to Cause Bleeding on
-Critical Strike` 7 and `… cause …` 21; `Fires Projectiles every #
-seconds` 1 and `… projectiles …` 8; `Gain # Life per Enemy Killed` 209
-and `… enemy killed` 2; `Socketed Gems are Supported by Level # Blind` 1
-and `… supported …` 21; `… Supported by Level # Chance To Bleed` 1 and
-`… supported by Level # Chance to Bleed` 3. Under any-case `=` a quoted
-template selects both spellings of its pair, and step 5's two vocabulary
-rows would carry one selector (C97); under an exact `=` the commoner
-spelling typed misses the rarer one's items with no sign of it (S171's
-R1).
-
-**The basis's store** — the first audit's finding 7 (above): ruled 2026-09-20, "(a') now and park (c)"; the reference carries it (`f5701893`), the park is `decisions/search.md`'s.
-
-**Step 4b — three rules the builder had built in the direction that
-breaks least, which the reference did not state**, are in
-`search/DESIGN.md` since the close (`2b01b1bf`; owner, 2026-09-22: "Add the
-rules"; the wording the builder's): what a number is and what one written
-longer becomes (*Slots*), that nothing reaches a bound together without
-an occurrence that counts (C92's detail), and what a row shows of one
-term (C100's); the synopsis's `--describe` line says what it prints now.
-
-**Gaps found while planning, ruled** — each changes what a user types,
-or which items what he types matches; 4, 5 and 6 came from an outside
-review of the plan (2026-09-19); 2 and 3 were ruled 2026-09-23. The
-rule is in `search/DESIGN.md`'s reference; the evidence is here.
-
-1. **A line break inside a template — ruled; the reference, *Strings*.**
-   540 of the census's 6,928 templates are one mod displayed over
-   several rows. M6's coverage trial counts such templates too.
-4. **A node forced true or false — ruled; the reference, *Composition*.**
-5. **The header: `name`, `typeline`, `base` — ruled; the reference,
-   *Item-level*.** Over the census's store copy (22,721 live items):
-   every magic (2,423), normal (3,139), gem and currency item has no
-   name, nor do 372 of 5,785 rares and 86 of 3,077 uniques; the type
-   line differs from the base on 2,399 magic items (the affix names),
-   234 normal (`Superior …`), 172 unique and 97 rare (`Synthesised …`).
-   The draft's "its own name, else its type line" was withdrawn on
-   those numbers.
-6. **The totals example — ruled; the contract detail, C94, C95.** The
-   sum's example now cites the C++ app's table and no longer names the
-   site's unresolved count (`# total Resistances`,
-   `pseudo-stats/data/pseudo-classes.csv`). Whether a fractional total
-   is ever rounded is step 7's to show the owner: the one capture
-   printed `+94.5`.
-2. **An apostrophe at a shell — (b) built at step 4; (c) closed
-   2026-09-23.** 306 templates carry one, and so does the reference's own
-   `name="Kaom's Heart"`, which cannot be typed plainly inside the
-   shell's single quotes. (a) nothing: the shell's `'\''`; (b) the
-   adapter reads the query from stdin or a file; (c) the language also
-   accepts `'…'` strings, printing `"…"`. *Recommendation:* (b) at step
-   4, and (c) left for the seat — adding it later breaks nothing. Built
-   so at step 4 (hole B8). (c) closed on the builder's read, owner
-   2026-09-23, verbatim: "Yes, close (c)". The read: a single-quoted
-   string would need an escape for the very apostrophe that motivated
-   it; the shell's double quotes with the language's `\"`, `--query-file`,
-   and every printed command shell-quoted already answer it; and `'` as
-   a delimiter would reach bare words and the `line:` keys, for one
-   surface only. If typing an apostrophe by hand bites at the seat, the
-   fix is the adapter's or the help's, never the grammar's.
-3. **The values of `membership` — ruled 2026-09-23.**
-   The request carries it, the terminal synopsis has no word for it,
-   and `live` is the only value shown; `acq items search --removed`
-   exists today. *Recommendation:* `live` alone at the first seat; `all`
-   (live and removed, each row marked) at step 11, so the old verb can
-   retire; `removed` alone waits for someone asking. Step 4 builds `live`
-   alone, which is all the store's read hands over. Ruled on the
-   builder's line — membership is a scope value, `live` by default and
-   `all` on request with every removed row marked; `removed` alone waits
-   for a question; the prune verb advances the revision — owner,
-   2026-09-23, verbatim: "accepted." The case that decided it is an
-   agent's: a handle held from an earlier answer that no longer answers.
-   So under either scope an `id:` term that matches nothing live says
-   whether the id is among the removed, with its removal time, and
-   prints the `all` route (rule 5 until `all` runs); `acq show` shows a
-   removed item, marked; the scope block states membership and the count
-   of each; `--describe` lists the values and the default. The store's
-   half is C108 as ruled (the revision advances on a membership change,
-   and nothing that prunes may take it back) and the retention park,
-   whose trigger names search reading removed items. The builder
-   proposed moving `all` from step 11 to step 10, whose theme is
-   continuing across a changed basis, so the MCP's agent seat validates
-   it (P2); owner, 2026-09-23, verbatim: "yes, let's go with --membership
-   and move it to step 10". The reference carries it (*Membership*,
-   under the terminal section).
+| 1 | H1 a template alone means the line; H2 `+#` is spelling and dropped, `-#` an error offering `argN<0` | the reference, *Item-level*, *Strings* | `c58728a6` |
+| 1 | H3 no whitespace around an operator; H4 a value of more than one word after `:` is quoted; H5 `AND`, `Or`, `NOT` in any case | `parse.rs`; `tests/language.toml` | `8a7bf03a` |
+| 2 | D1 `rarity` and `frame` are two fields, each what GGG gives; D2 an `ilvl` of 0 is absent; D3 a vaal gem's base skill is the source `hybrid`, its properties displayed strings | the reference, *Item-level*, *Members*; `derive.rs` | `e29b698e` |
+| 2 | D4 the other property-shaped arrays are not read until a question needs one; D5 requirements are one displayed row, each kept beneath it | the reference, *Item-level*; `derive.rs` | `890dca4d` |
+| 4 | B1 every text comparison is any-case; a quoted template that found two spellings lists both | the reference, *Strings*; `bind.rs` | `774620b6` |
+| 4 | B2 closed lists for `is:`, `source=` and a line's flags; B3 `tab:` tests a substash's name and its tab's; B4 `id:` is an item's or its place's, whole; B5 `--sort` takes a number; B6 a bare word's closed-set readings come first; B7 failed against lacked on a group; B9 a leading `-` goes after `--`; B10 a largest not established sorts last, its status shown; B11 the slot check reads the group's conjuncts; the basis names the store by twelve hex digits of its path's hash, an id the file carries parked | the reference (`f5701893`); `bind.rs`, `group.rs`, `eval.rs`, `corpus.rs`; the park in `decisions/search.md` | `7678ae27` |
+| 4 | B8 the apostrophe: `--query-file`, every printed command shell-quoted; a single-quoted string (gap 2's (c)) closed — the fix, if typing one bites at the seat, is the adapter's or the help's, never the grammar's | the reference, *Strings*; `search_cmd.rs` | `28606ed4`, `3b7cf192` |
+| 4b | what a number is and what one written longer becomes; nothing reaches a bound together without an occurrence that counts; what a row shows of one term | the reference, *Slots*; the contract detail, C92, C100 | `2b01b1bf` |
+| 5 | E1 a value bucket's term selects the counted spelling, a tab's its full coordinate with its substashes; E2 `--sum` takes the item's `sum( … )`, never a raw line projection; E3 the vocabulary's `undecided` is uncertainty about presence; E4 the view combinations stay errors and no grand total is needed; E5 `line` never crosses | C95, C105; `counts.rs`, `answer.rs` (`View::of`), `bind.rs` (`bind_sum`) | `0df86686`, `f357de39` |
+| 6 | G1 class names are the game's plurals, `:` picks by word; G2 a base under several classes is undecided, the table never chooses; G3 every release state enters, a stash keeps what the game removed; G4 no table for `poe2`, every item there undecided; G5 RePoE's licence read, the table carries base and class names only | `class.rs`; `tools/class-table.py`; `SURFACES.md` | `18e1f5be` |
+| 6 | G6 the grouping above class stays parked; OQ5 pinned from the owner's words with the wearable classes spelled out, the park's trigger now the seat | the park in `decisions/search.md`; `tests/acceptance.rs` | `0d3c65af` |
+| plan | gap 1 a line break inside a template; gap 4 a node forced true or false, `true()` and `false()`; gap 5 `name`, `typeline` and `base` each what GGG gives; gap 6 the totals example cites the C++ app's table, and whether a fractional total is ever rounded is step 7's to show | the reference, *Strings*, *Composition*, *Item-level*; the contract detail, C94 | `acfc37cd`, `152bfde3`, `fe9ca5f4`; 6 at `aeeba6d3` |
+| plan | gap 3 membership is a scope value — `live` by default, `all` on request with every removed row marked, `removed` alone waits for a question, the prune verb advances the revision; `all` moved to step 10 | the reference, *Membership*; C108; the plan, step 10 | `3b7cf192`, `d829c25a`, `ea68d7c2` |
 
 ## Observations still open
 

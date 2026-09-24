@@ -46,8 +46,8 @@ at the slice's close and cited by hash.
    builder — a flag, a key, a field's spelling — is not a gap: the
    builder picks it and `--describe` or the help prints it. What a name
    *means* — which items it matches — is. The unruled ones are at the
-   foot of this file; the ruled ones, with their evidence, are in
-   `SEARCH-SLICE.md`.
+   foot of this file; a ruled one is a line in `SEARCH-SLICE.md`, "Holes
+   ruled", its evidence the ruling commit's message.
 5. **An answer never prints a command the same build refuses.** A
    block the reference bounds with a route to the whole (invariant 5)
    prints that route only when it runs; until then it prints the count
@@ -109,8 +109,8 @@ rule is for the moment before the code is written.
 **The reference was brought level with what was ruled here before step
 1** (2026-09-19, the owner approving the wording), since step 1's corpus
 is complete against that page and this file is deleted at the close. A
-hole ruled keeps its evidence in `SEARCH-SLICE.md` and its rule in
-`search/DESIGN.md`.
+hole ruled keeps its rule in `search/DESIGN.md` and one line in
+`SEARCH-SLICE.md`.
 
 ## The first seat — after step 5
 
@@ -255,7 +255,7 @@ submit the job (C98) — a resident client's question, the GUI's.
 
 ## Holes not yet ruled — the owner's, at the seat
 
-None. Every hole the build met is ruled, each with its evidence in
-`SEARCH-SLICE.md`, "Holes ruled", and its rule in `search/DESIGN.md`; a
+None. Every hole the build met is ruled, one line each in
+`SEARCH-SLICE.md`, "Holes ruled", its rule in `search/DESIGN.md`; a
 new one comes here under rule 4, with a recommendation, which is no
-ruling (the record: step 4, audit 1, finding 8).
+ruling (an outside audit's finding, 2026-09-20).
