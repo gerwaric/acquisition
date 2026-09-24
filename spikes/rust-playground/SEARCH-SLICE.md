@@ -94,7 +94,8 @@ reads first: the shapes of fault that came back until they were named.
 The yields by look, per step — what a review found each time it came
 back, the last look's zero being what a step closed on: step 4, 6, 5,
 2, 3; step 4b (Astra), 6, 3, 3, 1; step 5, 6, 3, 0; step 6, 5, 3, 0;
-step 7 (Astra), 6, 4, and the third look is the next session's.
+step 7 (Astra), 6, 4, and the third look is the next session's, its
+scope the owner's (2026-09-24): "Step 7's third look is generators reaching pseudo, nothing else: total_res, dps and pdps, in the existing composition, shown to catch a fault from these rounds."
 Five blind seats at step 5 (`f357de39`; Sonnet, one question each over
 the owner's real store, `--help` and `--describe` their only sources)
 answered every question in three to six invocations and found two
@@ -256,9 +257,11 @@ any joins a recipe is the owner's (the plan's foot, T4).
 **M3 at each later build** — the same command, the release build judged
 against 500 ms; every release ask of every build below is under it but
 one — the vocabulary whole at the audited step 7 build, measured beneath
-the table — so whether the persisted-projection park's trigger has fired
-is the owner's (the plan's foot, T5). The debug build
-is what the seat feels behind the README's alias. Step 4's per-ask
+the table, ruled at T5 and under again at `57ec6a9e`. What an ask over
+budget fires is the owner's (2026-09-24): "M3 reports asks over 500 ms,
+but only a load over budget triggers the projection experiment. An
+evaluator cost over budget lands against the batch park." The debug
+build is what the seat feels behind the README's alias. Step 4's per-ask
 table is above; here the first ask after the copy is written, and the
 range of the warm medians, in ms.
 
@@ -275,6 +278,7 @@ range of the warm medians, in ms.
 | `eeaec66e` | step 6, with its three asks added to the script | 291 | 275–309 | 1,789–2,514 |
 | `b5d62d92` | step 7, with its four asks added to the script | 507 | 278–359 | 1,851–2,748 |
 | `4237d2f3` | step 7, the two audits' fixes | 465 | 275–360, the vocabulary whole 954 | 1,852–2,748, the vocabulary whole 6,555 |
+| `57ec6a9e` | step 7, T5 | — | the vocabulary whole 316 | the vocabulary whole 2,130 |
 
 Step 7's four asks at its build (release · debug): AQ2 as worded,
 `pseudo.total_res>=60` over OQ1, 359 · 2,748; the worked example whole
@@ -364,6 +368,7 @@ commit's message. One line each.
 | 4b | what a number is and what one written longer becomes; nothing reaches a bound together without an occurrence that counts; what a row shows of one term | the reference, *Slots*; `eval.rs`, `answer.rs` | `2b01b1bf` |
 | 5 | E1 a value bucket's term selects the counted spelling, a tab's its full coordinate with its substashes; E2 `--sum` takes the item's `sum( … )`, never a raw line projection; E3 the vocabulary's `undecided` is uncertainty about presence; E4 the view combinations stay errors and no grand total is needed; E5 `line` never crosses | C95, C105; `counts.rs`, `answer.rs` (`View::of`), `bind.rs` (`bind_sum`) | `0df86686`, `f357de39` |
 | 6 | G1 class names are the game's plurals, `:` picks by word; G2 a base under several classes is undecided, the table never chooses; G3 every release state enters, a stash keeps what the game removed; G4 no table for `poe2`, every item there undecided; G5 RePoE's licence read, the table carries base and class names only | `class.rs`; `tools/class-table.py`; `SURFACES.md` | `18e1f5be` |
+| 7 | T5 `line` alone lists no computed values, a narrowing lists those it matches, `--describe` names them (owner: "line alone lists no computed values, but a narrowing lists matches and --describe discovers names"); an ask over budget fires the projection park only by its load, an evaluator cost the totals batch park; the batch parked with its trigger, a 7b of 4b's shape, generators first | `pseudo.rs`, `counts.rs`; the reference, `--count line`; the two parks in `decisions/search.md` | `57ec6a9e` |
 | 6 | G6 the grouping above class stays parked; OQ5 pinned from the owner's words with the wearable classes spelled out, the park's trigger now the seat | the park in `decisions/search.md`; `tests/acceptance.rs` | `0d3c65af` |
 | plan | gap 1 a line break inside a template; gap 4 a node forced true or false, `true()` and `false()`; gap 5 `name`, `typeline` and `base` each what GGG gives; gap 6 the totals example cites the C++ app's table, and whether a fractional total is ever rounded is step 7's to show | the reference, *Strings*, *Composition*, *Item-level*; the contract detail, C94 | `acfc37cd`, `152bfde3`, `fe9ca5f4`; 6 at `aeeba6d3` |
 | plan | gap 3 membership is a scope value — `live` by default, `all` on request with every removed row marked, `removed` alone waits for a question, the prune verb advances the revision; `all` moved to step 10 | the reference, *Membership*; C108; the plan, step 10 | `3b7cf192`, `d829c25a`, `ea68d7c2` |
@@ -534,12 +539,15 @@ timings, coverage no fixture reaches, and questions for the seat.
 - `pseudo.dps` counts every damage property the item displays and
   `pseudo.pdps` the physical alone; the C++ app reads 0 where a property
   is missing and this build says *lacked* — the one departure, C93's.
-- The vocabulary whole is the one release ask over 500 ms (M3 at
-  `4237d2f3`), and it is the computed-value scan, not the load: the
-  park's trigger fired by its letter and not by its purpose, which is
-  T5 at the plan's foot. What would make the scan cheap without a second
-  maker — a group knowing at binding the one exact template it requires,
-  and the evaluator asking many groups of an item in one walk over its
-  lines, the single sum being the batch of one — is the shape of a step
-  7b, 4b's precedent: the generators reaching `pseudo` first, then the
-  structural change, no new surface and no rule changed.
+- The vocabulary whole was the one release ask over 500 ms (M3 at
+  `4237d2f3`), the computed-value scan and not the load; T5 ruled it,
+  and the projection park's trigger reads by the load now. A total still
+  costs by the table's rows, not by the lines an item carries — 80 ms
+  for 19 rows over 22,623 items — and grows with T3 and T4. What would
+  make it cheap without a second maker: a group knowing at binding the
+  one exact template it requires, and the evaluator asking many groups
+  of an item in one walk over its lines, the single sum being the batch
+  of one; held by rule 10 as a property over generated items, which
+  needs the generators to reach `pseudo` first. That is the totals
+  batch park (`decisions/search.md`), a step 7b of 4b's shape: no new
+  surface, no rule changed, the answer's JSON unmoved.
