@@ -596,8 +596,7 @@ term (C100's); the synopsis's `--describe` line says what it prints now.
 **Gaps found while planning, ruled** — each changes what a user types,
 or which items what he types matches; 4, 5 and 6 came from an outside
 review of the plan (2026-09-19); 2 and 3 were ruled 2026-09-23. The
-rule is in `search/DESIGN.md`'s reference (gap 3's once its wording is
-approved); the evidence is here.
+rule is in `search/DESIGN.md`'s reference; the evidence is here.
 
 1. **A line break inside a template — ruled; the reference, *Strings*.**
    540 of the census's 6,928 templates are one mod displayed over
@@ -654,8 +653,9 @@ approved); the evidence is here.
    whose trigger names search reading removed items. The builder
    proposed moving `all` from step 11 to step 10, whose theme is
    continuing across a changed basis, so the MCP's agent seat validates
-   it (P2); the reorder is the owner's. The reference's wording lands
-   once the owner approves it.
+   it (P2); owner, 2026-09-23, verbatim: "yes, let's go with --membership
+   and move it to step 10". The reference carries it (*Membership*,
+   under the terminal section).
 
 ## Observations still open
 

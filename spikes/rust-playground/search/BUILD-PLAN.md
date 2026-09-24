@@ -179,8 +179,8 @@ printed, C104's text.
 | 7 · computed values | the totals table (C94) after the coverage trial; `pseudo.total_res`; a weight may be a fraction (the site's own `+94.5 total maximum Life` over `+90` life and `+9` Strength, `pseudo-stats/README.md`), and whether a total is ever rounded is shown to the owner first (gap 6); the sum-status table; then `pseudo.dps`, `pseudo.pdps` (C101) | 6 for the worked example | AQ2; the reference's worked example whole, every count as printed there |
 | 8 · sockets | `sockets`, `links`, `sockets.<colour>`, `linked(…)` (C101); undecoded shapes counted unread (S16) | 4 | OQ3's socket reading |
 | 9 · price | the effective price joined read-only (C81, C100); the crate links `acquisition-plan`; the basis gains the intent revision; the reason *price unresolved* | 4 | OQ6: the item found with the owner's own price; a valuation asked for is a stated limit (C102) |
-| 10 · continuing and exchanging | `--next` refused across a changed basis; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | AQ3 whole; M5 |
-| 11 · the close | the MCP tool over the same request, with an agent's seat as its own consumer (P2); `acq items search` retired (below); the closed record; this file deleted; `search/` shrunk; `DESIGN.md`'s paragraphs into module docs | all | AQ1–AQ5 driven through the MCP; the gate; the kill-list recheck |
+| 10 · continuing and exchanging | `--next` refused across a changed basis; `--membership all` (the reference, *Membership*): the read hands removed items over with `removed_at`, every such row marked, the scope block counting each, an `id:` term that matches nothing live naming the removed id and its route, `acq show` on a removed item; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | AQ3 whole; AQ4 across a refresh that removed the item; M5 |
+| 11 · the close | the MCP tool over the same request, with an agent's seat as its own consumer (P2), `--membership all` among what it validates; `acq items search` retired (below); the closed record; this file deleted; `search/` shrunk; `DESIGN.md`'s paragraphs into module docs | all | AQ1–AQ5 driven through the MCP; the gate; the kill-list recheck |
 
 Not in this plan: the trade translation (C99, headed "Direction"). No
 acceptance question needs it; whether it is a step here or the next
@@ -217,8 +217,8 @@ already answered by `acq show <id>` with its raw flag, there since step
 4, so no inspection is lost), the MCP's substring tool, `Store::search`, and the
 `items_names` index it never used (S124, S136) — the README tour line,
 `CLI-REFERENCE.md` and `MCP-REFERENCE.md` regenerated. Retiring it needs
-the new verb to answer what `--removed` answers: membership `all`, ruled
-2026-09-23 (`SEARCH-SLICE.md`, "Holes ruled", gap 3).
+the new verb to answer what `--removed` answers: `--membership all`, step
+10 (ruled 2026-09-23; `SEARCH-SLICE.md`, "Holes ruled", gap 3).
 
 ## Parks whose triggers the build fires
 
