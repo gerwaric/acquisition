@@ -948,13 +948,37 @@ fn describe_text(d: &Describe) -> String {
             return;
         }
         out.push_str(&format!("{head}\n"));
+        // the name column fits the block's longest name: a computed value's
+        // is `pseudo.total_lightning_gem_levels`
+        let name = entries
+            .iter()
+            .map(|e| e.name.chars().count() + 2)
+            .max()
+            .unwrap_or(0)
+            .max(16);
+        let kind = entries
+            .iter()
+            .map(|e| e.kind.chars().count() + 2)
+            .max()
+            .unwrap_or(0)
+            .max(12);
         for e in entries {
-            out.push_str(&format!("  {:<16}{:<12}{}\n", e.name, e.kind, e.what));
+            out.push_str(&format!("  {:<name$}{:<kind$}{}\n", e.name, e.kind, e.what));
             if !e.values.is_empty() {
-                out.push_str(&format!("  {:<28}one of: {}\n", "", e.values.join(", ")));
+                out.push_str(&format!(
+                    "  {:<width$}one of: {}\n",
+                    "",
+                    e.values.join(", "),
+                    width = name + kind
+                ));
             }
             if !e.examples.is_empty() {
-                out.push_str(&format!("  {:<28}e.g. {}\n", "", e.examples.join("   ")));
+                out.push_str(&format!(
+                    "  {:<width$}e.g. {}\n",
+                    "",
+                    e.examples.join("   "),
+                    width = name + kind
+                ));
             }
         }
     };
