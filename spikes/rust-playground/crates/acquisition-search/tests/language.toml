@@ -617,11 +617,11 @@ construct = "values.names"
 text = '''pseudo.total-res>=60'''
 error = "unexpected"
 
+# `has:` on a total is the binder's refusal (T2): `tests/pseudo.rs`.
 [[case]]
-construct = "values.has_on_computed"
-text = '''has:pseudo.total_res'''
-error = "has_on_computed"
-readings = ['''pseudo.total_res>0''', '''undecided(pseudo.total_res)''']
+construct = "values.has_on_derived"
+text = '''-has:pseudo.dps'''
+canonical = '''-has:pseudo.dps'''
 
 [[case]]
 construct = "values.sockets"

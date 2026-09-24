@@ -30,6 +30,11 @@
 //!   only when it may be one the field reads: its name unread, or one of
 //!   the field's (`derive::Unread::name`; rule 8 at the element's grain,
 //!   outside audit 2026-09-24).
+//!   `has:` applies to a derived field and never to a total (owner,
+//!   2026-09-24, T2 in `SEARCH-SLICE.md`: "A ring has no dps; every item
+//!   has a total"): `-has:pseudo.dps` is the lacked count's route, and
+//!   `has:pseudo.total_res` an error offering the comparison and
+//!   `undecided( … )` (`bind.rs`, `tree::has_on_computed`).
 //!   The base defence percentile the same paragraph names is not built
 //!   (`bind::NOT_BUILT`, its formula unpinned: `search/pseudo-stats/README.md`,
 //!   open question 3).
@@ -539,6 +544,7 @@ static DESCRIBED: LazyLock<Vec<Entry>> = LazyLock::new(|| {
         out.push(Entry {
             examples: vec![
                 leak(format!("{name}>=300")),
+                leak(format!("-has:{name}")),
                 leak(format!("undecided({name})")),
             ],
             name,

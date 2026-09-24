@@ -479,6 +479,8 @@ pub(crate) enum Atom {
     },
     Id(String),
     Has(Thing),
+    /// `has:` on a derived field (T2); the term's node carries the name.
+    HasComputed(crate::pseudo::Named),
     Is(&'static str),
     Lines(Group),
     Sum {
@@ -871,6 +873,17 @@ impl Binder {
                     })
                 })?;
                 test(def, *op, value)
+            }
+            Node::Has(name) if name.starts_with("pseudo.") => {
+                // a derived field's absence is a property's, which `has:`
+                // asks; a total's is never absence (owner, 2026-09-24, T2:
+                // "has: applies to a derived field, never to a total. A
+                // ring has no dps; every item has a total.")
+                let (named, _) = bind_pseudo(&name["pseudo.".len()..], None)?;
+                match named {
+                    crate::pseudo::Named::Derived(_) => Ok(Atom::HasComputed(named)),
+                    crate::pseudo::Named::Total { .. } => Err(tree::has_on_computed(name)),
+                }
             }
             Node::Has(name) => {
                 let def = known_field(name, |near| format!("has:{near}"))?;

@@ -946,7 +946,23 @@ fn routes(term: &Term) -> Routes {
             });
             (Some(failed), Some(not(selected)), together)
         }
-        (Atom::Has(_), _) => (None, Some(not(node.clone())), None),
+        (Atom::Has(_) | Atom::HasComputed(_), _) => (None, Some(not(node.clone())), None),
+        // a derived field lacked is `-has:` of it (T2), a total never lacks
+        (
+            Atom::Pseudo {
+                named: crate::pseudo::Named::Derived(_),
+                name,
+                ..
+            },
+            _,
+        ) => {
+            let has = Node::Has(name.clone());
+            (
+                Some(Node::All(vec![has.clone(), not(node.clone())])),
+                Some(not(has)),
+                None,
+            )
+        }
         (
             Atom::Text { thing, .. } | Atom::Closed { thing, .. } | Atom::Number { thing, .. },
             Node::Test { field, .. },

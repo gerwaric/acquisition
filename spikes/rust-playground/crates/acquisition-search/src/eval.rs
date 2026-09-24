@@ -476,6 +476,13 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
             false,
             !unread_for(held, *thing).is_empty(),
         ),
+        // present exactly when the field is established (T2): its inputs
+        // read and displayed as numbers; unread inputs leave it open
+        Atom::HasComputed(named) => match pseudo::value(*named, None, held) {
+            Valued::Value(_) => decided(true, false, false),
+            Valued::Incomplete(_) => Outcome::Undecided,
+            Valued::Lacked => Outcome::Lacked,
+        },
         Atom::Is(flag) => decided(
             // GGG's spelling in any case, as the word was bound (B2)
             held.item.flags.iter().any(|f| f.eq_ignore_ascii_case(flag)),
@@ -814,6 +821,8 @@ fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
             .chain(pseudo::evidence(*named, held))
             .collect()
         }
+        // what the field read, as its comparison shows it
+        Atom::HasComputed(named) => pseudo::evidence(*named, held),
         _ => Vec::new(),
     }
 }
@@ -866,7 +875,7 @@ fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<Cow<'a, Unread>> {
         Atom::Is(flag) => borrowed(unread_flag(held, flag)),
         Atom::Lines(group) => borrowed(unread_of_sum(held, group, None)),
         Atom::Sum { group, slot, .. } => borrowed(unread_of_sum(held, group, Some(slot.as_str()))),
-        Atom::Pseudo { named, .. } => pseudo::unread_of(*named, held),
+        Atom::Pseudo { named, .. } | Atom::HasComputed(named) => pseudo::unread_of(*named, held),
         Atom::Undecided(BProbe::Value(key)) => match key.as_ref() {
             SortKey::Projection { group, slot } | SortKey::Sum { group, slot } => {
                 borrowed(unread_of_sum(held, group, Some(slot.as_str())))

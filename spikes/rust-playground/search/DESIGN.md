@@ -289,8 +289,9 @@ VALUES
   pseudo.cold_damage.avg>=30     a ranged computed value takes a slot word last
                                  Names are words of letters, digits and underscores; a hyphen is
                                  never part of a name, so `-` only ever means not, or a minus sign.
-                                 has: does not apply to a computed value — an error offering
-                                 pseudo.total_res>0 and undecided(pseudo.total_res).
+                                 has: applies to a derived field (-has:pseudo.dps: a ring has no
+                                 dps), never to a total — an error offering pseudo.total_res>0
+                                 and undecided(pseudo.total_res) (T2).
   sockets  links  sockets.red    counts over the socket collection:  sockets>=5  links=6  sockets.red>=2
   has:priced   price.amount  price.currency  price.lot
   --sort takes a number: ilvl, stack, line(P).<slot>, sum( … ); a ranged value needs a slot. An
@@ -326,8 +327,9 @@ reasoning, in `search/search-forms/11-owner-amendments.md`):
   have meaning elsewhere." With it, the language is shown to be formally
   constructible: a parser and printer with a round-trip test (C104) is
   the first thing built.
-- No `has:` on a computed value, which had read as its opposite on an
-  item with no resistances at all: "agree, no has:pseudo".
+- No `has:` on a total, which had read as its opposite on an item with
+  no resistances at all: "agree, no has:pseudo"; a derived field takes
+  it (T2, 2026-09-24).
 - `~`: "Using ~ for regex makes sense". Two notes for the help: patterns
   are for words and comparisons for numbers; a `sum` over
   pattern-selected lines is the user's arithmetic, never a reviewed

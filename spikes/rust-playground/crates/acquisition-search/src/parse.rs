@@ -642,9 +642,6 @@ impl<'a> Parser<'a> {
             if name == "is" {
                 return Ok(Node::Is(what.to_string()));
             }
-            if what == "pseudo" || what.starts_with("pseudo.") {
-                return Err(tree::has_on_computed(what).at(start, self.pos));
-            }
             return Ok(Node::Has(what.to_string()));
         }
         let value = self.value(op)?;

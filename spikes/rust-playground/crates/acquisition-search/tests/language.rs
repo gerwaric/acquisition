@@ -107,7 +107,7 @@ const CONSTRUCTS: &[&str] = &[
     "values.pseudo_slot",
     "values.pseudo_needs_comparison",
     "values.names",
-    "values.has_on_computed",
+    "values.has_on_derived",
     "values.sockets",
     "values.price",
     // What --sort and --sum take
@@ -338,7 +338,7 @@ fn c104_a_tree_the_language_cannot_say_is_refused() {
         serde_json::json!({ "not": { "any": [] } }),
         // the grammar's own errors hold for a tree as for a text
         serde_json::json!({ "field": "realm", "op": ":", "value": "pc" }),
-        serde_json::json!({ "has": "pseudo.total_res" }),
+        // (`has` on a total is the binder's refusal, T2: `tests/pseudo.rs`)
         serde_json::json!({ "holds": [ { "is": "corrupted" } ] }),
         serde_json::json!({ "field": "ilvl", "op": ">=", "value": { "from": 1, "to": 2 } }),
         serde_json::json!({ "field": "ilvl", "op": ">=", "value": "high" }),

@@ -223,9 +223,9 @@ fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_zero() {
 }
 
 /// C101: `pdps` and `dps` read the properties as displayed; an item
-/// lacking the property lacks the field — counted, with no route the
-/// language can say yet — and one whose property is no number is undecided
-/// with that reason; the routes there are partition the rest.
+/// lacking the property lacks the field — counted, its route `-has:` of
+/// the field (T2) — and one whose property is no number is undecided
+/// with that reason; the routes partition the matches.
 #[test]
 fn c101_dps_and_pdps_read_the_displayed_properties() {
     let s = stash();
@@ -233,9 +233,10 @@ fn c101_dps_and_pdps_read_the_displayed_properties() {
     let term = &a["terms"][0];
     // sword 91.875; the three rings and the wand lack it; odd cannot be read
     assert_eq!(counts(term), [1, 0, 4, 1]);
-    assert!(
-        term["lacked"].get("request").is_none(),
-        "no `has:` on a computed value: a lacked count has no route (the plan, an unruled hole)"
+    assert_eq!(
+        follow(&s, "pc", &term["lacked"]),
+        ["ring_a", "ring_b", "ring_c", "wand"],
+        "T2: a derived field lacked is routed by `-has:` of it"
     );
     assert_eq!(follow(&s, "pc", &term["matched"]), ["sword"]);
     assert_eq!(follow(&s, "pc", &term["undecided"]), ["odd"]);
@@ -654,6 +655,31 @@ fn c97_describe_lists_every_computed_value_with_its_definition() {
     );
 }
 
+/// T2 (owner, 2026-09-24: "has: applies to a derived field, never to a
+/// total. A ring has no dps; every item has a total."): `has:pseudo.dps`
+/// matches the items whose properties establish it, lacks on those with
+/// none, is undecided where one could not be read, and every count is
+/// routed; `-has:` returns the lackers.
+#[test]
+fn t2_has_on_a_derived_field_is_a_property_s_presence() {
+    let s = stash();
+    let a = asked(&s, "pc", "has:pseudo.dps");
+    let term = &a["terms"][0];
+    // sword and wand display attacks per second and a damage range; the
+    // three rings display neither; odd's attacks per second is `fast`
+    assert_eq!(counts(term), [2, 0, 3, 1]);
+    assert_eq!(follow(&s, "pc", &term["matched"]), ["sword", "wand"]);
+    assert_eq!(
+        follow(&s, "pc", &term["lacked"]),
+        ["ring_a", "ring_b", "ring_c"]
+    );
+    assert_eq!(follow(&s, "pc", &term["undecided"]), ["odd"]);
+    assert_eq!(a["query"]["text"], "has:pseudo.dps");
+    let a = asked(&s, "pc", "-has:pseudo.dps");
+    assert_eq!(ids(&a), ["ring_a", "ring_b", "ring_c"]);
+    assert_eq!(a["query"]["text"], "-has:pseudo.dps");
+}
+
 /// Every authoring error a computed value has, each with its kind and
 /// what it offers — near names, never a guess.
 #[test]
@@ -662,6 +688,17 @@ fn a_computed_value_that_cannot_be_is_an_authoring_error() {
     let corpus = load(&s, Some("pc"));
     for (text, kind, says) in [
         ("pseudo.total_rse>=60", "unknown_name", "pseudo.total_res"),
+        // T2: every item has a total; the readings ask what was meant
+        (
+            "has:pseudo.total_res",
+            "has_on_computed",
+            "undecided(pseudo.total_res)",
+        ),
+        (
+            "has:pseudo.nothing_here",
+            "unknown_name",
+            "no computed value",
+        ),
         (
             "pseudo.nothing_here>=1",
             "unknown_name",
