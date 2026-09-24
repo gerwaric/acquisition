@@ -10,8 +10,9 @@
 //!   no body outlives its item. Nothing is persisted and nothing is cached
 //!   between processes (C98, C48).
 //! - **The basis** names the store, the account, the facts revision — the
-//!   highest response id and the facts schema beside it — and the
-//!   derivation's version ([`DERIVATION`]). The store is named by twelve
+//!   highest response id and the facts schema beside it — the
+//!   derivation's version ([`DERIVATION`]) and the class table's
+//!   (`class.rs`; C106). The store is named by twelve
 //!   hex digits of the SHA-256 of its file's canonical path, as C83 names
 //!   a world (owner, 2026-09-20: "(a') now and park (c)"): no path in an
 //!   answer, no migration, and two files of one account are two stores. A
@@ -22,6 +23,9 @@
 //!   every answer: a consumer that holds a corpus across asks compares, and
 //!   reloads whole when it differs; an answer already given stays what its
 //!   basis says it was.
+//! - **Each item is classed as it is derived** (`class.rs`): the table is
+//!   checked before the read, so a build whose table does not load answers
+//!   nothing rather than an unclassed corpus.
 //! - **Place is the store's** (C103): the league as the read joined it, the
 //!   location by its full coordinate (C54), its name and its parent's from
 //!   the header. An item whose location the header does not list cannot
@@ -37,12 +41,13 @@ use acquisition_store::Store;
 use acquisition_store::corpus::{CorpusHeader, CorpusItem, LocationRow, RealmScope, Revision};
 use serde::{Deserialize, Serialize};
 
+use crate::class::{self, CLASS_TABLE_VERSION, ClassTable, Classed};
 use crate::derive::{Facts, Item, derive};
 use crate::error::SearchError;
 
 /// The version of [`derive()`]'s reading of a body: it moves when the same
 /// body would derive to another item.
-pub const DERIVATION: u32 = 5;
+pub const DERIVATION: u32 = 6;
 
 /// The realms GGG has (owner, 2026-09-20: "the full list").
 pub const REALMS: [&str; 4] = ["pc", "xbox", "sony", "poe2"];
@@ -99,6 +104,8 @@ pub struct Basis {
     /// The facts revision: the highest response id, and the facts schema.
     pub snapshot: Revision,
     pub derivation: u32,
+    /// The class table's version (C106).
+    pub classes: u32,
 }
 
 /// Where an item sits, by name and id.
@@ -125,11 +132,13 @@ pub struct Named {
     pub name: Option<String>,
 }
 
-/// One held item: what the body says, and where it is.
+/// One held item: what the body says, where it is, and what the class
+/// table says of it.
 #[derive(Debug, Clone)]
 pub struct Held {
     pub item: Item,
     pub place: Place,
+    pub class: Classed,
 }
 
 /// What the scope block says was searched (C96).
@@ -234,8 +243,15 @@ impl Basis {
             account: header.account_uuid.clone(),
             snapshot: header.revision,
             derivation: DERIVATION,
+            classes: CLASS_TABLE_VERSION,
         }
     }
+}
+
+/// The class table, or the error a build whose table does not load
+/// answers with (`class.rs`).
+pub(crate) fn class_table() -> Result<&'static ClassTable, SearchError> {
+    class::table().map_err(|e| SearchError::scope("class_table", e.to_string()))
 }
 
 impl Corpus {
@@ -254,6 +270,7 @@ impl Corpus {
             None => RealmScope::All,
         };
         let named = realm.cloned();
+        let table = class_table()?;
         store
             .read_corpus(scope, |header, rows| {
                 let realm = match named {
@@ -278,8 +295,10 @@ impl Corpus {
                     }
                     let body = std::mem::take(&mut row.body);
                     let (facts, place) = placed(&index, row);
+                    let item = derive(facts, &body);
                     items.push(Held {
-                        item: derive(facts, &body),
+                        class: table.classify(&item),
+                        item,
                         place,
                     });
                 }

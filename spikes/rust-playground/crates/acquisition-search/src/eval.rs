@@ -30,6 +30,10 @@
 //! - **A value is open exactly when it would sort as incomplete**:
 //!   `undecided(sum( … ))`, `undecided(line(P).<slot>)` and `--sort` ask
 //!   one function.
+//! - **The class is the table's** (`class.rs`): what it gave is the item's
+//!   one value of `class`, and what stopped it is one reason beside the
+//!   deriver's unread parts — shown, tallied and hinted as they are, its
+//!   hint the table's. `reqlevel` is the deriver's number.
 //! - **Outcomes are computed for every term on every item, and nothing
 //!   else is**: what a row shows ([`evidence`]) and why an item is
 //!   undecided ([`reasons`]) are worked out only for the items an answer
@@ -139,6 +143,8 @@ fn body_key(thing: Thing) -> Option<&'static str> {
         Thing::Ilvl => "ilvl",
         Thing::Stack => "stackSize",
         Thing::Text
+        | Thing::Class
+        | Thing::ReqLevel
         | Thing::League
         | Thing::Tab
         | Thing::Character
@@ -165,7 +171,31 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
                         "name" | "typeLine" | "baseType" | "ilvl" | "hybrid"
                     )
                 }
-                Part::Flags(_) | Part::Numbers(_) => false,
+                Part::Flags(_) | Part::Numbers(_) | Part::Class(_) => false,
+            })
+            .collect(),
+        // the base, or the body, unread leaves the class open; the table's
+        // own reason is the class's (`class.rs`)
+        (Thing::Class, _) => held
+            .item
+            .unread
+            .iter()
+            .filter(|u| match &u.part {
+                Part::Body => true,
+                Part::Field(key) => key == "baseType",
+                _ => false,
+            })
+            .chain(held.class.open())
+            .collect(),
+        (Thing::ReqLevel, _) => held
+            .item
+            .unread
+            .iter()
+            .filter(|u| match &u.part {
+                Part::Body => true,
+                Part::Field(key) => key == "reqlevel",
+                Part::Properties(array) => array == "requirements",
+                _ => false,
             })
             .collect(),
         (_, Some(key)) => held
@@ -197,6 +227,7 @@ pub(crate) fn texts(held: &Held, thing: Thing) -> Vec<&str> {
         Thing::Note => one(&item.note),
         Thing::Rarity => one(&item.rarity),
         Thing::Frame => one(&item.frame),
+        Thing::Class => held.class.name().into_iter().collect(),
         Thing::League => one(&place.league),
         Thing::Container => one(&place.container),
         Thing::Tab if place.kind == "stash" => place
@@ -206,15 +237,20 @@ pub(crate) fn texts(held: &Held, thing: Thing) -> Vec<&str> {
             .chain(place.parent.as_ref().and_then(|p| p.name.as_deref()))
             .collect(),
         Thing::Character if place.kind == "character" => one(&place.name),
-        Thing::Tab | Thing::Character | Thing::Text | Thing::Ilvl | Thing::Stack | Thing::Id => {
-            Vec::new()
-        }
+        Thing::Tab
+        | Thing::Character
+        | Thing::Text
+        | Thing::Ilvl
+        | Thing::ReqLevel
+        | Thing::Stack
+        | Thing::Id => Vec::new(),
     }
 }
 
 pub(crate) fn number(held: &Held, thing: Thing) -> Option<f64> {
     match thing {
         Thing::Ilvl => held.item.ilvl.map(|n| n as f64),
+        Thing::ReqLevel => held.item.reqlevel.map(|n| n as f64),
         Thing::Stack => held.item.stack.map(|n| n as f64),
         _ => None,
     }
@@ -251,7 +287,7 @@ fn unread_lines<'a>(held: &'a Held, group: &Group) -> Vec<&'a Unread> {
             Part::Field(key) => key == "hybrid" && group.admits("hybrid"),
             // a line's flags and numbers: the occurrence itself says so
             // (`Asked::of`)
-            Part::Flags(_) | Part::Numbers(_) | Part::Properties(_) => false,
+            Part::Flags(_) | Part::Numbers(_) | Part::Properties(_) | Part::Class(_) => false,
         })
         .collect()
 }
@@ -661,6 +697,17 @@ fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
             })
             .into_iter()
             .collect(),
+        // the class is not on the row's header: a term on it shows it
+        Atom::Closed {
+            thing: Thing::Class,
+            ..
+        } => texts(held, Thing::Class)
+            .into_iter()
+            .map(|class| Evidence::Value {
+                name: "class".to_string(),
+                value: serde_json::Value::from(class),
+            })
+            .collect(),
         Atom::Lines(group) => satisfying(held, &group.whole).map(line_evidence).collect(),
         Atom::Sum { group, slot, .. } => {
             let (total, _) = sum(held, group, slot);
@@ -748,9 +795,13 @@ fn reason(unread: &Unread) -> Reason {
             Part::Lines(source) => format!("{source} lines"),
             Part::Flags(source) => format!("the flags of {source} lines"),
             Part::Numbers(source) => format!("the numbers of {source} lines"),
+            Part::Class(gap) => gap.unread().to_string(),
         },
         problem: unread.problem.clone(),
-        hint: UNREAD_HINT,
+        hint: match &unread.part {
+            Part::Class(_) => crate::class::CLASS_HINT,
+            _ => UNREAD_HINT,
+        },
     }
 }
 

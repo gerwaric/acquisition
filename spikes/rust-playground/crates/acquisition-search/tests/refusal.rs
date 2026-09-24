@@ -90,14 +90,7 @@ fn every_construct_of_the_reference_evaluates_or_is_refused_by_its_name_on_the_l
     assert!(evaluated > 0 && !refusals.is_empty());
     // what the corpus can reach of the list is refused by that name; the
     // flags are the CLI's to refuse, by the same function
-    for construct in [
-        "class:",
-        "pseudo.*",
-        "sockets",
-        "linked(…)",
-        "has:priced",
-        "price.*",
-    ] {
+    for construct in ["pseudo.*", "sockets", "linked(…)", "has:priced", "price.*"] {
         assert!(
             refusals.contains(construct),
             "no case of the corpus met `{construct}`: {refusals:?}"
@@ -118,17 +111,40 @@ fn the_list_the_walk_checks_is_the_list_describe_prints() {
     assert_eq!(printed, list);
 }
 
-/// S53 (C102): an item's class is not a field, and until the class table
-/// is built the refusal says so in the register's words.
+/// S53 (C102): an item's class is not a field of the body — it is a
+/// derivation the search owns, from the class table (C106) — and the
+/// limit stays stated in the register's words; `class:ring` is a valid
+/// selector over a store holding nothing (invariant 3), and the table's
+/// definition is what `--describe class` prints.
 #[test]
-fn c102_s53_a_class_asked_for_is_refused_in_the_registers_words() {
+fn c102_s53_a_class_is_a_derivation_the_search_owns_and_says_so() {
     let store = common::store();
     let corpus = common::load(&store, None);
-    let e = common::ask(&corpus, "class:ring").unwrap_err();
-    assert_eq!(refused(&e), Some("class:"));
-    assert!(e.to_string().contains(
-        "an item's class is not a field; a class the search names is a derivation it owns, and an item it cannot class is shown unclassed"
+    let a = common::ask(&corpus, "class:ring").unwrap();
+    assert_eq!(a.total.matched, 0);
+    let printed = serde_json::to_value(describe(&[]).unwrap()).unwrap();
+    let limits: Vec<&str> = printed["limits"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| l["said"].as_str().unwrap())
+        .collect();
+    assert!(limits.contains(
+        &"an item's class is not a field; a class the search names is a derivation it owns, and an item it cannot class is shown unclassed"
     ));
+    let class = serde_json::to_value(describe(&["class".to_string()]).unwrap()).unwrap();
+    let what = class["fields"][0]["what"].as_str().unwrap();
+    assert!(
+        what.contains("classes v1") && what.contains("RePoE"),
+        "{what}"
+    );
+    assert!(
+        class["fields"][0]["values"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v == "Rings")
+    );
 }
 
 #[test]

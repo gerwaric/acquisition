@@ -670,8 +670,8 @@ canonical = '''sum(line("# to maximum Life").arg1)'''
 
 [[case]]
 construct = "worked_example"
-text = '''league=Standard class=ring rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60'''
-canonical = '''league=Standard class=ring rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60'''
+text = '''league=Standard class=Rings rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60'''
+canonical = '''league=Standard class=Rings rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60'''
 
 # Its route: a request's query, never a fragment.
 [[case]]
@@ -703,8 +703,8 @@ canonical = '''line(template:explode) or base:"Sadist Garb" or name="Kaom's Hear
 
 [[case]]
 construct = "acceptance.OQ4"
-text = '''class:staff "crucible"'''
-canonical = '''class:staff "crucible"'''
+text = '''class:staves "crucible"'''
+canonical = '''class:staves "crucible"'''
 
 [[case]]
 construct = "acceptance.OQ5"

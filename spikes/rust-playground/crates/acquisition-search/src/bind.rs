@@ -24,11 +24,14 @@
 //!   may turn case back on for itself: `(?-i)`.
 //! - **A closed set is a list here**: `rarity`, `frame`, the `is:` words,
 //!   a line's `source` and its flags — GGG's own spellings, as the census
-//!   of 2026-09-13 met them (22,721 items), matched in any case. `=` names
-//!   one value, `:` and `~` pick among the legal ones, and a word that
-//!   picks none is an authoring error with the near ones offered. A flag
-//!   or a source GGG adds is derived and shown the day it appears and
-//!   cannot be asked for until its list gains it.
+//!   of 2026-09-13 met them (22,721 items), matched in any case — and
+//!   `class`, whose list is the class table's names (`class.rs`, C106).
+//!   `=` names one value, `:` and `~` pick among the legal ones, and a
+//!   word that picks none is an authoring error with the near ones
+//!   offered. A flag or a source GGG adds is derived and shown the day it
+//!   appears and cannot be asked for until its list gains it.
+//! - **`reqlevel` is a number** the deriver reads from the `Level`
+//!   requirement (the build plan, step 6): `reqlevel=..30`, `-has:reqlevel`.
 //! - **Atomic terms are numbered by path** — `0`, `1`, `3.1` — as the
 //!   answer's terms block prints them (C93): a child of an and, an or or a
 //!   `holds` is `<parent>.<n>`, what a not negates or `undecided( … )`
@@ -62,16 +65,6 @@ pub struct NotBuilt {
 /// The one list (the build plan, rule 1). An entry leaves in the commit
 /// that builds its construct.
 pub const NOT_BUILT: &[NotBuilt] = &[
-    NotBuilt {
-        construct: "class:",
-        step: 6,
-        what: "an item's class is not a field; a class the search names is a derivation it owns, and an item it cannot class is shown unclassed (S53)",
-    },
-    NotBuilt {
-        construct: "reqlevel",
-        step: 6,
-        what: "the level an item requires, as a number",
-    },
     NotBuilt {
         construct: "pseudo.*",
         step: 7,
@@ -177,8 +170,6 @@ pub fn not_built(construct: &str) -> LanguageError {
 /// The construct of [`NOT_BUILT`] a field's name belongs to.
 fn unbuilt_field(name: &str) -> Option<&'static str> {
     match name {
-        "class" => Some("class:"),
-        "reqlevel" => Some("reqlevel"),
         "sockets" => Some("sockets"),
         "links" => Some("links"),
         "priced" => Some("has:priced"),
@@ -192,6 +183,14 @@ fn unbuilt_field(name: &str) -> Option<&'static str> {
 // ---- the vocabulary ------------------------------------------------------------
 
 pub(crate) const RARITIES: &[&str] = &["normal", "magic", "rare", "unique"];
+
+fn rarities() -> &'static [&'static str] {
+    RARITIES
+}
+
+fn frames() -> &'static [&'static str] {
+    FRAMES
+}
 
 /// GGG's `frameTypeId`, the nine the census met.
 pub(crate) const FRAMES: &[&str] = &[
@@ -228,7 +227,11 @@ pub(crate) enum Thing {
     Note,
     Rarity,
     Frame,
+    /// The class table's word for the item's base (`class.rs`).
+    Class,
     Ilvl,
+    /// The `Level` requirement, as a number.
+    ReqLevel,
     Stack,
     League,
     Tab,
@@ -237,10 +240,12 @@ pub(crate) enum Thing {
     Id,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum Kind {
     Text,
-    Closed(&'static [&'static str]),
+    /// The legal values, read when asked: a list this file holds, or the
+    /// class table's names.
+    Closed(fn() -> &'static [&'static str]),
     Number,
     Handle,
 }
@@ -286,20 +291,32 @@ pub(crate) const FIELDS: &[FieldDef] = &[
     FieldDef {
         name: "rarity",
         thing: Thing::Rarity,
-        kind: Kind::Closed(RARITIES),
+        kind: Kind::Closed(rarities),
         what: "GGG's rarity; a gem, a currency stack, a card has none",
     },
     FieldDef {
         name: "frame",
         thing: Thing::Frame,
-        kind: Kind::Closed(FRAMES),
+        kind: Kind::Closed(frames),
         what: "GGG's frameTypeId, on every item",
+    },
+    FieldDef {
+        name: "class",
+        thing: Thing::Class,
+        kind: Kind::Closed(crate::class::names),
+        what: "the item's class as the game names it, read from its base in the class table",
     },
     FieldDef {
         name: "ilvl",
         thing: Thing::Ilvl,
         kind: Kind::Number,
         what: "the item level; GGG's 0 is an item with none",
+    },
+    FieldDef {
+        name: "reqlevel",
+        thing: Thing::ReqLevel,
+        kind: Kind::Number,
+        what: "the level the item requires: its `Level` requirement's number; an item with no such requirement lacks it",
     },
     FieldDef {
         name: "stack",
@@ -838,15 +855,32 @@ pub(crate) fn unknown(
         .with_readings(near.into_iter().map(reading).collect())
 }
 
+/// A closed set's legal values; the class's are the table's, and a build
+/// whose table does not load says so rather than offering an empty list.
+pub(crate) fn values_of(def: &FieldDef) -> Result<&'static [&'static str], LanguageError> {
+    let Kind::Closed(list) = def.kind else {
+        return Ok(&[]);
+    };
+    if def.thing == Thing::Class {
+        crate::class::table().map_err(|e| {
+            LanguageError::new(
+                ErrorKind::Tree,
+                format!("the class table this build ships does not load: {e}"),
+            )
+        })?;
+    }
+    Ok(list())
+}
+
 fn test(def: &'static FieldDef, op: Op, value: &Value) -> Result<Atom, LanguageError> {
     match def.kind {
         Kind::Text => Ok(Atom::Text {
             thing: def.thing,
             test: text_test(def.name, op, value)?,
         }),
-        Kind::Closed(list) => Ok(Atom::Closed {
+        Kind::Closed(_) => Ok(Atom::Closed {
             thing: def.thing,
-            values: closed(def.name, list, op, value)?,
+            values: closed(def.name, values_of(def)?, op, value)?,
         }),
         Kind::Number => match op {
             Op::Contains | Op::Match => Err(LanguageError::new(
@@ -1006,6 +1040,15 @@ fn closed_set_readings(mut e: LanguageError, text: &str) -> LanguageError {
         first.extend(legal(RARITIES, word).map(|v| format!("rarity={v}")));
         if legal(RARITIES, word).is_none() {
             first.extend(legal(FRAMES, word).map(|v| format!("frame={v}")));
+        }
+        // `ring` → `class:ring` (the reference, *Item-level*): a word some
+        // class name holds picks it as `:` would
+        let lower = word.to_ascii_lowercase();
+        if crate::class::names()
+            .iter()
+            .any(|name| name.to_ascii_lowercase().contains(&lower))
+        {
+            first.push(format!("class:{word}"));
         }
         first.extend(legal(ITEM_FLAGS, word).map(|v| format!("is:{v}")));
     }

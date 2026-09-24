@@ -9,8 +9,8 @@
 //! # As built
 //!
 //! The language (the build plan, step 1), the derivation (step 2), the
-//! first surface (step 4) and the counts view (step 5): a request in, an
-//! answer out.
+//! first surface (step 4), the counts view (step 5) and the class table
+//! (step 6): a request in, an answer out.
 //!
 //! - [`tree`] — the query tree (C91): one typed value, and [`check`], what
 //!   a tree must satisfy to be one the language can say.
@@ -33,8 +33,11 @@
 //! - `group` — what `line( … )` means, computed once when the query is
 //!   bound: the one module that reads a group's tree for its meaning (the
 //!   build plan, step 4b; `tools/docs-check.sh` §7).
-//! - [`corpus`] — every live item of a scope, derived from one snapshot of
-//!   the store's read (C108) and held with its basis (C98).
+//! - [`class`] — the class table (C106): reviewed reference data shipped
+//!   in the binary, the item's class read from its base, and what the
+//!   search says when the table cannot class it (C93).
+//! - [`corpus`] — every live item of a scope, derived and classed from one
+//!   snapshot of the store's read (C108) and held with its basis (C98).
 //! - `eval` — a term asked of an item: matched, failed, lacked or
 //!   undecided, witnesses, sums, the sort scalar, the together count
 //!   (C92, C93).
@@ -79,6 +82,11 @@
 //! - **C104.** Pinned by `tests/language.rs`: the round trip over
 //!   generated trees and over the corpus (`tests/language.toml`), where
 //!   every construct of the reference has a case.
+//! - **C106.** The class table is [`class`]'s doc and
+//!   `reference/classes-v1.toml`'s header; pinned by `tests/class.rs`
+//!   (the shipped file, every reason the table gives, `undecided(class)`,
+//!   the count's tally, `show`) and `tests/acceptance.rs` (OQ1 and OQ4 as
+//!   worded, OQ5 askable).
 
 // The lint ratchet (C47): malformed input — a text, a tree — is a
 // structured error, never a panic. Tests may unwrap.
@@ -86,6 +94,7 @@
 
 pub mod answer;
 pub mod bind;
+pub mod class;
 pub mod corpus;
 pub mod counts;
 pub mod derive;
@@ -103,6 +112,7 @@ pub mod tree;
 
 pub use answer::{Answer, Request, answer};
 pub use bind::{NOT_BUILT, NotBuilt, Query, bind, not_built, parse_query};
+pub use class::{CLASS_TABLE_VERSION, ClassGap, ClassTable, ClassTableError, Classed};
 pub use corpus::{Basis, Corpus, Realm};
 pub use derive::{Facts, Item, Line, Part, Property, Shown, Slot, Unread, derive};
 pub use describe::{Describe, describe};

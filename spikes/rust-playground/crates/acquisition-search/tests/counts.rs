@@ -773,9 +773,9 @@ fn a_view_that_cannot_be_is_an_authoring_error() {
             "rarity",
         ),
         (
-            json!({ "counts": { "keys": ["class"] } }),
+            json!({ "counts": { "keys": ["sockets"] } }),
             "not_built",
-            "class: (step 6)",
+            "sockets (step 8)",
         ),
         (
             json!({ "counts": { "keys": ["price.currency"] } }),
@@ -1211,4 +1211,68 @@ fn c95_a_sum_of_item_sums_is_exact_between_items() {
         item("b", "", "Ring", "Rare", json!({ "explicitMods": rest })),
     ]);
     assert_eq!((one, two), (json!(0.0001), json!(0.0001)));
+}
+
+/// C105's first test as worded in the contract detail, with the class
+/// names the table gives (step 6): ten rare items by class — Rings 6,
+/// Wands 3, undecided 1 (an itemised beast, whose name is no base of the
+/// table), total 10; no `none`, since every item has a class.
+#[test]
+fn c105_ten_rare_items_by_class_sum_to_the_total() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("t1", "Rares")]), 10);
+    let rare = |id: &str, base: &str| item(id, "A Rare", base, "Rare", json!({}));
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "t1",
+        "Rares",
+        vec![
+            rare("ring1", "Iron Ring"),
+            rare("ring2", "Coral Ring"),
+            rare("ring3", "Ruby Ring"),
+            rare("ring4", "Amethyst Ring"),
+            rare("ring5", "Two-Stone Ring"),
+            rare("ring6", "Iron Ring"),
+            rare("wand1", "Driftwood Wand"),
+            rare("wand2", "Driftwood Wand"),
+            rare("wand3", "Driftwood Wand"),
+            rare("beast", "Dune Hellion"),
+        ],
+        20,
+    );
+    let a = counted(&s, "rarity=rare", &["class"]);
+    let table = &a["view"]["counts"]["tables"][0];
+    assert_eq!(table["values"], 2);
+    assert_eq!(
+        shape(table),
+        shaped(&[("Rings", 6), ("Wands", 3), ("(undecided)", 1)])
+    );
+    assert_eq!(bucket(table, "Rings")["term"], "class=Rings");
+    assert_eq!(
+        members(&s, bucket(table, "Rings")),
+        set(&["ring1", "ring2", "ring3", "ring4", "ring5", "ring6"])
+    );
+    assert_eq!(
+        members(&s, bucket(table, "Wands")),
+        set(&["wand1", "wand2", "wand3"])
+    );
+    let undecided = apart(table, "undecided");
+    assert_eq!(undecided["term"], "undecided(class)");
+    assert_eq!(members(&s, undecided), set(&["beast"]));
+    assert_eq!(
+        undecided["tally"],
+        json!([{ "unread": "the class: base not in the table", "items": 1 }])
+    );
+    assert!(
+        table["buckets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|b| b["bucket"] != "none")
+    );
+    let sum: u64 = shape(table).iter().map(|(_, n)| n).sum();
+    assert_eq!(sum, 10);
+    assert_eq!(a["total"]["matched"], 10);
 }

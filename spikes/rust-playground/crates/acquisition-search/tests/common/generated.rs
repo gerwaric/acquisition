@@ -366,7 +366,7 @@ fn plain() -> BoxedStrategy<Q> {
         ]),
         // an authoring error: never evaluated, and the same error however
         // the rest is written
-        1 => proptest::sample::select(vec!["nosuch=1", "class:ring", "is:crafted", "ilvl:84"]),
+        1 => proptest::sample::select(vec!["nosuch=1", "class:nosuch", "is:crafted", "ilvl:84"]),
     ]
     .prop_map(|text| Q::Plain(text.to_string()))
     .boxed()

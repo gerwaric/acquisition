@@ -508,7 +508,7 @@ fn the_json_form() {
                 "container": "items", "socketed_in": null, "first_seen": 100, "last_seen": 200, "removed_at": null
             },
             "name": null, "typeline": "Ring", "base": null, "rarity": null, "frame": "Magic",
-            "ilvl": 3, "item_level": "Item Level: 3", "stack": null, "note": null,
+            "ilvl": 3, "item_level": "Item Level: 3", "stack": null, "reqlevel": null, "note": null,
             "flags": ["identified"],
             "properties": [], "requirements": [], "requires": null,
             "lines": [{

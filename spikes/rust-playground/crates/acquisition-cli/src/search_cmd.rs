@@ -444,11 +444,12 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         ));
     }
     line(format!(
-        "basis   store {} · snapshot {} · facts v{} · derivation {}",
+        "basis   store {} · snapshot {} · facts v{} · derivation {} · classes v{}",
         a.basis.store,
         a.basis.snapshot.response,
         a.basis.snapshot.facts_version,
-        a.basis.derivation
+        a.basis.derivation,
+        a.basis.classes
     ));
 
     if !a.terms.is_empty() {
@@ -560,7 +561,7 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                         format!("{} ({})", text.replace('\n', " / "), kind.join(", "))
                     }
                     Evidence::Shown { part, text } => format!("{text} ({part})"),
-                    Evidence::Value { name, value } => format!("{name} {}", number(value)),
+                    Evidence::Value { name, value } => format!("{name} {}", json_text(value)),
                     Evidence::Undecided { path, term, reason } => format!(
                         "term {path} {term} is undecided: {} unread — {}; {}",
                         reason.unread, reason.problem, reason.hint
@@ -999,6 +1000,13 @@ fn shown_text(s: &Shown) -> String {
     if let Some(base) = &item.base {
         out.push_str(&format!("base    {base}\n"));
     }
+    // what the class table says (C106): the class, or why there is none
+    use acquisition_search::Classed;
+    match &s.class {
+        Classed::Is(class) => out.push_str(&format!("class   {class}\n")),
+        Classed::Open(why) => out.push_str(&format!("class   undecided: {}\n", why.problem)),
+        Classed::BaseUnread => out.push_str("class   undecided: the base was not read\n"),
+    }
     if let Some(stack) = item.stack {
         out.push_str(&format!("stack   {stack}\n"));
     }
@@ -1062,11 +1070,12 @@ fn shown_text(s: &Shown) -> String {
         ));
     }
     out.push_str(&format!(
-        "basis   store {} · snapshot {} · facts v{} · derivation {}\n",
+        "basis   store {} · snapshot {} · facts v{} · derivation {} · classes v{}\n",
         s.basis.store,
         s.basis.snapshot.response,
         s.basis.snapshot.facts_version,
-        s.basis.derivation
+        s.basis.derivation,
+        s.basis.classes
     ));
     if let Some(body) = &s.body {
         out.push_str(&format!("body    {body}\n"));

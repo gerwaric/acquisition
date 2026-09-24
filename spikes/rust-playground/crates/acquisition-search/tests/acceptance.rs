@@ -7,7 +7,7 @@
 
 mod common;
 
-use acquisition_search::{describe, show};
+use acquisition_search::{Request, describe, show};
 use acquisition_store::{Endpoint, Store};
 use common::*;
 use serde_json::{Value, json};
@@ -181,9 +181,9 @@ fn shown_lines(row: &Value) -> Vec<String> {
         .collect()
 }
 
-const OQ1: &str = "base:ring rarity=rare (line(template:resistance) or line(template:strength))";
+const OQ1: &str = "class:ring rarity=rare (line(template:resistance) or line(template:strength))";
 
-/// OQ1, with `base:ring` where step 6 will say `class:ring`: the query
+/// OQ1 as worded (step 6: `class:ring` over the class table): the query
 /// names the lines it wants to see, so the rows show them; a ring with
 /// neither line must not appear; refined by a fractured line.
 #[test]
@@ -192,6 +192,23 @@ fn oq1_a_rare_ring_for_resistances_or_attributes_with_its_lines_on_the_row() {
     let a = asked(&s, OQ1);
     assert_eq!(ids(&a), ["ring_frac", "ring_res", "ring_str"]);
     assert_eq!(a["scope"]["items"], 12);
+    // step 4's spelling, by the base, finds the same
+    assert_eq!(
+        ids(&asked(
+            &s,
+            "base:ring rarity=rare (line(template:resistance) or line(template:strength))"
+        )),
+        ids(&a)
+    );
+    // `class:ring` resolved to the one class whose name holds the word,
+    // shown beside the selector as authored (invariant 2); every ring of
+    // the fixture is of it, whatever its rarity
+    assert_eq!(a["terms"][0]["term"], "class:ring");
+    assert_eq!(
+        a["terms"][0]["resolved"]["values"],
+        json!([{ "value": "Rings", "items": 6 }])
+    );
+    assert_eq!(a["terms"][0]["matched"]["count"], 6);
     let row = |id: &str| {
         a["rows"]
             .as_array()
@@ -330,16 +347,33 @@ fn oq3_a_mod_a_base_a_unique_each_its_own_query() {
     );
 }
 
-/// OQ4: a staff by what is remembered of it, item and tab; `--describe
-/// league` says place, never origin (S177).
+/// OQ4 as worded (step 6): a staff by what is remembered of it — its
+/// class, a phrase — item and tab; `--describe league` says place, never
+/// origin (S177). The game's words are `Staves` and `Warstaves`, which
+/// `class:staves` picks both of (a Judgement Staff is a warstaff), and a
+/// word no class name holds is an authoring error offering the near one,
+/// never a match made for the author (S107).
 #[test]
 fn oq4_a_staff_by_what_is_remembered_and_league_is_place_never_origin() {
     let s = stash();
-    let a = asked(&s, r##"base:staff "spell skill""##);
+    let a = asked(&s, r##"class:staves "spell skill""##);
     assert_eq!(ids(&a), ["staff"]);
-    assert_eq!(a["rows"][0]["place"]["name"], "Crucible leftovers");
     assert_eq!(
         a["rows"][0]["matched"][0]["shows"][0],
+        json!({ "value": { "name": "class", "value": "Warstaves" } })
+    );
+    let e = ask(&load(&s, Some("pc")), r##"class:staff "spell skill""##)
+        .unwrap_err()
+        .to_json();
+    assert_eq!(e["kind"], "unknown_value");
+    // `staff` is three edits from `Staves`, past what near names reach,
+    // so the offer is the whole list (an observation for the seat)
+    let readings = e["readings"].as_array().unwrap();
+    assert!(readings.len() > 50 && readings.contains(&json!("class=Staves")));
+    assert_eq!(ids(&asked(&s, r##"base:staff "spell skill""##)), ["staff"]);
+    assert_eq!(a["rows"][0]["place"]["name"], "Crucible leftovers");
+    assert_eq!(
+        a["rows"][0]["matched"][1]["shows"][0],
         json!({ "shown": { "part": "explicit line", "text": "+2 to Level of all Spell Skill Gems" } })
     );
     assert_eq!(ids(&asked(&s, "tab:crucible")), ["chaos", "staff"]);
@@ -646,4 +680,145 @@ fn c100_show_is_the_derived_item_and_the_stored_body_on_request() {
         show(&s, "odd", false).unwrap_err().to_json()["kind"],
         "item_not_live"
     );
+}
+
+/// OQ5, askable as worded (step 6): a level bracket across tabs by
+/// class, with `reqlevel` and its absence. The fixture holds the
+/// distractors the bracket alone admits — a low-level gem, a flask, a
+/// currency stack with no level requirement at all — and none appears;
+/// a pair of boots whose requirements could not be read is undecided,
+/// since an unread requirements array satisfies neither side. Whether
+/// OQ5 is *covered* — a grouping above class — is the owner's (the plan,
+/// "Parks whose triggers the build fires").
+#[test]
+fn oq5_leveling_gear_by_class_and_level_bracket_askable_as_worded() {
+    let mut s = store();
+    list_tabs(
+        &mut s,
+        "pc",
+        "Standard",
+        json!([tab("l1", "Leveling"), tab("l2", "Odds")]),
+        10,
+    );
+    let requires = |level: &str| json!({ "requirements": [{ "name": "Level", "values": [[level, 0]], "displayMode": 0 }] });
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "l1",
+        "Leveling",
+        vec![
+            item(
+                "boots",
+                "Dusk Stride",
+                "Iron Greaves",
+                "Rare",
+                requires("20"),
+            ),
+            item(
+                "gloves",
+                "Grim Grip",
+                "Iron Gauntlets",
+                "Rare",
+                requires("45"),
+            ),
+            item("helm", "", "Iron Hat", "Normal", json!({})),
+            json!({ "id": "gem", "name": "", "typeLine": "Fireball", "baseType": "Fireball",
+                    "frameTypeId": "Gem", "identified": true, "ilvl": 0, "x": 0, "y": 0,
+                    "requirements": [{ "name": "Level", "values": [["1", 0]], "displayMode": 0 }] }),
+        ],
+        20,
+    );
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "l2",
+        "Odds",
+        vec![
+            item("flask", "", "Small Life Flask", "Normal", requires("3")),
+            json!({ "id": "chaos", "name": "", "typeLine": "Chaos Orb", "baseType": "Chaos Orb",
+                    "frameTypeId": "Currency", "identified": true, "ilvl": 0, "stackSize": 7, "x": 1, "y": 0 }),
+            item(
+                "odd",
+                "Odd Tread",
+                "Iron Greaves",
+                "Rare",
+                json!({ "requirements": "Level 12" }),
+            ),
+        ],
+        21,
+    );
+    let a = asked(
+        &s,
+        "(class:boots or class:gloves or class:helmet) (reqlevel=..30 or -has:reqlevel)",
+    );
+    assert_eq!(ids(&a), ["boots", "helm"]);
+    assert_eq!(a["total"]["undecided"]["count"], 1);
+    // the level required is a number; its absence is known only where
+    // the requirements were readable
+    let term = |path: &str| {
+        a["terms"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["path"] == path)
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(term("1.0")["term"], "reqlevel=..30");
+    assert_eq!(
+        (
+            &term("1.0")["matched"]["count"],
+            &term("1.0")["failed"]["count"],
+            &term("1.0")["lacked"]["count"],
+            &term("1.0")["undecided"]["count"]
+        ),
+        (&json!(3), &json!(1), &json!(2), &json!(1))
+    );
+    // the not's child is the atomic term; its absence is known on the two
+    // items whose requirements were read and hold none
+    assert_eq!(term("1.1.0")["term"], "has:reqlevel");
+    assert_eq!(
+        (
+            &term("1.1.0")["matched"]["count"],
+            &term("1.1.0")["lacked"]["count"],
+            &term("1.1.0")["undecided"]["count"]
+        ),
+        (&json!(4), &json!(2), &json!(1))
+    );
+    // the same bracket counted by tab: a set of items across tabs
+    let counted: Request = serde_json::from_value(json!({
+        "scope": { "realm": "pc" },
+        "query": { "text": "(class:boots or class:gloves or class:helmet) (reqlevel=..30 or -has:reqlevel)" },
+        "view": { "counts": { "keys": ["tab", "class"] } },
+    }))
+    .unwrap();
+    let c = as_json(&acquisition_search::answer(&load(&s, Some("pc")), &counted).unwrap());
+    let table = &c["view"]["counts"]["tables"][1];
+    assert_eq!(table["key"], "class");
+    assert_eq!(
+        (&table["buckets"][0]["value"], &table["buckets"][0]["count"]),
+        (&json!("Boots"), &json!(1))
+    );
+    assert_eq!(
+        (&table["buckets"][1]["value"], &table["buckets"][1]["count"]),
+        (&json!("Helmets"), &json!(1))
+    );
+    assert_eq!(c["view"]["counts"]["tables"][0]["key"], "tab");
+    // `--sort reqlevel` orders the bracket, an item with none last
+    let sorted: Request = serde_json::from_value(json!({
+        "scope": { "realm": "pc" },
+        "query": { "text": "class:boots or class:gloves or class:helmet" },
+        "view": { "rows": { "sort": "reqlevel", "desc": true } },
+    }))
+    .unwrap();
+    let sorted = as_json(&acquisition_search::answer(&load(&s, Some("pc")), &sorted).unwrap());
+    let order: Vec<&str> = sorted["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(order, ["gloves", "boots", "helm", "odd"]);
 }

@@ -21,7 +21,8 @@ use acquisition_store::corpus::{LocationRow, RealmScope};
 use serde::Serialize;
 
 use crate::answer::command;
-use crate::corpus::{Basis, Place, locations, placed};
+use crate::class::Classed;
+use crate::corpus::{Basis, Place, class_table, locations, placed};
 use crate::derive::{Facts, Item, Line, derive};
 use crate::describe::limit;
 use crate::error::SearchError;
@@ -33,6 +34,8 @@ pub struct Shown {
     pub place: Place,
     /// The item without its lines, which follow with their slots.
     pub item: Item,
+    /// What the class table says of it (`class.rs`).
+    pub class: Classed,
     pub lines: Vec<ShownLine>,
     /// The stored body as text, when asked for.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -52,6 +55,7 @@ pub struct ShownLine {
 
 /// One live item by id, derived, with its body when `body` is set.
 pub fn show(store: &Store, id: &str, body: bool) -> Result<Shown, SearchError> {
+    let table = class_table()?;
     let found = store
         .read_corpus(RealmScope::All, |header, rows| {
             let basis = Basis::of(store, header);
@@ -93,6 +97,7 @@ pub fn show(store: &Store, id: &str, body: bool) -> Result<Shown, SearchError> {
     Ok(Shown {
         basis,
         place,
+        class: table.classify(&item),
         item,
         lines,
         body: body.then_some(stored),

@@ -61,6 +61,15 @@
 //!   2026-09-19). A phrase is tested against the row.
 //! - **The item level** is a field, `ilvl`, and a displayed string, `Item
 //!   Level: 84`, where the item has one (owner, 2026-09-19).
+//! - **The level required** is a field, `reqlevel`: the `Level`
+//!   requirement's number, read from the row the item displays (the build
+//!   plan, step 6). An item with no such requirement lacks it — known
+//!   absence, so `-has:reqlevel` finds it while `requirements` was
+//!   readable — and one whose value is no whole number is unread under
+//!   `reqlevel` alone, the row itself still a displayed string.
+//! - **The class is not the deriver's** (C103, C106): `class.rs` reads it
+//!   from the base in the class table, and says under [`Part::Class`] why
+//!   it could not.
 //! - **A yes or no that is neither** is unread, never a no (C93): a key
 //!   of [`ITEM_FLAGS`] or of `influences` whose value is no boolean is
 //!   unread under that key — `influences.hunter`, so that a no beside it
@@ -82,6 +91,7 @@
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Map, Value};
 
+pub use crate::class::ClassGap;
 use crate::template;
 use crate::tree::Number;
 
@@ -125,6 +135,8 @@ pub struct Item {
     pub item_level: Option<String>,
     /// GGG's `stackSize`.
     pub stack: Option<i64>,
+    /// The `Level` requirement, as a number; absent on an item with none.
+    pub reqlevel: Option<i64>,
     pub note: Option<String>,
     /// Every yes the body says: a top-level boolean that is true, and the
     /// true keys of `influences`, as GGG spells them, sorted.
@@ -195,7 +207,8 @@ pub struct Unread {
 pub enum Part {
     /// The body is not a JSON object: nothing it displays was read.
     Body,
-    /// A field or flag, by the body's key.
+    /// A field or flag, by the body's key; `reqlevel`, the `Level`
+    /// requirement's number, by its own name.
     Field(String),
     /// A property-shaped array, by the body's key.
     Properties(String),
@@ -206,6 +219,9 @@ pub enum Part {
     Flags(String),
     /// A number of a line of that source: only what asks that slot.
     Numbers(String),
+    /// The class, which the class table could not give the base
+    /// (`class.rs`): only what asks the class.
+    Class(ClassGap),
 }
 
 /// What a slot word names on one occurrence.
@@ -289,6 +305,7 @@ pub fn derive(facts: Facts, body: &str) -> Item {
         ilvl: None,
         item_level: None,
         stack: None,
+        reqlevel: None,
         note: None,
         flags: Vec::new(),
         properties: Vec::new(),
@@ -327,6 +344,7 @@ pub fn derive(facts: Facts, body: &str) -> Item {
         let each: Vec<&str> = item.requirements.iter().map(|r| r.text.as_str()).collect();
         item.requires = Some(format!("Requires {}", each.join(", ")));
     }
+    item.reqlevel = item.read_reqlevel();
     let mut sources: Vec<(&str, String, &Value)> = body
         .iter()
         .filter(|(key, _)| !NOT_LINES.contains(&key.as_str()))
@@ -443,6 +461,28 @@ impl Item {
                     None
                 }
             },
+        }
+    }
+
+    /// The `Level` requirement's number (the module doc): a value that is
+    /// no whole number is unread under `reqlevel`, and only that.
+    fn read_reqlevel(&mut self) -> Option<i64> {
+        let value = self
+            .requirements
+            .iter()
+            .find(|r| r.name.eq_ignore_ascii_case("Level"))?
+            .values
+            .first()?
+            .clone();
+        match value.trim().parse::<i64>() {
+            Ok(n) => Some(n),
+            Err(_) => {
+                self.unread(
+                    Part::Field("reqlevel".to_string()),
+                    format!("`requirements`: `Level` is `{value}`, not a whole number"),
+                );
+                None
+            }
         }
     }
 

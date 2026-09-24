@@ -11,7 +11,9 @@
 
 use serde::Serialize;
 
-use crate::bind::{self, FIELDS, ITEM_FLAGS, Kind, LINE_FLAGS, NOT_BUILT, NotBuilt, SOURCES};
+use crate::bind::{
+    self, FIELDS, ITEM_FLAGS, Kind, LINE_FLAGS, NOT_BUILT, NotBuilt, SOURCES, Thing,
+};
 use crate::error::{ErrorKind, LanguageError};
 
 #[derive(Debug, Clone, Serialize)]
@@ -108,11 +110,32 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
                 Kind::Text => ("text", Vec::new()),
                 Kind::Number => ("number", Vec::new()),
                 Kind::Handle => ("id", Vec::new()),
-                Kind::Closed(list) => ("closed set", list.to_vec()),
+                Kind::Closed(list) => ("closed set", list().to_vec()),
+            };
+            // the class prints its definition and its source version
+            // (C106's clause (c)); a table that does not load says so
+            let (what, examples) = match f.thing {
+                Thing::Class => (
+                    match crate::class::table() {
+                        Ok(table) => table.definition(),
+                        Err(e) => {
+                            format!("{} — the table this build ships does not load: {e}", f.what)
+                        }
+                    },
+                    vec![
+                        "class:ring",
+                        "class=Rings",
+                        "class:sword",
+                        "undecided(class)",
+                    ],
+                ),
+                Thing::ReqLevel => (f.what.to_string(), vec!["reqlevel=..30", "-has:reqlevel"]),
+                _ => (f.what.to_string(), Vec::new()),
             };
             Named {
                 values,
-                ..named(f.name, kind, f.what)
+                examples,
+                ..named(f.name, kind, &what)
             }
         })
         .collect();

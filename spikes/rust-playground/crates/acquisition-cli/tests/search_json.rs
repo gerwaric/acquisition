@@ -681,11 +681,12 @@ fn c11_a_failure_is_structured_and_a_later_steps_flag_is_refused_by_name() {
     seed(&base);
     for (args, kind) in [
         (vec!["search", "rare"], "bare_word"),
-        (vec!["search", "class:ring"], "not_built"),
+        (vec!["search", "sockets>=1"], "not_built"),
+        (vec!["search", "class:staff"], "unknown_value"),
         (vec!["search", "--fields", "name"], "not_built"),
         (vec!["search", "--view", "locations"], "not_built"),
         (vec!["search", "--count", "rarty"], "unknown_name"),
-        (vec!["search", "--count", "class"], "not_built"),
+        (vec!["search", "--count", "price.currency"], "not_built"),
         (vec!["search", "--sum", "stack"], "view"),
         (vec!["search", "--count", "tab", "--sort", "ilvl"], "view"),
         (
@@ -791,7 +792,9 @@ fn describe_and_show_print_json_whole_and_text_from_it() {
             "note",
             "rarity",
             "frame",
+            "class",
             "ilvl",
+            "reqlevel",
             "stack",
             "league",
             "tab",

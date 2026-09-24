@@ -17,12 +17,12 @@ regex-syntax = "0.8"
 sha2 = "0.10"
 serde.workspace = true
 serde_json.workspace = true
+# the class table, a reviewed TOML file compiled into the binary (class.rs, C106)
+toml.workspace = true
 
 [dev-dependencies]
-# the tests' only: proptest generates the trees the round trip runs over,
-# toml reads the language corpus (`tests/language.toml`)
+# the tests' only: proptest generates the trees the round trip runs over
 proptest = "1.11.0"
 # invariant 6's dump of every table; the store's own version and features,
 # so the test build links the one SQLite the store does (C84)
 rusqlite = { version = "0.32", features = ["bundled", "hooks"] }
-toml.workspace = true

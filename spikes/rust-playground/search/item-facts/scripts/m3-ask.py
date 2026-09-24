@@ -41,6 +41,10 @@ ASKS = [
     ("--count base --sum stack", ["frame=currency", "--count", "base", "--sum", "stack"]),
     ("the vocabulary, twice narrowed", ["rarity=rare base:ring", "--count", "line:resist,life"]),
     ("the vocabulary whole", ["", "--count", "line"]),
+    # step 6: the class table
+    ("OQ1 as worded (class:ring)", ['class:ring rarity=rare (line(template:resistance) or line(template:strength))']),
+    ("OQ5 by class and level", ['(class:boots or class:gloves or class:helmet) (reqlevel=..30 or -has:reqlevel)']),
+    ("--count class", ["", "--count", "class"]),
 ]
 
 def main():

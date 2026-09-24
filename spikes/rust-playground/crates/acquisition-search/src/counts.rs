@@ -440,7 +440,7 @@ fn bucket_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs) -> Of {
     }
     match (eval::texts(held, def.thing).first(), def.kind) {
         (None, _) => Of::None,
-        (Some(value), bind::Kind::Closed(list)) => match bind::legal(list, value) {
+        (Some(value), bind::Kind::Closed(list)) => match bind::legal(list(), value) {
             Some(legal) => Of::Text(legal.to_string()),
             None => Of::Unlisted(value.to_string()),
         },
