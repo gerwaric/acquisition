@@ -69,9 +69,12 @@
 //!   `Level` row with no value, several, or a value that is no whole
 //!   number; two `Level` rows; an element of `requirements` that could not
 //!   be read and might be the `Level` row — its name unreadable or
-//!   `Level` — and the array itself not being one. A `Level` that was read
-//!   is a witness to its number whatever else in the array was not (the
-//!   step-6 review, 1 and 2). The row itself stays a displayed string.
+//!   `Level` — and the array itself not being one. One status, which a
+//!   comparison, a sort and a sum all read: the number is established
+//!   exactly when nothing is unread under `reqlevel`, so a `Level` that
+//!   was read stands beside an unread `Str` and does not beside an
+//!   unread element that may be a second `Level` (the step-6 reviews, 1
+//!   and 2). The row itself stays a displayed string.
 //! - **The class is not the deriver's** (C103, C106): `class.rs` reads it
 //!   from the base in the class table, and says under [`Part::Class`] why
 //!   it could not.
@@ -349,7 +352,14 @@ pub fn derive(facts: Facts, body: &str) -> Item {
         let each: Vec<&str> = item.requirements.iter().map(|r| r.text.as_str()).collect();
         item.requires = Some(format!("Requires {}", each.join(", ")));
     }
-    item.reqlevel = item.read_reqlevel();
+    // one status: the number stands only while nothing under `reqlevel`
+    // is unread — an unread element may be a second `Level` row
+    item.reqlevel = item.read_reqlevel().filter(|_| {
+        !item
+            .unread
+            .iter()
+            .any(|u| u.part == Part::Field("reqlevel".to_string()))
+    });
     let mut sources: Vec<(&str, String, &Value)> = body
         .iter()
         .filter(|(key, _)| !NOT_LINES.contains(&key.as_str()))
@@ -501,8 +511,9 @@ impl Item {
     /// An element of `requirements` that could not be read, or the array
     /// itself: the `Level` row may be among what was lost.
     fn level_may_be_lost(&mut self, at: &str, element: Option<&Value>) {
+        // the name as the reader normalises it: `[Level]` is `Level`
         let could_be_level = match element.and_then(|e| e.get("name")) {
-            Some(Value::String(name)) => name.eq_ignore_ascii_case("Level"),
+            Some(Value::String(name)) => shown(name).eq_ignore_ascii_case("Level"),
             _ => true,
         };
         if could_be_level {

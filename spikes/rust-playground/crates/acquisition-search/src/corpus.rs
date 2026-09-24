@@ -47,7 +47,7 @@ use crate::error::SearchError;
 
 /// The version of [`derive()`]'s reading of a body: it moves when the same
 /// body would derive to another item.
-pub const DERIVATION: u32 = 6;
+pub const DERIVATION: u32 = 7;
 
 /// The realms GGG has (owner, 2026-09-20: "the full list").
 pub const REALMS: [&str; 4] = ["pc", "xbox", "sony", "poe2"];

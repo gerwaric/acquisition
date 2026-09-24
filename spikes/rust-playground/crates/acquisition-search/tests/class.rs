@@ -472,3 +472,89 @@ fn review_every_reading_a_class_error_offers_binds() {
     let e = ask(&corpus, "class:bodyarmour").unwrap_err().to_json();
     assert_eq!(e["readings"][0], "class=\"Body Armours\"");
 }
+
+/// The second review's findings 1 and 2: one status for `reqlevel` — a
+/// read `Level` beside an element that may be a second `Level` row is
+/// not established, for a comparison, a sort and a sum alike — and a
+/// `[Level]` row, which the reader shows as `Level`, is told as one
+/// when it could not be read.
+#[test]
+fn review_two_reqlevel_has_one_status_and_markup_hides_no_level_row() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("r2", "Req")]), 10);
+    let req = |rows: Value| json!({ "requirements": rows });
+    let level = json!({ "name": "Level", "values": [["10", 0]], "displayMode": 0 });
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "r2",
+        "Req",
+        vec![
+            item("unnamed", "", "Iron Ring", "Rare", req(json!([level, 42]))),
+            item(
+                "twinbad",
+                "",
+                "Iron Ring",
+                "Rare",
+                req(json!([level, { "name": "Level", "values": "no" }])),
+            ),
+            item(
+                "marked",
+                "",
+                "Iron Ring",
+                "Rare",
+                req(json!([{ "name": "[Level]", "values": false, "displayMode": 0 }])),
+            ),
+            item(
+                "named",
+                "",
+                "Iron Ring",
+                "Rare",
+                req(json!([level, { "name": "Str", "values": "no" }])),
+            ),
+        ],
+        20,
+    );
+    // finding 1: neither a match nor a failure nor a complete sum
+    assert_eq!(asked(&s, "pc", "reqlevel=10")["total"]["matched"], 1);
+    assert_eq!(ids(&asked(&s, "pc", "reqlevel=10")), ["named"]);
+    assert_eq!(counts(&asked(&s, "pc", "reqlevel>30"), "0"), (0, 1, 0, 3));
+    assert_eq!(
+        ids(&asked(&s, "pc", "undecided(reqlevel)")),
+        ["marked", "twinbad", "unnamed"]
+    );
+    let summed: Request = serde_json::from_value(json!({
+        "scope": { "realm": "pc" },
+        "query": { "text": "" },
+        "view": { "counts": { "keys": ["tab"], "sum": "reqlevel" } },
+    }))
+    .unwrap();
+    let c = as_json(&answer(&load(&s, Some("pc")), &summed).unwrap());
+    assert_eq!(
+        c["view"]["counts"]["sum"],
+        json!({ "name": "reqlevel", "value": 10, "lacking": 0, "incomplete": true, "unread": 3 })
+    );
+    let sorted: Request = serde_json::from_value(json!({
+        "scope": { "realm": "pc" },
+        "query": { "text": "" },
+        "view": { "rows": { "sort": "reqlevel" } },
+    }))
+    .unwrap();
+    let r = as_json(&answer(&load(&s, Some("pc")), &sorted).unwrap());
+    assert_eq!(r["rows"][0]["id"], "named");
+    assert!(r["rows"][1]["sort"]["status"].is_string());
+    // finding 2: `[Level]` is a Level row, so its loss is said
+    assert_eq!(asked(&s, "pc", "-has:reqlevel")["total"]["matched"], 0);
+    let shown = serde_json::to_value(show(&s, "marked", false).unwrap()).unwrap();
+    assert_eq!(shown["item"]["reqlevel"], Value::Null);
+    assert!(
+        shown["item"]["unread"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|u| u["of"] == "reqlevel")
+    );
+    // the review's third finding: the derivation moved
+    assert_eq!(shown["basis"]["derivation"], 7);
+}
