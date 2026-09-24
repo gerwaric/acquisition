@@ -543,7 +543,7 @@ fn c98_a_held_corpus_answers_at_its_basis_and_the_check_sees_the_change() {
     );
 }
 
-/// C98 — the basis names the store (the first audit of step 4, finding 7;
+/// C98 — the basis names the store (outside audit, 2026-09-20;
 /// owner, 2026-09-20: "(a') now and park (c)"): two facts files of one
 /// account at one revision are two stores, their bases differ, and a
 /// corpus read from one is not current against the other.

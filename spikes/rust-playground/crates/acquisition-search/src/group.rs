@@ -141,7 +141,7 @@ fn truth(member: &BMember, line: &Line) -> Truth {
         },
         // GGG's spelling in any case, as the word was bound (B2): the
         // vocabulary counts a flag by its legal spelling and routes by it,
-        // and the two must be one compare (the step-5 audit, 5)
+        // and the two must be one compare (outside audit, 2026-09-22)
         BMember::Is(flag) if line.flags.iter().any(|f| f.eq_ignore_ascii_case(flag)) => Truth::True,
         BMember::Is(flag) => {
             if line.flags_unread
@@ -268,7 +268,7 @@ impl Group {
     /// The one template test the selector is, when it is nothing else:
     /// then what the group resolved to is exactly what the vocabulary
     /// narrowed by that test lists, and the answer can route to the rest
-    /// of it (the step-5 audit, 3).
+    /// of it (outside audit, 2026-09-22).
     pub fn sole_template_test(&self) -> Option<(Op, String)> {
         match &self.selector_tree {
             Member::Test {

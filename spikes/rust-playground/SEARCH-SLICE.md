@@ -18,9 +18,9 @@ The rulings are `decisions/search.md` (C89–C107) and `decisions/store.md`
 `search/DIGEST.md`; the properties are pinned by the tests named below.
 Nothing here is a second authority.
 
-Reading a search change before reviewing one: the findings table below
-is the checklist, and `REFRESH-SLICE.md`'s beside it for the store's
-read.
+Reviewing a search change: the shapes of fault below are the
+checklist, and `REFRESH-SLICE.md`'s findings table beside them for the
+store's read.
 
 ## How the design was reached
 
@@ -62,188 +62,35 @@ the plan's step table.
 
 ## Findings
 
-Every outside audit and review of the build, its verdict, then one row
-per finding: the round, the commit that fixed it, the finding as the
-auditor found it (its verdict where it said more than *confirmed*), and
-the property, test or code that holds it now. Each finding was reproduced
-by the builder before it was taken.
+Every step was reviewed from outside — three to five looks at each,
+every finding reproduced by the builder as a failing test before it was
+taken — and a finding a test holds is held there and nowhere else (P5):
+the test names the fault, the commit that fixed it tells the story, and
+`git log` over the step's range is the ledger of rounds. Every finding
+of steps 1 to 6 is held by a test, by a measurement below, or by a
+ruled hole; the full table — each finding as the auditor found it, its
+verdict, its fix commit and what holds it — is this file at `aeeba6d3`.
+What this section keeps is the checklist a review of a search change
+reads first: the shapes of fault that came back until they were named.
 
-- **An outside audit of the build (2026-09-20), each finding verified
-  before it was taken.** All three are the header failing the reference's
-  scope line — `1 never fetched · location list seen 2h ago`.
-- **An outside audit of the build at `28606ed4` (2026-09-20), each
-  finding reproduced with a fixture of the builder's own before it was
-  taken.** Verdict of the audit: keep step 4 open. Finding 7 and B2–B11
-  were ruled 2026-09-20 (owner: "Otherwise agree with all you
-  recommendations"); B1 the same day; the reference carries them since
-  (owner, on the text proposed: "R1-12 are approved"), and a seventh
-  invariant of the surface with them — that parentheses group and do
-  nothing else — the builder's proposal, approved the same day. Nothing of
-  step 4 waits on the owner now; what is left is 4b's.
-- **A second audit, of the fixes at `ed1b5446` (2026-09-20), each
-  finding reproduced before it was taken.** Findings 7 and 8 of the first
-  stand as it left them.
-- **A third audit, of the fixes at `ad5589c9` (2026-09-20)**, which
-  found the earlier reproductions passing and two gaps more; its own check
-  of counts against routes ran over 2,000 generated queries. After it the
-  builder walked every function that reads a group's tree, found the rest
-  recursing and one reading by position — step 1's slot check — and
-  recorded it as never a wrong answer, only a missing error. The fourth
-  audit showed that record wrong.
-- **A fourth audit, of the fixes at `b2b8d5fb` (2026-09-20)**: both
-  third-round fixes held, no defect found in `show`, three more.
-- **A fifth audit, of step 4b at `ef381909` (Astra, 2026-09-21)**, the
-  one this step closes on: keep `group.rs`; six defects of the first
-  surface that four generated suites had passed over, none of them the
-  extraction's, and two corrections. Each reproduced as a failing test
-  before it was taken (`tests/fifth_audit.rs`; the CLI's `search_json.rs`
-  for 5). Yield by round: 6, 5, 2, 3, 6 — and a seventh, found the same
-  day by the check the audit asked for.
-- **The audit's review of those fixes (`c4fc8f13`–`15fc914a`), the same
-  day**: they hold; three follow-ups, each reproduced as a failing test
-  first, fixed at `7f5fd962`.
-- **Its review of `783461e7`, 2026-09-22**: the command and the reasons
-  hold; two defects and a stale check, each reproduced first, fixed at
-  `4e591ddc` and `f7318421`. Yield of the three looks at step 4b: 6, 3, 3
-  — and one each day found by the checks they asked for.
-- **Its last look, at `8083c465`, the same day**: the three fixes hold, no
-  new matching or arithmetic defect; one defect of explanation (the row
-  below). Yields of the four looks: 6, 3, 3, 1.
-- **Step 4b closed** (owner, 2026-09-22, on the audit's last word: "With
-  that, i think we are ready to close"). The audit's, of `b4d7a7d0`: the
-  occurrence association fixes the remaining finding, no further blocker,
-  "No additional abstraction or audit round is warranted by the evidence
-  here. Step 5, then the owner's seat, is the right next move"; it asked
-  that the fixed occurrence case stay beside the generated checks, which
-  cover different failures, and it did not repeat the full gate or the
-  census measurement, which the builder ran (M2: 0 unread, 0 unexplained).
-  What the step closed on, against its ledger row: the properties green in
-  the gate, each shown able to fail; §7's rule with its breakers (56 ok
-  at the close); step 4's tests green — untouched by part 2, and step 2's
-  `tests/derive.rs` re-pinned for cause at the third review; the outside
-  audit, four looks, 6, 3, 3, 1; M3 (below).
-- **An outside audit of step 5 at `57539f65` (2026-09-22)**: six
-  findings, each reproduced by the auditor's own fixture and then by the
-  builder before it was taken; all six confirmed, one wider than found.
-  Its verdict: localized fixes, no new layer, E1–E5 to the owner as they
-  stand. Fixed at `6f352523`; the regressions live in
-  `tests/counts.rs` and the CLI's `search_json.rs`, never in a suite of
-  the audit's own. Its seven assertions rerun against the fixes: six pass,
-  and the seventh asserts the old continuation text is still printed,
-  which is what the fix removed. M2 again: 0 unread, 0 unexplained. M3
-  again, release: 269–306 ms, within noise of the step's row. The audit
-  also asked that `--sum`'s operator error stop offering a line's slot
-  while E2 stands: it names `ilvl, stack, or the item's sum( … )` now.
-- **Its review of those fixes (`6f352523`), the same day**: 1, 5 and 6
-  hold; three follow-ups on 2–4, each reproduced first, fixed at
-  `99bd0962`; its three assertions rerun against the fixes pass. M2
-  again: 0 unread, 0 unexplained. M3 again, release: 270–306 ms.
-- **Its last look, at `99bd0962`**: the three hold, its reproducers
-  pass, "no remaining blocker"; the one ignored test it saw is the
-  completion property's measured half, run by hand. Yield of the three
-  looks at step 5: 6, 3, 0. "The owner's seat, including E1–E5, is the
-  right next step."
-- **An outside review of step 6 at `eeaec66e` (2026-09-23)**: keep the
-  step open — three bugs, each reproduced by the reviewer and then by the
-  builder as a failing test before it was taken, and two closure gaps;
-  "the fixes appear localized; I found no reason for another abstraction
-  or restructuring", and it asked that the generated properties reach
-  `reqlevel`, where the first two escaped. Fixed at `20558843`; the
-  regressions are in `tests/class.rs`; `reqlevel` is in the generators
-  (`tests/common/generated.rs`), its hole the first finding's shape, and
-  the completion property catches that finding undone — tried.
-- **Its review of those fixes (`20558843`), the same day**: the
-  reproducers pass, the OQ5 narrowing accepted ("explicitly pending, not
-  falsely claimed as covered"); three follow-ups and two corrections of
-  the record, each reproduced first, fixed at `457f6e71`; the
-  reproducer shown failing under each fix undone. Yield of the two
-  looks: 5, 3.
-- **Its last look, at `457f6e71`, the same day**: "No new findings" —
-  the three fixes hold, its reproducers pass, the record's corrections
-  are present; "No further implementation blocker found; OQ5/G6 remains
-  explicitly pending your ruling." Yield of the three looks at step 6:
-  5, 3, 0. Whether the step closes on that is the owner's, with G6.
-- **Step 6 closed** (owner, 2026-09-23: "Yes, let's close step 6").
-  What it closed on, against the plan's step row: OQ1's slot — OQ1 as
-  worded, `class:ring`, and OQ4 with it; OQ5 — pinned from the owner's
-  words, the grouping above class kept parked on his ruling (G6);
-  C105's test as worded — ten rare items by class, Rings 6, Wands 3,
-  undecided 1, the class names the game's (G1). Beside them: the source
-  chosen under C106's admission test and recorded in the table's header;
-  the reason *base not in the class table* among four the table gives;
-  the outside review's three looks, 5, 3, 0; M2 0 unread and 0
-  unexplained; M3 within the step 5 rows; the gate green at `0d3c65af`.
-- **Five blind seats at `f357de39` (2026-09-22)**: Sonnet, one question
-  each over the owner's real store, read-only under `ACQ_NO_SPAWN=1`, the
-  tool's own `--help` and `--describe` their only sources; the brief and
-  the five questions are in the message of the commit that added this
-  entry. Every answer matched the builder's reference command, in 3 to 6
-  invocations; none needed a stronger model, none read the repository.
-  Two findings in the CLI's surface text, fixed at `2cbf7787`; what the
-  seats said beyond them is data for the owner's seat ("Observations
-  still open", step 5).
+| Shape | Where it came back | Held by |
+| --- | --- | --- |
+| **A meaning read off the syntax.** Which sources a group admits, what its selector picks, where its together bound sits, which slot a template has, what the zero block reads — each answered at the group's own level and wrong one level down, so parentheses changed the answer | five times across step 4's four audits | `group.rs`, the one reader of a group's meaning; `tools/docs-check.sh` §7; the equivalence property (rule 9) |
+| **Unknown said at the wrong grain.** A whole object unread for one flag that is no boolean, a whole array for one number too long, a whole requirements list for one bad row: too wide leaves open terms that never needed it, too narrow reads as absence, which a not makes a witness of | steps 4, 4b, 6 | rule 8; `derive::Slot`, `Line::flags_unknown`, `Unread::line`; the completion property |
+| **Two statuses for one thing.** A number kept beside the unread that may replace it, so a comparison, the sort and the sum disagreed; a total exact on the item and rounded again in the bucket | steps 5, 6 | rule 8 (`reqlevel`'s one status); `exact::Exact`, units carried to the print |
+| **A second maker.** A route, a printed command, a reason, a selector's resolved list, each made in two places that then disagreed — a lacked count of 1 whose route returned 0, a `show` continuation that dropped the account | steps 4, 4b, 5 | rule 10; `answer::command`, `answer::Router`, `eval::why`; the CLI test that runs every printed command with a second account known |
+| **A printed command the build refuses.** A route starting with `-` at a shell, a reading that does not parse (`class=Body Armours`), a slot word the same build's slot check refuses, a continuation the key parser could not read back | steps 4, 5, 6 | rule 5; the route property; every offered reading bound by a test; `bind::closed` offering through the printer |
+| **Arithmetic on floats.** A sum whose value depended on the order of its occurrences; a fallback whose use depended on how the integers cancelled; units read back off a float that does not print its decimal | steps 4b, 5 | `exact.rs`: a number read once, within a measured rule, and whole units from then on |
+| **A claim the code did not make.** A hand count wrong; `DERIVATION` not moved when a body derived to another item; a cause named before it was measured; "covered" said of a property whose generators could not reach the case; a record row crediting the wrong commit | every step | every count worked by hand and then run; the constant's rule on its own doc; a number stated only after measuring; the generators reaching what a fix touched (`reqlevel` joined them at step 6) |
 
-| Round | Fixed at | # | Finding | Held by |
-| --- | --- | --- | --- | --- |
-| 3, audit | `c0a8f918`, before the step's commit | 1 | A folder is a live row no fetch ever fills, and the header could not tell it from a tab never fetched (17 on this copy) | `LocationRow::tab_type`, GGG's `type` verbatim as the snapshots carry it; the fixture's folder with a fetched child |
-| 3, audit | `c0a8f918`, before the step's commit | 2 | A substash whose tab a listing retired keeps its row (the planner's orphan report) and was listed as a live, never-fetched location. The builder had seen it and followed `read_tabs` without saying so | excluded: a location is live with its parent (C54); the fixture, which fails without the exclusion |
-| 3, audit | `c0a8f918`, before the step's commit | 3 | A location's `listed_at` cannot say when a list was seen: an empty list has no rows, and a substash's is its parent's fetch | `CorpusHeader::listings`, the bases the snapshots cite, read in the same transaction; the fixture's empty character listing |
-| 4, audit 1 | `ed1b5446` | 1 | A route whose query starts with `-` is refused by clap, exit 2: every `-has:`, `-is:` and `-line(…)` route, which is most lacked and many failed ones — the plan's rule 5 broken. The CLI's route test had not met one: its fixture had no lacked count | the query after `--` (B9); `tests/search_json.rs` runs a lacked route through a shell, and fails without the separator — tried |
-| 4, audit 1 | `ed1b5446` | 2 | A flag that could not be read answered as a no: a line with unread `flags` matched `-is:crafted`; `"corrupted": "unread"` matched `-is:corrupted`; and `"corrupted": false` beside an unread `influences` was undecided. The builder had recorded the line's case as an observation and called it harmless; it was a false match against C93 *Confirmed, and wider: half of it was step 2's deriver, which recorded no unread at all for a flag's value that is no boolean* | the deriver: `ITEM_FLAGS` values checked, `Line::flags_unread`, `Part::Flags`; the evaluator: a line's group three-valued on each occurrence, a flag's own key and `influences` for the six that live there, a phrase left open only by what holds a displayed string. `tests/unread.rs`; M2 rerun, 0 unexplained and 0 unread. The fix opened an edge of its own, closed in the same change: a group whose selector asks a flag can fail on an item whose occurrence leaves the selector open, and the failed route `line(S) -term` would not return it — for such a group the route is `(line(S) or undecided(line(S))) -term`, elsewhere as short as the reference's |
-| 4, audit 1 | `ed1b5446` | 3 | An unread `hybrid` was read as the absence of hybrid lines: `-line(source=hybrid)` admitted the item | `unread_lines`; `tests/unread.rs`, which fails without it — tried |
-| 4, audit 1 | `ed1b5446` | 4 | Parentheses changed an outcome: `source=explicit` ruled the unread implicit array out only as an immediate member of the group's and | which sources a group admits is asked of its meaning — the group with its source tests answered and all else unknown (`eval.rs`, `admits`); five spellings pinned against three that must stay open |
-| 4, audit 1 | `ed1b5446` | 5 | What a selector resolved to was filtered by the group's comparisons, so a template whose value failed was not listed, and a `sum`'s selector resolved to nothing | resolved by the group's selector over the scope, a `sum`'s too; the worked example's count moved from 6 to 7 for that reason |
-| 4, audit 1 | `ed1b5446` | 6 | Following an undecided route returned the members without their reasons, so past the ten listed there was no way to them | an `undecided( … )` that matched shows the reasons of what it asked about (`Evidence::Undecided`); pinned over twelve items |
-| 4, audit 1 | `7678ae27` | 7 | The basis names the account and not the store, against C98's words; two stores of one account gave equal bases and `is_current` said yes across them *Confirmed — and the owner's: which identity names a store (its path, the world's id of C83, an id the file carries) is the basis as the contract, one of the six lines the seat revisits first* | **ruled 2026-09-20: "(a') now and park (c)"** — twelve hex digits of the SHA-256 of the file's canonical path, as C83 names a world: no path in an answer, no migration. `Basis::of`, and `is_current` compares the whole basis; the auditor's two stores pinned, and the check without the store tried and caught. An id the file carries is parked with the refetched file (`decisions/search.md`) |
-| 4, audit 1 | `7678ae27`, `774620b6`, `f5701893` | 8 | Rule 4 says an unstated rule that changes what a user types stops the step, and the record listed eight such holes and said none blocked *Narrowed: the step was built as steps 1 and 2 were — in the direction that breaks least, the holes brought to the owner at the close, said before building — but a recommendation is no ruling, and the step is not closed until each is ruled and the reference carries it* | closed: B1–B11 ruled 2026-09-20 (`7678ae27`, `774620b6`) and the reference carries them (`f5701893`) |
-| 4, audit 1 | `ed1b5446` | — | `eval::texts` and `answer::item_texts` were one accessor written twice | one, in `eval.rs` |
-| 4, audit 2 | `ad5589c9` | 1 | The selector dropped a whole member of the group's and when any comparison sat inside it, its template and source restrictions with it: a lacked count of 1 whose route returned 0, and a nested group resolving to templates the unnested one did not *Confirmed: the first audit's finding 4 over again — source eligibility had been moved from syntax to meaning and the selector left behind, the second of the six places the builder had said he trusted least* | the selector is the group with each comparison taken as favourably as it can be — true, or false under a not — and folded (`bind.rs`, `selector`), so the ordinary route is still the reference's. Five nested spellings in the route property. A mutant that ignored the not survived the routes, which the builder put down to their being made from the selector — true of his seven hand-made items, and not in general: the generated routes of step 4b catch that mutant; the failed-against-lacked split of one item is stated by hand as well — then caught |
-| 4, audit 2 | `ad5589c9` | 2 | An unread flag erased the known no beside it: with `{"crafted": false, "fractured": "unread"}`, `-is:crafted` was undecided, and `{"shaper": false, "hunter": "unread"}` left `-is:shaper` open *Confirmed: the first fix was per object and had to be per flag* | `Line::flags_unknown` names the flags of a readable object that could not be read, `flags_unread` is the object itself; an influence is unread under `influences.<flag>` |
-| 4, audit 2 | `ad5589c9` | 3 | The sort scalar ignored an occurrence the group may select: 20 shown as the largest beside an open 95 *Confirmed, and wider — a source the group admits and could not read may hold a larger one too, which the first build had as well* | `Scalar::Incomplete`: what was readable, its status, no place in the order (B10). An open occurrence that cannot pass the largest changes nothing, pinned |
-| 4, audit 2 | `ad5589c9` | 4 | `DERIVATION` stayed 1 though the same malformed body now derives to another item — against the rule written on the constant | 2 |
-| 4, audit 2 | `ad5589c9` | 5 | The timing note claimed more than it had: an unchanged reader running slower shows the machine changed, never that the evaluator had not *Confirmed — and the builder's cause was wrong as well as unproven. The slowdown was put down to battery and low power mode because that was found first; on the same battery in the same mode, an hour on, the pre-fix binary ran at the morning's 257 ms. What slowed the machine is not known* | the two builds measured against each other (M3, below); the claim that a release ask is over 500 ms in that power state is withdrawn |
-| 4, audit 3 | `b2b8d5fb` | 1 | An occurrence the group may select, and which names no such number, left a value open: over one line `Cannot be Frozen` with an unread `crafted`, `sum(… .arg1)=0` was undecided and `undecided(… .arg1)` matched, though either reading of the flag gives a complete zero and no occurrence. And binding `undecided( … )` of a value threw its slot away, a sum and a projection made one probe | an open occurrence counts only where it names the slot — in a sum, in the largest, and in the together count, which had the same fault and was not in the finding; `undecided( … )` of a value binds as `--sort` does and is open exactly when the value would sort as incomplete, one function for both (`eval.rs`, `scalar`) |
-| 4, audit 3 | `b2b8d5fb` | 2 | Parentheses changed whether the together count applies: the bound was looked for among the group's immediate members *Confirmed: the third time one fault — a meaning read off the syntax (source eligibility, the selector, now this)* | the bound is the one comparison among the group's conjuncts, through every nested and and a doubled not; four spellings pinned to one count, one route and one selector, and four shapes that are no single lower bound pinned as not applicable |
-| 4, audit 4 | `c3de464d` | 1 | B11 breaks rule 5: `line(("# to maximum Life" source=explicit) arg3>=0)` was accepted, counted one item together, and printed a route — `sum(line("# to maximum Life" source=explicit).arg3)>=0` — that the same build refuses *Confirmed; the builder's note of the round before was wrong* | the slot check reads the group's conjuncts, one function with the together bound's (`template::conjuncts`), so the query is step 1's `slot_unknown` however it is parenthesised; and the together route is checked before it is offered, since folding can bring a template to the selector's and that the whole holds under an or — `("T" or false()) arg3>=0`, found while fixing, and caught only by that guard |
-| 4, audit 4 | `c3de464d` | 2 | The zero block said a group resolved to nothing while the terms block listed what it resolved to: `nothing()` took the group's first template test and asked it alone, out of its and, or and not. A `sum`'s selector was never diagnosed *Confirmed: the fourth reading of a group's meaning kept apart from the others* | resolved to nothing is the bound selector picking no occurrence in the scope, a `sum`'s too; a field's term is as before |
-| 4, audit 4 | `c3de464d` | 3 | Sorting by an unread number said `no satisfying occurrence`, a known absence, where `undecided(ilvl)` said unread of the same item | `Scalar::Incomplete` for a field that could not be read |
-| 4b, audit 5 | `c4fc8f13`; the properties `6bf844d2`, `3c7d31f3` | 1 | A sum of decimals depended on the order of occurrences: 0.1, 0.2, 0.3 summed to 0.6000000000000001 one way round, so `sum( … )=0.6` matched one of two items carrying the same lines *Confirmed, and wider: the mean of a ranged pair had it too (`avg=0.15` over 0.1 and 0.2)* | `exact.rs`: arithmetic on whole hundred-thousandths, in integers, read back as the nearest float, which is the float a typed bound is; one function for a sum, the together count and `avg`. No rounding anywhere. Its first form, a decimal sum with a float fallback, is follow-up 1 below |
-| 4b, audit 5 | `c4fc8f13`; the properties `6bf844d2`, `3c7d31f3` | 2 | A suggestion counted one spelling and offered an any-case `=` that returns every spelling: said 1, returned 2 | a suggestion's count is its term's, asked of the scope as it will be typed; a second spelling of a value already offered is the same term and is not offered again |
-| 4b, audit 5 | `c4fc8f13`; the properties `6bf844d2`, `3c7d31f3` | 3 | A pattern that resolved to nothing was missing from the zero block: being listed was coupled to having words to suggest by | listed with no suggestion — a group's, a `sum`'s, a field's |
-| 4b, audit 5 | `c4fc8f13`; the properties `6bf844d2`, `3c7d31f3` | 4 | What a row shows of one term was unbounded for a group and a sum (40 lines) and cut to three for a phrase without saying so (invariant 5) | six, a sum's value beside them; `left_out` counts the rest and the CLI prints it with `acq show <id>` |
-| 4b, audit 5 | `c4fc8f13`; the properties `6bf844d2`, `3c7d31f3` | 5 | Under `--realm all` a row did not say which realm its item is in | the renderer: the realm before the place, as `show` prints it; under one realm the scope line has said it |
-| 4b, audit 5 | `c4fc8f13`; the properties `6bf844d2`, `3c7d31f3` | 6 | `--describe` did not say how terms compose or what has a value, and refused the slot and operator words its own doc promised | two blocks, `composition` and `values`, an entry a line and an example, every example bound by a test; an entry answers to each word of its name, the positional slots to any `arg<N>`, a block to its own. The reference stays the manual |
-| 4b, audit 5 | `c4fc8f13`; the properties `6bf844d2`, `3c7d31f3` | 7 | — found by the both-ways zero-block check on its first day: a closed set's `:` selector that matched nothing (`rarity:ma` over rares) showed an empty resolved list and no zero-block entry *The builder's, the same fault as 3* | listed; pinned beside 3 |
-| 4b, audit 5 | `c4fc8f13`; the properties `6bf844d2`, `3c7d31f3` | — | The record said sixteen completions: there are fifteen, sixteen bodies with the stored one | this record |
-| 4b, audit 5 | `c4fc8f13`; the properties `6bf844d2`, `3c7d31f3` | — | The resolved-values continuation always said `--count line` | `--count <field>` for a field's values |
-| 4b, review 1 | `7f5fd962`; the anchors `1e951803` | 1 | `exact.rs` fell back to floats when its integers overflowed, and whether a sum fell back depended on the order its occurrences cancelled in: one order of 1e28, 1e28, −1e28, −1e28, 1e-10 gave 0, another 1e-10 | a number is read once, where the body is read: ten whole digits and four decimals (measured over the census copy: 212,233 displayed numbers, none past two decimals or ten whole digits; the owner: "I have never seen more than 4 digits after the decimal"). One beyond it is unread (C93), so nothing downstream has a fallback; 48 lines of code became 21. M2 again: 0 unread, 0 unexplained. Its first form — the line's numbers cleared, its array unread — was too blunt twice over: the third review, 1 |
-| 4b, review 1 | `7f5fd962`; the anchors `1e951803` | 2 | The reasons an `undecided( … )` shows were cut to six in the order the terms were written, so reordering a conjunction changed which was dropped — and the fixture, passed through the equivalence checker, was refused *Confirmed, and wider: the total's undecided items listed their reasons with no bound at all* | `eval::why`, one function for both: the bound is on the item's unread parts, the first six in the item's own order, every term's pair with each kept; `why_left_out`. The audit's fixture is a fixed case of `generated_equivalence.rs` |
-| 4b, review 1 | `7f5fd962`; the anchors `1e951803` | 3 | The `acq show` continuation dropped the account: with a second account known it does not run *Confirmed, and wider: both offers of `show`'s errors dropped it too* | `answer::command`, the one way the search prints a command — routes, the continuation, the offers. The CLI's rule-5 test runs every `acq …` a text prints, anywhere in a line, with two accounts known; the walk it replaces saw only lines that start with one |
-| 4b, review 2 | `4e591ddc`, `f7318421` | 1 | A number the search does not read was made an absent slot and an unread array. Absent: its comparison was a no, and a not made a witness of it — `line("# to Spirit" -arg1>=0)` matched `1.12345 to Spirit`. The array: `-line(template:life)` and a sibling number that was read were left open though neither needs it *Confirmed; the per-flag fix of the second audit was the precedent, and was not followed* | `Line::numbers` is `Vec<Option<f64>>` and `Line::slot` returns `Slot` — absent, unread, or a number; a comparison on an unread slot is undecided, as a flag is (`group.rs`); `Part::Numbers`; a sum, a largest and the together count ask one question of an occurrence, `leaves_the_slot_open`. `DERIVATION` 4. Step 2's `tests/derive.rs` pins the new types at twenty places. M2: 0 unread, 0 unexplained |
-| 4b, review 2 | `4e591ddc`, `f7318421` | 2 | A total past 2^53 units was divided as a float and rounded twice: nineteen of `9999999999.9997` did not equal `189999999999.9943` | the integer total is written out as its decimal and read by the parser a typed bound is read by |
-| 4b, review 2 | `4e591ddc`, `f7318421` | 3 | The evidence cross-check still refused more than seven entries, and `answer.rs` still promised six reasons, after the bound became six unread parts | the checker counts parts; eight terms on one part is a fixed case; the doc says what `left_out` counts |
-| 4b, review 2 | `4e591ddc`, `f7318421` | 4 | — found by the completion property on its first run over generators that write an unread number, and not again in six: the together count took an item with no occurrence that counts, since a sum of nothing is 0 and 0 is at least any bound of zero or less; its route, which asks for a selected line, returned 11 of 12 *The builder's; nothing to do with an unread number* | only occurrences that count reach a bound together; pinned by hand, since the generators reach it seldom |
-| 4b, review 3 | `b4d7a7d0` | 1 | A reason was joined to an open occurrence by its *source*, so six unread Spirit lines before the one Life line that mattered filled the six parts shown and the relevant reason, `explicitMods[6]`, was the one left out — one defect of explanation, no new matching or arithmetic defect. *Confirmed, on both paths* | an `Unread` of a line's flags or numbers says which occurrence it is of (`Unread::line`), reasons are chosen by occurrence, and by what the group asked of it — its flags where a flag is asked, its numbers where a number is — before the six-part cut. `DERIVATION` 5. The audit's fixture is `tests/fifth_audit.rs`'s last case; a generated check holds the second half (a reason is of what its term asked) and refuses the old join |
-| 5, audit | `6f352523` | 1 | A tab bucket was its id alone: one id under two leagues and two realms was one bucket, labelled with the first's name and league *Confirmed — the store's own identity is the coordinate (C54), and the refresh slice met one id under two realms* | `counts::TabAt`: realm, league and id; the route `id:<id> league=<L>` over its realm; the label carries all three, the text the id. A crossed cell's route names the tab's realm |
-| 5, audit | `6f352523` | 2 | `--count`'s key parser stripped quotes before reading syntax: `line:"Life` was taken, `line:"~Life"` became a pattern, any escape was accepted | per-character quoting: what was quoted is text as written, a quote that never closes or an escape outside the language's three is a `view` error; `~` outside the quotes still marks a pattern |
-| 5, audit | `6f352523` | 3 | The resolved-values continuation said `--count tab lists them` and could not: a count by tab groups by the tab, the selector resolved to names. And wider, as the audit said: a count *under the query* is not the selector's domain — `base:ring rarity=unique` resolves rings of every rarity | `Resolved::rest` is a route: the term alone over the scope, counted by its field, or a group's one template test as `line:<text>` / `line~<pattern>` (`Group::sole_template_test`); none for `tab` (E1) or a selector of more than one test, and the text then says the count and no command. `Route::command` prints a view. The CLI test runs the printed command and holds it to every value |
-| 5, audit | `6f352523` | 4 | A bucket's sum of item totals was rounded again: `units` multiplied a float by 100,000, past 2^53 for a total; 23 × `9999999999.9997` summed to `.9931` on the item and `.99313` in the bucket *Confirmed; within the declared rule* | `exact::units` reads the decimal the float prints as — the decimal it was made from — so units are exact through every level of adding; pinned in `exact.rs` and over two items and an incomplete subtotal |
-| 5, audit | `6f352523` | 5 | A vocabulary flag `Crafted: 1` routed to `is:crafted` and returned 0: the count matched the flag any-case and the evaluator exactly *Confirmed, and older than step 5: `is:` and a line's `is:` were bound any-case (B2) and compared exactly since step 4; the census's flags are all lower-case, so no real item met it* | one any-case compare in the evaluator (`group.rs`, `eval.rs`), and the vocabulary counts a kind by its legal spelling — `Crafted` and `crafted` one kind of two, routed to both; a spelling outside the list counted with no route and `needs` |
-| 5, audit | `6f352523` | 6 | The text printed a crossed cell with no route as an ordinary row, and a kind's `needs` never | `cross_text`, `bucket_text`: each value or kind with no route says why, once |
-| 5, review | `99bd0962` | 1 | Exactness ended at the item: units were read back off the float an item total became, and a total's decimal can be longer than a float prints — nine means of large pairs, their negatives and `0.0001` summed to `0.00011` split over two items, `0.0001` on one *Confirmed; the builder's claim in `exact.rs`, that a float's shortest print is the decimal it was made from, was false past fifteen significant digits* | `exact::Exact`, units carried: an item's sum, a bucket's sum of them and a sort scalar are `Exact`, and a float is made only to compare or print. Pinned in `exact.rs` and in `tests/counts.rs`, the review's own arrangement |
-| 5, review | `99bd0962` | 2 | A continuation's key was shell-quoted and not list-quoted: `--count 'line~Marker [a-z]{1,2}'` split at the comma | `answer::listed_text`: a text with a comma, a quote, a backslash, a row break, a leading `~` or whitespace at an end is quoted in the list's grammar with the language's escapes; the CLI runs continuations for a pattern with a comma and texts with a comma and a backslash, and a unit test reads every spelling back |
-| 5, review | `99bd0962` | 3 | The binder trimmed a narrowing text: `line:"Life "` became `line:Life` | `bind_key` trims a name and never a text; pinned at the terminal |
-| 6, review 1 | `20558843` | 1 | A `Level` row with no value read as absence, so it matched `-has:reqlevel`; several values, or two `Level` rows, silently took the first number | `derive::read_reqlevel`: one row, one value, a whole number, and every other shape unread under `reqlevel`; pinned over five items |
-| 6, review 1 | `20558843` | 2 | Every unread element of `requirements` left `reqlevel` open: a read `Level 10` beside a malformed `Str` made `reqlevel>30` undecided while `--sum reqlevel` summed a complete 10 *Confirmed: the unread was recorded a grain too wide (rule 8), and the sort and the sum read the number where the comparison read the part* | the deriver says under `reqlevel` when the `Level` row may be among what was lost — the array not an array, an element unread whose name is `Level` or unreadable — and the evaluator asks that key alone, so a read `Level` is a witness and the three consumers agree |
-| 6, review 1 | `20558843` | 3 | A class error's readings were spelled by hand: `class:bodyarmour` offered `class=Body Armours`, which does not parse (rule 5 for readings) | `bind::closed` offers through the printer, which quotes a value with a space; a test binds every reading a class error offers |
-| 6, review 1 | — | 4 | OQ5's test still pins the plan's wording — three wearable classes and a bracket, a flask a distractor — after the owner's definition changed the reading *Narrowed: the record never claimed OQ5 covered, and the owner's line is pending (G6)* | the test's doc says it pins the constructs and moves to his words when he rules; nothing built for it, as the review agreed it need not be |
-| 6, review 1 | `2b759766` | 5 | The reference's worked example still used the illustrative `class=ring` and C105's example the parked `armour`/`weapon`; the ledger row carried the table's numbers from before G3 was reversed (81, 4,483, 213 against 82, 4,547, 225) | `search/DESIGN.md` says `class=Rings` and `Rings 6, Wands 3`; the row says what the shipped table holds |
-| 6, review 2 | `457f6e71` | 1 | A read `Level 10` beside an unread element that may be a second `Level` row — an unnamed `42`, or `{"name": "Level", "values": "no"}` — kept its number: `reqlevel=10` matched, `reqlevel>30` was undecided, `--sum reqlevel` summed a complete 10 *Confirmed: the first review's fix said the unread and left the value standing beside it, two statuses for one thing* | one status: the number is established exactly when nothing is unread under `reqlevel` (`derive`, after `read_reqlevel`), so a comparison, the sort and the sum agree; a read `Level` beside an unread `Str` still stands |
-| 6, review 2 | `457f6e71` | 2 | `[Level]` with a value that could not be read was told as no `Level` row, so `-has:reqlevel` matched: the reader shows `[Level]` as `Level`, the loss check read the raw name | `level_may_be_lost` compares the name as `shown` renders it |
-| 6, review 2 | `457f6e71` | 3 | `DERIVATION` stayed 6 across the first review's fixes, which derive the same body to another item — the rule on the constant, and the second audit's finding 4 over again | 7; pinned on `show`'s basis |
-| 6, review 2 | `457f6e71` | — | The observations still said the generators exclude `reqlevel`; finding 5 of the first review was credited to the code commit, not the record's | this record |
-| 5, seats | `2cbf7787` | 1 | The `--realm` help read as optional, and all five seats omitted it once over a two-realm store; C96's refusal, which lists the choices, recovered each in one step | the help says required over several realms, one of them or `all`; `CLI-REFERENCE.md` |
-| 5, seats | `2cbf7787` | 2 | The scope line's `2940 never fetched` was read as items by four of five; C96 says locations never fetched, and the render had dropped the word | `2940 locations never fetched`, `1 location` for one; the `search_json` needle |
+The yields by look, per step — what a review found each time it came
+back, the last look's zero being what a step closed on: step 4, 6, 5,
+2, 3; step 4b (Astra), 6, 3, 3, 1; step 5, 6, 3, 0; step 6, 5, 3, 0.
+Five blind seats at step 5 (`f357de39`; Sonnet, one question each over
+the owner's real store, `--help` and `--describe` their only sources)
+answered every question in three to six invocations and found two
+faults of the surface text, fixed at `2cbf7787`; what they said beyond
+is under "Observations still open", step 5.
 
 ## What the measurements taught
 

@@ -56,8 +56,9 @@ A help string is a doc comment the user reads: cite the id there too.
 
 Cut its `CONTEXT.md` section to rulings, properties and pointers; cite
 the last full-text commit in the section; give the slice a closed
-record in the mold of `NETWORK-CLEANUP.md` (step ledger, findings table,
-what the runs taught, observations still open). Strike-through items in
+record in the mold of `NETWORK-CLEANUP.md` (step ledger, the shapes of
+fault its reviews taught, what the runs taught, observations still
+open). Strike-through items in
 a "Parked" list are deleted, not kept; a park whose trigger fired goes with them.
 
 ## 4. Commit

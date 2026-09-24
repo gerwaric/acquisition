@@ -247,7 +247,7 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
 /// with a comma, or a `~` of its own, is quoted, `"…"`, with the
 /// language's three escapes (`\"`, `\\`, `\n`) and no other; what is
 /// quoted is the text as written, never syntax, and a quote that does not
-/// close is an error, as it is in a query (the step-5 audit, 2).
+/// close is an error, as it is in a query (outside audit, 2026-09-22).
 fn keys(raw: &str) -> Result<Vec<String>, String> {
     // each part as characters, each marked quoted or not: what was quoted
     // is text as written, and only an unquoted character is syntax

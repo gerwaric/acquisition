@@ -10,18 +10,18 @@
 //! which is the one failure path evidence has, at the grain the evidence
 //! was lost. Nothing downstream meets a number outside the rule, so
 //! nothing downstream has a fallback, and no answer depends on the order
-//! that a sum happened to overflow in (the fifth audit's follow-up, 1).
+//! that a sum happened to overflow in (outside review, 2026-09-21).
 //!
 //! **Arithmetic is on whole units.** Added as binary floats, 0.1 + 0.2 +
 //! 0.3 is 0.6000000000000001 one way round and 0.6 the other, and
-//! `sum( … )=0.6` matched one of two items carrying the same lines (the
-//! fifth audit, finding 1). A number within the rule is a whole count of
+//! `sum( … )=0.6` matched one of two items carrying the same lines (outside
+//! audit, 2026-09-21). A number within the rule is a whole count of
 //! hundred-thousandths — four decimals, and one more for the half a ranged
 //! pair's mean may end in — which a float holds exactly; units add as
 //! integers, and the total is written out as the decimal it is and read
 //! by the parser a typed bound is read by, so the two are one float
 //! however large the total (dividing a total past 2^53 as a float rounded
-//! twice: the audit's third review, 2). A comparison needs none of this: two
+//! twice: outside review, 2026-09-22). A comparison needs none of this: two
 //! floats read from the same decimal are the same float.
 //!
 //! **Units are carried, never reconstructed.** A displayed number, or the
@@ -32,7 +32,7 @@
 //! orders by; it becomes a float only where a number is compared or
 //! printed. A total's decimal can be longer than a float holds, so a float
 //! made of it does not print it back, and units read from that print are
-//! wrong — the step-5 audit's 4 met a bucket ending `.99313` where the
+//! wrong — an outside audit (2026-09-22) met a bucket ending `.99313` where the
 //! item said `.9931`, and the first fix, which read units off the float
 //! again, left nine cancelling totals and `0.0001` summing to `0.00011`
 //! (its review, 1).
@@ -140,8 +140,8 @@ mod tests {
         assert_eq!(sum([9999999999.9997; 19]), 189999999999.9943);
         assert_eq!(sum([-9999999999.9997; 19]), -189999999999.9943);
         // a total added again — a bucket's sum of item totals — is exact
-        // as units, where a float of it is not (the step-5 audit, 4, and
-        // its review, 1): nine means of large pairs, their negatives, and
+        // as units, where a float of it is not (outside audit and review,
+        // 2026-09-22): nine means of large pairs, their negatives, and
         // a ten-thousandth, split over two totals or one
         let total = Exact::sum([Exact::of(9999999999.9997); 23]);
         assert_eq!(total.as_f64(), 229999999999.9931);

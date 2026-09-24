@@ -223,7 +223,7 @@ fn a_class_is_picked_among_the_games_names_and_never_guessed() {
     assert_eq!(swords["total"]["matched"], 0);
     // the resolved list is of the matches, so a selector that picked
     // classes no item carries is listed in the zero block with nothing
-    // to suggest (the fifth audit, 7)
+    // to suggest (found 2026-09-21 by the zero-block cross-check)
     assert_eq!(
         swords["zero"]["resolved_to_nothing"],
         json!([{ "of": "class", "path": "0", "suggestions": [], "term": "class:sword" }])

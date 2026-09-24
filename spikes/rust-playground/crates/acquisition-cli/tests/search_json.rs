@@ -180,7 +180,7 @@ fn seed_more(base: &Path) {
     );
 }
 
-/// The fifth audit, findings 4 and 5: under an all-realms scope a row says
+/// Outside audit, 2026-09-21: under an all-realms scope a row says
 /// which realm its item is in, and a row that shows part of what a term
 /// touched says how much it left out and where the whole is.
 #[test]
@@ -237,8 +237,8 @@ fn run_printed(base: &Path, command: &str) -> Output {
 /// Rule 5 of the build plan, over everything and not only the routes: a
 /// command the search prints — a route, where a cut block sends its
 /// reader, what an error offers — runs as printed. With two accounts
-/// known, which a command that drops its account does not survive (the
-/// fifth audit's follow-up, 3).
+/// known, which a command that drops its account does not survive (outside
+/// review, 2026-09-21).
 #[test]
 fn rule_5_every_command_printed_runs_with_a_second_account_known() {
     let base = base();
@@ -394,13 +394,13 @@ fn step_5_a_count_at_a_terminal_and_every_route_it_prints_returns_what_it_counte
     );
 }
 
-/// The step-5 audit's 2, 3 and 6 at the terminal: a quoted key is the
+/// Outside audit, 2026-09-22, at the terminal: a quoted key is the
 /// text as written and a quote that never closes is an error; the count
 /// that lists what a selector resolved to past the listed is printed as a
 /// command and lists them; a count with no route says why, in a crossed
 /// cell and beneath a vocabulary row.
 #[test]
-fn step_5_audit_keys_are_parsed_strictly_and_text_says_why_a_count_has_no_route() {
+fn keys_are_parsed_strictly_and_text_says_why_a_count_has_no_route() {
     let base = base();
     seed(&base);
     let mut store = Store::open(&account_path(&base.join("mock"), USER)).unwrap();
@@ -482,7 +482,7 @@ fn step_5_audit_keys_are_parsed_strictly_and_text_says_why_a_count_has_no_route(
     );
 }
 
-/// The audit's review, 2 and 3: a continuation whose key holds a comma,
+/// Outside review, 2026-09-22: a continuation whose key holds a comma,
 /// a quote or a backslash is printed in the count list's own grammar and
 /// runs; a quoted text keeps its trailing space through the binder.
 #[test]

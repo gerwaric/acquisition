@@ -65,8 +65,8 @@ at the slice's close and cited by hash.
    opened only by the owner, at a terminal. No GGG traffic anywhere in
    this plan; the one daemon is M5's, a mock session.
 
-Rules 8 to 10 are what step 4b's audits taught (`SEARCH-SLICE.md`, the
-findings of step 4b), each a fault that came back until it was named;
+Rules 8 to 10 are what step 4b's audits taught (`SEARCH-SLICE.md`,
+"Findings"), each a fault that came back until it was named;
 the owner approved their meaning from a plain account of each and left
 the wording to the builder (2026-09-22: "the words that get written down
 are for you"; "If so, go ahead"). Each names what already holds it: the

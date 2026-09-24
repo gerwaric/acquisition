@@ -29,7 +29,7 @@
 //!   is an id alone: a tab is its full coordinate, realm, league and id
 //!   (C54, C58), and the store has held one id under two realms. The
 //!   bucket is that coordinate, its route `id:<id> league=<league>` over
-//!   its realm, and its label carries all three (the step-5 audit, 1).
+//!   its realm, and its label carries all three (outside audit, 2026-09-22).
 //! - **`=` is any-case, so a value spelled two ways is two buckets with two
 //!   terms.** Where the corpus holds another spelling of a value the term
 //!   is a pattern that turns case back on, `name~"(?-i)^…$"`, which selects

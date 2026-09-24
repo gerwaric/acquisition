@@ -259,7 +259,7 @@ proptest! {
 
 /// Past a bound: seven unread flags and a probe of seven terms, so that
 /// what a row shows is cut — and cut the same however the terms are
-/// ordered. The fifth audit's follow-up passed this fixture through
+/// ordered. An outside review (2026-09-21) passed this fixture through
 /// `check` and it refused; the generators' items never held more unread
 /// parts than a row shows.
 #[test]

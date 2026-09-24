@@ -900,9 +900,9 @@ fn keys(example: &str) -> Vec<String> {
         .collect()
 }
 
-// ---- the step-5 audit's findings, each reproduced first ----------------------------------------
+// ---- faults an outside audit found (2026-09-22), each reproduced first ----------------------------------------
 
-/// The audit's 1: a tab is its full coordinate (C54). One id under two
+/// Outside audit, 2026-09-22: a tab is its full coordinate (C54). One id under two
 /// leagues and two realms is three tabs, three buckets, each labelled and
 /// routed by realm, league and id — in a table and in a crossed one.
 #[test]
@@ -979,7 +979,7 @@ fn a_tab_bucket_is_the_tabs_full_coordinate() {
     assert_eq!(ids, set(&["one", "two", "three"]));
 }
 
-/// The audit's 4: a bucket's sum of item totals is exact where a float
+/// Outside audit, 2026-09-22: a bucket's sum of item totals is exact where a float
 /// times 100,000 is not — one item, its own sum and the bucket's the same
 /// decimal; two items, the decimal sum; an incomplete subtotal added too.
 #[test]
@@ -1034,7 +1034,7 @@ fn c95_a_sum_of_item_sums_is_exact() {
     );
 }
 
-/// The audit's 5: a flag is counted by its legal spelling and matched in
+/// Outside audit, 2026-09-22: a flag is counted by its legal spelling and matched in
 /// any case (B2), so a kind's route returns what it counted; a spelling
 /// outside the list is counted and has no route, and says so.
 #[test]
@@ -1086,7 +1086,7 @@ fn c97_a_kind_is_counted_by_its_legal_spelling_and_routed_by_it() {
     );
 }
 
-/// The audit's 3: what a selector resolved to past the ten listed is
+/// Outside audit, 2026-09-22: what a selector resolved to past the ten listed is
 /// reached by a count that lists them all — the term alone over the
 /// scope, since the query's other terms would drop some — and `tab` has
 /// none, since a tab is counted by the tab and resolved to names (E1).
@@ -1171,7 +1171,7 @@ fn c100_the_rest_of_what_a_selector_resolved_to_is_a_count_that_lists_it() {
     assert!(resolved.get("rest").is_none());
 }
 
-/// The audit's review, 1: units are carried through both levels of
+/// Outside review, 2026-09-22: units are carried through both levels of
 /// adding, never read back off a float. Nine means of large pairs on one
 /// item, their negatives and a ten-thousandth on another: the bucket's
 /// sum is what one item carrying all of them sums to.

@@ -354,7 +354,7 @@ fn c93_an_unread_flag_never_erases_the_known_no_beside_it() {
 }
 
 /// A group's selector is what it means, never where its comparisons sit
-/// (the second audit of step 4, finding 1): a nested comparison takes no
+/// (outside audit, 2026-09-20): a nested comparison takes no
 /// restriction with it, so the lacked route returns what it counted and
 /// the resolved list is the unnested query's.
 #[test]
@@ -486,7 +486,7 @@ fn c92_a_sort_scalar_that_is_not_established_says_so_and_sorts_last() {
 }
 
 /// An occurrence that names no such number cannot contribute, selected or
-/// not (the third audit of step 4, finding 1): whether `crafted` is yes
+/// not (outside audit, 2026-09-20): whether `crafted` is yes
 /// or no, the sum is a complete zero and the projection has no occurrence,
 /// so neither is left open by the flag (C93's known absence; C94's sum of
 /// nothing). One that does name the number leaves both open.
@@ -553,7 +553,7 @@ fn c93_an_open_occurrence_without_the_slot_leaves_no_value_open() {
 }
 
 /// C92's together count is the group's, however its and is parenthesised
-/// (the third audit, finding 2): the diagnostic and its route, for both
+/// (outside audit, 2026-09-20): the diagnostic and its route, for both
 /// spellings — the four counts alone do not show it.
 #[test]
 fn c92_parentheses_never_change_whether_the_together_count_applies() {
@@ -618,8 +618,8 @@ fn c92_parentheses_never_change_whether_the_together_count_applies() {
     }
 }
 
-/// The build plan's rule 5 against step 1's slot check (the fourth audit of
-/// step 4, finding 1): a slot the quoted template does not have is an
+/// The build plan's rule 5 against step 1's slot check (outside audit,
+/// 2026-09-20): a slot the quoted template does not have is an
 /// authoring error wherever the template sits among the group's conjuncts,
 /// so no answer can print a route the same build refuses — and a generated
 /// route is checked before it is offered, whatever folding made of it.
@@ -657,8 +657,8 @@ fn rule_5_no_group_is_accepted_whose_route_would_be_refused() {
     }
 }
 
-/// The zero block reads the group as the rest of the answer does (the
-/// fourth audit, finding 2): a selector that picked occurrences resolved
+/// The zero block reads the group as the rest of the answer does (outside
+/// audit, 2026-09-20): a selector that picked occurrences resolved
 /// to something, whatever a template test inside it would find alone.
 #[test]
 fn a_selector_that_resolved_to_something_is_never_said_to_resolve_to_nothing() {
@@ -693,7 +693,7 @@ fn a_selector_that_resolved_to_something_is_never_said_to_resolve_to_nothing() {
 }
 
 /// A number that could not be read is no known absence in the order either
-/// (the fourth audit, finding 3): the row says incomplete, as
+/// (outside audit, 2026-09-20): the row says incomplete, as
 /// `undecided(ilvl)` says of the same item.
 #[test]
 fn c93_sorting_by_an_unread_number_says_unread_not_absent() {

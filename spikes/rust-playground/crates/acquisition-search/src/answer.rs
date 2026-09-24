@@ -35,8 +35,8 @@
 //!   the query, whose other terms would drop values the selector resolved
 //!   to — counted by the field, or the vocabulary narrowed by the group's
 //!   one template test (`counts.rs`); a `tab` selector has none, since a
-//!   tab is counted by the tab and it resolved to names (the step-5
-//!   audit, 3).
+//!   tab is counted by the tab and it resolved to names (outside audit,
+//!   2026-09-22).
 //! - **What a row shows of one term is bounded** and says how many it left
 //!   out; the item whole is `show <id>` (invariant 5). Of lines and
 //!   strings, six, a sum's value beside them. Of why an item is undecided,

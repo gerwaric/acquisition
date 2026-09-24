@@ -153,7 +153,7 @@ fn zero_block_is_terms_block(corpus: &Corpus, answer: &Value) -> Result<(), Stri
 
 /// A reason is of something its term asked: a line's unread flags explain
 /// a term that asks a flag, its unread numbers one that asks a number.
-/// (Which occurrence a reason is of is pinned by hand, `fifth_audit.rs`.)
+/// (Which occurrence a reason is of is pinned by hand, `surface_faults.rs`.)
 fn a_reason_is_of_what_its_term_asked(answer: &Value) -> Result<(), String> {
     fn walk(value: &Value, out: &mut Vec<Value>) {
         match value {
@@ -432,7 +432,7 @@ proptest! {
 
 /// The checker's own negative controls, on a real answer: an empty zero
 /// block, a suggestion miscounted and an oversized row must each be
-/// refused — the fifth audit found the first of these passing.
+/// refused — an outside audit (2026-09-21) found the first of these passing.
 #[test]
 fn the_checks_refuse_an_empty_zero_block_a_miscounted_suggestion_and_an_unbounded_row() {
     let many: Vec<String> = (1..=9).map(|n| format!("+{n} to maximum Life")).collect();

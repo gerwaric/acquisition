@@ -1,6 +1,8 @@
-//! The fifth outside audit (2026-09-21), of step 4b at `ef381909`: four
-//! defects of the first surface that the generated properties had not
-//! met, each reproduced here before it was fixed. C92 (a sum), C100 and
+//! Faults of the first surface found from outside (step 4b; an audit of
+//! 2026-09-21 and its reviews to 2026-09-22) that the generated properties
+//! had not met, each reproduced here as a failing test before it was
+//! fixed: C92 (a sum is exact in any order), C93 (a number beyond reach is
+//! unread at its slot; a reason is the open occurrence's own), C100 and
 //! invariants 4 and 5 of the surface (a count has a route; every block is
 //! bounded), C97 (`--describe` is the help).
 
@@ -140,7 +142,7 @@ fn c100_a_pattern_that_resolved_to_nothing_is_in_the_zero_block() {
         ("sum(line(template~\"nothing\").arg1)>0", "template"),
         ("name~\"nothing\"", "name"),
         ("name:nothing", "name"),
-        // found by the cross-check the audit asked for, on its first day
+        // found by the zero-block cross-check on its first day
         ("rarity:ma", "rarity"),
     ] {
         let answer = run(&corpus, &request(query, None, false, 10)).unwrap();
@@ -232,7 +234,7 @@ fn c97_describe_says_how_terms_compose_and_knows_the_words_it_prints() {
     }
 }
 
-/// The audit's follow-up, 1: a number is read once, where the body is
+/// Outside review, 2026-09-21: a number is read once, where the body is
 /// read, and one the search does not read — more digits than any game
 /// displays — is an unread slot of its line (C93), never a sum that is
 /// exact in one order of occurrences and rounded in another. So both
@@ -332,7 +334,7 @@ fn c100_the_reasons_shown_are_the_items_first_six_however_the_terms_are_ordered(
     assert_eq!(forward.3, json!(1));
 }
 
-/// The audit's third review, 1: a number the search does not read is an
+/// Outside review, 2026-09-22: a number the search does not read is an
 /// unread *slot* — not an absent one, and not an unread array. What needs
 /// the number is undecided, through a not as well; what needs the line's
 /// text, template, source or sibling numbers keeps its answer (C93: only
@@ -451,7 +453,7 @@ fn c92_nothing_reaches_a_bound_together_without_an_occurrence_that_counts() {
     );
 }
 
-/// The audit's last review: why an item is undecided names the occurrence
+/// Outside review, 2026-09-22: why an item is undecided names the occurrence
 /// that left it open — never another of the same array that happens to be
 /// unread too. Six Spirit lines nobody asked about come before the one
 /// Life line that matters; the reason given is that line's, `[6]`, and

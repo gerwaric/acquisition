@@ -5,7 +5,7 @@
 //! (C102). An entry is a name, a line and an example: the reference is
 //! `search/DESIGN.md`, and this is what a terminal can ask of it. Every
 //! example printed is a query this build binds, or a key a count takes
-//! (`tests/fifth_audit.rs`, `tests/counts.rs`), and every word an entry is
+//! (`tests/surface_faults.rs`, `tests/counts.rs`), and every word an entry is
 //! named by can be asked for alone. Printed from the binder's own tables,
 //! so the help cannot say a name the binder refuses.
 

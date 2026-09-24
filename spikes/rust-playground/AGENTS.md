@@ -47,8 +47,9 @@ Then, only when the work touches it:
   Each module doc names its decision file and ids at the top.
 
 Also read the applicable closed slice record below; its findings table
-is the review checklist. For the refresh and daemon split, also read the
-crates' module docs (refresh: `src/lib.rs`, "As built").
+— for search, its shapes of fault — is the review checklist. For the
+refresh and daemon split, also read the crates' module docs (refresh:
+`src/lib.rs`, "As built").
 
 | Before touching | Read |
 | --- | --- |
@@ -104,7 +105,7 @@ and park lifecycle are in `CONTEXT.md` ("Decisions", "Parked"): use
 | parked scope or question without a ruling | the area's "Parked", with its trigger |
 | observation without a ruling | the open slice's "Observations still open"; after closure, an area park with a trigger |
 | property pinned by a test | test name or comment cites the decision id; the entry's *Pinned:* names the file |
-| review finding | slice's closed record: a row with its fix commit |
+| review finding | the regression test that holds it, named for the fault and never the round; a fault that came back is a rule of the brief or a shape in the record's checklist; the round's story is the fix's commit message |
 | build narrative | commit message |
 | live run | one `RUN-LEDGER.md` row; journals in gitignored `runs/`, mock rehearsals in `runs/mock/` |
 | fact about GGG | numbered ground-truth claim |
