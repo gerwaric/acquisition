@@ -478,8 +478,12 @@ fn what_could_not_be_read_is_named_by_collection() {
     assert!(level.flags_unread && level.flags.is_empty());
     assert!(it.lines.iter().filter(|l| l.flags_unread).count() == 1);
     assert_eq!(
-        it.unread[5].problem,
+        it.unread[6].problem,
         "`explicitMods[1]` is a number, not a line"
+    );
+    assert_eq!(
+        it.unread[4].problem,
+        "`requirements` could not be read and may be the `Level` requirement"
     );
     assert_eq!(it.unread_in(&Part::Lines("explicit".into())).count(), 2);
     assert_eq!(it.unread_in(&Part::Flags("explicit".into())).count(), 1);
