@@ -71,7 +71,7 @@ every finding reproduced by the builder as a failing test before it was
 taken — and a finding a test holds is held there and nowhere else (P5):
 the test names the fault, the commit that fixed it tells the story, and
 `git log` over the step's range is the ledger of rounds. Every finding
-of steps 1 to 6 is held by a test, by a measurement below, or by a
+of steps 1 to 7 is held by a test, by a measurement below, or by a
 ruled hole; the full table — each finding as the auditor found it, its
 verdict, its fix commit and what holds it — is this file at `aeeba6d3`.
 What this section keeps is the checklist a review of a search change
@@ -85,11 +85,15 @@ reads first: the shapes of fault that came back until they were named.
 | **A second maker.** A route, a printed command, a reason, a selector's resolved list, each made in two places that then disagreed — a lacked count of 1 whose route returned 0, a `show` continuation that dropped the account | steps 4, 4b, 5 | rule 10; `answer::command`, `answer::Router`, `eval::why`; the CLI test that runs every printed command with a second account known |
 | **A printed command the build refuses.** A route starting with `-` at a shell, a reading that does not parse (`class=Body Armours`), a slot word the same build's slot check refuses, a continuation the key parser could not read back | steps 4, 5, 6 | rule 5; the route property; every offered reading bound by a test; `bind::closed` offering through the printer |
 | **Arithmetic on floats.** A sum whose value depended on the order of its occurrences; a fallback whose use depended on how the integers cancelled; units read back off a float that does not print its decimal | steps 4b, 5 | `exact.rs`: a number read once, within a measured rule, and whole units from then on |
+| **A cut in the query's order.** A reason made beyond the item's parts took its place from the term that met it first, so two spellings of one query showed different sixes | step 7 | rule 9; `eval::why` orders such a reason by what it says; the audit test in `tests/pseudo.rs` asks two spellings |
+| **A block past its bound.** Rows appended after the cut — the vocabulary's computed values, 39 under a limit of 1 — with the omission uncounted | step 7 | invariant 5; every list an answer holds is cut by the limit and counts its rest, a new kind of row with its own count; the audit test |
+| **A number no game displays, read as one.** Scientific notation through a length check; a product past the units rounded in silence | step 7 | `exact::reads` reads decimal syntax alone; `Exact::times` is none where the units cannot hold it; the input is unread to what asked it |
 | **A claim the code did not make.** A hand count wrong; `DERIVATION` not moved when a body derived to another item; a cause named before it was measured; "covered" said of a property whose generators could not reach the case; a record row crediting the wrong commit | every step | every count worked by hand and then run; the constant's rule on its own doc; a number stated only after measuring; the generators reaching what a fix touched (`reqlevel` joined them at step 6) |
 
 The yields by look, per step — what a review found each time it came
 back, the last look's zero being what a step closed on: step 4, 6, 5,
-2, 3; step 4b (Astra), 6, 3, 3, 1; step 5, 6, 3, 0; step 6, 5, 3, 0.
+2, 3; step 4b (Astra), 6, 3, 3, 1; step 5, 6, 3, 0; step 6, 5, 3, 0;
+step 7 (Astra), 6, 4, and the third look is the next session's.
 Five blind seats at step 5 (`f357de39`; Sonnet, one question each over
 the owner's real store, `--help` and `--describe` their only sources)
 answered every question in three to six invocations and found two
