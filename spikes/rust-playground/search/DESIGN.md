@@ -293,6 +293,9 @@ VALUES
                                  dps), never to a total — an error offering pseudo.total_res>0
                                  and undecided(pseudo.total_res) (T2).
   sockets  links  sockets.red    counts over the socket collection:  sockets>=5  links=6  sockets.red>=2
+                                 the colours are the four words; an abyssal socket (GGG's A) or a
+                                 resonator's (DV) counts in sockets, under no colour, and is asked for
+                                 by its line or its base (K1)
   has:priced   price.amount  price.currency  price.lot
   --sort takes a number: ilvl, stack, line(P).<slot>, sum( … ); a ranged value needs a slot. An
   item with no satisfying occurrence sorts last either way, and so does one whose largest is not

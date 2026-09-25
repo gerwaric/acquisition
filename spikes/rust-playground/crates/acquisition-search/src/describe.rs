@@ -394,6 +394,11 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             || entry
                 .split_once('.')
                 .is_some_and(|(head, _)| head.eq_ignore_ascii_case(asked))
+            // and `sockets.<colour>` to each of the four (an outside review, 2026-09-24, 4)
+            || (entry == "sockets.<colour>"
+                && asked
+                    .strip_prefix("sockets.")
+                    .is_some_and(|word| crate::sockets::letter(word).is_some()))
             // a flag answers to its word: `count` is `--count`
             || entry.trim_start_matches('-').eq_ignore_ascii_case(asked)
             || entry

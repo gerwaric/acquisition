@@ -367,7 +367,29 @@ fn present(held: &Held, thing: Thing) -> bool {
 /// unread — for a socket count, exactly when its interval is more than
 /// one number or its collection could not be read (`sockets.rs`).
 fn open(held: &Held, thing: Thing) -> bool {
+    if is_socket_thing(thing) {
+        // a socket whose group is unread need not leave `links` open: alone
+        // it is a group of one (`sockets.rs`)
+        return match counted(held, thing) {
+            Counted::Range { low, high } => low != high,
+            Counted::Absent => !unread_for(held, thing).is_empty(),
+        };
+    }
     !unread_for(held, thing).is_empty()
+}
+
+/// What leaves a `linked( … )` open: the collection, a socket's group,
+/// and a socket's colour where the group asks a colour.
+fn unread_links<'a>(held: &'a Held, linked: &crate::group::Linked) -> Vec<&'a Unread> {
+    held.item
+        .unread
+        .iter()
+        .filter(|u| match &u.part {
+            Part::Body | Part::Sockets | Part::SocketGroup => true,
+            Part::SocketColour => linked.asks_colour(),
+            _ => false,
+        })
+        .collect()
 }
 
 fn shown_part(shown: Shown<'_>) -> String {
@@ -558,7 +580,7 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
         }
         Atom::Links(linked) => {
             let Some(groups) = sockets::groups(&held.item) else {
-                return decided(false, false, !unread_for(held, Thing::Links).is_empty());
+                return decided(false, false, !unread_links(held, linked).is_empty());
             };
             // a group GGG numbered is a witness where it holds whatever its
             // unread sockets turn out to be; the group that unplaced sockets
@@ -1031,7 +1053,7 @@ fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<Cow<'a, Unread>> {
         | Atom::Has(thing)
         | Atom::Undecided(BProbe::Field(thing)) => borrowed(unread_for(held, *thing)),
         Atom::Is(flag) => borrowed(unread_flag(held, flag)),
-        Atom::Links(_) => borrowed(unread_for(held, Thing::Links)),
+        Atom::Links(linked) => borrowed(unread_links(held, linked)),
         Atom::Lines(group) => borrowed(unread_of_sum(held, group, None)),
         Atom::Sum { group, slot, .. } => borrowed(unread_of_sum(held, group, Some(slot.as_str()))),
         Atom::Pseudo { named, .. } | Atom::HasComputed(named) => pseudo::unread_of(*named, held),

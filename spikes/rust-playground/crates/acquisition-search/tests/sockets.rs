@@ -216,12 +216,12 @@ fn c101_a_colour_over_the_whole_item_and_what_each_unread_socket_leaves_open() {
     );
     // loose: its socket and its colour are read, its group is not
     assert_eq!(
-        ids(&asked(&s, "pc", "id:loose sockets=1 sockets.red=1")),
+        ids(&asked(&s, "pc", "id:loose sockets=1 sockets.red=1 links=1")),
         ["loose"]
     );
     assert_eq!(
         ids(&asked(&s, "pc", "undecided(links)")),
-        ["junk", "loose", "notarray"]
+        ["junk", "notarray"]
     );
     assert_eq!(
         ids(&asked(&s, "pc", "undecided(sockets)")),
@@ -234,9 +234,10 @@ fn c101_a_colour_over_the_whole_item_and_what_each_unread_socket_leaves_open() {
         why[0]["problem"],
         "`sockets[0]` has an `attr` and no `sColour`: the colour is not read from the attribute"
     );
-    let why = &asked(&s, "pc", "id:loose links>=1")["total"]["undecided_items"][0]["why"];
-    assert_eq!(why[0]["unread"], "a socket's group");
-    assert_eq!(why[0]["problem"], "`sockets[0]` has no `group`");
+    assert_eq!(
+        asked(&s, "pc", "id:loose links=1")["total"]["undecided"]["count"],
+        0
+    );
     let why = &asked(&s, "pc", "id:junk sockets=1")["total"]["undecided_items"][0]["why"];
     assert_eq!(why[0]["unread"], "the sockets");
     assert_eq!(why[0]["problem"], "`sockets[1]` is a number, not a socket");
@@ -254,11 +255,10 @@ fn c101_a_colour_over_the_whole_item_and_what_each_unread_socket_leaves_open() {
 fn c101_s59_a_link_group_holds_every_count_named_together() {
     let s = stash();
     let a = routes_partition(&s, "linked(red>=2 blue>=1)");
-    // six and four matched; split, abyss and blind (one socket, never two
-    // reds) failed; empty and ring lacked; junk, loose (a group it may
-    // have, which no count of one socket can make hold) and notarray
+    // six and four matched; split, abyss, blind and loose (one socket,
+    // never two reds) failed; empty and ring lacked; junk and notarray
     // undecided
-    assert_eq!(counts(&a["terms"][0]), [2, 3, 2, 3]);
+    assert_eq!(counts(&a["terms"][0]), [2, 4, 2, 2]);
     assert_eq!(ids(&a), ["four", "six"]);
     assert_eq!(
         ids(&asked(&s, "pc", "id:four linked(red>=1 green>=1)")),
@@ -355,17 +355,17 @@ fn c105_a_socket_count_is_a_key_whose_buckets_sum_to_the_total() {
         ])
     );
     let links = &a["view"]["counts"]["tables"][1];
-    // six 6; four 4; split 2; abyss, blind 1; empty, ring none; junk,
-    // loose, notarray undecided
+    // six 6; four 4; split 2; abyss, blind, loose 1; empty, ring none;
+    // junk, notarray undecided
     assert_eq!(
         shape(links),
         shaped(&[
-            ("1", 2),
+            ("1", 3),
             ("2", 1),
             ("4", 1),
             ("6", 1),
             ("(none)", 2),
-            ("(undecided)", 3)
+            ("(undecided)", 2)
         ])
     );
     for table in [sockets, links] {
@@ -394,15 +394,15 @@ fn c105_a_socket_count_is_a_key_whose_buckets_sum_to_the_total() {
         .as_array()
         .unwrap()
         .iter()
-        .take(5)
+        .take(6)
         .map(|row| row["id"].as_str().unwrap())
         .collect();
-    assert_eq!(order, ["six", "four", "split", "abyss", "blind"]);
+    assert_eq!(order, ["six", "four", "split", "abyss", "blind", "loose"]);
     let last: Vec<(&str, &Value)> = r["rows"]
         .as_array()
         .unwrap()
         .iter()
-        .skip(5)
+        .skip(6)
         .map(|row| (row["id"].as_str().unwrap(), &row["sort"]))
         .collect();
     for (id, sort) in last {
@@ -568,6 +568,9 @@ fn a_group_is_ggg_s_number_and_an_unplaced_socket_widens_every_group() {
     assert_eq!(asked("id:mixed links>=4")["terms"][1]["failed"]["count"], 2);
     assert_eq!(ids(&asked("undecided(links)")), ["mixed"]);
     assert_eq!(ids(&asked("id:mixed undecided(links=2)")), ["mixed"]);
+    let why = &asked("id:mixed links=2")["total"]["undecided_items"][0]["why"];
+    assert_eq!(why[0]["unread"], "a socket's group");
+    assert_eq!(why[0]["problem"], "`sockets[2]` has no `group`");
     assert_eq!(ids(&asked("undecided(sockets)")), Vec::<String>::new());
     // within a group: the size it may reach is open, its floor is not
     assert_eq!(
@@ -588,4 +591,88 @@ fn a_group_is_ggg_s_number_and_an_unplaced_socket_widens_every_group() {
         sockets::layout(&mixed).as_deref(),
         Some("R-R G (group unread)")
     );
+}
+
+/// An outside review of step 8 (2026-09-24), each finding reproduced
+/// here before it was fixed: a `linked( … )` left open by a socket's
+/// colour says why; a socket whose group is unread adds to its own
+/// colour's count and to no other; alone in the collection it is a group
+/// of one, exactly, so `links=1` and `has:links` hold and nothing sorts
+/// as incomplete; and `--describe sockets.red` answers.
+#[test]
+fn review_a_socket_whose_group_is_unread_is_a_socket_still_and_an_open_group_says_why() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("t1", "T")]), 10);
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "t1",
+        "T",
+        vec![
+            item(
+                "blind",
+                "Blind",
+                "Iron Hat",
+                "Rare",
+                json!({ "sockets": [{ "group": 0, "attr": "S" }] }),
+            ),
+            item(
+                "green",
+                "Green",
+                "Iron Hat",
+                "Rare",
+                json!({ "sockets": [socket("R", 0), { "sColour": "G" }] }),
+            ),
+            item(
+                "alone",
+                "Alone",
+                "Iron Hat",
+                "Rare",
+                json!({ "sockets": [{ "sColour": "R" }] }),
+            ),
+        ],
+        20,
+    );
+    let asked = |text: &str| as_json(&ask(&load(&s, Some("pc")), text).unwrap());
+    // 1: the reason names the colour
+    let a = asked("id:blind linked(red>=1)");
+    assert_eq!(a["total"]["undecided"]["count"], 1);
+    let why = &a["total"]["undecided_items"][0]["why"];
+    assert_eq!(why[0]["unread"], "a socket's colour");
+    assert_eq!(asked("id:blind linked(size>=1)")["total"]["matched"], 1);
+    // 2: an unplaced green socket cannot turn a blue count, and may turn green
+    // blind's one socket may be blue: open, and rightly
+    assert_eq!(ids(&asked("linked(blue=0)")), ["alone", "green"]);
+    assert_eq!(ids(&asked("undecided(linked(blue=0))")), ["blind"]);
+    assert_eq!(
+        ids(&asked("id:green linked(green>=1)")),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        ids(&asked("id:green undecided(linked(green>=1))")),
+        ["green"]
+    );
+    assert_eq!(ids(&asked("id:green linked(red>=1 green<=1)")), ["green"]);
+    // 3: a single socket is a group of one
+    assert_eq!(
+        ids(&asked(
+            "id:alone links=1 has:links linked(red>=1 size=1) sockets.red=1"
+        )),
+        ["alone"]
+    );
+    assert_eq!(ids(&asked("undecided(links)")), ["green"]);
+    let sorted: Request = serde_json::from_value(json!({
+        "scope": { "realm": "pc" },
+        "query": { "text": "id:alone" },
+        "view": { "rows": { "sort": "links" } },
+    }))
+    .unwrap();
+    let r = as_json(&answer(&load(&s, Some("pc")), &sorted).unwrap());
+    assert_eq!(r["rows"][0]["sort"], json!({ "value": 1 }));
+    // 4: the help answers to each colour field
+    let d =
+        serde_json::to_value(acquisition_search::describe(&["sockets.red".to_string()]).unwrap())
+            .unwrap();
+    assert_eq!(d["fields"][0]["name"], "sockets.<colour>");
 }

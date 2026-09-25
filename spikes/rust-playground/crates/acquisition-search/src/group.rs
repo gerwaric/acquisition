@@ -582,6 +582,21 @@ impl Linked {
         Ok(Linked(link(whole)?))
     }
 
+    /// Whether the group asks a colour's count: then a socket whose colour
+    /// could not be read is a reason it is open (an outside review,
+    /// 2026-09-24, 1).
+    pub fn asks_colour(&self) -> bool {
+        fn asks(member: &BLink) -> bool {
+            match member {
+                BLink::All(children) | BLink::Any(children) => children.iter().any(asks),
+                BLink::Not(inner) => asks(inner),
+                BLink::Colour { .. } => true,
+                BLink::Const(_) | BLink::Size(_) => false,
+            }
+        }
+        asks(&self.0)
+    }
+
     /// Three-valued on one link group, as far as its counts were read.
     pub fn of(&self, group: &GroupCounts) -> Truth {
         fn truth(member: &BLink, group: &GroupCounts) -> Truth {

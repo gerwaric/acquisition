@@ -24,8 +24,8 @@
 //!   sockets, each in a group of its own on the census's copy; the
 //!   colours a query names are the reference's four, so an abyssal
 //!   socket is asked for by the line every such item displays (`"Has #
-//!   Abyssal Sockets"`) and a resonator by its base — a hole of the
-//!   plan's foot until the owner rules (K1).
+//!   Abyssal Sockets"`) and a resonator by its base (K1; owner,
+//!   2026-09-24: "agreed").
 //!
 //! # As built
 //!
@@ -45,7 +45,12 @@
 //!   socket leaves it open; `sockets.<colour>` is open by that and by a
 //!   socket whose colour is unread; `links` and a group's counts by that
 //!   and by a socket whose group is unread, which may sit in any group or
-//!   make one of its own ([`Groups`]).
+//!   make one of its own ([`Groups`]). A socket whose group is unread is
+//!   a socket still: it adds to its own colour's ceiling and to no other,
+//!   it makes a link group exist, and alone — no group known, no element
+//!   unread — it is a group of one, exactly (an outside review,
+//!   2026-09-24, 2 and 3). A colour a socket's group could turn is a
+//!   reason a `linked( … )` is open (its 1).
 //! - **Present and absent** (C93): an item whose body carries no `sockets`
 //!   lacks every count, so `sockets>=1` is false on a ring and `-has:sockets`
 //!   finds it. An item whose collection is present holds `sockets` and
@@ -108,10 +113,6 @@ impl Counted {
             Counted::Range { low, .. } => Some(low),
             Counted::Absent => None,
         }
-    }
-
-    pub fn is_open(self) -> bool {
-        matches!(self, Counted::Range { low, high } if low != high)
     }
 
     /// A comparison over the interval: true when every count in it
@@ -228,11 +229,6 @@ pub fn groups(item: &Item) -> Option<Groups<'_>> {
 }
 
 impl Groups<'_> {
-    /// Whether anything of the collection could not be read.
-    pub fn has_holes(&self) -> bool {
-        self.junk > 0 || self.unplaced > 0 || self.sockets.iter().any(|s| s.colour_unread)
-    }
-
     /// `sockets`: how many sockets the item has.
     pub fn count(&self) -> Counted {
         Counted::Range {
@@ -255,20 +251,31 @@ impl Groups<'_> {
         }
     }
 
-    /// Whether the item is known to have a link group.
+    /// Whether the item is known to have a link group: one GGG numbered,
+    /// or a socket whose group is unread, which sits in one whatever it is.
     pub fn has_group(&self) -> bool {
-        !self.groups.is_empty()
+        !self.groups.is_empty() || self.unplaced > 0
     }
 
-    /// Whether the item may have a link group beyond the known ones: a
-    /// socket whose group is unread, or an element that may be a socket.
+    /// Whether the item may have a link group and is not known to: an
+    /// element that may be a socket, and nothing that is one.
     pub fn may_have_group(&self) -> bool {
-        self.unplaced + self.junk > 0
+        !self.has_group() && self.junk > 0
     }
 
-    /// `links`: the size of the largest link group. Absent while no group
-    /// is known and none may exist; open with nothing read while none is
-    /// known and one may.
+    /// The sockets whose group is unread that may add to a colour's count:
+    /// those of that colour, and those whose colour is unread too.
+    fn unplaced_of(&self, letter: &str) -> usize {
+        self.sockets
+            .iter()
+            .filter(|s| {
+                s.group.is_none() && (s.colour.as_deref() == Some(letter) || s.colour_unread)
+            })
+            .count()
+    }
+
+    /// `links`: the size of the largest link group. Absent while no socket
+    /// is known and no element may be one; at least one while a socket is.
     pub fn links(&self) -> Counted {
         let may_join = self.unplaced + self.junk;
         match self.groups.iter().map(|(_, members)| members.len()).max() {
@@ -276,58 +283,72 @@ impl Groups<'_> {
                 low: largest,
                 high: largest + may_join,
             },
-            None if may_join > 0 => Counted::Range {
-                low: 0,
+            None if self.unplaced > 0 => Counted::Range {
+                low: 1,
                 high: may_join,
+            },
+            None if self.junk > 0 => Counted::Range {
+                low: 0,
+                high: self.junk,
             },
             None => Counted::Absent,
         }
     }
 
     /// Every link group the item may have, each with its counts: the
-    /// groups GGG numbered, and — where a socket may sit in any group —
-    /// one more, of the sockets that may make a group of their own.
+    /// groups GGG numbered, a socket whose group is unread on its own
+    /// where it is the whole collection (a group of one, exactly), and —
+    /// where a socket may sit in any group — one more, of the sockets that
+    /// may make a group of their own, whose members are none since it may
+    /// not exist.
     pub(crate) fn each(&self) -> Vec<GroupCounts> {
         let may_join = self.unplaced + self.junk;
+        let letters = |of: &[&Socket]| {
+            let mut letters: Vec<String> = COLOURS.iter().map(|(_, l)| l.to_string()).collect();
+            for socket in of {
+                if let Some(colour) = &socket.colour
+                    && !letters.contains(colour)
+                {
+                    letters.push(colour.clone());
+                }
+            }
+            letters
+        };
+        let counts = |members: &[usize], others: usize| {
+            let of: Vec<&Socket> = members.iter().map(|i| &self.sockets[*i]).collect();
+            let unread = of.iter().filter(|s| s.colour_unread).count();
+            let colours = letters(&of)
+                .into_iter()
+                .map(|letter| {
+                    let known = of
+                        .iter()
+                        .filter(|s| s.colour.as_deref() == Some(&*letter))
+                        .count();
+                    let high = known + unread + self.unplaced_of(&letter) + self.junk;
+                    (letter, Counted::Range { low: known, high })
+                })
+                .collect();
+            GroupCounts {
+                members: members.to_vec(),
+                size: Counted::Range {
+                    low: of.len(),
+                    high: of.len() + others,
+                },
+                colours,
+            }
+        };
+        if self.groups.is_empty() && self.unplaced == 1 && self.junk == 0 {
+            let alone = self
+                .sockets
+                .iter()
+                .position(|s| s.group.is_none())
+                .unwrap_or(0);
+            return vec![counts(&[alone], 0)];
+        }
         let mut out: Vec<GroupCounts> = self
             .groups
             .iter()
-            .map(|(_, members)| {
-                let of: Vec<&Socket> = members.iter().map(|i| &self.sockets[*i]).collect();
-                let unread = of.iter().filter(|s| s.colour_unread).count();
-                let mut letters: Vec<String> = COLOURS.iter().map(|(_, l)| l.to_string()).collect();
-                for socket in &of {
-                    if let Some(colour) = &socket.colour
-                        && !letters.contains(colour)
-                    {
-                        letters.push(colour.clone());
-                    }
-                }
-                let colours = letters
-                    .into_iter()
-                    .map(|letter| {
-                        let known = of
-                            .iter()
-                            .filter(|s| s.colour.as_deref() == Some(&*letter))
-                            .count();
-                        (
-                            letter,
-                            Counted::Range {
-                                low: known,
-                                high: known + unread + may_join,
-                            },
-                        )
-                    })
-                    .collect();
-                GroupCounts {
-                    members: members.clone(),
-                    size: Counted::Range {
-                        low: of.len(),
-                        high: of.len() + may_join,
-                    },
-                    colours,
-                }
-            })
+            .map(|(_, members)| counts(members, may_join))
             .collect();
         if may_join > 0 {
             out.push(GroupCounts {
@@ -339,13 +360,8 @@ impl Groups<'_> {
                 colours: COLOURS
                     .iter()
                     .map(|(_, l)| {
-                        (
-                            l.to_string(),
-                            Counted::Range {
-                                low: 0,
-                                high: may_join,
-                            },
-                        )
+                        let high = self.unplaced_of(l) + self.junk;
+                        (l.to_string(), Counted::Range { low: 0, high })
                     })
                     .collect(),
             });
