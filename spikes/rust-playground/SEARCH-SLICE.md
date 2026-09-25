@@ -51,20 +51,23 @@ the two blind proposals it produced are
 ## Step ledger
 
 Steps as built, in the order they landed; what each was to close on is
-the plan's step table.
+the plan's step table. A row names what landed — modules, tests, ids,
+commits, measured counts — and points at the measurement or hole it
+left below; what a module does is its doc, and the round's story is the
+commit's.
 
 | Step | Commit | What landed |
 | --- | --- | --- |
-| 1 · the language | `080a8581` | `acquisition-search`: the tree and its validity (`tree.rs`), the parser over the whole reference (`parse.rs`), the canonical printer (`print.rs`), the strict JSON form (`json.rs`), structured errors with stable kinds (`error.rs`). `tests/language.toml`: 133 cases over 86 constructs (123 over 82 at the step's commit; H1 and H2 added the rest) — every construct of the reference, every error the grammar defines with its readings, the acceptance queries — and `tests/language.rs` refuses a construct with no case. The round trip over generated trees (2,000 a run; 60,000 once, by hand), any finite number, and no text panics the parser (200,000 once). C89's edges in `tools/docs-check.sh` §5 with nine breaker cases: `tools/docs-check-breakers.sh`, 51 ok. The contract detail's sentences on the check and the lints left `DESIGN.md` for the crate doc. |
-| 2 · the derivation | `ef720323` | `derive.rs`: `derive(facts, body) -> Item`, pure and total — the header, `rarity` and `frameTypeId` as given, `ilvl`, `stackSize`, the note, every yes the body says; properties and requirements as displayed strings, name and values kept apart; lines as (source, flags, template, numbers) with `slot` and the ranged rule; `displayed()`, the rows a phrase will be tested against; and what could not be read, by part, the readable rest still derived. `tests/derive.rs`: 12 fixtures worked by hand and a property test that no text and no JSON panics it. M2 below: no unexplained difference. `template::typed` gained the thousands comma. |
-| 3 · the store's read | `c0a8f918` | `acquisition-store/src/corpus.rs`: `Store::read_corpus` — the header (the revision, the account, the realms the file holds, the latest listing of each list in scope, every live location in scope with its `type`, `listed_at` and `fetched_at`) and then every live item at a live location, streamed to the caller's closure inside one read transaction, league joined as `read_items` joins it, the body as text — and `Store::revision`. Seven store tests, `REFRESH-SLICE.md`'s findings as the checklist: the one-snapshot test over two handles on one file (it fails when the snapshot is ended after the header — tried), the league join over a character the listing moved and a league-less one, live by full coordinate (one tab id under `pc` and `xbox`) in one realm or all, the revision through every write door, no derived column in the read or its order, a store with no account refused, and the header's coverage — a folder told from an unfetched tab, a retired tab's substash no live location (it fails without the exclusion — tried), an empty listing still seen. The revision's line-by-line read is that module's doc. C103's second decision is C108 (`decisions/store.md`), its wording approved by the owner (2026-09-20: "All is approved"). M1 below. |
-| 4 · the first surface | `28606ed4` | `acquisition-search` links the store (C89) and gains `bind.rs` (the vocabulary as closed lists, near names, the one list of what is not built, a bare word's closed-set readings), `corpus.rs` (every live item of a scope derived from one `read_corpus`, held with its basis, its places and the coverage the scope block states), `eval.rs` (matched, failed, lacked, undecided; witnesses; three-valued composition and the `holds` interval; sums with their status; the sort scalar; the together count), `answer.rs` (the request and the answer: a route on every count that is not zero, what a `:` or `~` selector resolved to, rows with what matched, the zero block), `describe.rs`, `show.rs`. The CLI gains `acq search` and `acq show` (`search_cmd.rs`), text rendered from the value `--json` prints, the flags of steps 5 and 10 refused by name; README tour lines; `CLI-REFERENCE.md` regenerated. Tests at the crate's boundary, every count worked by hand first: `tests/answer.rs` (the worked example reduced, the route property, invariants 2 and 6, C93's composition, C92's scalar, C96's scope, C98 at the answer's boundary), `tests/acceptance.rs` (OQ1–OQ4, OQ7, AQ2–AQ5 as far as step 4 builds them; S12, S52 and S107 by their wording), `tests/refusal.rs` (the walk over `language.toml`, invariant 3, S53), and the CLI's `tests/search_json.rs`. Three mutants tried, each caught: unread beating a witness, a line's failed route as `-term`, not-undecided as true. M3 and M4 below. |
-| 4b · the properties | `39e7667a`–`36a9738a` | Three properties beside the outside agent's routes, each through the crate's boundary over generated queries and generated items with unread evidence, from one set of generators (`tests/common/generated.rs`: a query tree of the test's own with its normal form, and bodies with holes that a completion fills): `tests/generated_equivalence.rs` (invariant 7), `tests/generated_completion.rs` (C93's definition, its measured half run by hand), `tests/generated_cross_checks.rs` (transformations 10 and 13). Then `group.rs`: what `line( … )` means, computed once at binding and read from there, the bound form private to it; `tools/docs-check.sh` §7 refuses a source file that names a group's tree outside `tree`, `parse`, `print`, `json`, `template` and `group`, with five breakers (`tools/docs-check-breakers.sh`, 56 ok). No test of step 4 was touched and the answer's JSON did not move. What they met: the findings and measurements below. |
-| 5 · counts and the vocabulary | `31b5f09d` | `counts.rs`: the view is one of rows, `--count` and `--cross` (C95); a bucket is a term — `<key>=<value>`, `none` by `-has:<key>`, `undecided` by `undecided(<key>)` (C105) — its count the evaluator's own outcome on the matches and its route the query and that term, made by the one maker of a route (`answer::Router`); `tab` counted by the tab and routed by its id; two spellings of a value two buckets, each routed by a pattern that turns case back on (`bind::exact_pattern`), told apart by the matcher's own fold (`bind::folded`, `regex-syntax`); a value outside a closed list counted with no route; tables cut by the data, `none` and `undecided` never; the vocabulary as the key `line`, narrowed by `line:text` and `line~pattern`, a row per (realm, template) with its term, each number's range, and its sources and flags each with a term (C97); `--sum` over the three kinds, exact (C95); a tally by what was unread beneath `undecided`. `--describe counts`. The CLI: the three flags real, `line:` taking the rest of the list, the tables and their routes rendered; `CLI-REFERENCE.md` regenerated; README tour line. `tests/counts.rs` (AQ1; C105's two invariants on `rarity`; C95's sum over an item with the value, one lacking it, one unread; the vocabulary's pasted term selecting its row, source and flag both; all-realms rows; the crossed table; the cut; every view error) — fourteen items, every count by hand, every route followed by id; `bind.rs`'s two properties, the fold against any-case `=` and the exact pattern against its text, each shown to fail (below); the CLI's terminal-level route check. What it met: the findings and measurements below. |
-| 6 · class | `eeaec66e` | `class.rs` and `reference/classes-v1.toml` in `acquisition-search`: the class table as reference data (C106, C68) — 82 classes, 4,547 base names, the game's own class names (`Rings`, `Staves`), generated by `tools/class-table.py` from the pinned RePoE export (`base_items.json`, `item_classes.json`, and `gems.json` for the 225 transfigured-gem names no base carries), compiled in, parsed once, checked by the loader; `class` a closed-set field (`class:ring`, `class=Rings`, `class:sword` three), `undecided(class)` with one reason each — base not in the table, base under several classes, no table for the realm, no base — tallied beneath a count's `undecided` (C105), the deriver's unread base said once (rule 8); `reqlevel`, the `Level` requirement as a number, absent where the requirements were read and hold none; the basis gains `classes v1` (C98); `show` prints the class; `--describe class` the definition and source. `tests/class.rs` (the shipped file, every reason, the tally, `show`, `reqlevel`), `tests/acceptance.rs` (OQ1 and OQ4 as worded, OQ5 askable), `tests/counts.rs` (C105's ten rare items by class: Rings 6, Wands 3, undecided 1). `DERIVATION` 6. M2 and M3 below; the holes and observations of step 6 below. |
-| 7 · computed values | `b5d62d92` | `totals.rs` and `reference/totals-v1.toml` in `acquisition-search`: the totals table as reference data (C94, C68) — 35 totals, 104 rows, generated by `tools/totals-table.py` from the C++ app's pseudomod tables at `master@946a4f51`, each naming the trade site's pseudo stat; `pseudo.rs`: the `pseudo.` namespace over the table's totals and the derived fields `pseudo.dps` and `pseudo.pdps` (C101), what a comparison, a sort, a count's sum and `undecided( … )` consume when they name one, shown on a row with what it counted; the basis gains `totals v1` (C98); `--describe` lists every computed value with its definition and provenance. `pseudo.defence_pct` and a ranged total (`pseudo.<name>.<slot>`) refused by name, the entry naming no step. How a total and a field are decided is the two modules' docs. `tests/pseudo.rs`, `tests/answer.rs` (the worked example whole), `tests/acceptance.rs` (AQ2 as worded). M6 and M3 below; T1–T4 at the plan's foot (T1, T2 and T5 ruled below since); the observations of step 7 below. |
-| 7 · the third look | `ecb83b65` | The generators reach the computed values, nothing else (owner, 2026-09-24: "Step 7's third look is generators reaching pseudo, nothing else: total_res, dps and pdps, in the existing composition, shown to catch a fault from these rounds."): two resistance line kinds and a `properties` array with its holes in the bodies; a total's comparison (a sum's kind), the derived fields' comparisons and `has:`, the probe, the case alt and the three sorts in the query tree; an eighth anchor past the reasons bound, with a fixed case beside the rare find. The equivalence normalizer folds a value's authored name, which the product keeps in the typed case (`ILVL` as `pseudo.TOTAL_RES`). Shown to catch the first round's 1 and 5 and a mutant per property; its 2 (a product rounded) is past the generators' values and held by `exact.rs`'s unit test, as the second round's faults are past their reach. No source changed; the story is the commit's. |
-| 8 · sockets | `ec024ceb`; reviewed `dca017f5`, `7010f658` | `sockets.rs`, and the deriver reads the socket collection (C101; `derive.rs`): each socket's `group` and `sColour` as GGG gives them, `[]` a present collection with nothing in it, unread at the socket's grain — an element that is no socket, a colour or a group that could not be read. A count is an interval of what was read — `sockets`, `links`, `sockets.<colour>` for the four words, a link group's `red green blue white size` — decided where the whole interval agrees (`eval.rs`); `linked( … )` is bound in `group.rs` beside a line's group and asked of each link group the item may have, a group GGG numbered a witness, one that may exist never. No collection lacks every count; no link group lacks `links` and every `linked( … )`, routed by `-has:links`. Buckets, sort and sum read the one status; `show` and a row print the layout (`R-R-G B W`), made once; `--describe` gains the fields and the `linked` block. `DERIVATION` 9. `tests/sockets.rs` (every count by hand; three mutants caught), `tests/derive.rs`, `tests/acceptance.rs` (OQ3 as worded); the generators reach the sockets (`tests/common/generated.rs`) and caught a possible group taken as a witness before the commit. M2, M3 and the copy's counts below. |
+| 1 · the language | `080a8581` | `acquisition-search`: `tree.rs`, `parse.rs`, `print.rs`, `json.rs`, `error.rs` (C89, C104). `tests/language.toml`, 133 cases over 86 constructs (123 over 82 at the commit; H1 and H2 the rest), and `tests/language.rs`, which refuses a construct with no case; the round trip over generated trees (2,000 a run; 60,000 once), any finite number, and no text panicking the parser (200,000 once). C89's edges in `tools/docs-check.sh` §5, nine breakers in `tools/docs-check-breakers.sh`. |
+| 2 · the derivation | `ef720323` | `derive.rs`: `derive(facts, body) -> Item`, pure and total (C103, rule 8); `template::typed` reads the thousands comma. `tests/derive.rs`: 12 fixtures worked by hand, and no text and no JSON panics it. M2 below. |
+| 3 · the store's read | `c0a8f918` | `acquisition-store/src/corpus.rs`: `Store::read_corpus` — the header, then every live item at a live location streamed inside one read transaction, the body as text — and `Store::revision` (C103; C108 given its own entry, the wording approved 2026-09-20). Seven store tests under `REFRESH-SLICE.md`'s checklist: the one snapshot over two handles, the league join, live by full coordinate in one realm or all, the revision through every write door, no derived column, no account refused, the header's coverage — two shown to fail without their exclusion. M1 below. |
+| 4 · the first surface | `28606ed4` | `acquisition-search` links the store (C89): `bind.rs`, `corpus.rs`, `eval.rs` (C92, C93), `answer.rs` (C100), `describe.rs`, `show.rs`; the CLI's `acq search` and `acq show` (`search_cmd.rs`, C53), the flags of steps 5 and 10 refused by name; README tour lines; `CLI-REFERENCE.md` regenerated. Tests at the crate's boundary, every count by hand: `tests/answer.rs` (the worked example reduced, the route property, invariants 2 and 6, C93, C92, C96, C98), `tests/acceptance.rs` (OQ1–OQ4, OQ7, AQ2–AQ5 as far as built; S12, S52, S107), `tests/refusal.rs` (the walk over `language.toml`, invariant 3, S53), the CLI's `tests/search_json.rs`. M3 and M4 below. |
+| 4b · the properties | `39e7667a`–`36a9738a` | Three properties through the crate's boundary from one set of generators (`tests/common/generated.rs`): `tests/generated_equivalence.rs` (invariant 7), `tests/generated_completion.rs` (C93; its measured half below), `tests/generated_cross_checks.rs` (transformations 10 and 13). Then `group.rs`, a group's meaning computed once at binding, and `tools/docs-check.sh` §7 with five breakers. No test of step 4 touched; the answer's JSON did not move. |
+| 5 · counts and the vocabulary | `31b5f09d` | `counts.rs`: `--count`, `--cross`, `--sum` (C95), the `none` and `undecided` buckets (C105), the vocabulary as the key `line` (C97), every route by the one maker (`answer::Router`), `bind::exact_pattern` and `bind::folded` for a value's two spellings; `--describe counts`; the CLI's three flags, a README tour line, `CLI-REFERENCE.md` regenerated. `tests/counts.rs` (AQ1; C105's two invariants on `rarity`; C95's sum over the three kinds; the vocabulary's pasted term; all-realms rows; the crossed table; the cut; every view error), fourteen items by hand, every route followed by id; `bind.rs`'s two properties, each shown to fail; the CLI's route check. |
+| 6 · class | `eeaec66e` | `class.rs` and `reference/classes-v1.toml`: the class table as reference data (C106, C68) — 82 classes, 4,547 base names, the game's own names, by `tools/class-table.py` from the pinned RePoE export (`base_items.json`, `item_classes.json`, `gems.json` for 225 transfigured gems); `class` a closed-set field, `undecided(class)` with one reason each (C105); `reqlevel`; the basis gains `classes v1` (C98); `show` and `--describe class`. `tests/class.rs`, `tests/acceptance.rs` (OQ1 and OQ4 as worded, OQ5), `tests/counts.rs` (C105's ten rare items by class: Rings 6, Wands 3, undecided 1). `DERIVATION` 6. The census count and M3 below; the holes and observations of step 6 below. |
+| 7 · computed values | `b5d62d92` | `totals.rs` and `reference/totals-v1.toml`: the totals table as reference data (C94, C68) — 35 totals, 104 rows, by `tools/totals-table.py` from the C++ app's pseudomod tables at `master@946a4f51`; `pseudo.rs`: the `pseudo.` namespace, `pseudo.dps` and `pseudo.pdps` (C101); the basis gains `totals v1` (C98); `--describe` lists every computed value. `pseudo.defence_pct` and a ranged total refused by name, the entry naming no step. `tests/pseudo.rs`, `tests/answer.rs` (the worked example whole), `tests/acceptance.rs` (AQ2 as worded). M6 and M3 below; T1, T2 and T5 ruled below, T3 and T4 at the plan's foot; the observations of step 7 below. |
+| 7 · the third look | `ecb83b65` | The generators reach the computed values, nothing else (owner, 2026-09-24, `66a20acf`): resistance lines and a `properties` array with holes in the bodies; a total's comparison, the derived fields' comparisons and `has:`, the probe, the case alt and the three sorts in the query tree; an eighth anchor past the reasons bound, a fixed case beside the rare find. Shown to catch the first round's 1 and 5 and a mutant per property; its 2 is held by `exact.rs`'s unit test. No source changed. |
+| 8 · sockets | `ec024ceb`; reviewed `dca017f5`, `7010f658` | `sockets.rs`, and `derive.rs` reads the socket collection at the socket's grain (C101, rule 8); a count is an interval of what was read, decided where the whole interval agrees (`eval.rs`); `linked( … )` bound in `group.rs` beside a line's group; `show` and a row print the layout, made once; `--describe` gains the fields and the `linked` block. `DERIVATION` 9. `tests/sockets.rs` (every count by hand; three mutants caught), `tests/derive.rs`, `tests/acceptance.rs` (OQ3 as worded); the generators reach the sockets (`tests/common/generated.rs`). M2, M3 and the copy's counts below; K1 ruled below; the observations of step 8 below. |
 
 ## Findings
 
@@ -140,17 +143,17 @@ whether the ranged rule takes it (`ranged-split.py`'s cases A and B).
 | ranged (one `# to #`): rows / lines | | 201 / 3,708 — 186 the pair alone, 15 with a further number; 2 rows with two pairs, 387 with several numbers and no pair, 166 `(#-#)`, none of them ranged |
 
 The departures, each a rule of `derive.rs` ("As built"), counted by the
-script (lines whose template moved / census templates touched):
+script — lines whose template moved / census templates touched:
 
-| Departure | Count | Why |
-| --- | ---: | --- |
-| `ultimatumMods` is no source of lines | 3,567 lines | its elements are ids with a tier (`FrostInfection`, 3); the same item's `explicitMods` already displays them (`Blistering Cold III`) on all 539 items, with two lines more on 315. A candidate ground-truth claim |
-| a vaal gem's base skill is the source `hybrid` | 2,251 lines added | D3, ruled; the census read top-level arrays only |
-| an empty line displays nothing | 362 lines | the spacer rows of an essence's description |
-| a row break `\r\n` is `\n` | 407 / 256 | the reference's strings escape `\n` alone, so a template holding a CR could never be typed |
-| `<style>{Display}` reduced, nested | 478 / 359 | markup the digest does not name (S4 knows the brackets): a divination card's reward, `<uniqueitem>{Staff}`, `<size:31>{…}`; 821 tags, each followed by its brace. A candidate ground-truth claim |
-| `[Tag|Display]` and `[Display]` reduced | 286 / 62 | S4, C90 |
-| `1,500` is one number | 1 / 1 | read as 1 and 500 it is a wrong value, silently; the template is `#x Vivid Crystallised Lifeforce` |
+| Departure | Count |
+| --- | ---: |
+| `ultimatumMods` is no source of lines — a candidate ground-truth claim: on all 539 items `explicitMods` displays the same, with two lines more on 315 | 3,567 lines |
+| a vaal gem's base skill is the source `hybrid` (D3; the census read top-level arrays only) | 2,251 lines added |
+| an empty line displays nothing (an essence's spacer rows) | 362 lines |
+| a row break `\r\n` is `\n` | 407 / 256 |
+| `<style>{Display}` reduced, nested — a candidate ground-truth claim: markup the digest does not name, 821 tags on the copy | 478 / 359 |
+| `[Tag\|Display]` and `[Display]` reduced (S4, C90) | 286 / 62 |
+| `1,500` is one number (`#x Vivid Crystallised Lifeforce`) | 1 / 1 |
 
 Deriving took 1.4 s for the 22,721 in a debug build, the parse included.
 
@@ -284,37 +287,46 @@ range of the warm medians, in ms.
 | `57ec6a9e` | step 7, T5 | — | the vocabulary whole 316 | the vocabulary whole 2,130 |
 | `ec024ceb` | step 8, with its four asks added to the script | 448 | 276–370 | 1,862–2,762 |
 
-Step 7's four asks at its build (release · debug): AQ2 as worded,
-`pseudo.total_res>=60` over OQ1, 359 · 2,748; the worked example whole
-356 · 2,405; `pseudo.dps>=100` sorted by it 280 · 1,867; `--count class
---sum pseudo.total_res` over the rares 301 · 2,021 — a total asked of
-every item is the dearest ask yet, its 19 rows each a group asked of
-each line, 80 ms over the empty query; the totals table's parse is
-within the noise (the empty query 278, step 6's 275).
-**The vocabulary whole at `4237d2f3`, 954 ms** (an outside review's
-finding, 2026-09-24; its medians 284 · 988 · 312 for the empty query,
-the vocabulary whole and the vocabulary twice narrowed; here 275 · 954 ·
-306): the computed-value scan `line` alone gained at `e63c86a8`,
-measured and not read — the same binary with the scan skipped, 323 —
-and costing by the table's rows, not its names: `line:total_res` (19
-rows) 356, `line:total_fire_res` 315, `line:pdps` 279, `line:resist`
-(11 totals) 524; the limit cannot cut it, the ranking needing every
-count first; the load unchanged. T5 ruled it (`57ec6a9e`: 316).
-Step 8's four asks at its build: 281–282 release, 1,864–1,872 debug,
-within the noise of the empty query (276 · 1,862). Over the copy,
-`--realm all --count` of `sockets`, `links` and each colour: every
-bucket a value or `none`, `undecided` 0, each table summing to 22,721;
-sockets on 3,456 items, 0 on the four `[]`, `links` on 3,452.
-Step 6's three asks at its build: OQ1 as worded (`class:ring`) 297,
-OQ5 by class and level 277, `--count class` 277 — the class table's
-parse is within the noise of the empty query. Step 5's six asks at
-`31b5f09d`: AQ1 276, OQ7's count by tab 274, the crossed table 274, the
-sum 273, the vocabulary twice narrowed 286, the vocabulary whole 302 —
-every template of 22,623 items ranked, 6,113 rows, 20 listed. A run can
-have a slow half of unknown cause (the run before step 6's row: 554–621
-ms release for its first thirteen asks, 277–309 for the last nine), so
-a run is claimed only when its halves agree, and a slowdown's cause is
-never named before it is measured.
+The asks each step added to the script, at the step's build, warm
+medians in ms; a step's empty query is its floor.
+
+| Build | Ask | Release | Debug |
+| --- | --- | ---: | ---: |
+| `31b5f09d`, step 5 | AQ1 `--count tab,league,rarity` | 276 | — |
+| | OQ7 `--count tab` | 274 | — |
+| | `--cross league,tab` | 274 | — |
+| | `--count base --sum stack` | 273 | — |
+| | the vocabulary twice narrowed | 286 | — |
+| | the vocabulary whole: every template of 22,623 items ranked, 6,113 rows, 20 listed | 302 | — |
+| `eeaec66e`, step 6 | the empty query | 275 | — |
+| | OQ1 as worded (`class:ring`) | 297 | — |
+| | OQ5 by class and level | 277 | — |
+| | `--count class` | 277 | — |
+| `b5d62d92`, step 7 | the empty query | 278 | — |
+| | AQ2 as worded, `pseudo.total_res>=60` over OQ1 | 359 | 2,748 |
+| | the worked example whole | 356 | 2,405 |
+| | `pseudo.dps>=100` sorted by it | 280 | 1,867 |
+| | `--count class --sum pseudo.total_res` over the rares | 301 | 2,021 |
+| `4237d2f3`, step 7 audited | the empty query | 275 | — |
+| | the vocabulary whole | 954 | 6,555 |
+| | the same binary, the computed-value scan skipped | 323 | — |
+| | `line:total_res` (19 rows) · `line:total_fire_res` · `line:pdps` · `line:resist` (11 totals) | 356 · 315 · 279 · 524 | — |
+| | the vocabulary twice narrowed | 306 | — |
+| `57ec6a9e`, T5 | the vocabulary whole | 316 | 2,130 |
+| `ec024ceb`, step 8 | the empty query | 276 | 1,862 |
+| | the four socket asks (OQ3 by colour, OQ3 within one link group, `links` sorted, `--count links`) | 281–282 | 1,864–1,872 |
+
+What the table says: a class table's or a totals table's parse is
+within the noise of the empty query; a total asked of every item is the
+dearest ask, its 19 rows each a group asked of each line, 80 ms over the
+empty query; the vocabulary whole at `4237d2f3` was the computed-value
+scan `line` alone gained at `e63c86a8` (an outside review's finding,
+2026-09-24), costing by the table's rows and not its names, which no
+limit can cut since the ranking needs every count first — T5 ruled it.
+A run can have a slow half of unknown cause (the run before step 6's
+row: 554–621 ms release for its first thirteen asks, 277–309 for the
+last nine), so a run is claimed only when its halves agree, and a
+slowdown's cause is never named before it is measured.
 
 **The completion property's measured half** —
 `cargo test -p acquisition-search --test generated_completion -- --ignored --nocapture`,
@@ -350,20 +362,14 @@ census rows of M2 (`item-facts/raw/m2/rust.json`, 6,606 by (source,
 template)) hold 6,148 distinct templates, and 6,181 less the 33
 templates the copy carries in both realms is 6,148.
 
-**Step 8.**
-
-- The copy's socket shapes: 9,687 `{group, attr, sColour}`, 47 poe2
-  `{group, type}`; every group is one contiguous run, so the C++ run rule
-  (S22) and GGG's number agree here; an abyssal socket (73 items) and a
-  resonator's (7) is always a group of its own.
-- On a socket whose colour is unread `linked(red=1 or red=0)` is
-  undecided: each comparison is read over the interval on its own. For
-  the seat.
-- A poe2 socket's `type`, a gem's own `colour` and `socket`: kept, asked
-  by nothing.
-- The generators' find at this step: `linked(red>=0)` over `sockets: [7]`
-  matched as stored, the group an unread element may make taken as a
-  witness; caught by the completion property, held by `eval.rs`.
+**Step 8 — the sockets over the copy (`ec024ceb`).** `--realm all
+--count` of `sockets`, `links` and each colour: every bucket a value or
+`none`, `undecided` 0, each table summing to 22,721; sockets on 3,456
+items, 0 on the four `[]`, `links` on 3,452. The copy's socket shapes:
+9,687 `{group, attr, sColour}`, 47 poe2 `{group, type}`; every group is
+one contiguous run, so the C++ run rule (S22) and GGG's number agree
+here; an abyssal socket (73 items) and a resonator's (7) is always a
+group of its own.
 
 ## Holes ruled, and where the rule went
 
@@ -386,10 +392,10 @@ commit's message. One line each.
 | 4b | what a number is and what one written longer becomes; nothing reaches a bound together without an occurrence that counts; what a row shows of one term | the reference, *Slots*; `eval.rs`, `answer.rs` | `2b01b1bf` |
 | 5 | E1 a value bucket's term selects the counted spelling, a tab's its full coordinate with its substashes; E2 `--sum` takes the item's `sum( … )`, never a raw line projection; E3 the vocabulary's `undecided` is uncertainty about presence; E4 the view combinations stay errors and no grand total is needed; E5 `line` never crosses | C95, C105; `counts.rs`, `answer.rs` (`View::of`), `bind.rs` (`bind_sum`) | `0df86686`, `f357de39` |
 | 6 | G1 class names are the game's plurals, `:` picks by word; G2 a base under several classes is undecided, the table never chooses; G3 every release state enters, a stash keeps what the game removed; G4 no table for `poe2`, every item there undecided; G5 RePoE's licence read, the table carries base and class names only | `class.rs`; `tools/class-table.py`; `SURFACES.md` | `18e1f5be` |
-| 7 | T1 a total is never rounded, `94.5` is `94.5` (owner: "T1: totals are never rounded. 94.5 is 94.5."); T2 `has:` applies to a derived field, never to a total — `-has:pseudo.dps` routes the lacked count, `has:pseudo.total_res` an error with readings (owner: "T2: has: applies to a derived field, never to a total. A ring has no dps; every item has a total.") | `totals.rs`, `exact::Exact::halved`; `bind.rs`, `tree::has_on_computed`, `answer.rs`; the reference, *Values* | as built at `b5d62d92`; `f098232a` |
-| 7 | T5 `line` alone lists no computed values, a narrowing lists those it matches, `--describe` names them (owner: "line alone lists no computed values, but a narrowing lists matches and --describe discovers names"); an ask over budget fires the projection park only by its load, an evaluator cost the totals batch park; the batch parked with its trigger, a 7b of 4b's shape, generators first | `pseudo.rs`, `counts.rs`; the reference, `--count line`; the two parks in `decisions/search.md` | `57ec6a9e` |
+| 7 | T1 a total is never rounded, `94.5` is `94.5`; T2 `has:` applies to a derived field, never to a total — `-has:pseudo.dps` routes the lacked count, `has:pseudo.total_res` an error with readings | `totals.rs`, `exact::Exact::halved`; `bind.rs`, `tree::has_on_computed`, `answer.rs`; the reference, *Values* | `c81ebe1e`; T1 as built at `b5d62d92`, T2 at `f098232a` |
+| 7 | T5 `line` alone lists no computed values, a narrowing lists those it matches, `--describe` names them; an ask over budget fires the projection park only by its load, an evaluator cost the totals batch park; the batch parked with its trigger, a 7b of 4b's shape, generators first | `pseudo.rs`, `counts.rs`; the reference, `--count line`; the two parks in `decisions/search.md` | `66a20acf`; built at `57ec6a9e` |
 | 6 | G6 the grouping above class stays parked; OQ5 pinned from the owner's words with the wearable classes spelled out, the park's trigger now the seat | the park in `decisions/search.md`; `tests/acceptance.rs` | `0d3c65af` |
-| 8 | K1 the colour words are the reference's four; an abyssal (`A`) or resonator (`DV`) socket counts in `sockets` and is asked for by its line or base (owner: "agreed") | `sockets.rs`; the reference, *Values* | as built at `ec024ceb` |
+| 8 | K1 the colour words are the reference's four; an abyssal (`A`) or resonator (`DV`) socket counts in `sockets` and is asked for by its line or base | `sockets.rs`; the reference, *Values* | `dca017f5`; as built at `ec024ceb` |
 | plan | gap 1 a line break inside a template; gap 4 a node forced true or false, `true()` and `false()`; gap 5 `name`, `typeline` and `base` each what GGG gives; gap 6 the totals example cites the C++ app's table, and whether a fractional total is ever rounded is step 7's to show | the reference, *Strings*, *Composition*, *Item-level*; the contract detail, C94 | `acfc37cd`, `152bfde3`, `fe9ca5f4`; 6 at `aeeba6d3` |
 | plan | gap 3 membership is a scope value — `live` by default, `all` on request with every removed row marked, `removed` alone waits for a question, the prune verb advances the revision; `all` moved to step 10 | the reference, *Membership*; C108; the plan, step 10 | `3b7cf192`, `d829c25a`, `ea68d7c2` |
 
@@ -405,10 +411,6 @@ timings, coverage no fixture reaches, and questions for the seat.
 **Step 1 — the builder's.**
 
 - Two quoted templates in one and-group is valid and matches nothing.
-- The JSON keys beyond the worked example's: `holds` with `min`/`max`,
-  `undecided` with `thing` or `term`, `const`, `has`, `is`, a range as
-  `{from, to}`, `sum` and a projection as `{lines, slot}`. Reading is
-  strict: an unknown or missing key is an error naming its path.
 **Step 2.**
 
 - Nothing was unread on this corpus, so C93's unread path is exercised
@@ -520,3 +522,11 @@ timings, coverage no fixture reaches, and questions for the seat.
 - `pseudo.dps` counts every damage property the item displays and
   `pseudo.pdps` the physical alone; the C++ app reads 0 where a property
   is missing and this build says *lacked* — the one departure, C93's.
+
+**Step 8.**
+
+- On a socket whose colour is unread `linked(red=1 or red=0)` is
+  undecided: each comparison is read over the interval on its own. For
+  the seat.
+- A poe2 socket's `type`, a gem's own `colour` and `socket`: kept, asked
+  by nothing.
