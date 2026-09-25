@@ -662,6 +662,19 @@ fn review_a_socket_whose_group_is_unread_is_a_socket_still_and_an_open_group_say
         ["alone"]
     );
     assert_eq!(ids(&asked("undecided(links)")), ["green"]);
+    // round 2: the socket alone is counted once — its colour is exactly
+    // one, and one socket never holds two of anything
+    assert_eq!(ids(&asked("id:alone linked(red=1 size=1)")), ["alone"]);
+    assert_eq!(ids(&asked("id:alone linked(red>=2)")), Vec::<String>::new());
+    // over the scope: alone, blind and green each hold one socket per group
+    assert_eq!(asked("linked(red>=2)")["terms"][0]["failed"]["count"], 3);
+    assert_eq!(asked("linked(red>=2)")["terms"][0]["undecided"]["count"], 0);
+    // each comparison is read over the interval on its own: the two
+    // together cover it, and the answer is careful, never wrong
+    assert_eq!(
+        ids(&asked("id:blind undecided(linked(red=1 or red=0))")),
+        ["blind"]
+    );
     let sorted: Request = serde_json::from_value(json!({
         "scope": { "realm": "pc" },
         "query": { "text": "id:alone" },
@@ -673,6 +686,11 @@ fn review_a_socket_whose_group_is_unread_is_a_socket_still_and_an_open_group_say
     // 4: the help answers to each colour field
     let d =
         serde_json::to_value(acquisition_search::describe(&["sockets.red".to_string()]).unwrap())
+            .unwrap();
+    assert_eq!(d["fields"][0]["name"], "sockets.<colour>");
+    // round 2: in any case, as every name is (B1)
+    let d =
+        serde_json::to_value(acquisition_search::describe(&["SOCKETS.RED".to_string()]).unwrap())
             .unwrap();
     assert_eq!(d["fields"][0]["name"], "sockets.<colour>");
 }

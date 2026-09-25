@@ -263,13 +263,18 @@ impl Groups<'_> {
         !self.has_group() && self.junk > 0
     }
 
-    /// The sockets whose group is unread that may add to a colour's count:
-    /// those of that colour, and those whose colour is unread too.
-    fn unplaced_of(&self, letter: &str) -> usize {
+    /// The sockets whose group is unread that may add to a colour's count
+    /// of a group they are not already members of: those of that colour,
+    /// and those whose colour is unread too (an outside review, 2026-09-24,
+    /// round 2: the socket alone in its collection was counted twice).
+    fn unplaced_of(&self, letter: &str, members: &[usize]) -> usize {
         self.sockets
             .iter()
-            .filter(|s| {
-                s.group.is_none() && (s.colour.as_deref() == Some(letter) || s.colour_unread)
+            .enumerate()
+            .filter(|(i, s)| {
+                s.group.is_none()
+                    && !members.contains(i)
+                    && (s.colour.as_deref() == Some(letter) || s.colour_unread)
             })
             .count()
     }
@@ -324,7 +329,7 @@ impl Groups<'_> {
                         .iter()
                         .filter(|s| s.colour.as_deref() == Some(&*letter))
                         .count();
-                    let high = known + unread + self.unplaced_of(&letter) + self.junk;
+                    let high = known + unread + self.unplaced_of(&letter, members) + self.junk;
                     (letter, Counted::Range { low: known, high })
                 })
                 .collect();
@@ -360,7 +365,7 @@ impl Groups<'_> {
                 colours: COLOURS
                     .iter()
                     .map(|(_, l)| {
-                        let high = self.unplaced_of(l) + self.junk;
+                        let high = self.unplaced_of(l, &[]) + self.junk;
                         (l.to_string(), Counted::Range { low: 0, high })
                     })
                     .collect(),
