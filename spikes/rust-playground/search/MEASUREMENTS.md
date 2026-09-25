@@ -165,7 +165,9 @@ but only a load over budget triggers the projection experiment. An
 evaluator cost over budget lands against the batch park." The debug
 build is what the seat feels behind the README's alias. Step 4's per-ask
 table is above; here the first ask after the copy is written, and the
-range of the warm medians, in ms.
+range of the warm medians, in ms. This table is the standing benchmark
+ledger until the first M3 rerun after the slice's close, which moves it
+to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 
 | Build | Where | First ask | Warm, release | Warm, debug |
 | --- | --- | ---: | ---: | ---: |

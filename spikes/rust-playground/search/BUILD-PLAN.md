@@ -146,7 +146,7 @@ per surface. `cargo build --workspace`, then `acq search`; it reads
 the store directly, as `acq tabs` does — no daemon is started or
 spoken to. If the store holds more than one realm every search names
 `--realm` (C96); an agent states it each time, so the default realm's
-trigger is the GUI's (`decisions/search.md`, "Parked").
+trigger is the GUI's (`decisions/frontends.md`, "Parked").
 
 What the seat can ask:
 
