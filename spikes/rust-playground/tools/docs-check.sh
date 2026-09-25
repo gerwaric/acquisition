@@ -67,7 +67,7 @@ budget CONTEXT.md      20000
 budget README.md       15000
 budget LIVE-TESTING.md 15000
 budget search/BUILD-PLAN.md 28000  # the brief; its history is SEARCH-SLICE.md
-budget SEARCH-SLICE.md 50000  # the record: a ledger row per step, holes one line each, measurements as tables
+budget SEARCH-SLICE.md 35000  # the record: a ledger row per step, holes one line each, a verdict line per measurement (its tables: search/MEASUREMENTS.md, no budget — a block per measurement, a row per build by construction, read by the block named)
 budget search/DESIGN.md 46000  # the reference whole until the seat; the contract detail empties as modules take it
 budget decisions/search.md 28000
 # RUN-LEDGER.md has no budget: one row per live run, append-only by
@@ -110,7 +110,7 @@ done <"$reg"
 ids=$(grep -oE '^- \*\*C[0-9]+' "$reg" | sed 's/^- \*\*//' | sort -u)
 count=$(printf '%s\n' "$ids" | grep -c .)
 if ((over > 0)); then fail=1; else printf 'ok      %-18s %5d decisions, every entry within %d bytes\n' registry "$count" "$ENTRY_LIMIT"; fi
-cited=$(grep -rhoE '\bC[0-9]+\b' crates tools README.md search/DIGEST.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md SURFACES.md REFRESH-SLICE.md PRICING-SLICE.md SEARCH-SLICE.md DAEMON-SPLIT-SLICE.md NETWORK-CLEANUP.md AGENTS.md .claude 2>/dev/null \
+cited=$(grep -rhoE '\bC[0-9]+\b' crates tools README.md search/DIGEST.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md SURFACES.md REFRESH-SLICE.md PRICING-SLICE.md SEARCH-SLICE.md search/MEASUREMENTS.md DAEMON-SPLIT-SLICE.md NETWORK-CLEANUP.md AGENTS.md .claude 2>/dev/null \
   --include='*.rs' --include='*.sh' --include='*.py' --include='*.md' | sort -u)
 unknown=$(comm -13 <(printf '%s\n' "$ids") <(printf '%s\n' "$cited") | grep . || true)
 if [[ -n $unknown ]]; then

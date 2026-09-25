@@ -4,7 +4,8 @@
 //! example per construct, and the contract detail that decides answers:
 //! `search/DESIGN.md`, binding until a module doc here takes a paragraph;
 //! the build's order: `search/BUILD-PLAN.md`; what each step met — the
-//! shapes of fault its reviews taught, the measurements, the holes ruled: `SEARCH-SLICE.md`.
+//! shapes of fault its reviews taught, the measurements' verdicts, the holes
+//! ruled: `SEARCH-SLICE.md`; the measurements' tables: `search/MEASUREMENTS.md`.
 //!
 //! # As built
 //!

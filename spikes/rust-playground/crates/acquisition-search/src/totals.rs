@@ -51,7 +51,7 @@
 //!   site's own answer on ten fetched items agrees with the fire
 //!   resistance recipe on every one (the script's docstring); the coverage
 //!   trial the plan owes is `search/pseudo-stats/scripts/coverage-trial.py`
-//!   (M6, `SEARCH-SLICE.md`).
+//!   (M6, `search/MEASUREMENTS.md`).
 //! - **A row is a line's group** (`group::row`): bound once when the table
 //!   is parsed, so what a row admits, selects and says of one occurrence
 //!   is read as every other group's is (the build plan, step 4b), and a

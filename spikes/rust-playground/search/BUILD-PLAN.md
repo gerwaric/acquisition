@@ -2,9 +2,10 @@
 
 The brief for the build, read whole before any search step. What each
 step met — the audits and their fixes, the measurements, the holes ruled
-and the builder's observations — is `SEARCH-SLICE.md`, the record, read
-by section when a step needs its checklist or a number; which steps are
-built is the record's ledger, never this file. What this file held
+and the builder's observations — is `SEARCH-SLICE.md`, the record; the
+measurements' tables are `search/MEASUREMENTS.md`, read by the block a
+step repeats; which steps are built is the record's ledger, never this
+file. What this file held
 before the record was opened — every audit round, the step 4b brief, the
 first showing of the store's read — is this file at `2d25cb03`.
 
@@ -15,8 +16,8 @@ search/BUILD-PLAN.md says. The plan stays the brief.
 What a step reads (2026-09-23, after a measured read of the slice's
 documents: 308 KB before any code, seven times what a step needs):
 this file whole; `decisions/search.md`; what its row's *Reads* names;
-the record by section — the checklist, the holes of the steps it
-touches, the measurement it will repeat; a module doc before touching
+the record; `search/MEASUREMENTS.md` by the block it will repeat; a
+module doc before touching
 its module; the reference by the section a row names. `search/DIGEST.md`
 is looked up by `S<n>` and never loaded; a closed track by citation.
 
@@ -236,7 +237,7 @@ the new verb to answer what `--removed` answers: `--membership all`, step
 
 | Park | Fired by | Then |
 | --- | --- | --- |
-| the totals coverage trial | step 7, before the first recipe was accepted — fired 2026-09-23 | `search/pseudo-stats/scripts/coverage-trial.py` over the deriver's census; the rows stood (M6, `SEARCH-SLICE.md`) |
+| the totals coverage trial | step 7, before the first recipe was accepted — fired 2026-09-23 | `search/pseudo-stats/scripts/coverage-trial.py` over the deriver's census; the rows stood (M6, `search/MEASUREMENTS.md`) |
 | a grouping above class | step 6 reaching OQ5 — fired 2026-09-23 | brought to the owner; kept parked, OQ5 pinned from his words, the trigger now the seat (`decisions/search.md`) |
 | a unique's variant as a field (C107) | step 4 reaching OQ2 | the trigger reopens the question, not the build: brought to the owner with his Ashes of the Stars as the first test |
 | the digest's kill list | step 11, the last acceptance test written | recheck against the tests and the reference before any removal |
@@ -250,8 +251,8 @@ seat may produce and a step cannot.
 
 ## Measurements the build owes
 
-All on a `.backup` copy, recorded in `SEARCH-SLICE.md` with the command
-that produced them.
+All on a `.backup` copy, recorded in `search/MEASUREMENTS.md` with the
+command that produced them, the verdict one line in `SEARCH-SLICE.md`.
 
 | # | What | When |
 | --- | --- | --- |
