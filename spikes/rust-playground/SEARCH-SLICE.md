@@ -198,8 +198,8 @@ timings, coverage no fixture reaches, and questions for the seat.
 
 **Step 4.**
 
-- The scope says `in all leagues`; a league is a term, and the owner's
-  seat forgetting it is the default-league park's trigger, not a step's.
+- The scope says `in all leagues`; a league is a term, and the
+  default-league park's trigger is the GUI's (2026-09-25), not a step's.
 - What B3 rests on, measured over the copy when the owner asked what
   `tab:maps` meant (2026-09-20): 15 map tabs hold 2,566 substashes and 29
   unique tabs 491, and a substash is named `1`, `4 (Remove-only)` or
@@ -258,7 +258,8 @@ timings, coverage no fixture reaches, and questions for the seat.
   for step 6). Three of five wanted the fetch age and the unfetched count
   more prominent than one line of the scope block: an opinion on order,
   the seat's to weigh. Five recoveries from C96's refusal in one step
-  each is not the sticky-realm park's trigger, which is the owner's.
+  each is not the sticky-realm park's trigger, which is the GUI's
+  (2026-09-25).
 
 **Step 7.**
 

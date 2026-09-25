@@ -123,22 +123,32 @@ is complete against that page and this file is deleted at the close. A
 hole ruled keeps its rule in `search/DESIGN.md` and one line in
 `SEARCH-SLICE.md`.
 
-## The first seat — after step 5
+## The first seat — after step 9, an agent's with the owner in the loop
 
 After 5, not 4 (owner, 2026-09-19: "I'm ok delaying the seat for a good
 reason, especially if it's related to discovering the design and
 implementation"): the vocabulary is how a template is found without
 knowing it, it is the route to everything a `:` or `~` selector resolved
 to, and with `--sum` the seat exercises all six of the lines it revisits
-first.
+first. Then after 9, not 5 (owner, 2026-09-25, approving the builder's
+wording): steps 6 to 8 were built before the seat; 9 neither depends on
+the answer's shape nor changes it; 10 and 11 are shaped by what the
+seat shows, so they wait for it.
 
-The owner, at a terminal, on his real store: `cargo build --workspace`,
-then `acq search`. It reads the store directly, as `acq tabs` does — no
-daemon is started or spoken to. If his store holds more than one realm
-every search names `--realm` (C96); tiring of that is the sticky-realm
-park's trigger, and it is his to fire.
+The seat is an agent's, the owner in the loop (owner, 2026-09-25; P2):
+the owner will not type queries himself. He talks to an agent that
+drives `acq search` from a terminal on his real store, reacts to what
+comes back, and collects the agent's own feedback on the contract. The
+owner's own seat is the GUI's, on its own stream. The five blind seats
+at step 5 (the record, "Findings") are the prototype: an agent's
+feedback is cheap and repeatable, the owner's reaction needs him once
+per surface. `cargo build --workspace`, then `acq search`; it reads
+the store directly, as `acq tabs` does — no daemon is started or
+spoken to. If the store holds more than one realm every search names
+`--realm` (C96); an agent states it each time, so the default realm's
+trigger is the GUI's (`decisions/search.md`, "Parked").
 
-What he can ask:
+What the seat can ask:
 
 ```
 acq search --realm pc '"# to maximum Life">=90' --sort 'line("# to maximum Life").arg1' --desc --limit 10
@@ -184,7 +194,7 @@ It exercises all six of the lines the seat revisits first
 and sort scalar, C93's undecided route, C95's sum rule, C98's basis as
 printed, C104's text.
 
-## After the seat — provisional, his to reorder
+## After step 5 — provisional, his to reorder; 10 and 11 wait for the seat
 
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
@@ -244,7 +254,7 @@ the new verb to answer what `--removed` answers: `--membership all`, step
 | a persisted projection; the store's search-at-scale park | M3, only if the load exceeds 500 ms — an evaluator cost over budget is the totals batch park's (owner, 2026-09-24, `decisions/search.md`) | reported with the numbers; it opens the experiment among the candidates, never persistence by default. The seat goes ahead: slow is not wrong |
 | the totals batch (`decisions/search.md`) | M3, a totals ask over 500 ms; or a consumer that holds the corpus asking | reported with the numbers; built as a step 7b of 4b's shape, the generators reaching `pseudo` first |
 | pricing on the MCP (`decisions/frontends.md`) | step 11, the read model landed | the owner's call whether it is built then |
-| the sticky default realm | the owner's seat, not a step | his to fire |
+| the sticky default realm | the GUI's realm control (2026-09-25), no step of this slice | the GUI stream's |
 
 Every other park's trigger is a recorded question or an ask, which a
 seat may produce and a step cannot.
