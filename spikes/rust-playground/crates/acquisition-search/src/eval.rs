@@ -74,6 +74,15 @@
 //!   whose largest is not established — a source `P` admits is unread, or
 //!   an occurrence `P` may select holds a larger number — with what was
 //!   readable shown and its status beside it, as an incomplete sum is.
+//! - **A socket count** (`sockets.rs`; C101) is an interval of what was
+//!   read: a comparison on it is decided where the whole interval agrees
+//!   and undecided otherwise, so a socket whose colour could not be read
+//!   leaves `sockets.red>=2` open only where it could turn it; the value
+//!   is established when the interval is one number, which is when it
+//!   sorts as a value and its probe is false. `linked( … )` is asked of
+//!   each link group the item may have, three-valued (`group::Linked`):
+//!   a group that holds is a witness; none known and none possible is
+//!   lacked; a group known and none holding is failed.
 //! - **A computed value** (`pseudo.rs`; C94, C101) is asked as a sum is:
 //!   complete, its comparison is decided; an incomplete subtotal, or a
 //!   total with no definition for the realm, is undecided; a derived
@@ -92,6 +101,7 @@ use crate::exact::{self, Exact};
 pub(crate) use crate::group::Truth;
 use crate::group::{Asked, Group};
 use crate::pseudo::{self, Valued};
+use crate::sockets::{self, Counted};
 use crate::tree::Number;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -176,6 +186,9 @@ fn body_key(thing: Thing) -> Option<&'static str> {
         Thing::Text
         | Thing::Class
         | Thing::ReqLevel
+        | Thing::Sockets
+        | Thing::Links
+        | Thing::SocketColour(_)
         | Thing::League
         | Thing::Tab
         | Thing::Character
@@ -184,6 +197,28 @@ fn body_key(thing: Thing) -> Option<&'static str> {
             return None;
         }
     })
+}
+
+/// Whether a thing is a count over the sockets (`sockets.rs`).
+fn is_socket_thing(thing: Thing) -> bool {
+    matches!(
+        thing,
+        Thing::Sockets | Thing::Links | Thing::SocketColour(_)
+    )
+}
+
+/// A socket count as far as it was read: absent where the item has no
+/// such count.
+fn counted(held: &Held, thing: Thing) -> Counted {
+    let Some(groups) = sockets::groups(&held.item) else {
+        return Counted::Absent;
+    };
+    match thing {
+        Thing::Sockets => groups.count(),
+        Thing::Links => groups.links(),
+        Thing::SocketColour(letter) => groups.colour(letter),
+        _ => Counted::Absent,
+    }
 }
 
 fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
@@ -202,7 +237,13 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
                         "name" | "typeLine" | "baseType" | "ilvl" | "hybrid"
                     )
                 }
-                Part::Flags(_) | Part::Numbers(_) | Part::Class(_) | Part::Total(_) => false,
+                Part::Flags(_)
+                | Part::Numbers(_)
+                | Part::Sockets
+                | Part::SocketGroup
+                | Part::SocketColour
+                | Part::Class(_)
+                | Part::Total(_) => false,
             })
             .collect(),
         // the base, or the body, unread leaves the class open; the table's
@@ -217,6 +258,20 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
                 _ => false,
             })
             .chain(held.class.open())
+            .collect(),
+        // the collection, or an element that may be any socket, leaves
+        // every count open; a socket's colour only the colour counts, its
+        // group only what places sockets in groups (rule 8 of the plan)
+        (Thing::Sockets | Thing::Links | Thing::SocketColour(_), _) => held
+            .item
+            .unread
+            .iter()
+            .filter(|u| match &u.part {
+                Part::Body | Part::Sockets => true,
+                Part::SocketColour => matches!(thing, Thing::SocketColour(_)),
+                Part::SocketGroup => thing == Thing::Links,
+                _ => false,
+            })
             .collect(),
         // the deriver says under `reqlevel` when the Level row may have
         // been lost, so a sibling that could not be read leaves it closed
@@ -275,21 +330,44 @@ pub(crate) fn texts(held: &Held, thing: Thing) -> Vec<&str> {
         | Thing::Ilvl
         | Thing::ReqLevel
         | Thing::Stack
+        | Thing::Sockets
+        | Thing::Links
+        | Thing::SocketColour(_)
         | Thing::Id => Vec::new(),
     }
 }
 
+/// A thing's number, where it is established: a socket count's is its
+/// interval's one value (`sockets.rs`).
 pub(crate) fn number(held: &Held, thing: Thing) -> Option<f64> {
     match thing {
         Thing::Ilvl => held.item.ilvl.map(|n| n as f64),
         Thing::ReqLevel => held.item.reqlevel.map(|n| n as f64),
         Thing::Stack => held.item.stack.map(|n| n as f64),
+        Thing::Sockets | Thing::Links | Thing::SocketColour(_) => {
+            counted(held, thing).value().map(|n| n as f64)
+        }
         _ => None,
     }
 }
 
+/// Whether the item has the thing (C93): a socket count is had while the
+/// collection is — a count of zero is a count — and `links` while a link
+/// group is known.
 fn present(held: &Held, thing: Thing) -> bool {
-    number(held, thing).is_some() || !texts(held, thing).is_empty()
+    match thing {
+        Thing::Sockets | Thing::SocketColour(_) => held.item.sockets.is_some(),
+        Thing::Links => sockets::groups(&held.item).is_some_and(|g| g.has_group()),
+        _ => number(held, thing).is_some() || !texts(held, thing).is_empty(),
+    }
+}
+
+/// Whether the thing's value is not established on the item, as
+/// `undecided( … )` asks and the sort marks incomplete: evidence it needs
+/// unread — for a socket count, exactly when its interval is more than
+/// one number or its collection could not be read (`sockets.rs`).
+fn open(held: &Held, thing: Thing) -> bool {
+    !unread_for(held, thing).is_empty()
 }
 
 fn shown_part(shown: Shown<'_>) -> String {
@@ -322,6 +400,9 @@ fn unread_lines<'a>(held: &'a Held, group: &Group) -> Vec<&'a Unread> {
             Part::Flags(_)
             | Part::Numbers(_)
             | Part::Properties(_)
+            | Part::Sockets
+            | Part::SocketGroup
+            | Part::SocketColour
             | Part::Class(_)
             | Part::Total(_) => false,
         })
@@ -456,6 +537,17 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
                 !unread_for(held, *thing).is_empty(),
             )
         }
+        // a count over the sockets is an interval: decided where the whole
+        // interval agrees (`sockets.rs`)
+        Atom::Number { thing, test } if is_socket_thing(*thing) => {
+            match counted(held, *thing).truth(test) {
+                Truth::True => Outcome::Matched,
+                Truth::Undecided => Outcome::Undecided,
+                Truth::False if present(held, *thing) => Outcome::Failed,
+                // absent, or the collection unread
+                Truth::False => decided(false, false, open(held, *thing)),
+            }
+        }
         Atom::Number { thing, test } => {
             let n = number(held, *thing);
             decided(
@@ -463,6 +555,37 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
                 n.is_some(),
                 !unread_for(held, *thing).is_empty(),
             )
+        }
+        Atom::Links(linked) => {
+            let Some(groups) = sockets::groups(&held.item) else {
+                return decided(false, false, !unread_for(held, Thing::Links).is_empty());
+            };
+            // a group GGG numbered is a witness where it holds whatever its
+            // unread sockets turn out to be; the group that unplaced sockets
+            // may make of their own (`GroupCounts::members` empty) may not
+            // exist, so it is never a witness — it leaves the term open
+            // where it could hold (the completion property, step 8)
+            let each = groups.each();
+            let known = |truth: Truth| {
+                each.iter()
+                    .any(|g| !g.members.is_empty() && linked.of(g) == truth)
+            };
+            let possible = each
+                .iter()
+                .any(|g| g.members.is_empty() && linked.of(g) != Truth::False);
+            if known(Truth::True) {
+                Outcome::Matched
+            } else if known(Truth::Undecided) || possible {
+                Outcome::Undecided
+            } else if groups.has_group() {
+                Outcome::Failed
+            } else if groups.may_have_group() {
+                // no group can hold, and whether there is one is not
+                // established: failed or lacked, which is open
+                Outcome::Undecided
+            } else {
+                Outcome::Lacked
+            }
         }
         Atom::Id(id) => {
             let place = &held.place;
@@ -513,7 +636,7 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
         },
         Atom::Undecided(probe) => {
             let open = match probe {
-                BProbe::Field(thing) => !unread_for(held, *thing).is_empty(),
+                BProbe::Field(thing) => open(held, *thing),
                 // one judgement with the sort's: a value is open exactly
                 // when it would sort as incomplete
                 BProbe::Value(key) => matches!(scalar(key, held), Scalar::Incomplete(_)),
@@ -772,6 +895,28 @@ fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
                 text: v.to_string(),
             })
             .collect(),
+        // a socket count shows its layout beside the number
+        Atom::Number { thing, .. } if is_socket_thing(*thing) => {
+            let name = match &term.node {
+                crate::tree::Node::Test { field, .. } => field.clone(),
+                other => crate::print::print(other),
+            };
+            let value = match counted(held, *thing) {
+                Counted::Absent => None,
+                Counted::Range { low, high } if low == high => Some(number_json(low as f64)),
+                Counted::Range { low, high } => {
+                    Some(serde_json::Value::from(format!("{low}..{high}")))
+                }
+            };
+            value
+                .map(|value| Evidence::Value { name, value })
+                .into_iter()
+                .chain(sockets::layout(&held.item).map(|text| Evidence::Shown {
+                    part: "sockets".to_string(),
+                    text,
+                }))
+                .collect()
+        }
         Atom::Number { thing, .. } => number(held, *thing)
             .map(|n| Evidence::Value {
                 name: match &term.node {
@@ -782,6 +927,19 @@ fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
             })
             .into_iter()
             .collect(),
+        // the link groups that hold, as the game shows each
+        Atom::Links(linked) => match sockets::groups(&held.item) {
+            Some(groups) => groups
+                .each()
+                .iter()
+                .filter(|g| linked.of(g) == Truth::True && !g.members.is_empty())
+                .map(|g| Evidence::Shown {
+                    part: "link group".to_string(),
+                    text: groups.group_text(&g.members),
+                })
+                .collect(),
+            None => Vec::new(),
+        },
         // the class is not on the row's header: a term on it shows it
         Atom::Closed {
             thing: Thing::Class,
@@ -873,6 +1031,7 @@ fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<Cow<'a, Unread>> {
         | Atom::Has(thing)
         | Atom::Undecided(BProbe::Field(thing)) => borrowed(unread_for(held, *thing)),
         Atom::Is(flag) => borrowed(unread_flag(held, flag)),
+        Atom::Links(_) => borrowed(unread_for(held, Thing::Links)),
         Atom::Lines(group) => borrowed(unread_of_sum(held, group, None)),
         Atom::Sum { group, slot, .. } => borrowed(unread_of_sum(held, group, Some(slot.as_str()))),
         Atom::Pseudo { named, .. } | Atom::HasComputed(named) => pseudo::unread_of(*named, held),
@@ -909,6 +1068,9 @@ fn reason(unread: &Unread) -> Reason {
             Part::Lines(source) => format!("{source} lines"),
             Part::Flags(source) => format!("the flags of {source} lines"),
             Part::Numbers(source) => format!("the numbers of {source} lines"),
+            Part::Sockets => "the sockets".to_string(),
+            Part::SocketGroup => "a socket's group".to_string(),
+            Part::SocketColour => "a socket's colour".to_string(),
             Part::Class(gap) => gap.unread().to_string(),
             Part::Total(gap) => gap.unread().to_string(),
         },
@@ -939,6 +1101,13 @@ pub(crate) enum Scalar {
 
 pub(crate) fn scalar(key: &SortKey, held: &Held) -> Scalar {
     match key {
+        SortKey::Number(thing) if is_socket_thing(*thing) => match counted(held, *thing) {
+            Counted::Absent if open(held, *thing) => Scalar::Incomplete(None),
+            Counted::Absent => Scalar::None,
+            Counted::Range { low, high } if low == high => Scalar::Value(Exact::of(low as f64)),
+            // what was read, which is not the answer
+            Counted::Range { low, .. } => Scalar::Incomplete(Some(Exact::of(low as f64))),
+        },
         SortKey::Number(thing) => match number(held, *thing) {
             Some(n) => Scalar::Value(Exact::of(n)),
             // unread is not absent (C93): `undecided(ilvl)` says the same

@@ -50,6 +50,11 @@ ASKS = [
     ("the worked example whole", ['league=Standard class=Rings rarity=rare "# to maximum Life">=90 pseudo.total_res>=60']),
     ("pseudo.dps sorted", ["pseudo.dps>=100", "--sort", "pseudo.dps", "--desc", "--limit", "10"]),
     ("--count class --sum pseudo.total_res", ["rarity=rare", "--count", "class", "--sum", "pseudo.total_res"]),
+    # step 8: the sockets
+    ("OQ3 socket colours", ["sockets.red>=2"]),
+    ("OQ3 within one link group", ["linked(red>=3 green>=1)"]),
+    ("links sorted", ["links>=5", "--sort", "links", "--desc", "--limit", "10"]),
+    ("--count links", ["", "--count", "links"]),
 ]
 
 def main():

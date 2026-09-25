@@ -91,10 +91,33 @@
 //!   readable line is a witness; absence is claimed only when
 //!   [`Item::unread_in`] finds nothing.
 //!
-//! Not read yet: sockets (the build plan, step 8), and the other
-//! property-shaped arrays — `nextLevelRequirements`,
-//! `weaponRequirements`, `supportGemRequirements`, and poe2's `gemTabs`
-//! and `grantedSkills` (the plan's holes table, D4).
+//! - **Sockets** (C101; the build plan, step 8) are a collection of their
+//!   own, [`Item::sockets`]: present when the body carries `sockets` as an
+//!   array — GGG's `[]` on a poe2 weapon that grants a skill (N44) is a
+//!   present collection with no socket in it — and absent when it does
+//!   not. A socket is its `group`, as GGG numbers it, and its colour,
+//!   GGG's `sColour` as given (`R`, `G`, `B`, `W`; an abyssal socket's `A`,
+//!   a resonator's `DV`); a socket with neither `sColour` nor `attr` — a
+//!   poe2 socket, `{group, type}` — has no colour, known. The words a
+//!   query names the colours by, and what is counted, is `sockets.rs`.
+//!   Unread at the socket's grain (rule 8 of the plan): a `group` that is
+//!   no whole number is that socket's group unread ([`Part::SocketGroup`]:
+//!   only what places sockets in groups is left open); a `sColour` that is
+//!   no string, or an `attr` given with no `sColour` — a shape this
+//!   deriver does not decode — is that socket's colour unread
+//!   ([`Part::SocketColour`], [`Socket::colour_unread`]: only what counts
+//!   colours); an element that is no object may be any socket
+//!   ([`Part::Sockets`]: every count is open by it, in the unit of one
+//!   socket); the array itself not being one is the collection unread.
+//!   `attr` is the socket's attribute, which the colour determines, and is
+//!   not read (on the census's copy the two agree on every one of 9,687
+//!   sockets); a poe2 socket's `type` (`gem`, `rune`) is kept as given and
+//!   shown, and nothing asks it.
+//!
+//! Not read yet: the other property-shaped arrays —
+//! `nextLevelRequirements`, `weaponRequirements`,
+//! `supportGemRequirements`, and poe2's `gemTabs` and `grantedSkills` (the
+//! plan's holes table, D4).
 
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Map, Value};
@@ -156,7 +179,30 @@ pub struct Item {
     /// The row they are displayed as: `Requires Level 67, 159 Str`.
     pub requires: Option<String>,
     pub lines: Vec<Line>,
+    /// The socket collection (C101): every socket the body lists, in its
+    /// order; `None` where the body carries no `sockets`, `Some` and empty
+    /// where it carries `[]`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sockets: Option<Vec<Socket>>,
     pub unread: Vec<Unread>,
+}
+
+/// One socket of an item (the module doc, "Sockets").
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Socket {
+    /// GGG's `group`; `None` where it could not be read — a socket always
+    /// has one, so null is unread, never absent.
+    pub group: Option<i64>,
+    /// GGG's `sColour`, as given; `None` where the socket has no colour (a
+    /// poe2 socket) or the colour could not be read.
+    pub colour: Option<String>,
+    /// The colour could not be read: `sColour` is no string, or `attr` is
+    /// given and `sColour` is not.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub colour_unread: bool,
+    /// GGG's `type` on a poe2 socket (`gem`, `rune`), as given.
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
 }
 
 /// One element of a property-shaped array, as displayed.
@@ -214,6 +260,10 @@ pub struct Unread {
     /// element with no readable name may be any property.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    /// The socket it is of, by its place in [`Item::sockets`], when it is
+    /// one socket's group or colour.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub socket: Option<usize>,
 }
 
 /// The collection a reading belongs to: what C93's "everything that could
@@ -235,6 +285,14 @@ pub enum Part {
     Flags(String),
     /// A number of a line of that source: only what asks that slot.
     Numbers(String),
+    /// The socket collection, or one element of it that may be any
+    /// socket: every count over the sockets is open by it.
+    Sockets,
+    /// One socket's group: only what places sockets in groups — `links`
+    /// and `linked( … )`.
+    SocketGroup,
+    /// One socket's colour: only what counts colours.
+    SocketColour,
     /// The class, which the class table could not give the base
     /// (`class.rs`): only what asks the class.
     Class(ClassGap),
@@ -331,6 +389,7 @@ pub fn derive(facts: Facts, body: &str) -> Item {
         requirements: Vec::new(),
         requires: None,
         lines: Vec::new(),
+        sockets: None,
         unread: Vec::new(),
     };
     let body = match serde_json::from_str::<Value>(body) {
@@ -355,6 +414,7 @@ pub fn derive(facts: Facts, body: &str) -> Item {
     item.item_level = item.ilvl.map(|ilvl| format!("Item Level: {ilvl}"));
     item.stack = item.int(&body, "stackSize");
     item.read_flags(&body);
+    item.read_sockets(&body);
     for array in PROPERTY_ARRAYS {
         item.read_properties(&body, array, array);
     }
@@ -446,6 +506,7 @@ impl Item {
             problem: problem.into(),
             line: None,
             name: None,
+            socket: None,
         });
     }
 
@@ -457,7 +518,86 @@ impl Item {
             problem,
             line,
             name: None,
+            socket: None,
         });
+    }
+
+    /// The socket collection (the module doc, "Sockets").
+    fn read_sockets(&mut self, body: &Map<String, Value>) {
+        let elements = match body.get("sockets") {
+            None | Some(Value::Null) => return,
+            Some(Value::Array(elements)) => elements,
+            Some(other) => {
+                let problem = format!("`sockets` is {}, not an array", json_kind(other));
+                return self.unread(Part::Sockets, problem);
+            }
+        };
+        let mut sockets = Vec::with_capacity(elements.len());
+        for (i, element) in elements.iter().enumerate() {
+            let at = format!("`sockets[{i}]`");
+            let Value::Object(socket) = element else {
+                let problem = format!("{at} is {}, not a socket", json_kind(element));
+                self.unread(Part::Sockets, problem);
+                continue;
+            };
+            let index = sockets.len();
+            let mut of_this = |part: Part, problem: String| {
+                self.unread.push(Unread {
+                    part,
+                    problem,
+                    line: None,
+                    name: None,
+                    socket: Some(index),
+                });
+            };
+            let group = match socket.get("group") {
+                Some(value) if value.as_i64().is_some() => value.as_i64(),
+                None | Some(Value::Null) => {
+                    of_this(Part::SocketGroup, format!("{at} has no `group`"));
+                    None
+                }
+                Some(other) => {
+                    let problem =
+                        format!("{at}: `group` is {}, not a whole number", json_kind(other));
+                    of_this(Part::SocketGroup, problem);
+                    None
+                }
+            };
+            let mut colour_unread = false;
+            let colour = match (socket.get("sColour"), socket.get("attr")) {
+                (Some(Value::String(colour)), _) if !colour.is_empty() => Some(colour.clone()),
+                (None | Some(Value::Null), None | Some(Value::Null)) => None,
+                // an attribute and no colour: a shape this deriver does not
+                // decode (C101's contract detail, S16)
+                (None | Some(Value::Null), Some(_)) => {
+                    colour_unread = true;
+                    of_this(
+                        Part::SocketColour,
+                        format!(
+                            "{at} has an `attr` and no `sColour`: the colour is not read from the attribute"
+                        ),
+                    );
+                    None
+                }
+                (Some(other), _) => {
+                    colour_unread = true;
+                    let problem = format!("{at}: `sColour` is {}, not a colour", json_kind(other));
+                    of_this(Part::SocketColour, problem);
+                    None
+                }
+            };
+            let kind = match socket.get("type") {
+                Some(Value::String(kind)) if !kind.is_empty() => Some(kind.clone()),
+                _ => None,
+            };
+            sockets.push(Socket {
+                group,
+                colour,
+                colour_unread,
+                kind,
+            });
+        }
+        self.sockets = Some(sockets);
     }
 
     /// A text field: absent when the key is missing or the string empty.
@@ -610,6 +750,7 @@ impl Item {
                         problem: format!("`{array}[{i}]`: {problem}"),
                         line: None,
                         name,
+                        socket: None,
                     });
                     if array == "requirements" {
                         self.level_may_be_lost(&format!("`{array}[{i}]`"), Some(element));

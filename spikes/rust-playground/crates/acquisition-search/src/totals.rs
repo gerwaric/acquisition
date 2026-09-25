@@ -392,6 +392,7 @@ impl TotalsTable {
             ),
             line: None,
             name: None,
+            socket: None,
         };
         Ok(TotalsTable {
             unavailable: REALMS

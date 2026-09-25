@@ -57,7 +57,7 @@ fn base() -> std::path::PathBuf {
 }
 
 /// Two fetched tabs and one never fetched: `kaom`, a unique whose name
-/// holds an apostrophe; `r1` with 95 life; `r2` with 20 and 75; `r3`
+/// holds an apostrophe, sockets `R-R-G B`; `r1` with 95 life; `r2` with 20 and 75; `r3`
 /// whose implicit array is unread; `plain`, with no life line, so that a
 /// route starting with the language's `-` is printed.
 fn seed(base: &Path) {
@@ -118,7 +118,9 @@ fn seed(base: &Path) {
     record(
         stash("t2"),
         json!({ "stash": { "id": "t2", "name": "Dump", "type": "PremiumStash", "items": [
-            item("kaom", "Kaom's Heart", "Glorious Plate", "Unique", json!({ "explicitMods": ["+500 to maximum Life"] })),
+            item("kaom", "Kaom's Heart", "Glorious Plate", "Unique", json!({ "explicitMods": ["+500 to maximum Life"],
+                "sockets": [{ "group": 0, "attr": "S", "sColour": "R" }, { "group": 0, "attr": "S", "sColour": "R" },
+                            { "group": 0, "attr": "D", "sColour": "G" }, { "group": 1, "attr": "I", "sColour": "B" }] })),
             item("r3", "Hex Band", "Two-Stone Ring", "Rare", json!({ "implicitMods": "unreadable", "explicitMods": ["+40 to maximum Life"] })),
             item("plain", "Dull Turn", "Iron Ring", "Rare", json!({ "explicitMods": ["+20 to maximum Mana"] })),
         ] } }),
@@ -266,6 +268,7 @@ fn rule_5_every_command_printed_runs_with_a_second_account_known() {
         "line(template:spirit)",
         "line(template:life arg1>=90)",
         "is:corrupted",
+        "linked(red>=2) sockets.blue>=1",
     ] {
         let shown = text(&acq(
             &base,
@@ -681,7 +684,7 @@ fn c11_a_failure_is_structured_and_a_later_steps_flag_is_refused_by_name() {
     seed(&base);
     for (args, kind) in [
         (vec!["search", "rare"], "bare_word"),
-        (vec!["search", "sockets>=1"], "not_built"),
+        (vec!["search", "has:priced"], "not_built"),
         (vec!["search", "class:staff"], "unknown_value"),
         (vec!["search", "--fields", "name"], "not_built"),
         (vec!["search", "--view", "locations"], "not_built"),
@@ -796,11 +799,14 @@ fn describe_and_show_print_json_whole_and_text_from_it() {
             "ilvl",
             "reqlevel",
             "stack",
+            "sockets",
+            "links",
             "league",
             "tab",
             "character",
             "container",
             "id",
+            "sockets.<colour>",
             "is",
             "has"
         ]
@@ -838,4 +844,13 @@ fn describe_and_show_print_json_whole_and_text_from_it() {
             "the text lacks `{needle}`:\n{shown}"
         );
     }
+    assert!(
+        !shown.contains("sockets"),
+        "a ring has no sockets line:\n{shown}"
+    );
+    // the sockets as the game shows them, and the largest link group (step 8)
+    let shown = text(&acq(&base, &["show", "kaom"]));
+    assert!(shown.contains("sockets R-R-G B · links 3"), "{shown}");
+    let rows = text(&acq(&base, &["search", "--realm", "pc", "linked(red>=2)"]));
+    assert!(rows.contains("R-R-G (link group)"), "{rows}");
 }

@@ -49,10 +49,22 @@
 //! - **Its template tests**, wherever they sit: whether it makes any, so
 //!   that it resolves to templates; whether each is a quoted `"T"`, which
 //!   resolves to itself; and the words a suggestion is scored against.
+//! - **A link group's** (`linked( … )`, C101; the build plan, step 8) is
+//!   [`Linked`]: the same one reader, over the attributes a link group
+//!   has — `red green blue white`, the colour counts, and `size` — each a
+//!   comparison, composed with and, or and not as a line's group is, and
+//!   three-valued on one group of the item as `sockets.rs` counts it: a
+//!   count the group's unread sockets leave open leaves the comparison
+//!   undecided, never a no. Every comparison is favoured by more sockets
+//!   or fewer, so a group holds a selector of nothing — every group is a
+//!   candidate — and the group's members are the item's link groups, which
+//!   is why an item with none *lacks* a `linked( … )` and `-has:links`
+//!   routes it (`answer.rs`).
 
 use crate::bind::{self, LINE_FLAGS, NumTest, SOURCES, TextTest};
 use crate::derive::{ITEM_FLAGS, Line, Slot};
 use crate::error::{ErrorKind, LanguageError};
+use crate::sockets::{self, GroupCounts};
 use crate::tree::{self, Collection, Member, Node, Number, Op, Probe, Value, ValueRef};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -534,5 +546,98 @@ fn member(m: &Member) -> Result<BMember, LanguageError> {
                 ));
             }
         },
+    })
+}
+
+// ---- a link group --------------------------------------------------------------------------
+
+/// A node inside a link group, bound (the module doc, "A link group's").
+#[derive(Debug, Clone)]
+enum BLink {
+    All(Vec<BLink>),
+    Any(Vec<BLink>),
+    Not(Box<BLink>),
+    Const(bool),
+    /// A colour's count in the group, by GGG's letter.
+    Colour {
+        letter: &'static str,
+        test: NumTest,
+    },
+    Size(NumTest),
+}
+
+/// `linked( … )`, bound: what is asked of one link group.
+#[derive(Debug, Clone)]
+pub(crate) struct Linked(BLink);
+
+/// The attributes a link group has, as the help and an error list them.
+pub(crate) fn link_attributes() -> Vec<&'static str> {
+    let mut out = sockets::colour_words();
+    out.push("size");
+    out
+}
+
+impl Linked {
+    pub fn bind(whole: &Member) -> Result<Linked, LanguageError> {
+        Ok(Linked(link(whole)?))
+    }
+
+    /// Three-valued on one link group, as far as its counts were read.
+    pub fn of(&self, group: &GroupCounts) -> Truth {
+        fn truth(member: &BLink, group: &GroupCounts) -> Truth {
+            match member {
+                BLink::All(children) => all_of(children.iter().map(|c| truth(c, group))),
+                BLink::Any(children) => any_of(children.iter().map(|c| truth(c, group))),
+                BLink::Not(inner) => negated(truth(inner, group)),
+                BLink::Const(value) => sure(*value),
+                BLink::Colour { letter, test } => group.colour(letter).truth(test),
+                BLink::Size(test) => group.size.truth(test),
+            }
+        }
+        truth(&self.0, group)
+    }
+}
+
+fn link(m: &Member) -> Result<BLink, LanguageError> {
+    Ok(match m {
+        Member::All(children) => BLink::All(children.iter().map(link).collect::<Result<_, _>>()?),
+        Member::Any(children) => BLink::Any(children.iter().map(link).collect::<Result<_, _>>()?),
+        Member::Not(inner) => BLink::Not(Box::new(link(inner)?)),
+        Member::Const(value) => BLink::Const(*value),
+        Member::Is(name) => {
+            return Err(LanguageError::new(
+                ErrorKind::UnknownName,
+                format!(
+                    "`is:{name}` is nothing a link group has: its counts are {}",
+                    link_attributes().join(", ")
+                ),
+            ));
+        }
+        Member::Test { attr, op, value } => {
+            if attr.eq_ignore_ascii_case("size") {
+                BLink::Size(bind::num_test("size", *op, value)?)
+            } else if let Some(letter) = sockets::letter(attr) {
+                BLink::Colour {
+                    letter,
+                    test: bind::num_test(attr, *op, value)?,
+                }
+            } else {
+                return Err(bind::unknown(
+                    "count of a link group",
+                    attr,
+                    &link_attributes(),
+                    |near| {
+                        crate::print::print(&Node::Members {
+                            of: Collection::Links,
+                            where_: Box::new(Member::Test {
+                                attr: near.to_string(),
+                                op: *op,
+                                value: value.clone(),
+                            }),
+                        })
+                    },
+                ));
+            }
+        }
     })
 }

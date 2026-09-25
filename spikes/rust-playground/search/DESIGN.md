@@ -518,8 +518,8 @@ since none has a trigger yet. Meeting one is a listed limit (C102).
 ## Contract detail, by decision
 
 What remains is detail no module carries yet: the derived fields not
-yet built and the sockets (step 8), what reference data admits (every
-table to come), the trade translation (not in this plan). The
+yet built, what reference data admits (every table to come), the trade
+translation (not in this plan). The
 paragraphs the crate took on 2026-09-23 — C89/C103, C90/C102, C92,
 C93, C95, C105, C96, C97, C98, C100, the derivation's shape, and C94
 with C101's DPS at step 7 — are their module docs' now (`eval.rs`,
@@ -529,7 +529,7 @@ site's 298 pseudo stats by the mechanism each needs, with the input
 that admits each, is `search/pseudo-stats/README.md` (2026-09-18; 109
 unresolved, each with the one read that closes it).
 
-- **C101 — the derived fields not yet built, and the sockets.** Base
+- **C101 — the derived fields not yet built.** Base
   defence percentile is the item's defence against its base's range
   from reference data (C68, C106) — the RePoE export carries the ranges
   (`search/repoe/data/base-defences.csv`: 476 bases, 466 with armour,
@@ -539,10 +539,8 @@ unresolved, each with the one read that closes it).
   a quality-normalised defence follows S26; each is a named pure
   function in the search crate, listed with the totals under `pseudo.`
   by `--describe` (C97; the reference), as `pseudo.dps` and
-  `pseudo.pdps` are (`pseudo.rs`). Socket shapes the census shows and
-  the deriver does not decode stay counted as unread (S16); a combined
-  link-count and colour request is bound to one group when S58's shape
-  is built.
+  `pseudo.pdps` are (`pseudo.rs`). The sockets are `sockets.rs`'s
+  (step 8).
 - **C106 — what reference data admits, and the test.** Three kinds:
   *data*, what the game files state and a registered surface exports;
   *convention*, a concept the community has published a definition for

@@ -399,11 +399,6 @@ timings, coverage no fixture reaches, and questions for the seat.
 - 6 of 22,727 item rows are removed, all at live characters; no tab or
   character has been retired yet, so an item removed at a retired
   location exists in fixtures alone.
-- Over its 12.8 days the file's logs weigh: `responses` 1,126 rows and
-  2.5 MB, `item_events` 22,751 rows (22,727 the first `added`) and
-  2.8 MB, `refused` 4 bodies and 135 KB, removed items 6.7 KB. Nothing
-  reads a response again but the latest listing per realm and league,
-  the v4 migration's re-stamp and now the highest id.
 - 2,926 of 3,427 live tabs have never been fetched, the 17 folders
   apart, so "absent from a full refresh" is not a condition this
   account's store can often state.
@@ -412,15 +407,9 @@ timings, coverage no fixture reaches, and questions for the seat.
   the store's read hands the type over verbatim as they do; the store
   saying it once is a small change if a fifth arrives or one of them
   gets it wrong.
-- The header's listings are read by a scan of `responses`, which has no
-  index on `endpoint`: nothing at 1,126 rows, unmeasured beyond, and it
-  grows with every request. It is one of the costs the retention park's
-  size trigger would see first (`decisions/store.md`, "Parked").
 
 **Step 4.**
 
-- Nothing on the copy is unread, so every undecided outcome — a term's,
-  a sum's, the root's — is exercised by fixtures alone, as at step 2.
 - The scope says `in all leagues`; a league is a term, and the owner's
   seat forgetting it is the default-league park's trigger, not a step's.
 - What B3 rests on, measured over the copy when the owner asked what
@@ -435,21 +424,12 @@ timings, coverage no fixture reaches, and questions for the seat.
 
 **Step 4b.**
 
-- A line's group that failed as stored lacked under a completion 19
-  times in 2,000 cases (21 on the second day's generators); why that is
-  allowed and counted is `group.rs`'s doc and the completion property's
-  header.
 - The transformations: 1–4 and 11 are equivalence's, the returned tree
   sent back among them; 5–8 completion's; 9 is the generators' one small
   range for values and bounds, zero and negatives in it; 10 and 13 are the
   cross-checks'; 12 is the landed file's. Of 13, a row's evidence is
   checked to be lines `show` derives of that item, never that they are the
   lines that satisfied the term.
-- What no property here sees: a fault every spelling and every completion
-  shares and no second part of the answer states; the text the CLI
-  renders; `--describe`; whether an error's readings are good ones. The
-  hand-counted tests hold the first as far as they go, and the next audit
-  is pointed at the rest.
 - The gate's cost, a debug build here: equivalence 14 s, the cross-checks
   15 s, completion 3 to 6 s, beside the routes' 16 s. 256, 192 and 256
   cases; `PROPTEST_CASES` runs any of them longer by hand.
@@ -475,17 +455,6 @@ timings, coverage no fixture reaches, and questions for the seat.
 - The C++ app's category (cpp-search F4) is this same vocabulary, the
   RePoE class display name lowercased, so the owner's old dropdown and
   `--describe class` say the same words.
-- The generated properties (equivalence, completion, the cross-checks)
-  generate no `class` term: it is held by hand-counted tests alone, as
-  `rarity` and `frame` are. `reqlevel` joined the generators at the
-  first review, its hole a `Level` row with no value.
-- A poe2 body carries its class as a property (G4); the table covers
-  none, and `--realm all` counts every poe2 item under `undecided` with
-  that reason.
-- Blade Trap (G3) is the kind of thing a first count over the owner's
-  copy finds and no fixture would have: the table's rules were checked
-  against the copy before the step's commit, and the check is the
-  `--count class` ask of the measurement above.
 
 **Step 5.**
 
@@ -495,12 +464,6 @@ timings, coverage no fixture reaches, and questions for the seat.
 - A route's spelling for a bucket under the empty query is the term alone,
   never `() term`: the router folds an empty root away, which is the one
   simplification a generated tree makes (as the selector's folding is).
-- The M2 output read above is the third review's (derivation 4); the
-  fifth changed how an unread part is joined to its occurrence and no
-  template, so the count stands. Rerun if in doubt.
-- For the owner unless he wants it: C105's first test is worded with
-  groupings above class (`armour`, `weapon`), which are the parked
-  category — it will be pinned with class names and the same numbers.
 - The five blind seats (the findings above), beyond their two fixes:
   the together count steered one from `"# to maximum Life">=70` to
   `sum("# to maximum Life")>=70` inside `holds`, 76 items to 79, and it
@@ -540,8 +503,3 @@ timings, coverage no fixture reaches, and questions for the seat.
 - `pseudo.dps` counts every damage property the item displays and
   `pseudo.pdps` the physical alone; the C++ app reads 0 where a property
   is missing and this build says *lacked* — the one departure, C93's.
-- A total costs by the table's rows, not by the lines an item carries —
-  80 ms for 19 rows over 22,623 items — and grows with T3 and T4; the
-  totals batch park (`decisions/search.md`) holds the shape that would
-  not, held by rule 10 as a property over the generators, which reach
-  `pseudo` since the third look.

@@ -21,6 +21,8 @@ pub struct Describe {
     pub fields: Vec<Named>,
     /// What `line( … )` takes inside.
     pub line: Vec<Named>,
+    /// What `linked( … )` takes inside (C101; `sockets.rs`).
+    pub linked: Vec<Named>,
     /// What a comparison, a sum or `--sort` consumes.
     pub values: Vec<Named>,
     /// How terms are put together.
@@ -109,6 +111,8 @@ fn named(name: &str, kind: &'static str, what: &str) -> Named {
 pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     let mut fields: Vec<Named> = FIELDS
         .iter()
+        // the four colour fields are one entry, `sockets.<colour>`
+        .filter(|f| !matches!(f.thing, Thing::SocketColour(_)))
         .map(|f| {
             let (kind, values) = match f.kind {
                 Kind::Text => ("text", Vec::new()),
@@ -134,6 +138,8 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
                     ],
                 ),
                 Thing::ReqLevel => (f.what.to_string(), vec!["reqlevel=..30", "-has:reqlevel"]),
+                Thing::Sockets => (f.what.to_string(), vec!["sockets>=5", "-has:sockets"]),
+                Thing::Links => (f.what.to_string(), vec!["links=6", "-has:links"]),
                 _ => (f.what.to_string(), Vec::new()),
             };
             Named {
@@ -143,6 +149,15 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             }
         })
         .collect();
+    fields.push(Named {
+        values: crate::sockets::colour_words(),
+        examples: vec!["sockets.red>=2", "sockets.blue=0"],
+        ..named(
+            "sockets.<colour>",
+            "number",
+            "how many sockets of one colour the item has, over every link group; GGG's letter for the word (red R, green G, blue B, white W), so an abyssal socket (A) or a resonator's (DV) counts in `sockets` and under no colour",
+        )
+    });
     fields.push(Named {
         values: ITEM_FLAGS.to_vec(),
         examples: vec!["is:corrupted", "-is:identified"],
@@ -194,6 +209,25 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             values: LINE_FLAGS.to_vec(),
             examples: vec!["line(template:life -is:crafted)"],
             ..named("is", "flag", "the flags the body sets on the line")
+        },
+    ];
+    let linked = vec![
+        Named {
+            values: crate::sockets::colour_words(),
+            examples: vec!["linked(red>=3 green>=1)", "linked(blue>=2 or white>=1)"],
+            ..named(
+                "red green blue white",
+                "number",
+                "how many sockets of the colour one link group holds; every count named holds together on one group (S59)",
+            )
+        },
+        Named {
+            examples: vec!["linked(size>=5 blue>=2)", "-has:links"],
+            ..named(
+                "size",
+                "number",
+                "how many sockets the link group holds; an item with no link group lacks every `linked( … )`",
+            )
         },
     ];
     let values = vec![
@@ -337,6 +371,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     let mut out = Describe {
         fields,
         line,
+        linked,
         values,
         composition,
         operators,
@@ -355,6 +390,10 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     // positional slots to any `arg<N>`, a block to its own
     let answers = |entry: &str, asked: &str| {
         entry.eq_ignore_ascii_case(asked)
+            // a dotted entry answers to its head: `sockets.<colour>` to `sockets`
+            || entry
+                .split_once('.')
+                .is_some_and(|(head, _)| head.eq_ignore_ascii_case(asked))
             // a flag answers to its word: `count` is `--count`
             || entry.trim_start_matches('-').eq_ignore_ascii_case(asked)
             || entry
@@ -366,9 +405,10 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             || (entry.starts_with("arg1") && crate::tree::arg_index(asked).is_some())
     };
     // `pseudo` names the computed block, as the reference's namespace does
-    const BLOCKS: [&str; 9] = [
+    const BLOCKS: [&str; 10] = [
         "fields",
         "line",
+        "linked",
         "values",
         "composition",
         "operators",
@@ -381,6 +421,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
         [
             &d.fields,
             &d.line,
+            &d.linked,
             &d.values,
             &d.composition,
             &d.operators,
@@ -431,6 +472,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     };
     out.fields.retain(|n| wants("fields", &n.name));
     out.line.retain(|n| wants("line", &n.name));
+    out.linked.retain(|n| wants("linked", &n.name));
     out.values.retain(|n| wants("values", &n.name));
     out.composition.retain(|n| wants("composition", &n.name));
     out.operators.retain(|n| wants("operators", &n.name));

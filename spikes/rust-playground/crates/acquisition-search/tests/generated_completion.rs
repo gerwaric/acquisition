@@ -4,10 +4,12 @@
 //! boundary alone: a request in, an answer out, as JSON.
 //!
 //! An item is generated with holes — a flag that is no yes or no, an array
-//! that is no array, an element that is no line, a number or a name of the
-//! wrong type — and stored beside completions of itself: what could be read
-//! kept, each unread flag a yes and a no, each unread array none and lines
-//! of the templates the generated queries name, each unread number several.
+//! that is no array, an element that is no line or no socket, a number or a
+//! name of the wrong type, a socket's colour or group — and stored beside
+//! completions of itself: what could be read kept, each unread flag a yes
+//! and a no, each unread array none and lines of the templates the
+//! generated queries name, each unread number several, each unread socket
+//! several colours and groups.
 //! The evaluator over a fully readable body is the oracle; this asks only
 //! that the stored item's answer never contradicts it.
 //!
@@ -367,6 +369,8 @@ fn checked(case: &Case, tally: &mut Tally) -> Result<(), String> {
         Sort::Field("pseudo.total_res"),
         Sort::Field("pseudo.dps"),
         Sort::Field("pseudo.pdps"),
+        Sort::Field("links"),
+        Sort::Field("sockets.red"),
     ];
     check(&corpus, &scope, q, &sorts, &stored.json(), tally)
 }

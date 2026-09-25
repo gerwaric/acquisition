@@ -407,7 +407,7 @@ proptest! {
         all.extend(bodies.iter().map(Body::json));
         let (store, corpus, scope) = fixture_with_store(all.clone());
         let text = q_text(&q, Spelling::Authored);
-        for value in [projection.as_str(), sum.as_str(), "ilvl", "pseudo.total_res", "pseudo.dps", "pseudo.pdps"] {
+        for value in [projection.as_str(), sum.as_str(), "ilvl", "pseudo.total_res", "pseudo.dps", "pseudo.pdps", "links", "sockets.red"] {
             probe_is_sort_status(&corpus, &scope, value).map_err(TestCaseError::fail)?;
         }
         for sort in [None, Some(projection.as_str()), Some(sum.as_str())] {
@@ -433,6 +433,11 @@ proptest! {
         // (C101); neither moves when the occurrences are reordered
         every_occurrence_twice(&bodies, &q, "pseudo.dps", "pseudo.total_res").map_err(TestCaseError::fail)?;
         every_occurrence_in_another_order(&bodies, &q, "pseudo.pdps", "pseudo.total_res")
+            .map_err(TestCaseError::fail)?;
+        // a socket count is over the collection, which no line is: it
+        // stays when the lines are written twice and when the sockets are
+        // written in another order (C101)
+        every_occurrence_in_another_order(&bodies, &q, "sockets", "links")
             .map_err(TestCaseError::fail)?;
     }
 }

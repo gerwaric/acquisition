@@ -11,6 +11,13 @@
 //! no array, an element that is no property, a property whose values
 //! cannot be read, and a value the fields cannot read as a number.
 //!
+//! Since step 8 they reach the sockets (C101): `sockets`, `links` and
+//! `sockets.<colour>` as comparisons, `has:` and sorts, `linked( … )` as
+//! a group of colour and size counts in the one composition — and the
+//! collection's own holes: no array, an element that is no socket, a
+//! socket whose colour could not be read (an `attr` and no `sColour`),
+//! and one whose group could not.
+//!
 //! Nothing here reads the crate's tree, binder or evaluator: a query is
 //! rendered to text and asked, and a body enters through `Store::record`.
 
@@ -304,6 +311,9 @@ pub enum Q {
     /// (transformation 11): `"life"` and `text:life`.
     Alt(String, String, TermKind),
     Line(G),
+    /// `linked(G)`: counts of colour and size that hold together on one
+    /// link group (C101); the leaves are `link_leaf`'s.
+    Linked(G),
     /// `sum(line(G).slot)` and its comparison.
     Sum(G, String, String),
     /// `line(G).slot` and its comparison: lowers into the group.
@@ -387,6 +397,16 @@ fn plain() -> BoxedStrategy<Q> {
             "tab:routes",
             "true()",
             "false()",
+            "sockets>=2",
+            "sockets=1..3",
+            "has:sockets",
+            "-has:links",
+            "links>=2",
+            "links=1",
+            "sockets.red>=2",
+            "sockets.blue=0",
+            "sockets.white>=1",
+            "sockets.green<=1",
         ]),
         // an authoring error: never evaluated, and the same error however
         // the rest is written
@@ -412,6 +432,35 @@ fn pseudo_leaf() -> BoxedStrategy<Q> {
         1 => Just(Q::Plain("has:pseudo.total_res".to_string())),
     ]
     .boxed()
+}
+
+/// A link group's leaves: a colour's count or the group's size, compared
+/// within the range a generated collection reaches, and the constants.
+fn link_leaf() -> BoxedStrategy<G> {
+    prop_oneof![
+        6 => (
+            proptest::sample::select(vec!["red", "green", "blue", "white", "size"]),
+            proptest::sample::select(vec![">=", ">", "<=", "<", "="]),
+            0i32..=4,
+        )
+            .prop_map(|(attr, op, n)| format!("{attr}{op}{n}")),
+        1 => proptest::sample::select(vec!["true()", "false()"]).prop_map(str::to_string),
+    ]
+    .prop_map(G::Leaf)
+    .boxed()
+}
+
+fn linked() -> BoxedStrategy<G> {
+    link_leaf()
+        .prop_recursive(2, 8, 3, |inner| {
+            prop_oneof![
+                3 => proptest::collection::vec(inner.clone(), 2..4).prop_map(G::And),
+                2 => proptest::collection::vec(inner.clone(), 2..4).prop_map(G::Or),
+                1 => inner.clone().prop_map(|g| G::Not(Box::new(g))),
+                1 => inner.prop_map(|g| G::Not(Box::new(G::Not(Box::new(g))))),
+            ]
+        })
+        .boxed()
 }
 
 fn alt() -> BoxedStrategy<Q> {
@@ -454,6 +503,12 @@ fn alt() -> BoxedStrategy<Q> {
             "pseudo.pdps>=9".into(),
             TermKind::Plain,
         ),
+        // a field's name in any case (B1)
+        (
+            "SOCKETS.Red>=1".into(),
+            "sockets.red>=1".into(),
+            TermKind::Plain,
+        ),
     ];
     proptest::sample::select(pairs)
         .prop_map(|(spelled, explicit, kind)| Q::Alt(spelled, explicit, kind))
@@ -472,6 +527,7 @@ fn q_leaf(probes: bool) -> BoxedStrategy<Q> {
         4 => plain(),
         3 => pseudo_leaf(),
         2 => alt(),
+        2 => linked().prop_map(Q::Linked),
     ]
     .boxed()
 }
@@ -511,7 +567,7 @@ pub enum Sort {
 pub fn sort() -> BoxedStrategy<Sort> {
     prop_oneof![
         3 => Just(Sort::None),
-        1 => proptest::sample::select(vec!["ilvl", "stack", "reqlevel"]).prop_map(Sort::Field),
+        1 => proptest::sample::select(vec!["ilvl", "stack", "reqlevel", "sockets", "links", "sockets.red"]).prop_map(Sort::Field),
         1 => proptest::sample::select(PSEUDO.to_vec()).prop_map(Sort::Field),
         2 => (group(), slot_word()).prop_map(|(g, s)| Sort::Proj(g, s)),
         2 => (group(), slot_word()).prop_map(|(g, s)| Sort::Sum(g, s)),
@@ -578,6 +634,7 @@ fn text(q: &Q, top: bool, spelling: Spelling) -> String {
             Spelling::Explicit => explicit.clone(),
         },
         Q::Line(g) => line_text(g, spelling),
+        Q::Linked(g) => format!("linked({})", g_text(g, true, spelling.group_and())),
         Q::Sum(g, slot, cmp) => format!("sum({}.{slot}){cmp}", line_text(g, spelling)),
         Q::Proj(g, slot, cmp) => match spelling {
             Spelling::Authored => format!("{}.{slot}{cmp}", line_text(g, spelling)),
@@ -603,6 +660,7 @@ pub fn normal(q: &Q) -> Q {
     match q {
         Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Alt(..) => q.clone(),
         Q::Line(g) => Q::Line(g_normal(g)),
+        Q::Linked(g) => Q::Linked(g_normal(g)),
         Q::Sum(g, slot, cmp) => Q::Sum(g_normal(g), slot.clone(), cmp.clone()),
         Q::Proj(g, slot, cmp) => Q::Proj(g_normal(g), slot.clone(), cmp.clone()),
         Q::Open(g, slot, sum) => Q::Open(g_normal(g), slot.clone(), *sum),
@@ -655,6 +713,7 @@ pub fn shuffled(q: &Q, seed: u64) -> Q {
         match q {
             Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Alt(..) => q.clone(),
             Q::Line(g) => Q::Line(g_shuffled(g, rng)),
+            Q::Linked(g) => Q::Linked(g_shuffled(g, rng)),
             Q::Sum(g, slot, cmp) => Q::Sum(g_shuffled(g, rng), slot.clone(), cmp.clone()),
             Q::Proj(g, slot, cmp) => Q::Proj(g_shuffled(g, rng), slot.clone(), cmp.clone()),
             Q::Open(g, slot, sum) => Q::Open(g_shuffled(g, rng), slot.clone(), *sum),
@@ -688,6 +747,7 @@ fn sorted(q: &Q) -> Q {
     match q {
         Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Alt(..) => q.clone(),
         Q::Line(g) => Q::Line(g_sorted(g)),
+        Q::Linked(g) => Q::Linked(g_sorted(g)),
         Q::Sum(g, slot, cmp) => Q::Sum(g_sorted(g), slot.clone(), cmp.clone()),
         // a projection's comparison is one more conjunct of its group
         Q::Proj(g, slot, cmp) => Q::Line(g_sorted(&g_normal(&G::And(vec![
@@ -715,7 +775,7 @@ pub fn terms(q: &Q) -> Vec<(String, TermKind)> {
         match q {
             Q::Plain(_) => out.push((key(q), TermKind::Plain)),
             Q::Alt(_, _, kind) => out.push((key(q), *kind)),
-            Q::Line(_) | Q::Proj(..) => out.push((key(q), TermKind::Group)),
+            Q::Line(_) | Q::Linked(_) | Q::Proj(..) => out.push((key(q), TermKind::Group)),
             Q::Sum(..) | Q::Total(_) => out.push((key(q), TermKind::Sum)),
             Q::Open(..) | Q::Probe(_) => out.push((key(q), TermKind::Probe)),
             Q::And(children) | Q::Or(children) | Q::Holds(children, _) => {
@@ -895,6 +955,37 @@ pub enum Props {
     Of(Vec<Prop>),
 }
 
+/// One element of `sockets` (C101).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Sock {
+    /// A socket as GGG gives it: its colour letter and its group.
+    Of(&'static str, u8),
+    /// A socket whose colour could not be read: an `attr` and no `sColour`.
+    Blind(u8),
+    /// A socket whose group could not be read.
+    Loose(&'static str),
+    /// An element that is no socket: may be one, or nothing.
+    Junk,
+}
+
+impl Sock {
+    fn has_hole(&self) -> bool {
+        !matches!(self, Sock::Of(..))
+    }
+}
+
+/// The colours a generated socket takes: the four words' letters and an
+/// abyssal socket's, which no word names.
+const LETTERS: [&str; 5] = ["R", "G", "B", "W", "A"];
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Socks {
+    Absent,
+    /// The array is no array.
+    Hole,
+    Of(Vec<Sock>),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Known<T> {
     Absent,
@@ -920,6 +1011,8 @@ pub struct Body {
     pub note: Known<&'static str>,
     /// The `properties` array the derived fields read.
     pub props: Props,
+    /// The socket collection.
+    pub socks: Socks,
 }
 
 fn tri(holes: bool) -> BoxedStrategy<Tri> {
@@ -968,6 +1061,31 @@ fn prop(name: PropName, holes: bool) -> BoxedStrategy<Prop> {
         hole => Just(Prop::Malformed(name)),
         hole => proptest::sample::select(vec!["fast", "1e34", ""])
             .prop_map(move |v| Prop::Unreadable(name, v)),
+    ]
+    .boxed()
+}
+
+fn sock(holes: bool) -> BoxedStrategy<Sock> {
+    let hole = if holes { 1 } else { 0 };
+    let letter = proptest::sample::select(LETTERS.to_vec());
+    prop_oneof![
+        8 => (letter.clone(), 0u8..3).prop_map(|(c, g)| Sock::Of(c, g)),
+        hole => (0u8..3).prop_map(Sock::Blind),
+        hole => letter.prop_map(Sock::Loose),
+        hole => Just(Sock::Junk),
+    ]
+    .boxed()
+}
+
+/// The socket collection: none, GGG's `[]`, up to six sockets in up to
+/// three groups; with `holes`, a socket whose colour or group cannot be
+/// read, an element that is no socket, or no array at all.
+fn socks(holes: bool) -> BoxedStrategy<Socks> {
+    let hole = if holes { 1 } else { 0 };
+    prop_oneof![
+        3 => Just(Socks::Absent),
+        hole => Just(Socks::Hole),
+        5 => proptest::collection::vec(sock(holes), 0..7).prop_map(Socks::Of),
     ]
     .boxed()
 }
@@ -1054,6 +1172,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
         known(vec!["Doom Knot", "Life Ring"], holes),
         known(vec!["~price 1 chaos", "keep"], holes),
         props(holes),
+        socks(holes),
     )
         .prop_map(
             |(
@@ -1064,6 +1183,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
                 name,
                 note,
                 props,
+                socks,
             )| Body {
                 explicit,
                 implicit,
@@ -1077,6 +1197,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
                 name,
                 note,
                 props,
+                socks,
             },
         )
         .boxed()
@@ -1084,7 +1205,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
 
 /// A body with something unread in it, whatever the dice gave.
 pub fn holed() -> BoxedStrategy<Body> {
-    (some_body(true), 0u8..6)
+    (some_body(true), 0u8..7)
         .prop_map(|(mut body, which)| {
             if !body.has_holes() {
                 match which {
@@ -1093,6 +1214,7 @@ pub fn holed() -> BoxedStrategy<Body> {
                     2 => body.corrupted = Tri::Hole,
                     3 => body.reqlevel = Known::Hole,
                     4 => body.props = Props::Hole,
+                    5 => body.socks = Socks::Of(vec![Sock::Of("R", 0), Sock::Blind(0), Sock::Junk]),
                     _ => body.ilvl = Known::Hole,
                 }
             }
@@ -1118,6 +1240,7 @@ impl Body {
             name: Known::Absent,
             note: Known::Absent,
             props: Props::Absent,
+            socks: Socks::Absent,
         }
     }
 
@@ -1190,6 +1313,15 @@ impl Body {
                 Props::Of(vec![read(PropName::Physical, &["10-20"])]),
             ][n % 4]
                 .clone(),
+            // none, one group of three, two groups, GGG's `[]`, six white
+            socks: [
+                Socks::Absent,
+                Socks::Of(vec![Sock::Of("R", 0), Sock::Of("R", 0), Sock::Of("G", 0)]),
+                Socks::Of(vec![Sock::Of("R", 0), Sock::Of("B", 1)]),
+                Socks::Of(Vec::new()),
+                Socks::Of(vec![Sock::Of("W", 0); 6]),
+            ][n % 5]
+                .clone(),
         }
     }
 
@@ -1223,6 +1355,10 @@ impl Body {
             hybrid: reversed(&self.hybrid),
             props: match &self.props {
                 Props::Of(elems) => Props::Of(elems.iter().rev().cloned().collect()),
+                other => other.clone(),
+            },
+            socks: match &self.socks {
+                Socks::Of(elems) => Socks::Of(elems.iter().rev().cloned().collect()),
                 other => other.clone(),
             },
             ..self.clone()
@@ -1278,6 +1414,11 @@ impl Body {
                 Props::Absent => false,
                 Props::Hole => true,
                 Props::Of(elems) => elems.iter().any(Prop::has_hole),
+            }
+            || match &self.socks {
+                Socks::Absent => false,
+                Socks::Hole => true,
+                Socks::Of(elems) => elems.iter().any(Sock::has_hole),
             }
     }
 
@@ -1413,11 +1554,41 @@ impl Body {
                 Props::Of(out)
             }
         };
+        // a socket whose colour could not be read may be any colour, one
+        // whose group could not be read may sit in any group, and an
+        // element that is no socket may be one of any colour in any
+        // group, or nothing
+        let letter = || match coins {
+            Coins::No => LETTERS[0],
+            Coins::Yes => LETTERS[LETTERS.len() - 1],
+            Coins::Tossed(_) => LETTERS[pick(LETTERS.len())],
+        };
+        let group = || match coins {
+            Coins::No => 0u8,
+            Coins::Yes => 3,
+            Coins::Tossed(_) => pick(4) as u8,
+        };
+        let socks = match &self.socks {
+            Socks::Absent => Socks::Absent,
+            Socks::Hole => fill.socks.clone(),
+            Socks::Of(elems) => Socks::Of(
+                elems
+                    .iter()
+                    .filter_map(|sock| match sock {
+                        Sock::Of(..) => Some(sock.clone()),
+                        Sock::Blind(g) => Some(Sock::Of(letter(), *g)),
+                        Sock::Loose(c) => Some(Sock::Of(c, group())),
+                        Sock::Junk => coin().then(|| Sock::Of(letter(), group())),
+                    })
+                    .collect(),
+            ),
+        };
         Body {
             explicit,
             implicit,
             hybrid,
             props,
+            socks,
             corrupted: filled(self.corrupted, fill.corrupted),
             influences_hole: false,
             shaper: influence(self.shaper, fill.shaper),
@@ -1584,6 +1755,34 @@ impl Body {
                 );
             }
         }
+        // the sockets as GGG gives them: `attr` beside `sColour`
+        fn attr(c: &str) -> &str {
+            match c {
+                "R" => "S",
+                "G" => "D",
+                "B" => "I",
+                "W" => "G",
+                other => other,
+            }
+        }
+        let sock = |s: &Sock| match s {
+            Sock::Of(c, g) => json!({ "group": g, "attr": attr(c), "sColour": c }),
+            Sock::Blind(g) => json!({ "group": g, "attr": "S" }),
+            Sock::Loose(c) => json!({ "sColour": c }),
+            Sock::Junk => json!(7),
+        };
+        match &self.socks {
+            Socks::Absent => {}
+            Socks::Hole => {
+                body.insert("sockets".into(), json!(UNREAD));
+            }
+            Socks::Of(elems) => {
+                body.insert(
+                    "sockets".into(),
+                    Value::Array(elems.iter().map(sock).collect()),
+                );
+            }
+        }
         Value::Object(body)
     }
 }
@@ -1631,6 +1830,12 @@ pub fn anchors() -> Vec<Value> {
             "properties": [
                 fast("Attacks per Second"), fast("Physical Damage"),
                 fast("Elemental Damage"), fast("Chaos Damage")]}),
+        // the sockets with every hole the deriver names (step 8): a red
+        // socket read whole, one whose colour is unread, one whose group
+        // is, and an element that is no socket
+        json!({"explicitMods": ["+50 to maximum Life"], "sockets": [
+            {"group": 0, "attr": "S", "sColour": "R"}, {"group": 0, "attr": "D"},
+            {"sColour": "B"}, 7]}),
     ]
 }
 

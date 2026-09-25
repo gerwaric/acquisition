@@ -19,7 +19,8 @@ use serde_json::{Value, json};
 /// implicit), `ring_frac` (a fractured chaos resistance of 35, mana),
 /// `ring_none` (mana alone), `veil` (50 life and a veiled suffix) — and
 /// `ring_magic`, a magic ring with 30 fire resistance.
-/// `Crucible leftovers` (o1): `staff`, and `chaos`, a stack of 40.
+/// `Crucible leftovers` (o1): `staff` (sockets `B-B-R G`, the only
+/// socketed item), and `chaos`, a stack of 40.
 /// The character `Mover` wears `belt` (32 implicit and 110 explicit life)
 /// and `amu` (92 implicit life). `Maps` (m1) holds the substash `Tier 1`
 /// (s1) with `map1`. `Unopened` (n1) was never fetched.
@@ -116,7 +117,12 @@ fn stash() -> Store {
                 "Judgement Staff",
                 json!({
                 "explicitMods": ["+2 to Level of all Spell Skill Gems"],
-                "crucibleMods": ["15% increased Spell Damage"] }),
+                "crucibleMods": ["15% increased Spell Damage"],
+                "sockets": [
+                    { "group": 0, "attr": "I", "sColour": "B" },
+                    { "group": 0, "attr": "I", "sColour": "B" },
+                    { "group": 0, "attr": "S", "sColour": "R" },
+                    { "group": 1, "attr": "D", "sColour": "G" }] }),
             ),
             json!({ "id": "chaos", "name": "", "typeLine": "Chaos Orb", "baseType": "Chaos Orb",
                     "frameTypeId": "Currency", "identified": true, "ilvl": 0, "stackSize": 40, "x": 1, "y": 0 }),
@@ -326,9 +332,12 @@ fn oq2_a_unique_by_name_its_place_and_every_line_through_show() {
     assert!(!shown.to_string().to_lowercase().contains("legacy"));
 }
 
-/// OQ3: a mod, a base, a unique — each its own query. Socket colours are step 8.
+/// OQ3: a mod, a base, a unique, socket colours — each its own query.
+/// The colours two ways (C101): over the whole item, and within one link
+/// group, where every count named holds together (S59): the staff's
+/// `B-B-R G` has a blue and a green socket and no group with both.
 #[test]
-fn oq3_a_mod_a_base_a_unique_each_its_own_query() {
+fn oq3_a_mod_a_base_a_unique_socket_colours_each_its_own_query() {
     let s = stash();
     assert_eq!(
         ids(&asked(&s, r##""#% increased Spell Damage""##)),
@@ -339,12 +348,31 @@ fn oq3_a_mod_a_base_a_unique_each_its_own_query() {
         ["ring_none", "ring_str"]
     );
     assert_eq!(ids(&asked(&s, "rarity=unique name:ashes")), ["ash"]);
+    assert_eq!(ids(&asked(&s, "sockets.blue>=2")), ["staff"]);
     assert_eq!(
-        ask(&load(&s, Some("pc")), "sockets.red>=2")
-            .unwrap_err()
-            .to_json()["kind"],
-        "not_built"
+        ids(&asked(&s, "sockets.blue>=1 sockets.green>=1")),
+        ["staff"]
     );
+    assert_eq!(ids(&asked(&s, "linked(blue>=2 red>=1)")), ["staff"]);
+    assert_eq!(
+        ids(&asked(&s, "linked(blue>=1 green>=1)")),
+        Vec::<String>::new()
+    );
+    assert_eq!(ids(&asked(&s, "links=3 sockets=4")), ["staff"]);
+    // the row shows the group that held, as the game shows it
+    let a = asked(&s, "linked(blue>=2)");
+    assert_eq!(
+        a["rows"][0]["matched"][0]["shows"],
+        json!([{ "shown": { "part": "link group", "text": "B-B-R" } }])
+    );
+    // every other item has no sockets: known absence, never undecided
+    let none = asked(&s, "-has:sockets");
+    assert!(!ids(&none).contains(&"staff".to_string()));
+    assert_eq!(
+        none["total"]["matched"],
+        asked(&s, "")["total"]["matched"].as_u64().unwrap() - 1
+    );
+    assert_eq!(none["total"]["undecided"]["count"], 0);
 }
 
 /// OQ4 as worded (step 6): a staff by what is remembered of it — its

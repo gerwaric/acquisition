@@ -367,6 +367,7 @@ fn inputs(derived: Derived, held: &Held) -> Result<Read<'_>, Inputs<'_>> {
             problem: format!("`{}` is `{}`: {what}", p.name, p.values.join(", ")),
             line: None,
             name: Some(p.name.clone()),
+            socket: None,
         }));
     };
     // the mean of a damage property: the sum of its ranges' means

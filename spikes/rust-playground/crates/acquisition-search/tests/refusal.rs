@@ -93,8 +93,6 @@ fn every_construct_of_the_reference_evaluates_or_is_refused_by_its_name_on_the_l
     for construct in [
         "pseudo.defence_pct",
         "pseudo.<name>.<slot>",
-        "sockets",
-        "linked(…)",
         "has:priced",
         "price.*",
     ] {

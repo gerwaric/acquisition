@@ -997,6 +997,7 @@ fn describe_text(d: &Describe) -> String {
     };
     block("fields", &d.fields);
     block("inside line( … )", &d.line);
+    block("inside linked( … )", &d.linked);
     block("values", &d.values);
     block("composition", &d.composition);
     block("operators", &d.operators);
@@ -1059,6 +1060,22 @@ fn shown_text(s: &Shown) -> String {
     }
     if !item.flags.is_empty() {
         out.push_str(&format!("is      {}\n", item.flags.join(", ")));
+    }
+    // the sockets as the game shows them, and the largest link group
+    if let Some(groups) = acquisition_search::sockets::groups(item) {
+        let layout = groups.layout();
+        let links = match groups.links() {
+            acquisition_search::sockets::Counted::Absent => "no link group".to_string(),
+            counted => match (counted.value(), counted.floor()) {
+                (Some(n), _) => format!("links {n}"),
+                (None, Some(floor)) => format!("links at least {floor}, not established"),
+                (None, None) => "links not established".to_string(),
+            },
+        };
+        out.push_str(&format!(
+            "sockets {} · {links}\n",
+            if layout.is_empty() { "none" } else { &layout }
+        ));
     }
     let shown: Vec<&str> = item
         .properties

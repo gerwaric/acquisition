@@ -499,6 +499,143 @@ fn what_could_not_be_read_is_named_by_collection() {
     }
 }
 
+/// C101 (the build plan, step 8): the sockets are a collection of their
+/// own — group and colour as GGG gives them, `[]` a present collection
+/// with nothing in it, no key no collection — and what could not be read
+/// is unread at the socket's grain: a group that is no whole number
+/// leaves that socket's group open, an `attr` with no `sColour` or a
+/// `sColour` that is no string that socket's colour, an element that is
+/// no object may be any socket, and the array not being one is the
+/// collection.
+#[test]
+fn sockets_are_a_collection_read_at_the_sockets_grain() {
+    let plate = item(json!({"typeLine": "Plate", "sockets": [
+        {"group": 0, "attr": "S", "sColour": "R"},
+        {"group": 0, "attr": "D", "sColour": "G"},
+        {"group": 1, "attr": "I", "sColour": "B"},
+        {"group": 1, "attr": "G", "sColour": "W"},
+        {"group": 2, "attr": "A", "sColour": "A"},
+        {"group": 3, "attr": "DV", "sColour": "DV"}
+    ]}));
+    let sockets = plate.sockets.as_deref().unwrap();
+    assert_eq!(sockets.len(), 6);
+    assert_eq!(
+        sockets
+            .iter()
+            .map(|s| (s.group, s.colour.as_deref()))
+            .collect::<Vec<_>>(),
+        [
+            (Some(0), Some("R")),
+            (Some(0), Some("G")),
+            (Some(1), Some("B")),
+            (Some(1), Some("W")),
+            (Some(2), Some("A")),
+            (Some(3), Some("DV"))
+        ]
+    );
+    assert!(sockets.iter().all(|s| !s.colour_unread && s.kind.is_none()));
+    assert!(plate.unread.is_empty());
+
+    // poe2: a socket with a type and no colour, known
+    let bow = item(
+        json!({"typeLine": "Bow", "sockets": [{"group": 0, "type": "gem"}, {"group": 1, "type": "rune"}]}),
+    );
+    let sockets = bow.sockets.as_deref().unwrap();
+    assert_eq!(sockets[0].colour, None);
+    assert!(!sockets[0].colour_unread);
+    assert_eq!(sockets[1].kind.as_deref(), Some("rune"));
+    assert!(bow.unread.is_empty());
+
+    // GGG's `[]` (N44) is a collection with no socket; no key is none
+    assert_eq!(item(json!({"sockets": []})).sockets, Some(Vec::new()));
+    assert_eq!(item(json!({})).sockets, None);
+
+    // each hole at its grain
+    let holes = item(json!({"sockets": [
+        {"group": "one", "attr": "S", "sColour": "R"},
+        {"attr": "S", "sColour": "R"},
+        {"group": 1, "attr": "S"},
+        {"group": 1, "attr": "S", "sColour": 7},
+        "socket",
+        {"group": 2, "sColour": "B"}
+    ]}));
+    let sockets = holes.sockets.as_deref().unwrap();
+    assert_eq!(sockets.len(), 5);
+    assert_eq!(
+        (sockets[0].group, sockets[0].colour.as_deref()),
+        (None, Some("R"))
+    );
+    assert_eq!(
+        (sockets[1].group, sockets[1].colour.as_deref()),
+        (None, Some("R"))
+    );
+    assert_eq!(
+        (sockets[2].group, sockets[2].colour_unread),
+        (Some(1), true)
+    );
+    assert_eq!(
+        (sockets[3].group, sockets[3].colour_unread),
+        (Some(1), true)
+    );
+    assert_eq!(
+        (sockets[4].group, sockets[4].colour.as_deref()),
+        (Some(2), Some("B"))
+    );
+    let unread: Vec<(String, Option<usize>, &str)> = holes
+        .unread
+        .iter()
+        .map(|u| {
+            (
+                serde_json::to_value(&u.part).unwrap()["part"]
+                    .as_str()
+                    .unwrap()
+                    .to_string(),
+                u.socket,
+                u.problem.as_str(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        unread,
+        [
+            (
+                "socket_group".to_string(),
+                Some(0),
+                "`sockets[0]`: `group` is a string, not a whole number"
+            ),
+            (
+                "socket_group".to_string(),
+                Some(1),
+                "`sockets[1]` has no `group`"
+            ),
+            (
+                "socket_colour".to_string(),
+                Some(2),
+                "`sockets[2]` has an `attr` and no `sColour`: the colour is not read from the attribute"
+            ),
+            (
+                "socket_colour".to_string(),
+                Some(3),
+                "`sockets[3]`: `sColour` is a number, not a colour"
+            ),
+            (
+                "sockets".to_string(),
+                None,
+                "`sockets[4]` is a string, not a socket"
+            ),
+        ]
+    );
+    // the collection itself
+    let none = item(json!({"sockets": "R-R-G"}));
+    assert_eq!(none.sockets, None);
+    assert_eq!(none.unread.len(), 1);
+    assert_eq!(none.unread_in(&Part::Sockets).count(), 1);
+    assert_eq!(
+        none.unread[0].problem,
+        "`sockets` is a string, not an array"
+    );
+}
+
 /// The item's JSON form, which `acq show --json` will print (C53): a whole
 /// number prints whole, and an unread entry names its part.
 #[test]

@@ -10,7 +10,8 @@
 //!
 //! The language (the build plan, step 1), the derivation (step 2), the
 //! first surface (step 4), the counts view (step 5), the class table
-//! (step 6) and the computed values (step 7): a request in, an answer out.
+//! (step 6), the computed values (step 7) and the sockets (step 8): a
+//! request in, an answer out.
 //!
 //! - [`tree`] — the query tree (C91): one typed value, and [`check`], what
 //!   a tree must satisfy to be one the language can say.
@@ -40,6 +41,9 @@
 //!   reference data, one meaning on every surface; `pseudo` — the
 //!   computed values, `pseudo.<name>`: the totals and the derived fields
 //!   (C101), asked as a sum is.
+//! - [`sockets`] — the socket counts (C101): `sockets`, `links`,
+//!   `sockets.<colour>` and a link group's counts as intervals of what
+//!   was read; `linked( … )` is bound in `group` beside a line's group.
 //! - [`corpus`] — every live item of a scope, derived and classed from one
 //!   snapshot of the store's read (C108) and held with its basis (C98).
 //! - `eval` — a term asked of an item: matched, failed, lacked or
@@ -97,7 +101,12 @@
 //!   `tests/pseudo.rs` (the shipped table through the boundary, a total's
 //!   three statuses, `dps` and `pdps`, the sort and the sum over one),
 //!   `tests/answer.rs` (the reference's worked example whole) and
-//!   `tests/acceptance.rs` (AQ2 as worded).
+//!   `tests/acceptance.rs` (AQ2 as worded). The sockets are [`sockets`]'s
+//!   doc, the link group `group`'s; pinned by `tests/sockets.rs` (the
+//!   counts two ways, S59, what each unread socket leaves open, the
+//!   buckets, the sort, `show`, every authoring error), `tests/derive.rs`
+//!   (the collection at the socket's grain) and `tests/acceptance.rs`
+//!   (OQ3's socket colours).
 
 // The lint ratchet (C47): malformed input — a text, a tree — is a
 // structured error, never a panic. Tests may unwrap.
@@ -119,6 +128,7 @@ pub mod parse;
 pub mod print;
 mod pseudo;
 pub mod show;
+pub mod sockets;
 mod template;
 pub mod totals;
 pub mod tree;
@@ -127,7 +137,7 @@ pub use answer::{Answer, Request, answer};
 pub use bind::{NOT_BUILT, NotBuilt, Query, bind, not_built, parse_query};
 pub use class::{CLASS_TABLE_VERSION, ClassGap, ClassTable, ClassTableError, Classed};
 pub use corpus::{Basis, Corpus, Realm};
-pub use derive::{Facts, Item, Line, Part, Property, Shown, Slot, Unread, derive};
+pub use derive::{Facts, Item, Line, Part, Property, Shown, Slot, Socket, Unread, derive};
 pub use describe::{Describe, describe};
 pub use error::{ErrorKind, LanguageError, SearchError};
 pub use json::{from_json, to_json};

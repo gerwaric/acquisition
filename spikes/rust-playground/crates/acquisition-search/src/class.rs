@@ -307,6 +307,7 @@ impl ClassTable {
                 problem,
                 line: None,
                 name: None,
+                socket: None,
             })
         };
         if !self.realms.contains(&item.facts.realm) {

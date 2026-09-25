@@ -49,6 +49,12 @@
 //!   nothing else does. A name nothing defines is an unknown name with the
 //!   near ones offered, or, with a slot word, the refusal of a ranged
 //!   total, which this build ships none of.
+//! - **The sockets are numbers** (`sockets.rs`, C101; the build plan, step
+//!   8): `sockets`, `links` and `sockets.<colour>` for the four colour
+//!   words are fields of `Kind::Number`, so a comparison, `has:`, a
+//!   sort, a sum and a count's key take them as they take `ilvl`; a colour
+//!   word outside the four is an authoring error offering them. A link
+//!   group, `linked( … )`, is bound in `group.rs` beside a line's.
 
 use regex::{Regex, RegexBuilder};
 
@@ -81,26 +87,6 @@ pub const NOT_BUILT: &[NotBuilt] = &[
         construct: "pseudo.<name>.<slot>",
         step: None,
         what: "a ranged total: the totals table admits one, and this build ships none — which lines a site's ranged pseudo sums is unread (search/pseudo-stats/README.md, open question 2)",
-    },
-    NotBuilt {
-        construct: "sockets",
-        step: Some(8),
-        what: "how many sockets an item has",
-    },
-    NotBuilt {
-        construct: "links",
-        step: Some(8),
-        what: "the size of an item's largest link group",
-    },
-    NotBuilt {
-        construct: "sockets.<colour>",
-        step: Some(8),
-        what: "how many sockets of one colour",
-    },
-    NotBuilt {
-        construct: "linked(…)",
-        step: Some(8),
-        what: "conditions that hold together on one link group",
     },
     NotBuilt {
         construct: "has:priced",
@@ -197,11 +183,8 @@ pub fn not_built(construct: &str) -> LanguageError {
 /// The construct of [`NOT_BUILT`] a field's name belongs to.
 fn unbuilt_field(name: &str) -> Option<&'static str> {
     match name {
-        "sockets" => Some("sockets"),
-        "links" => Some("links"),
         "priced" => Some("has:priced"),
         "price" => Some("price.*"),
-        _ if name.starts_with("sockets.") => Some("sockets.<colour>"),
         _ if name.starts_with("price.") => Some("price.*"),
         _ => None,
     }
@@ -260,6 +243,12 @@ pub(crate) enum Thing {
     /// The `Level` requirement, as a number.
     ReqLevel,
     Stack,
+    /// How many sockets the item has (`sockets.rs`).
+    Sockets,
+    /// The size of its largest link group.
+    Links,
+    /// How many sockets of one colour, by GGG's letter.
+    SocketColour(&'static str),
     League,
     Tab,
     Character,
@@ -350,6 +339,42 @@ pub(crate) const FIELDS: &[FieldDef] = &[
         thing: Thing::Stack,
         kind: Kind::Number,
         what: "GGG's stackSize",
+    },
+    FieldDef {
+        name: "sockets",
+        thing: Thing::Sockets,
+        kind: Kind::Number,
+        what: "how many sockets the item has, of every colour; an item whose body lists none lacks it, and one that lists an empty collection has 0",
+    },
+    FieldDef {
+        name: "links",
+        thing: Thing::Links,
+        kind: Kind::Number,
+        what: "the size of the item's largest link group; an item with no link group lacks it",
+    },
+    FieldDef {
+        name: "sockets.red",
+        thing: Thing::SocketColour("R"),
+        kind: Kind::Number,
+        what: "how many red sockets the item has, over every link group",
+    },
+    FieldDef {
+        name: "sockets.green",
+        thing: Thing::SocketColour("G"),
+        kind: Kind::Number,
+        what: "how many green sockets the item has, over every link group",
+    },
+    FieldDef {
+        name: "sockets.blue",
+        thing: Thing::SocketColour("B"),
+        kind: Kind::Number,
+        what: "how many blue sockets the item has, over every link group",
+    },
+    FieldDef {
+        name: "sockets.white",
+        thing: Thing::SocketColour("W"),
+        kind: Kind::Number,
+        what: "how many white sockets the item has, over every link group",
     },
     FieldDef {
         name: "league",
@@ -483,6 +508,8 @@ pub(crate) enum Atom {
     HasComputed(crate::pseudo::Named),
     Is(&'static str),
     Lines(Group),
+    /// `linked( … )`: conditions that hold together on one link group.
+    Links(crate::group::Linked),
     Sum {
         group: Group,
         slot: String,
@@ -908,8 +935,8 @@ impl Binder {
             },
             Node::Members {
                 of: Collection::Links,
-                ..
-            } => Err(not_built("linked(…)")),
+                where_,
+            } => Ok(Atom::Links(crate::group::Linked::bind(where_)?)),
             Node::Members {
                 of: Collection::Lines,
                 where_,
@@ -964,10 +991,25 @@ fn known_field(
     if let Some(construct) = unbuilt_field(name) {
         return Err(not_built(construct));
     }
-    field(name).ok_or_else(|| {
-        let names: Vec<&'static str> = FIELDS.iter().map(|f| f.name).collect();
-        unknown("field", name, &names, reading)
-    })
+    if let Some(field) = field(name) {
+        return Ok(field);
+    }
+    // `sockets.<colour>`: the four colour words, offered whole
+    if let Some(colour) = name.strip_prefix("sockets.") {
+        let words = crate::sockets::colour_words();
+        return Err(LanguageError::new(
+            ErrorKind::UnknownValue,
+            format!("`{colour}` is no socket colour: {}", words.join(", ")),
+        )
+        .with_readings(
+            words
+                .iter()
+                .map(|word| reading(&format!("sockets.{word}")))
+                .collect(),
+        ));
+    }
+    let names: Vec<&'static str> = FIELDS.iter().map(|f| f.name).collect();
+    Err(unknown("field", name, &names, reading))
 }
 
 pub(crate) fn unknown(

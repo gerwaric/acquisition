@@ -21,7 +21,9 @@
 //!   `undecided(term)`; lacked is `-has:<field>`, or `-line(<selector>)`;
 //!   failed is `has:<field> -term`, or `line(<selector>) -term` — with
 //!   `or undecided(line(<selector>))` where the selector asks a flag, which
-//!   an occurrence with unread flags leaves open; a term
+//!   an occurrence with unread flags leaves open; a `linked( … )` lacks
+//!   with `-has:links`, an item with no link group, and fails with
+//!   `has:links -term` (`sockets.rs`); a term
 //!   that cannot lack fails by `-term`. The together count's is the failed
 //!   route and the selector's sum against the bound.
 //! - **A `:` or `~` selector is printed as authored with what it resolved
@@ -947,6 +949,16 @@ fn routes(term: &Term) -> Routes {
             (Some(failed), Some(not(selected)), together)
         }
         (Atom::Has(_) | Atom::HasComputed(_), _) => (None, Some(not(node.clone())), None),
+        // a link group's member is one of the item's link groups: an item
+        // with none lacks it
+        (Atom::Links(_), _) => {
+            let has = Node::Has("links".to_string());
+            (
+                Some(Node::All(vec![has.clone(), not(node.clone())])),
+                Some(not(has)),
+                None,
+            )
+        }
         // a derived field lacked is `-has:` of it (T2), a total never lacks
         (
             Atom::Pseudo {

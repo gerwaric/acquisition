@@ -440,6 +440,13 @@ fn bucket_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs) -> Of {
         Outcome::Failed | Outcome::Lacked => return Of::None,
         Outcome::Matched => {}
     }
+    // had, and its value not established — a socket count with an element
+    // unread (`sockets.rs`): `undecided(<key>)`, the bucket's own route
+    if eval::outcome(&Atom::Undecided(bind::BProbe::Field(def.thing)), held, &[])
+        == Outcome::Matched
+    {
+        return Of::Undecided;
+    }
     if def.thing == Thing::Tab {
         let place = &held.place;
         let (id, name) = match &place.parent {
