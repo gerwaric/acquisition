@@ -438,21 +438,25 @@ proptest! {
 }
 
 /// Past the bound on the reasons a computed value makes beyond the item's
-/// own parts (step 7's outside audit, 5): the eighth anchor, asked by a
-/// probe over a derived field and a total in both orders, shows six parts
-/// and counts the rest. The generated property meets this one run in two
-/// at the gate's count, so the case is fixed here beside it.
+/// own parts (step 7's outside audit, 5): the eighth anchor — three line
+/// arrays unread, four properties no number — asked by a probe over a
+/// derived field and a total, shows six distinct parts, counts one out,
+/// and shows the same six whichever order the terms are written in (rule
+/// 9). The generated property meets this one run in two at the gate's
+/// count, so the case is fixed here beside it; an outside review of the
+/// look found the first cut of this test checking the bound alone.
 #[test]
 fn a_row_s_reasons_are_bounded_where_a_computed_value_makes_them() {
     let (store, corpus, _) = fixture_with_store(anchors());
     // under `and`, a field lacked is false and closes the item: the eighth
     // alone; under `or`, lacked or undecided is undecided: the fourth (its
     // implicit lines unread) and the sixth (its hybrid) join it
+    let mut sixes: Vec<std::collections::BTreeSet<String>> = Vec::new();
     for (text, undecided) in [
         ("undecided(pseudo.dps>=1 pseudo.total_res>=1)", vec!["i7"]),
         ("undecided(pseudo.total_res>=1 pseudo.dps>=1)", vec!["i7"]),
         (
-            "undecided(pseudo.pdps>=1 or pseudo.total_res>=1)",
+            "undecided(pseudo.dps>=1 or pseudo.total_res>=1)",
             vec!["i3", "i5", "i7"],
         ),
     ] {
@@ -460,7 +464,35 @@ fn a_row_s_reasons_are_bounded_where_a_computed_value_makes_them() {
         assert_eq!(common::ids(&answer), undecided, "`{text}`");
         evidence_is_the_items(&store, &answer).unwrap();
         a_reason_is_of_what_its_term_asked(&answer).unwrap();
+        let row = answer["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == "i7")
+            .unwrap();
+        let touched = &row["matched"][0];
+        let parts: std::collections::BTreeSet<String> = touched["shows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| {
+                let r = &e["undecided"];
+                format!("{} {}", r["unread"], r["problem"])
+            })
+            .collect();
+        assert_eq!(parts.len(), 6, "`{text}`: {touched}");
+        assert_eq!(touched["left_out"], 1, "`{text}`: {touched}");
+        // the item's three parts, then the properties by what they say:
+        // the physical damage is the one past the bound
+        assert!(
+            parts.iter().any(|p| p.contains("`craftedMods`"))
+                && parts.iter().any(|p| p.contains("`Attacks per Second`"))
+                && !parts.iter().any(|p| p.contains("`Physical Damage`")),
+            "`{text}`: {parts:?}"
+        );
+        sixes.push(parts);
     }
+    assert!(sixes.windows(2).all(|w| w[0] == w[1]), "{sixes:?}");
 }
 
 /// The checker's own negative controls, on a real answer: an empty zero
