@@ -840,3 +840,55 @@ fn review_a_price_past_the_search_s_number_rule_is_unread_at_its_number() {
         members(&s, &intent, bucket);
     }
 }
+
+/// The review's second look: a field nested past a decoder's depth beside
+/// a valid one loses nothing — the deep field is unread, its sibling
+/// reads — and an unread note where no index sees it is never the reason
+/// an unread row leaves the price unresolved.
+#[test]
+fn review_a_deep_malformed_field_hides_no_sibling_and_a_private_note_is_never_blamed() {
+    let mut deep = json!({ "x": 1 });
+    for _ in 0..130 {
+        deep = json!([deep]);
+    }
+    // a deep slot beside a valid game price: the note prices the item
+    let (s, intent) = one_priced(
+        true,
+        json!({ "note": "~price 5 chaos", "inventoryId": deep }),
+        "12",
+    );
+    let a = asked(&s, &intent, query("has:priced"));
+    assert_eq!(shows(&a["rows"][0])[0].1, json!("5 chaos"), "{a}");
+    // a deep note beside a valid slot: the note is unread, the slot reads
+    let (s, intent) = one_priced(true, json!({ "note": deep, "inventoryId": "Stash1" }), "12");
+    let snapshot = s.pricing_snapshot("pc", "Standard", &intent).unwrap();
+    assert!(snapshot.items[0].note_unread && !snapshot.items[0].inventory_id_unread);
+    assert_eq!(snapshot.items[0].inventory_id.as_deref(), Some("Stash1"));
+    let a = asked(&s, &intent, query("has:priced"));
+    assert_eq!(a["total"]["undecided"]["count"], 1);
+    // a private tab, an unread note and a row this build cannot read: the
+    // row is the cause, and the hint is the intent file's
+    let (s, _) = one_priced(false, json!({ "note": 5 }), "12");
+    let mut intent = common::intent(&s);
+    intent
+        .put::<Newer>(
+            "item",
+            "i1",
+            &json!({ "version": 2, "type": "exact" }),
+            None,
+            &via(),
+        )
+        .unwrap();
+    let a = asked(&s, &intent, query("has:priced"));
+    let why = &a["total"]["undecided_items"][0]["why"][0];
+    assert_eq!(
+        why["unread"], "the price: a row that could decide cannot be read",
+        "{why}"
+    );
+    assert!(
+        why["hint"]
+            .as_str()
+            .unwrap()
+            .starts_with("a refresh will not help")
+    );
+}

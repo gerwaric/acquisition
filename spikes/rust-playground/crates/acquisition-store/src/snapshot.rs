@@ -542,18 +542,104 @@ fn read_characters(
         .collect()
 }
 
-/// A string field of the body as one two-path `json_extract` hands it
+/// The string fields of a body as one multi-path `json_extract` hands them
 /// over: a JSON array of the values, their JSON types kept — a string
 /// quoted, an object an object, an absent path or a JSON `null` a `null`
 /// (SQLite's single-path extract flattens an object to its text, which
 /// read as a note; the step-9 review). A string is read, `null` is none
 /// — as the search's deriver reads a body — and anything else is unread
-/// at that field alone, never a failed read (C47).
-fn body_string(extracted: Option<&Value>) -> (Option<String>, bool) {
-    match extracted {
-        None | Some(Value::Null) => (None, false),
-        Some(Value::String(text)) => (Some(text.clone()), false),
-        Some(_) => (None, true),
+/// at that field alone, never a failed read (C47). The array is read by
+/// a scanner that never descends into a value: a decoder would refuse
+/// the whole array for one field nested past its depth, and the field
+/// beside it — a valid note — would read as absent (the review's second
+/// look). A text this is not an array of `n` values reads as `n` unread
+/// fields.
+fn body_strings<const N: usize>(extracted: Option<&str>) -> [(Option<String>, bool); N] {
+    let unread = || std::array::from_fn(|_| (None, true));
+    let Some(text) = extracted else {
+        return std::array::from_fn(|_| (None, false));
+    };
+    let mut out: Vec<(Option<String>, bool)> = Vec::with_capacity(N);
+    let bytes = text.as_bytes();
+    let mut at = match bytes.first() {
+        Some(b'[') => 1,
+        _ => return unread(),
+    };
+    loop {
+        while bytes.get(at).is_some_and(u8::is_ascii_whitespace) {
+            at += 1;
+        }
+        let Some(&first) = bytes.get(at) else {
+            return unread();
+        };
+        let end = match first {
+            // a string token: to its closing quote, escapes skipped, and
+            // decoded on its own — flat, so no depth is in question
+            b'"' => {
+                let mut i = at + 1;
+                loop {
+                    match bytes.get(i) {
+                        Some(b'\\') => i += 2,
+                        Some(b'"') => break,
+                        Some(_) => i += 1,
+                        None => return unread(),
+                    }
+                }
+                match serde_json::from_str::<String>(&text[at..=i]) {
+                    Ok(value) => out.push((Some(value), false)),
+                    Err(_) => return unread(),
+                }
+                i + 1
+            }
+            _ => {
+                // anything else: skipped to the end of the value by
+                // counting brackets outside strings, and null is none
+                let mut i = at;
+                let mut depth = 0i64;
+                let mut in_string = false;
+                loop {
+                    let Some(&b) = bytes.get(i) else {
+                        return unread();
+                    };
+                    if in_string {
+                        match b {
+                            b'\\' => i += 1,
+                            b'"' => in_string = false,
+                            _ => {}
+                        }
+                    } else {
+                        match b {
+                            b'"' => in_string = true,
+                            b'[' | b'{' => depth += 1,
+                            b']' | b'}' if depth > 0 => depth -= 1,
+                            b',' | b']' if depth == 0 => break,
+                            _ => {}
+                        }
+                    }
+                    i += 1;
+                }
+                let value = text[at..i].trim();
+                out.push(if value == "null" {
+                    (None, false)
+                } else {
+                    (None, true)
+                });
+                i
+            }
+        };
+        at = end;
+        while bytes.get(at).is_some_and(u8::is_ascii_whitespace) {
+            at += 1;
+        }
+        match bytes.get(at) {
+            Some(b',') => at += 1,
+            Some(b']') if out.len() == N && at + 1 == bytes.len() => break,
+            _ => return unread(),
+        }
+    }
+    match out.try_into() {
+        Ok(fields) => fields,
+        Err(_) => unread(),
     }
 }
 
@@ -586,12 +672,8 @@ fn read_items(tx: &rusqlite::Transaction, realm: &str, league: &str) -> Result<V
         // else there is malformed at that field alone, and is carried as
         // unread rather than failing the snapshot whole (C47)
         let fields: Option<String> = r.get(10)?;
-        let fields: Vec<Value> = fields
-            .as_deref()
-            .and_then(|text| serde_json::from_str(text).ok())
-            .unwrap_or_default();
-        let (note, note_unread) = body_string(fields.first());
-        let (inventory_id, inventory_id_unread) = body_string(fields.get(1));
+        let [(note, note_unread), (inventory_id, inventory_id_unread)] =
+            body_strings::<2>(fields.as_deref());
         Ok(ItemSnapshot {
             id: r.get(0)?,
             location_kind: r.get(1)?,
@@ -638,6 +720,57 @@ mod tests {
 
     fn item(id: &str) -> Value {
         json!({ "id": id, "name": "Foo", "typeLine": "Imperial Bow", "baseType": "Imperial Bow", "x": 0, "y": 0 })
+    }
+
+    /// The flat scanner over the extract's array: a string reads with its
+    /// escapes, null is none, anything else is unread at its place alone
+    /// — a value nested past any decoder's depth beside a valid one loses
+    /// nothing (the step-9 review, second look) — and a text that is no
+    /// array of the fields reads as every field unread.
+    #[test]
+    fn body_strings_read_each_field_by_its_json_type_and_never_descend() {
+        let read = |text: &str| body_strings::<2>(Some(text));
+        assert_eq!(
+            read(r#"["~price 5 chaos","Stash1"]"#),
+            [
+                (Some("~price 5 chaos".into()), false),
+                (Some("Stash1".into()), false)
+            ]
+        );
+        assert_eq!(
+            read(r#"[null, "a \"quoted\", [comma] \\ slot"]"#),
+            [
+                (None, false),
+                (Some("a \"quoted\", [comma] \\ slot".into()), false)
+            ]
+        );
+        assert_eq!(
+            read(r#"[5,{"x":[1,{"y":"]"}]}]"#),
+            [(None, true), (None, true)]
+        );
+        let mut deep = String::from("\"~price 5 chaos\"");
+        for _ in 0..200 {
+            deep = format!("[{deep}]");
+        }
+        assert_eq!(
+            read(&format!("[{deep},\"Stash1\"]")),
+            [(None, true), (Some("Stash1".into()), false)]
+        );
+        assert_eq!(
+            read(&format!("[\"~price 5 chaos\",{deep}]")),
+            [(Some("~price 5 chaos".into()), false), (None, true)]
+        );
+        for broken in [
+            "",
+            "[",
+            "[\"a\"]",
+            "[\"a\",\"b\",\"c\"]",
+            "{}",
+            "[\"a\",\"b\"] x",
+        ] {
+            assert_eq!(read(broken), [(None, true), (None, true)], "{broken:?}");
+        }
+        assert_eq!(body_strings::<2>(None), [(None, false), (None, false)]);
     }
 
     /// A store whose account identity is on record, as every real store's

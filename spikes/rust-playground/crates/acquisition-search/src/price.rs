@@ -201,7 +201,9 @@ impl Priced {
     fn of(listing: &Listing) -> Priced {
         let effective = &listing.effective;
         if effective.kind == "unresolved" {
-            if listing.game.note_unread {
+            // the note decided only where the index could see it (C81);
+            // elsewhere an unread note is residue and the row is the cause
+            if listing.game.note_unread && listing.game.public == Some(true) {
                 return Priced::open(
                     PriceGap::NoteUnread,
                     "the note cannot be read: it is no string, and a note would decide (C81)",
