@@ -70,6 +70,7 @@ commit's.
 | 8 · sockets | `ec024ceb`; reviewed `dca017f5`, `7010f658` | `sockets.rs`, and `derive.rs` reads the socket collection at the socket's grain (C101, rule 8); a count is an interval of what was read, decided where the whole interval agrees (`eval.rs`); `linked( … )` bound in `group.rs` beside a line's group; `show` and a row print the layout, made once; `--describe` gains the fields and the `linked` block. `DERIVATION` 9. `tests/sockets.rs` (every count by hand; three mutants caught), `tests/derive.rs`, `tests/acceptance.rs` (OQ3 as worded); the generators reach the sockets (`tests/common/generated.rs`). M2, M3 and the copy's counts below; K1 ruled below; the observations of step 8 below. |
 | 9 · price | `57c2f78b`; reviewed `1e0d85c6`, `7ff3c947` | `price.rs`: the effective price joined read-only from the pricing area's listing state, one snapshot and one `resolve` per (realm, league), by item id (C81, C100); the crate links `acquisition-plan` (C89); the basis gains the intent revision and the currency and note-parser versions (C98); `has:priced`, `price.amount`, `price.currency` (the table's tags), `price.lot`; `Part::Price`; `Of::Number` is `Exact`; `show` carries the price; the CLI opens the intent file beside the store. The store: `Annotations::revision`, `ItemSnapshot::note_unread` and `inventory_id_unread`; the planner: an unread note decides only where the index sees it. `tests/price.rs`, `tests/acceptance.rs` (OQ6), the generators, the CLI's `search_json.rs`. M3 below; P1, P2 ruled below. |
 | the first seat | `94a3d18c`, the release build (sha256 `9ecf385d…`; the owner's choice, so the seat feels the number the budget judges); the run is `runs/seat-2026-09-26/` — brief, 65 journaled asks, report, `replay.sh` — gitignored, so the fix commits carry each fault's story | An agent's seat with the owner in the loop (the plan, "The first seat"): a second session drove `acq search` and `acq show` on the owner's store through a journaling wrapper, one binary, no daemon, no repository edit; the orchestrating session routed the report. 65 asks; 10 faults, F1–F10 (the findings below), each to be held by a test named for it in a fix session against the same hash, which replays the 65 asks and reads every diff; 10 verdicts, V1–V10 ("Holes ruled"); the six lines (the observations below); the wall times in `search/MEASUREMENTS.md`, the seat block. |
+| 9b · the seat's fixes | `0d5706d1`–`0e4c91ad` | The class reading (V1, V2; F2: `Classed::Among`); the undecided block by reason (V8, F9); `tab.type` (V10, the park deleted); the answer's words (F1, F3–F8, F10: `bind::near`, `Sorted.shows`, `counts::Of::Placed`); the examples teach `class:ring`. `tests/seat_faults.rs`, twelve tests each seen to fail at `94a3d18c` first, and the CLI's `search_json.rs`. The 65 asks replayed on the owner's store: 37 same, 27 differ — each a fix, ask 2 by construction, or a day's age on the scope line — but one, a line shown twice, fixed at `0e4c91ad`. Every `class:` term's 583 undecided are 158, the beasts, until 9d. |
 
 ## Findings
 
@@ -98,6 +99,8 @@ reads first: the shapes of fault that came back until they were named.
 | **A number no game displays, read as one.** Scientific notation through a length check; a product past the units rounded in silence | step 7 | `exact::reads` reads decimal syntax alone; `Exact::times` is none where the units cannot hold it; the input is unread to what asked it |
 | **A join inherits the producer's grain.** A field the other area's read typed strictly — a note, a slot — failed that read whole on one malformed body, and the join made every such failure the search's, for queries that never asked the field; an override in the producer decided without the gate its own rule states (a note where no index sees it); a number from the intent file bypassed the crate's rule for numbers and two prices met in one bucket; coverage was derived from the locations that name a league, and a character with none went unpriced | step 9, the first outside review: four of five | rule 8 at the producer's grain (`ItemSnapshot::note_unread`, `inventory_id_unread`; `body_string`); C81's own gate (`game.public`) on the override; `exact::reads` on every number that enters (`price::number`); `price::leagues` |
 | **A claim the code did not make.** A hand count wrong; `DERIVATION` not moved when a body derived to another item; a cause named before it was measured; "covered" said of a property whose generators could not reach the case; a record row crediting the wrong commit | every step | every count worked by hand and then run; the constant's rule on its own doc; a number stated only after measuring; the generators reaching what a fix touched (`reqlevel` joined them at step 6) |
+| **Silent reach.** Right by its rule and wrong for the reader: an open-text `:` example reaching 87 bases with five shown (`base:ring`); two realms' place values merged under `--realm all`, one `Standard` whose route returned both | the first seat, twice (the examples; F3) | `tests/seat_faults.rs` (`f3_`); the help's examples teach `class:ring`, a closed set whose picks are all printed |
+| **A refusal right in kind, wrong in size.** 82 names inline, twice, the meant one not singled out; one reason printed once per term, eighteen times; a near reading for a field and none for a computed value | the first seat, three times (F5, F9, F10) | `tests/seat_faults.rs` (`f5_`, `v8_`, `f10_`); `bind::near`, `bind::LISTED_INLINE`; `Total.undecided_reasons` |
 
 The yields by look, per step — what a review found each time it came
 back, the last look's zero being what a step closed on: step 4, 6, 5,
@@ -105,25 +108,17 @@ back, the last look's zero being what a step closed on: step 4, 6, 5,
 step 7 (Astra), 6, 4, 0 — the third look the generators' (the ledger,
 "7 · the third look"): one harness fault of the look's own, none of the
 product's. Step 8: 5, 2, 0 — a socket whose group is unread read as possibly none, then counted twice.
-Step 9: 5, 2 — every one reproduced and held (`tests/price.rs`, the `review_` tests; `listing.rs`, `snapshot.rs`): a join that inherited the store's failure grain, twice; an override past the gate its own rule states; a producer's SQL type taken for the JSON's; a number from another area past the crate's rule; then a decoder's depth limit turning a deep field's sibling absent, and the gate mirrored in the decision but not in the reason.
+Step 9: 5, 2 — every one reproduced and held (`tests/price.rs`, the `review_` tests; `listing.rs`, `snapshot.rs`): the checklist's join row, and a decoder's depth limit turning a deep field's sibling absent.
 Five blind seats at step 5 (`f357de39`; Sonnet, one question each over
 the owner's real store, `--help` and `--describe` their only sources)
 answered every question in three to six invocations and found two
 faults of the surface text, fixed at `2cbf7787`; what they said beyond
 is under "Observations still open", step 5.
 The first seat (2026-09-26; the ledger row): 65 asks, ten faults —
-one of the evaluator's, `class:X` undecided on an item whose every
-candidate class fails `X` (F2); one of the counts', two realms' place
-values merged under `--realm all` (F3); eight of the answer's words —
-a help limit contradicting the field list (F1), a parser message naming
-no spelling (F4), 82 class names twice with the meant one not singled
-out (F5), a sort's line not shown (F6), a partial `id:` explained by
-the never-fetched sentence (F7), "over live all items" (F8), one
-undecided reason per term (F9), no near reading across case (F10). Two
-shapes came back more than once and join the checklist when the fix
-names their tests: *silent reach*, right by its rule and wrong for the
-reader (`base:ring` reaching 87 bases; the merged `Standard`), and *a
-refusal right in kind, wrong in size* (F5, F9, F10).
+one of the evaluator's (F2), one of the counts' (F3), eight of the
+answer's words (F1, F4–F10) — each held by `tests/seat_faults.rs` since
+9b, seen to fail at the seat's hash first; the two shapes that came
+back more than once are the checklist's last two rows.
 
 ## What the measurements taught
 
@@ -150,11 +145,15 @@ number there was measured, never recalled. The verdicts:
   agree.
 - Step 8: every socket bucket a value or `none`, `undecided` 0; every
   group on the copy one contiguous run.
-- M3 (step 9): the price join raised every release ask by 150–180 ms
-  (the empty query 276 → 445); the load stays under 500 ms, so the
-  projection park does not fire by the owner's rule, and two totals
-  asks crossed 500 with the higher floor — a shape the ruling did not
-  name, for the owner (the observations of step 9).
+- M3 (step 9): the price join raised every release ask 150–180 ms (the
+  empty query 276 → 445); the load under 500, so the projection park
+  does not fire; two totals asks over 500 on the higher floor, ruled at
+  the seat (V9).
+- M3 again at the seat's hash (9b, V9): the six asks the seat saw at
+  695–715 ms are 446–459 on the copy — the spikes were the machine's,
+  never the asks'; the totals batch stays parked. M3 at 9b's hash
+  (`0e4c91ad`): the empty query 448, every ask 441–529, the same two
+  totals asks over 500; the fixes moved no ask past the noise.
 
 ## Holes ruled, and where the rule went
 
@@ -182,7 +181,7 @@ commit's message. One line each.
 | 6 | G6 the grouping above class stays parked; OQ5 pinned from the owner's words with the wearable classes spelled out, the park's trigger now the seat | the park in `decisions/search.md`; `tests/acceptance.rs` | `0d3c65af` |
 | 8 | K1 the colour words are the reference's four; an abyssal (`A`) or resonator (`DV`) socket counts in `sockets` and is asked for by its line or base | `sockets.rs`; the reference, *Values* | `dca017f5`; as built at `ec024ceb` |
 | 9 | P1 a listing resolved to `skip` or `no_price` lacks `has:priced`, known absence beside no row at all — a `price.kind` field waits for a seat that asks for skips (C101); P2 a decimal price lacks `price.lot`, a ratio has one | the reference, *Values*; `price.rs` | the ruling commit |
-| seat | V1 a blighted map's class is read past the prefix the API adds, so `Blighted Map (Tier 13)` is Maps; a captured beast's class follows the trade site's categories (the grouping park's first case); V2 an invitation's class is read from its frame — the quest frame Quest Items, any other Misc Map Items; V4 the unique-variant field stays parked; V7 C104 kept as is; V5 `pseudo.defence_pct` is the site's Base Percentile, built; the ranged total's lines are 9c's to evidence; V6 every total counts what the site's pseudo of that name counts, settled by 9c's human-run searches, what cannot be mimicked listed as out of reach; V8 undecided shown by distinct reason, one example each, one route, no items, no per-reason count; V9 the totals batch stays parked, the ~700 ms spikes measured first; V10 a tab's type is a field in the next build | the contract detail, C106 and C93; the plan, 9b–9d and T3, T4; the parks in `decisions/search.md` | the routing commit |
+| seat | V1 a blighted map's class is read past the API's prefix (`Blighted Map (Tier 13)` is Maps); a beast's follows the trade site's categories (9d); V2 an invitation's class is its frame's — quest Quest Items, any other Misc Map Items; V4 the variant field stays parked; V5 `pseudo.defence_pct` is the site's Base Percentile, built at 9d, the ranged total's lines 9c's to evidence; V6 every total counts what the site's pseudo counts, 9c's human-run searches settling it, what cannot be mimicked listed; V7 C104 kept; V8 undecided by distinct reason, one example, one route, no items, no per-reason count; V9 the totals batch parked, the spikes measured first; V10 a tab's type a field at 9b | `class.rs`, `answer.rs` (the detail taken at 9b); the plan, 9c, 9d, T3, T4; the parks | the routing commit |
 | plan | gap 1 a line break inside a template; gap 4 a node forced true or false, `true()` and `false()`; gap 5 `name`, `typeline` and `base` each what GGG gives; gap 6 the totals example cites the C++ app's table, and whether a fractional total is ever rounded is step 7's to show | the reference, *Strings*, *Composition*, *Item-level*; the contract detail, C94 | `acfc37cd`, `152bfde3`, `fe9ca5f4`; 6 at `aeeba6d3` |
 | plan | gap 3 membership is a scope value — `live` by default, `all` on request with every removed row marked, `removed` alone waits for a question, the prune verb advances the revision; `all` moved to step 10 | the reference, *Membership*; C108; the plan, step 10 | `3b7cf192`, `d829c25a`, `ea68d7c2` |
 
@@ -229,10 +228,7 @@ timings, coverage no fixture reaches, and questions for the seat.
   unique tabs 491, and a substash is named `1`, `4 (Remove-only)` or
   nothing, so without its tab's name an item in one could not be found by
   tab at all. `tab:` tests names and never GGG's `type`, of which the copy
-  has 16; the type as a field is parked (`decisions/search.md`).
-- Over the copy, `name="Ashes of the Stars"` finds ten, which is the
-  variant park's first test (the plan, "Parks whose triggers the build
-  fires"): step 4 has reached OQ2, and the question is the owner's.
+  has 16 — `tab.type` since 9b.
 
 **Step 4b.**
 
@@ -305,25 +301,17 @@ timings, coverage no fixture reaches, and questions for the seat.
 
 **The first seat.**
 
-- The six lines, each kept: C91 fired once on purpose and once on the
-  sitter typing naturally, right both times, both readings pasteable;
-  C92's slot error was the best message the tool gave, and the together
-  count is what makes one-occurrence binding livable; C93's counts and
-  route are right, the display is the fault (V8); C95's `sum` read
-  naturally once the together count pointed at it — a bucket whose
-  every item lacks the value prints `sum 0 · N lacking`, the 0 reading
-  as measured; C98's line was identical in all 51 text answers, unread
-  by the user, an agent's to compare between asks, and in `--json`
-  repeated on every count where it equals the answer's; C104 kept (V7).
-- Silent reach: `base:ring`, the plan's and the help's own example,
-  reaches 87 bases and six Ringmail body armours; `class:ring` is the
-  spelling and no example teaches it. `class:sword` and `class:map`
-  reach past their word too, but print every pick; an open field prints
-  five of 87.
-- Every `class:` term carried 583 undecided, 2.6% of the corpus, ten
-  deep before the rows' route: 165 invitations, about 250 blighted and
-  blight-ravaged maps, captured beasts, 9 `Energy Blade` (F2). V1, V2
-  and F2 take most of them out.
+- The six lines, each kept (C91, C92, C93 with V8's display, C104 by
+  V7). Still open of them: C95, a bucket whose every item lacks the
+  value prints `sum 0 · N lacking`, the 0 reading as measured; C98, the
+  basis repeated on every count in `--json` where it equals the
+  answer's, and no evaluator version in it.
+- `class:sword` and `class:map` reach past their word too, but print
+  every pick; an open field's `:` prints five of 87 (the checklist's
+  silent reach).
+- After 9b every `class:` term carries 158 undecided, the captured
+  beasts, until category lands (9d); `undecided(class)` 188, the rest
+  bases under several classes that no seat query named.
 - `show`: an unnamed substash renders as a trailing separator; `price
   none (none)`; explicit lines before implicit, where the game shows
   the implicit first. A row prints `price.side`, which `--describe`
@@ -333,6 +321,8 @@ timings, coverage no fixture reaches, and questions for the seat.
 - `--json` for one row is 12,670 bytes: `counted_at` seven times, the
   scope's seven leagues where the question touched two, `"Rare"` where
   the language writes `rare`.
+- 9b: the digest's S53 wording ("not a field") was overtaken by step 6;
+  the help says the derivation, and the digest, accepted, is not edited.
 - The owner's questions to the sitter, answered as evidence, no ruling:
   category — grouping bit once in 52 asks (OQ5's 18 terms), undecided
   noise five times, `base:ring` once; complementary to class, computed
@@ -340,4 +330,4 @@ timings, coverage no fixture reaches, and questions for the seat.
   variant field — three in ten uniques would answer undecided or
   lacking (the legacy track's numbers), the fit's rules in Python only,
   the per-ask cost unmeasured; kept parked (V4). `=` against `:` on
-  class (V3): keep `:`, teach it in the examples.
+  class (V3): keep `:`, taught in the examples since 9b.

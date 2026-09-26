@@ -32,7 +32,12 @@ runs — their preflight build replaces `acqd` under a live daemon (an
 artifact mismatch, C84). The contract revision hashes the protocol
 crate's sources, so an edit or a `cargo fmt` there after the build
 leaves `acqd` on the old revision and every daemon test failing "another
-contract": build again first (2026-09-12).
+contract": build again first (2026-09-12). `cargo build --workspace
+--release` and `cargo build --release -p acquisition-cli` uplift two
+forms of `target/release/acq` from one source (sha256 `9ecf385d…` and
+`aefa167c…` at `94a3d18c`, another feature unification), and a no-op
+build swaps them: a hash in a ledger names the form that built it
+(2026-09-26).
 
 The full contract-input set is documented in
 [the revision build script](../../../crates/acquisition-protocol/build.rs).

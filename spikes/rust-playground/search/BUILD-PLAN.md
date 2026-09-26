@@ -263,7 +263,7 @@ the new verb to answer what `--removed` answers: `--membership all`, step
 | the digest's kill list | step 11, the last acceptance test written | recheck against the tests and the reference before any removal |
 | a persisted projection; the store's search-at-scale park | M3, only if the load exceeds 500 ms — an evaluator cost over budget is the totals batch park's (owner, 2026-09-24, `decisions/search.md`) | reported with the numbers; it opens the experiment among the candidates, never persistence by default. The seat goes ahead: slow is not wrong |
 | the totals batch (`decisions/search.md`) | M3, a totals ask over 500 ms; or a consumer that holds the corpus asking — fired at step 9 by the letter | V9 (2026-09-26): stays parked, the spikes measured first; revisited at step 11 with a corpus's join time fixed |
-| a tab's type as a field (`decisions/search.md`) | the first seat behind it — fired 2026-09-26 | V10: built in 9b |
+| a tab's type as a field (`decisions/search.md`) | the first seat behind it — fired 2026-09-26 | V10: built at 9b (`tab.type`), the entry deleted |
 | pricing on the MCP (`decisions/frontends.md`) | step 11, the read model landed | the owner's call whether it is built then |
 | the sticky default realm | the GUI's realm control (2026-09-25), no step of this slice | the GUI stream's |
 

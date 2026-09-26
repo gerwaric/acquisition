@@ -60,6 +60,14 @@ ASKS = [
     ("OQ6 a unique by name, priced", ['name="Ashes of the Stars" has:priced']),
     ("--count price.currency --sum price.amount", ["has:priced", "--count", "price.currency", "--sum", "price.amount"]),
     ("price.amount sorted", ["price.amount>=1", "--sort", "price.amount", "--desc", "--limit", "10"]),
+    # the first seat (2026-09-26, V9): the six cheap asks it saw at 695-715 ms,
+    # as journaled (runs/seat-2026-09-26/asks/NNN.txt), ask 3 the empty query
+    ("seat 3: the empty query", [""]),
+    ("seat 24: frame=quest --count base,container", ["frame=quest", "--count", "base,container", "--limit", "10"]),
+    ("seat 49: class=rings --limit 0", ["class=rings", "--limit", "0"]),
+    ("seat 53: OQ2 --count line:reservation,attributes", ['name="Ashes of the Stars"', "--count", "line:reservation,attributes"]),
+    ("seat 60: --count line~^adds # to # cold", ["", "--count", "line~^adds # to # cold", "--limit", "20"]),
+    ("seat 62: a bare phrase, \"Kaom\"", ['"Kaom"', "--limit", "2"]),
 ]
 
 def main():

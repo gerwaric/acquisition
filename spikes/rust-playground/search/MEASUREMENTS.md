@@ -195,6 +195,8 @@ to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 | `57c2f78b` | step 9, with its four asks added to the script | 622 | 443–529: two over, AQ2 as worded 529 and the worked example whole 528 | 2,282–3,184 |
 | `1e0d85c6` | step 9, the review's fixes (one two-path extract for the note and the slot) | 1,113 | 443–528, the same two over; the series' empty query 902 with the copy's cache still cold, 446–449 asked alone afterwards | 2,285–3,191 |
 | `7ff3c947` | step 9, the second look's fixes (the extract read by a flat scanner) | — | three asks alone: the empty query 442, `has:priced` 443, the worked example whole 522 | — |
+| `94a3d18c` | the seat's hash, again with the six asks the seat saw at 695–715 ms added to the script (V9) | 587 | 427–530, the same two over: AQ2 as worded 530 and the worked example whole 528 | 2,275–3,211 |
+| `0e4c91ad` | step 9b, the seat's fixes (the `-p acquisition-cli` form, sha256 `c49086ed…`) | 635 | 441–529, the same two over: AQ2 as worded 529 and the worked example whole 523; the empty query 448 | 2,294–3,206 |
 
 The asks each step added to the script, at the step's build, warm
 medians in ms; a step's empty query is its floor.
@@ -227,6 +229,8 @@ medians in ms; a step's empty query is its floor.
 | `57c2f78b`, step 9 | the empty query | 445 | 2,285 |
 | | `has:priced` · OQ6 (`name="Ashes of the Stars" has:priced`) · `--count price.currency --sum price.amount` over `has:priced` | 443 · 446 · 447 | 2,282 · 2,287 · 2,283 |
 | | `price.amount>=1` sorted by it | 487 | 2,285 |
+| `94a3d18c`, the seat's six (V9) | seat 3 the empty query · 24 `frame=quest --count base,container` · 49 `class=rings --limit 0` · 53 OQ2 `--count line:reservation,attributes` · 60 `--count line~^adds # to # cold` · 62 `"Kaom"` | 457 · 451 · 446 · 459 · 458 · 452 | 2,303 · 2,322 · 2,304 · 2,401 · 2,387 · 2,472 |
+| `0e4c91ad`, 9b | the seat's six again | 443 · 453 · 450 · 454 · 452 · 447 | 2,294 · 2,313 · 2,299 · 2,392 · 2,377 · 2,466 |
 
 **The price join's cost (step 9, `57c2f78b`): the floor rose from 276
 to 445 ms release, and two totals asks crossed 500 ms with it.** The
@@ -321,3 +325,16 @@ than the totals' own cost and whose cause is unmeasured. poe2 (98
 items) 41 ms; `show` 127–152; a refusal 8–21. The disposition (V9,
 owner): the totals batch stays parked; the spikes are measured first —
 an M3 rerun at this hash, on the copy, with the six asks in the script.
+
+**M3 again at the seat's hash (`94a3d18c`, 2026-09-26, before 9b changed the floor): the six asks the seat saw at 695–715 ms land at 446–459 ms on the copy — the spikes were the machine's, never the asks'.** The
+same script with the six added, the release form the script builds
+(`cargo build --release -p acquisition-cli`, sha256 `aefa167c…`); the
+seat's binary was `--workspace --release`, `9ecf385d…` — the same source
+under another feature unification, which cargo uplifts by turns: a
+no-op build swapped the hash. Every one of the six is within the noise
+of the asks beside it (the empty query 427, the six 446–459), and the
+two totals asks are over 500 as they were at step 9 (530, 528). What on
+the owner's machine cost those six 250 ms more — the owner's store
+rather than the copy, a cold cache, another process — is unmeasured;
+the disposition is V9's: the totals batch stays parked, revisited at
+step 11.
