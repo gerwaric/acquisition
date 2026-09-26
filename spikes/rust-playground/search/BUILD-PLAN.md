@@ -270,8 +270,9 @@ command that produced them, the verdict one line in `SEARCH-SLICE.md`.
 | M2 | the deriver against the census: templates, counts, the ranged split, unread shapes | step 2 |
 | M3 | a CLI ask, process start to exit, `--json` to `/dev/null`, over the backup copy (its item count recorded), for every acceptance query built so far. Warm: the median of ten consecutive asks. First: the first ask after the copy is written, reported as seen — this machine's file cache is not controlled, so it is never the budget's number. Both profiles: the release build is judged against 500 ms, the debug build is what the seat feels | steps 4 and 5, before the seat; again at 7 and 9 as their queries land |
 | M4 | `~` over all displayed text (the reference: "its cost … is unmeasured") | step 4 |
-| M5 | a re-derive while a refresh is writing — a mock session over a fixture store | step 10 |
+| M5 | a re-derive while a refresh is writing — a mock session over a fixture store; the reload's cost per committed tab, which a resident consumer pays | step 10 |
 | M6 | the totals coverage trial | step 7 |
+| M7 | the resident memory of a held corpus — the derived items and their lines, which a GUI holds all day (M1 measured the streaming read alone, 8.7 MB) | step 10, beside M5 |
 
 Not owed by this build: whether job events reach a client that did not
 submit the job (C98) — a resident client's question, the GUI's.
