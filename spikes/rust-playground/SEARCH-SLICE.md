@@ -315,7 +315,15 @@ timings, coverage no fixture reaches, and questions for the seat.
   note as an ingest column, which would take the snapshot's read from
   about 80 ms to about 14; the persisted projection. The owner's
   disposition (2026-09-25): a good signal, addressed after the seat and
-  the last steps, not before, even at the cost of slower testing.
+  the last steps, not before, even at the cost of slower testing. What
+  the discussion settled for then: the load is under its budget, so the
+  projection's trigger has not fired and the projection would not touch
+  the join; the effective price crosses facts and intent and so stays a
+  read-time derivation, its inputs the only lever; a note column makes
+  `note` an ingest fact, which under C103 moves the field from the
+  deriver to the store's read; the CLI pays the join on every ask, a
+  consumer that holds a corpus once per basis change, so the choice step
+  11 fixes in place is when a corpus joins — at load or on first ask.
 - The generators reached the pricing area before any seat did: a body
   whose note is no string failed the pricing snapshot whole, and would
   have failed `acq price status` the same way; fixed at the store and
