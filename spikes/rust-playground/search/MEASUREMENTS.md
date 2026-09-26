@@ -186,6 +186,7 @@ to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 | `ec024ceb` | step 8, with its four asks added to the script | 448 | 276–370 | 1,862–2,762 |
 | `57c2f78b` | step 9, with its four asks added to the script | 622 | 443–529: two over, AQ2 as worded 529 and the worked example whole 528 | 2,282–3,184 |
 | `1e0d85c6` | step 9, the review's fixes (one two-path extract for the note and the slot) | 1,113 | 443–528, the same two over; the series' empty query 902 with the copy's cache still cold, 446–449 asked alone afterwards | 2,285–3,191 |
+| `7ff3c947` | step 9, the second look's fixes (the extract read by a flat scanner) | — | three asks alone: the empty query 442, `has:priced` 443, the worked example whole 522 | — |
 
 The asks each step added to the script, at the step's build, warm
 medians in ms; a step's empty query is its floor.
