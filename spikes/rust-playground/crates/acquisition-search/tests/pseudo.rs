@@ -171,12 +171,9 @@ fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_zero() {
         ["odd", "ring_c", "sword", "wand"]
     );
     assert_eq!(follow(&s, "pc", &term["undecided"]), ["ring_b"]);
-    let why = &a["total"]["undecided_items"][0];
-    assert_eq!(why["id"], "ring_b");
-    assert_eq!(
-        (&why["why"][0]["term"], &why["why"][0]["unread"]),
-        (&json!("pseudo.total_res>=60"), &json!("implicit lines"))
-    );
+    let why = &a["total"]["undecided_reasons"][0];
+    assert_eq!(why["example"]["id"], "ring_b");
+    assert_eq!(why["unread"], "implicit lines");
     // `undecided( … )` of a total is decided itself, and finds the same item
     assert_eq!(
         ids(&asked(&s, "pc", "undecided(pseudo.total_res)")),
@@ -191,18 +188,15 @@ fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_zero() {
     // no definition for the realm: never zero, undecided with that reason
     let p2 = asked(&s, "poe2", "pseudo.total_res>=1");
     assert_eq!(counts(&p2["terms"][0]), [0, 0, 0, 1]);
-    let why = &p2["total"]["undecided_items"][0];
-    assert_eq!(why["id"], "p2ring");
+    let why = &p2["total"]["undecided_reasons"][0];
+    assert_eq!(why["example"]["id"], "p2ring");
+    assert_eq!(why["unread"], "the total: no definition for the realm");
     assert_eq!(
-        why["why"][0]["unread"],
-        "the total: no definition for the realm"
-    );
-    assert_eq!(
-        why["why"][0]["problem"],
+        why["problem"],
         "no totals table for realm poe2 (totals v1 covers pc, xbox, sony)"
     );
     assert_eq!(
-        why["why"][0]["hint"],
+        why["hint"],
         "a refresh will not help; a reference update may"
     );
     assert_eq!(
@@ -249,11 +243,11 @@ fn c101_dps_and_pdps_read_the_displayed_properties() {
         evidence[1],
         json!({ "shown": { "part": "properties", "text": "Physical Damage: 59-88" } })
     );
-    let why = &a["total"]["undecided_items"][0];
-    assert_eq!(why["id"], "odd");
-    assert_eq!(why["why"][0]["unread"], "`properties`");
+    let why = &a["total"]["undecided_reasons"][0];
+    assert_eq!(why["example"]["id"], "odd");
+    assert_eq!(why["unread"], "`properties`");
     assert_eq!(
-        why["why"][0]["problem"],
+        why["problem"],
         "`Attacks per Second` is `fast`: no number the search reads"
     );
 
@@ -437,8 +431,11 @@ fn audit_the_vocabulary_lists_the_computed_values_a_narrowing_matches() {
 
 /// Outside audit, 2026-09-24 (5): a reason made beyond the item's parts —
 /// a derived field's malformed property — is a part of its own under the
-/// six-part bound, and what the bound leaves out is counted: five unread
-/// arrays and four malformed properties are nine parts, six shown.
+/// six-part bound on an `undecided( … )` row, and what the bound leaves
+/// out is counted: five unread arrays and four malformed properties are
+/// nine parts, six shown. The answer's own block is by reason since the
+/// first seat (V8): six kinds, the item's own parts' first, then the
+/// reasons made beyond them — in every spelling the same.
 #[test]
 fn audit_reasons_beyond_the_items_parts_are_bounded_and_counted() {
     let mut s = store();
@@ -465,17 +462,17 @@ fn audit_reasons_beyond_the_items_parts_are_bounded_and_counted() {
         20,
     );
     let why = |text: &str| -> (Vec<String>, u64) {
-        let a = asked(&s, "pc", text);
-        let item = &a["total"]["undecided_items"][0];
-        assert_eq!(item["id"], "nine");
-        let mut parts: Vec<String> = item["why"]
+        let a = asked(&s, "pc", &format!("undecided({text})"));
+        let row = &a["rows"][0]["matched"][0];
+        assert_eq!(a["rows"][0]["id"], "nine");
+        let mut parts: Vec<String> = row["shows"]
             .as_array()
             .unwrap()
             .iter()
-            .map(|w| w["problem"].as_str().unwrap().to_string())
+            .map(|w| w["undecided"]["problem"].as_str().unwrap().to_string())
             .collect();
         parts.dedup();
-        (parts, item["why_left_out"].as_u64().unwrap())
+        (parts, row["left_out"].as_u64().unwrap())
     };
     let (parts, left_out) = why("pseudo.total_res>=1 pseudo.dps>=1");
     assert_eq!(parts.len(), 6, "{parts:?}");
@@ -490,27 +487,40 @@ fn audit_reasons_beyond_the_items_parts_are_bounded_and_counted() {
         "`Attacks per Second` is `fast`: no number the search reads"
     );
     assert_eq!(why("pseudo.dps>=1 pseudo.total_res>=1"), (parts, left_out));
-    // with the class's reason among them: a spelling never changes the six
-    let a = asked(&s, "pc", "class=Rings pseudo.dps>=1 pseudo.total_res>=1");
-    let b = asked(&s, "pc", "pseudo.total_res>=1 pseudo.dps>=1 class=Rings");
-    let shown = |a: &Value| -> Vec<String> {
-        let mut parts: Vec<String> = a["total"]["undecided_items"][0]["why"]
+    // the answer's block, by reason: the five arrays' kinds, then the
+    // property's — and with the class's reason among them a spelling never
+    // changes the list (V8; rule 9)
+    let reasons = |a: &Value| -> Vec<String> {
+        a["total"]["undecided_reasons"]
             .as_array()
             .unwrap()
             .iter()
-            .map(|w| w["problem"].as_str().unwrap().to_string())
-            .collect();
-        parts.sort();
-        parts.dedup();
-        parts
+            .map(|r| r["unread"].as_str().unwrap().to_string())
+            .collect()
     };
-    assert_eq!(shown(&a), shown(&b));
-    assert!(
-        shown(&a)
-            .iter()
-            .any(|p| p.contains("not in the class table"))
+    let a = asked(&s, "pc", "pseudo.total_res>=1 pseudo.dps>=1");
+    assert_eq!(
+        reasons(&a),
+        [
+            "crafted lines",
+            "enchant lines",
+            "explicit lines",
+            "fractured lines",
+            "implicit lines",
+            "`properties`"
+        ]
     );
-    assert_eq!(a["total"]["undecided_items"][0]["why_left_out"], 4);
+    assert!(a["total"].get("reasons_left_out").is_none());
+    let a = asked(&s, "pc", "class=Rings pseudo.dps>=1 pseudo.total_res>=1");
+    let b = asked(&s, "pc", "pseudo.total_res>=1 pseudo.dps>=1 class=Rings");
+    assert_eq!(reasons(&a), reasons(&b));
+    assert_eq!(reasons(&a).len(), 7);
+    assert!(
+        reasons(&a)
+            .iter()
+            .any(|p| p == "the class: base not in the table")
+    );
+    assert_eq!(a["total"]["undecided_reasons"][6]["example"]["id"], "nine");
 }
 
 /// C92, C95: a computed value sorts the rows and sums beside a count, with

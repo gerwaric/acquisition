@@ -698,7 +698,7 @@ fn review_a_malformed_field_of_one_body_is_unread_there_and_never_fails_the_sear
         let (s, intent) = one_priced(true, json!({ "note": note }), "12");
         let a = asked(&s, &intent, query("has:priced"));
         assert_eq!(a["total"]["undecided"]["count"], 1, "note={note}: {a}");
-        let why = &a["total"]["undecided_items"][0]["why"][0];
+        let why = &a["total"]["undecided_reasons"][0];
         assert_eq!(why["unread"], "the price: the note cannot be read");
         assert!(
             why["hint"]
@@ -880,7 +880,7 @@ fn review_a_deep_malformed_field_hides_no_sibling_and_a_private_note_is_never_bl
         )
         .unwrap();
     let a = asked(&s, &intent, query("has:priced"));
-    let why = &a["total"]["undecided_items"][0]["why"][0];
+    let why = &a["total"]["undecided_reasons"][0];
     assert_eq!(
         why["unread"], "the price: a row that could decide cannot be read",
         "{why}"

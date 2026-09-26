@@ -217,7 +217,9 @@ ITEM-LEVEL
                                      cannot be asked for until the list gains it.
   league:  tab:  character:  container:      place, as text fields. tab: is the tab's name, never its
                                      type: a map tab named Maps is found by tab:maps because of
-                                     what it is called. An item in a substash — a map tab's or a
+                                     what it is called; tab.type is GGG's type of the tab, verbatim,
+                                     so tab.type=MapStash finds it whatever it is called (V10).
+                                     An item in a substash — a map tab's or a
                                      unique tab's, whose own names are "1" or empty — is tested
                                      against the substash's name and its tab's. A folder's name
                                      is no part of it. A stash item has no character and a
@@ -577,13 +579,6 @@ unresolved, each with the one read that closes it).
   never a field (C107); a unique's variant, a label its source prints,
   is the parked candidate (`decisions/search.md`, "Parked"). The three
   class readings the first seat ruled (V1, V2) are `class.rs`'s doc.
-- **C93 — the undecided block's shape (V8, 2026-09-26; built at 9b).**
-  An answer shows its undecided items as one line per distinct reason,
-  each with one example item, then the one route to them all; after the
-  rows, before the routes. No item list and no count per reason: no
-  term selects a reason, so such a count would have no route (C105). The
-  JSON has the same shape. A per-reason count and its selector wait for
-  someone missing the number.
 - **C99 (K5).** `count` carries its minimum and its maximum; `weight`
   and `weight2` differ in how a per-stat requirement gates a
   contribution (S57), and a weighted group translates only where that

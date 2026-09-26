@@ -191,3 +191,96 @@ fn f2_a_class_term_false_under_every_candidate_class_is_false() {
     assert_eq!(members(&s, &a["terms"][0]["undecided"]).len(), 2);
     assert_eq!(a["terms"][0]["lacked"]["count"], 0);
 }
+
+/// V8 (owner: "i like your proposal better. let's go with it as you've
+/// suggested"): the answer shows its undecided items as one line per
+/// distinct reason — by what was unread, the kind a count tallies (C105)
+/// — each with one example item, then the one route; no item list, no
+/// count per reason. Bounded, the rest counted (invariant 5). F9 was the
+/// old shape: one reason repeated once per term.
+#[test]
+fn v8_the_undecided_block_is_one_line_per_distinct_reason_with_an_example() {
+    let s = seat_stash();
+    // three terms the blade is open under, and the beasts under every one:
+    // two reasons, however many terms met them
+    let a = asked(&s, "pc", "class:sword or class:gem or class:staves");
+    assert_eq!(a["total"]["undecided"]["count"], 3);
+    assert!(
+        a["total"].get("undecided_items").is_none(),
+        "{}",
+        a["total"]
+    );
+    let reasons = a["total"]["undecided_reasons"].as_array().unwrap();
+    // in the store's order: the beast is met before the blade, so the
+    // beasts' reason is first and the beast its example (rule 9)
+    assert_eq!(reasons.len(), 2, "{reasons:?}");
+    assert_eq!(reasons[0]["unread"], "the class: base not in the table");
+    assert_eq!(reasons[0]["example"]["id"], "beast");
+    assert_eq!(reasons[0]["example"]["name"], "Dune Hellion Dune Hellion");
+    assert!(
+        reasons[0]["problem"]
+            .as_str()
+            .unwrap()
+            .contains("`Dune Hellion` is not in the class table")
+    );
+    assert_eq!(
+        reasons[0]["hint"],
+        "a refresh will not help; a reference update may"
+    );
+    assert_eq!(
+        reasons[1]["unread"],
+        "the class: base under several classes"
+    );
+    assert_eq!(reasons[1]["example"]["id"], "blade");
+    assert_eq!(
+        reasons[1]["problem"],
+        "`Energy Blade` is in the class table under One Hand Swords and Skill Gems and Two Hand Swords (classes v1): the table never chooses"
+    );
+    assert!(reasons[0].get("path").is_none() && reasons[0].get("term").is_none());
+    assert!(a["total"].get("reasons_left_out").is_none());
+    // the same two whichever term is written first (rule 9 of the plan)
+    let b = asked(&s, "pc", "class:staves or class:gem or class:sword");
+    assert_eq!(
+        b["total"]["undecided_reasons"],
+        a["total"]["undecided_reasons"]
+    );
+    // the one route returns every undecided item with its reasons
+    let route: Request =
+        serde_json::from_value(a["total"]["undecided"]["request"].clone()).unwrap();
+    let routed = as_json(&answer(&load(&s, Some("pc")), &route).unwrap());
+    assert_eq!(ids(&routed), ["beast", "blade", "wolf"]);
+    // bounded: eleven flags unread are eleven reasons, ten listed and one
+    // counted, in the item's order
+    let flags = [
+        "corrupted",
+        "identified",
+        "split",
+        "duplicated",
+        "replica",
+        "fractured",
+        "mutated",
+        "synthesised",
+        "veiled",
+        "searing",
+        "tangled",
+    ];
+    let mut body = json!({});
+    for flag in flags {
+        body[flag] = json!("unread");
+    }
+    let (corpus, _) = generated::fixture(vec![body]);
+    let terms: Vec<String> = flags.iter().map(|f| format!("is:{f}")).collect();
+    let a = generated::run(
+        &corpus,
+        &generated::request(&terms.join(" "), None, false, 10),
+    )
+    .unwrap();
+    let reasons = a["total"]["undecided_reasons"].as_array().unwrap();
+    assert_eq!(reasons.len(), 10, "{reasons:?}");
+    assert_eq!(a["total"]["reasons_left_out"], 1);
+    for reason in reasons {
+        let unread = reason["unread"].as_str().unwrap();
+        assert!(flags.iter().any(|f| unread == format!("`{f}`")), "{unread}");
+        assert_eq!(reason["example"]["id"], "i0");
+    }
+}

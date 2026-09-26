@@ -228,7 +228,7 @@ fn c101_a_colour_over_the_whole_item_and_what_each_unread_socket_leaves_open() {
         ["junk", "notarray"]
     );
     // the reasons name the socket and what was wrong with it
-    let why = &asked(&s, "pc", "id:blind sockets.red>=1")["total"]["undecided_items"][0]["why"];
+    let why = &asked(&s, "pc", "id:blind sockets.red>=1")["total"]["undecided_reasons"];
     assert_eq!(why[0]["unread"], "a socket's colour");
     assert_eq!(
         why[0]["problem"],
@@ -238,7 +238,7 @@ fn c101_a_colour_over_the_whole_item_and_what_each_unread_socket_leaves_open() {
         asked(&s, "pc", "id:loose links=1")["total"]["undecided"]["count"],
         0
     );
-    let why = &asked(&s, "pc", "id:junk sockets=1")["total"]["undecided_items"][0]["why"];
+    let why = &asked(&s, "pc", "id:junk sockets=1")["total"]["undecided_reasons"];
     assert_eq!(why[0]["unread"], "the sockets");
     assert_eq!(why[0]["problem"], "`sockets[1]` is a number, not a socket");
     // a poe2 socket has no colour, known
@@ -568,7 +568,7 @@ fn a_group_is_ggg_s_number_and_an_unplaced_socket_widens_every_group() {
     assert_eq!(asked("id:mixed links>=4")["terms"][1]["failed"]["count"], 2);
     assert_eq!(ids(&asked("undecided(links)")), ["mixed"]);
     assert_eq!(ids(&asked("id:mixed undecided(links=2)")), ["mixed"]);
-    let why = &asked("id:mixed links=2")["total"]["undecided_items"][0]["why"];
+    let why = &asked("id:mixed links=2")["total"]["undecided_reasons"];
     assert_eq!(why[0]["unread"], "a socket's group");
     assert_eq!(why[0]["problem"], "`sockets[2]` has no `group`");
     assert_eq!(ids(&asked("undecided(sockets)")), Vec::<String>::new());
@@ -638,7 +638,7 @@ fn review_a_socket_whose_group_is_unread_is_a_socket_still_and_an_open_group_say
     // 1: the reason names the colour
     let a = asked("id:blind linked(red>=1)");
     assert_eq!(a["total"]["undecided"]["count"], 1);
-    let why = &a["total"]["undecided_items"][0]["why"];
+    let why = &a["total"]["undecided_reasons"];
     assert_eq!(why[0]["unread"], "a socket's colour");
     assert_eq!(asked("id:blind linked(size>=1)")["total"]["matched"], 1);
     // 2: an unplaced green socket cannot turn a blue count, and may turn green

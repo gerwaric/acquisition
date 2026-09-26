@@ -660,31 +660,24 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         }
     }
 
-    for (i, item) in a.total.undecided_items.iter().enumerate() {
+    // why items are undecided, one line per reason with an example (V8)
+    for (i, reason) in a.total.undecided_reasons.iter().enumerate() {
         line(format!(
-            "{}{} · id {}",
+            "{}{} unread — e.g. {} · id {}",
             if i == 0 { "undecided " } else { "          " },
-            item.name.as_deref().unwrap_or("(no name)"),
-            item.id
+            reason.reason.unread,
+            reason.example.name.as_deref().unwrap_or("(no name)"),
+            reason.example.id
         ));
-        for why in &item.why {
-            line(format!(
-                "            term {} {}: {} unread — {}; {}",
-                why.path, why.term, why.reason.unread, why.reason.problem, why.reason.hint
-            ));
-        }
-        if item.why_left_out > 0 {
-            line(format!(
-                "            {} more unread: {}",
-                item.why_left_out,
-                a.show_command(&item.id)
-            ));
-        }
-    }
-    if a.total.undecided.count > a.total.undecided_items.len() {
         line(format!(
-            "          {} more: the undecided route below lists them",
-            a.total.undecided.count - a.total.undecided_items.len()
+            "            {}; {}",
+            reason.reason.problem, reason.reason.hint
+        ));
+    }
+    if a.total.reasons_left_out > 0 {
+        line(format!(
+            "          {} more: the undecided route below lists every item with its reasons",
+            plural(a.total.reasons_left_out, "reason", "reasons")
         ));
     }
 

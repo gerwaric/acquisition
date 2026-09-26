@@ -47,6 +47,18 @@
 //!   term that rests on it — so a block may hold more entries than six,
 //!   and what it leaves out is counted in parts, never in entries
 //!   (`eval::why`).
+//! - **The undecided block is by reason, never by item** (C93's contract
+//!   detail, V8, 2026-09-26; taken here at step 9b): an answer shows its
+//!   undecided items as one line per distinct reason — by what was
+//!   unread, the kind a count tallies (C105) — each with one example
+//!   item, the first met in the store's order, then the one route to
+//!   them all; after the rows, before the routes; the first ten listed
+//!   and the rest counted (invariant 5). No item list and no count per
+//!   reason: no term selects a reason, so such a count would have no
+//!   route. The JSON has the same shape. A per-reason count and its
+//!   selector wait for someone missing the number. The seat's first shape
+//!   — ten items, each with every term's reason — printed one reason
+//!   eighteen times under eighteen `class:` terms (F9).
 //! - **Rows** are the matching items in the store's stable order, or by
 //!   the sort scalar with items that have none last either way; past the
 //!   limit they are counted, and the way on is a larger limit until
@@ -382,26 +394,28 @@ pub struct Carried {
 pub struct Total {
     pub matched: usize,
     pub undecided: Count,
-    /// The undecided items, the first ten, each with why.
-    pub undecided_items: Vec<UndecidedItem>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct UndecidedItem {
-    pub id: String,
-    pub name: Option<String>,
-    pub why: Vec<Why>,
-    /// Unread parts of the item past the ones `why` gives (invariant 5).
+    /// Why items are undecided at the root: one entry per distinct reason
+    /// — by what was unread, the kind a count tallies (C105) — with one
+    /// example item, the first met; the first ten, the rest counted (the
+    /// module doc, V8).
+    pub undecided_reasons: Vec<UndecidedReason>,
     #[serde(skip_serializing_if = "is_zero")]
-    pub why_left_out: usize,
+    pub reasons_left_out: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Why {
-    pub path: String,
-    pub term: String,
+pub struct UndecidedReason {
+    /// The example's own: its problem names the item's part.
     #[serde(flatten)]
     pub reason: Reason,
+    pub example: Example,
+}
+
+/// An item named where a whole row is too much.
+#[derive(Debug, Clone, Serialize)]
+pub struct Example {
+    pub id: String,
+    pub name: Option<String>,
 }
 
 /// The view as answered: the rows' bounds, or the tables (`counts.rs`).
@@ -556,7 +570,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
         .map(|t| resolves(t).map(|_| HashMap::new()))
         .collect();
     let mut matches: Vec<(usize, Vec<Outcome>)> = Vec::new();
-    let mut undecided: Vec<(usize, Vec<Outcome>)> = Vec::new();
+    let mut reasons: Vec<UndecidedReason> = Vec::new();
     let mut n_undecided = 0usize;
     let mut outcomes: Vec<Outcome> = Vec::with_capacity(n_terms);
     for (at, held) in corpus.items.iter().enumerate() {
@@ -585,8 +599,20 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
             Truth::True => matches.push((at, outcomes.clone())),
             Truth::Undecided => {
                 n_undecided += 1;
-                if undecided.len() < LISTED {
-                    undecided.push((at, outcomes.clone()));
+                // one entry per kind of reason, the first item met its
+                // example (V8): the whole list, so the rest can be counted
+                let mut blamed = Vec::new();
+                eval::blame(&query.bound, &outcomes, &mut blamed);
+                for reason in eval::distinct_reasons(&query.terms, &blamed, held) {
+                    if !reasons.iter().any(|r| r.reason.unread == reason.unread) {
+                        reasons.push(UndecidedReason {
+                            reason,
+                            example: Example {
+                                id: held.item.facts.id.clone(),
+                                name: label(held),
+                            },
+                        });
+                    }
                 }
             }
             Truth::False => {}
@@ -647,31 +673,13 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
         Node::All(children) if children.is_empty() => None,
         root => Some(Node::Undecided(Probe::Term(Box::new(root.clone())))),
     };
+    let reasons_left_out = reasons.len().saturating_sub(LISTED);
+    reasons.truncate(LISTED);
     let total = Total {
         matched: matches.len(),
         undecided: count(n_undecided, root_undecided.as_ref()),
-        undecided_items: undecided
-            .iter()
-            .map(|(at, outcomes)| {
-                let held = &corpus.items[*at];
-                let mut blamed = Vec::new();
-                eval::blame(&query.bound, outcomes, &mut blamed);
-                let (why, why_left_out) = eval::why(&query.terms, &blamed, held);
-                UndecidedItem {
-                    id: held.item.facts.id.clone(),
-                    name: label(held),
-                    why: why
-                        .into_iter()
-                        .map(|(term, reason)| Why {
-                            path: term.path.clone(),
-                            term: print::print(&term.node),
-                            reason,
-                        })
-                        .collect(),
-                    why_left_out,
-                }
-            })
-            .collect(),
+        undecided_reasons: reasons,
+        reasons_left_out,
     };
 
     // the view: counts of the matches, or the rows — the order, then the

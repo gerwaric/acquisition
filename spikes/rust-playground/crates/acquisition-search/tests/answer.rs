@@ -173,25 +173,24 @@ fn c100_the_worked_example_whole_counts_as_printed_there() {
     );
 
     // r1; r5 and r6 are undecided at the root and are no match (C93), and
-    // each says why and what might help — hints, never guarantees
+    // the answer says why by reason, each with its example, and what
+    // might help — hints, never guarantees (V8)
     assert_eq!(a["total"]["matched"], 1);
     assert_eq!(a["total"]["undecided"]["count"], 2);
     assert_eq!(ids(&a), ["r1"]);
-    let why = &a["total"]["undecided_items"][0];
-    assert_eq!(why["id"], "r5");
-    assert_eq!(why["why"][0]["path"], "1");
-    assert_eq!(why["why"][0]["unread"], "the class: base not in the table");
+    let why = &a["total"]["undecided_reasons"][0];
+    assert_eq!(why["example"]["id"], "r5");
+    assert_eq!(why["unread"], "the class: base not in the table");
     assert!(
-        why["why"][0]["hint"]
+        why["hint"]
             .as_str()
             .unwrap()
             .contains("a refresh will not help; a reference update may")
     );
-    let why = &a["total"]["undecided_items"][1];
-    assert_eq!(why["id"], "r6");
-    assert_eq!(why["why"][0]["path"], "4");
-    assert_eq!(why["why"][0]["unread"], "implicit lines");
-    assert!(why["why"][0]["hint"].as_str().unwrap().contains("may help"));
+    let why = &a["total"]["undecided_reasons"][1];
+    assert_eq!(why["example"]["id"], "r6");
+    assert_eq!(why["unread"], "implicit lines");
+    assert!(why["hint"].as_str().unwrap().contains("may help"));
 
     // a row: the header, the place by name and id, the lines the query touched
     let r1 = &a["rows"][0];

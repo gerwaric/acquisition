@@ -265,7 +265,7 @@ fn c93_a_number_beyond_reach_is_unread_where_it_is_read_and_no_order_matters() {
     assert_eq!(answer["rows"].as_array().unwrap().len(), 1);
     assert_eq!(answer["rows"][0]["id"], "i2");
     assert_eq!(answer["rows"][0]["sort"]["value"], json!(0.0001));
-    let why = &answer["total"]["undecided_items"][0]["why"][0];
+    let why = &answer["total"]["undecided_reasons"][0];
     assert_eq!(why["unread"], "the numbers of explicit lines");
     assert!(why["problem"].as_str().unwrap().contains("digits"), "{why}");
     // its text is a witness all the same
@@ -276,7 +276,9 @@ fn c93_a_number_beyond_reach_is_unread_where_it_is_read_and_no_order_matters() {
 /// The follow-up, 2: what is shown of why an item is undecided is bounded
 /// by the item's unread parts, in the item's order — never by the order
 /// the terms were written in, which a rewrite that changes no meaning may
-/// change (invariant 7).
+/// change (invariant 7). On an `undecided( … )` row, that is; the answer's
+/// own block is by reason since the first seat (V8), seven kinds here,
+/// none left out, in the same order either way.
 #[test]
 fn c100_the_reasons_shown_are_the_items_first_six_however_the_terms_are_ordered() {
     let flags = [
@@ -309,19 +311,17 @@ fn c100_the_reasons_shown_are_the_items_first_six_however_the_terms_are_ordered(
             .collect();
         unread.sort();
         let root = run(&corpus, &request(&terms.join(" "), None, false, 10)).unwrap();
-        let item = &root["total"]["undecided_items"][0];
-        let mut why: Vec<String> = item["why"]
+        let why: Vec<String> = root["total"]["undecided_reasons"]
             .as_array()
             .unwrap()
             .iter()
             .map(|w| w["unread"].as_str().unwrap().to_string())
             .collect();
-        why.sort();
         (
             unread,
             matched["left_out"].clone(),
             why,
-            item["why_left_out"].clone(),
+            root["total"]["reasons_left_out"].clone(),
         )
     };
     let forward = shown(&flags);
@@ -330,8 +330,8 @@ fn c100_the_reasons_shown_are_the_items_first_six_however_the_terms_are_ordered(
     assert_eq!(forward, shown(&reversed));
     assert_eq!(forward.0.len(), 6);
     assert_eq!(forward.1, json!(1));
-    assert_eq!(forward.2.len(), 6);
-    assert_eq!(forward.3, json!(1));
+    assert_eq!(forward.2.len(), 7);
+    assert!(forward.3.is_null());
 }
 
 /// Outside review, 2026-09-22: a number the search does not read is an
@@ -386,7 +386,7 @@ fn c93_an_unread_number_is_unknown_to_what_asks_it_and_to_nothing_else() {
         &request("line(\"# to Spirit\" arg1>=0)", None, false, 10),
     )
     .unwrap();
-    let why = &a["total"]["undecided_items"][0]["why"][0];
+    let why = &a["total"]["undecided_reasons"][0];
     assert_eq!(why["unread"], "the numbers of explicit lines", "{why}");
 }
 
@@ -480,7 +480,6 @@ fn c93_the_reason_given_is_the_open_occurrences_own() {
         mods.push(make("maximum Life"));
         let (corpus, _) = fixture(vec![json!({ "explicitMods": mods })]);
         let total = run(&corpus, &request(query, None, false, 10)).unwrap();
-        let item = &total["total"]["undecided_items"][0];
         let probe = run(
             &corpus,
             &request(&format!("undecided({query})"), None, false, 10),
@@ -488,7 +487,10 @@ fn c93_the_reason_given_is_the_open_occurrences_own() {
         .unwrap();
         let row = &probe["rows"][0]["matched"][0];
         for (reasons, left_out) in [
-            (item["why"].as_array().unwrap(), &item["why_left_out"]),
+            (
+                total["total"]["undecided_reasons"].as_array().unwrap(),
+                &total["total"]["reasons_left_out"],
+            ),
             (row["shows"].as_array().unwrap(), &row["left_out"]),
         ] {
             assert_eq!(reasons.len(), 1, "`{query}`: {reasons:?}");
@@ -519,7 +521,7 @@ fn c93_the_reason_given_is_the_open_occurrences_own() {
         ),
     ] {
         let a = run(&corpus, &request(query, None, false, 10)).unwrap();
-        let why = a["total"]["undecided_items"][0]["why"].as_array().unwrap();
+        let why = a["total"]["undecided_reasons"].as_array().unwrap();
         assert_eq!(why.len(), 1, "`{query}`: {why:?}");
         assert_eq!(why[0]["unread"], unread, "`{query}`");
     }

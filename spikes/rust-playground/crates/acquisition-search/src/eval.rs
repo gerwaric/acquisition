@@ -61,11 +61,12 @@
 //!   not established, but the term's truth is. `reqlevel` is the
 //!   deriver's number.
 //! - **Outcomes are computed for every term on every item, and nothing
-//!   else is**: what a row shows ([`evidence`]) and why an item is
-//!   undecided ([`reasons`]) are worked out only for the items an answer
-//!   prints. An `undecided( … )` that matched shows the reasons of what it
-//!   asked about, so an undecided count's route returns its members with
-//!   why.
+//!   else is**: what a row shows ([`evidence`]) is worked out only for the
+//!   items an answer prints, and why an item is undecided at the root
+//!   ([`distinct_reasons`]) only for the undecided ones, folded to one
+//!   entry per kind of reason (V8). An `undecided( … )` that matched shows
+//!   the reasons of what it asked about ([`why`]), so an undecided count's
+//!   route returns its members with why.
 //! - **A sum** adds the named slot — as decimals, exactly and the same in
 //!   any order (`exact.rs`) — over the occurrences that satisfy its
 //!   group; an occurrence that names no such slot adds nothing; a sum of
@@ -912,7 +913,45 @@ pub(crate) fn why<'a>(
     blamed: &[usize],
     held: &Held,
 ) -> (Vec<(&'a Term, Reason)>, usize) {
-    let met: Vec<(usize, Cow<'_, Unread>)> = blamed
+    let pairs = ordered(terms, blamed, held);
+    let mut parts: Vec<usize> = pairs.iter().map(|(part, _, _)| *part).collect();
+    parts.dedup();
+    let left_out = parts.len().saturating_sub(SHOWN);
+    let last = parts.get(SHOWN.saturating_sub(1)).copied();
+    let shown = pairs
+        .into_iter()
+        .filter(|(part, _, _)| last.is_none_or(|last| *part <= last))
+        .map(|(_, term, unread)| (term, reason(&unread)))
+        .collect();
+    (shown, left_out)
+}
+
+/// The distinct reasons an item is undecided under these terms, by what
+/// was unread — the kind a count tallies beneath `undecided` (C105) — the
+/// first part met of each kind carrying its problem, in the order [`why`]
+/// gives: what the answer's undecided block is made of (V8, the first
+/// seat; `answer.rs`). No term is named: a reason is the item's, however
+/// many terms met it.
+pub(crate) fn distinct_reasons(terms: &[Term], blamed: &[usize], held: &Held) -> Vec<Reason> {
+    let mut out: Vec<Reason> = Vec::new();
+    for (_, _, unread) in ordered(terms, blamed, held) {
+        let reason = reason(&unread);
+        if !out.iter().any(|seen| seen.unread == reason.unread) {
+            out.push(reason);
+        }
+    }
+    out
+}
+
+/// Every unread part the blamed terms rest on, each with the term that
+/// met it, in the order [`why`] describes: the part's place in that order
+/// first.
+fn ordered<'a, 'h>(
+    terms: &'a [Term],
+    blamed: &[usize],
+    held: &'h Held,
+) -> Vec<(usize, &'a Term, Cow<'h, Unread>)> {
+    let met: Vec<(usize, Cow<'h, Unread>)> = blamed
         .iter()
         .filter_map(|i| terms.get(*i).map(|term| (*i, term)))
         .flat_map(|(i, term)| {
@@ -944,21 +983,15 @@ pub(crate) fn why<'a>(
         Some(i) => i,
         None => held.item.unread.len() + beyond.binary_search(&key(unread)).unwrap_or(beyond.len()),
     };
-    let mut pairs: Vec<(usize, usize, Cow<'_, Unread>)> = met
+    let mut pairs: Vec<(usize, usize, Cow<'h, Unread>)> = met
         .into_iter()
         .map(|(i, unread)| (at(&unread), i, unread))
         .collect();
     pairs.sort_by_key(|(part, term, _)| (*part, *term));
-    let mut parts: Vec<usize> = pairs.iter().map(|(part, _, _)| *part).collect();
-    parts.dedup();
-    let left_out = parts.len().saturating_sub(SHOWN);
-    let last = parts.get(SHOWN.saturating_sub(1)).copied();
-    let shown = pairs
+    pairs
         .into_iter()
-        .filter(|(part, _, _)| last.is_none_or(|last| *part <= last))
-        .map(|(_, i, unread)| (&terms[i], reason(&unread)))
-        .collect();
-    (shown, left_out)
+        .map(|(part, i, unread)| (part, &terms[i], unread))
+        .collect()
 }
 
 fn everything(term: &Term, held: &Held) -> Vec<Evidence> {

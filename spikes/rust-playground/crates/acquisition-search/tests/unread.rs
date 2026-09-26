@@ -114,7 +114,7 @@ fn c93_a_line_with_unread_flags_is_no_witness_that_it_is_not_crafted() {
     );
 
     let a = as_json(&ask(&corpus, "id:one line(template:life -is:crafted)").unwrap());
-    let why = &a["total"]["undecided_items"][0]["why"][0];
+    let why = &a["total"]["undecided_reasons"][0];
     assert_eq!(why["unread"], "the flags of explicit lines");
     assert!(
         why["problem"]
@@ -299,7 +299,9 @@ fn c93_an_undecided_route_carries_the_reasons_to_its_rows() {
     let corpus = load(&s, Some("pc"));
     let a = as_json(&ask(&corpus, "line(template:life arg1>=90)").unwrap());
     assert_eq!(a["total"]["undecided"]["count"], 12);
-    assert_eq!(a["total"]["undecided_items"].as_array().unwrap().len(), 10);
+    // twelve items, one reason: one line, its example the first met (V8)
+    assert_eq!(a["total"]["undecided_reasons"].as_array().unwrap().len(), 1);
+    assert_eq!(a["total"]["undecided_reasons"][0]["example"]["id"], "u00");
     let request = serde_json::from_value(a["total"]["undecided"]["request"].clone()).unwrap();
     let routed = as_json(&answer(&corpus, &request).unwrap());
     assert_eq!(routed["total"]["matched"], 12);
@@ -547,7 +549,7 @@ fn c93_an_open_occurrence_without_the_slot_leaves_no_value_open() {
     // the reasons follow: nothing of `frozen` is said to be unread for the sum
     let a = as_json(&ask(&corpus, &format!("sum({life})>=0")).unwrap());
     assert_eq!(
-        a["total"]["undecided_items"][0]["why"][0]["unread"],
+        a["total"]["undecided_reasons"][0]["unread"],
         "the flags of explicit lines"
     );
 }

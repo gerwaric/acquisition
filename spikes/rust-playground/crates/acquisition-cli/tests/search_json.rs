@@ -610,7 +610,7 @@ fn c53_search_json_is_the_answer_whole_and_the_text_is_a_function_of_it() {
         .map(|r| r["id"].as_str().unwrap())
         .collect();
     assert_eq!(ids, ["kaom", "r1"]);
-    assert_eq!(a["total"]["undecided_items"][0]["id"], "r3");
+    assert_eq!(a["total"]["undecided_reasons"][0]["example"]["id"], "r3");
 
     // the text says what the JSON says: every block, every nonzero count, every id
     let shown = text(&acq(&base, &["search", "--realm", "pc", LIFE, "--routes"]));
@@ -629,8 +629,7 @@ fn c53_search_json_is_the_answer_whole_and_the_text_is_a_function_of_it() {
         "Kaom's Heart Glorious Plate · unique · Standard / Dump",
         "+500 to maximum Life (explicit)",
         "id kaom",
-        "undecided Hex Band Two-Stone Ring · id r3",
-        "implicit lines unread",
+        "undecided implicit lines unread — e.g. Hex Band Two-Stone Ring · id r3",
     ] {
         assert!(
             shown.contains(needle),
