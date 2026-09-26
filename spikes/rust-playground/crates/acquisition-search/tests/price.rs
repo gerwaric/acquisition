@@ -289,10 +289,17 @@ fn c81_has_priced_is_the_effective_price_three_valued_with_the_price_on_the_row(
     assert_eq!(ids(&open), ["oddnote", "stuck"].map(str::to_string));
     for row in open["rows"].as_array().unwrap() {
         let reason = &row["matched"][0]["shows"][0]["undecided"];
-        assert_eq!(
-            reason["unread"], "the price: a row that could decide cannot be read",
-            "{row}"
-        );
+        // a row's reason names the intent file; a note's names the body,
+        // which a refresh may bring readable
+        let (unread, hint) = if row["id"] == "stuck" {
+            (
+                "the price: a row that could decide cannot be read",
+                "a refresh will not help",
+            )
+        } else {
+            ("the price: the note cannot be read", "a refresh may help")
+        };
+        assert_eq!(reason["unread"], unread, "{row}");
         assert!(
             reason["problem"]
                 .as_str()
@@ -301,10 +308,8 @@ fn c81_has_priced_is_the_effective_price_three_valued_with_the_price_on_the_row(
             "{reason}"
         );
         assert!(
-            reason["hint"]
-                .as_str()
-                .unwrap()
-                .starts_with("a refresh will not help")
+            reason["hint"].as_str().unwrap().starts_with(hint),
+            "{reason}"
         );
     }
     let stuck = open["rows"]
@@ -643,4 +648,195 @@ fn a_price_term_over_an_empty_intent_file_is_the_games_alone() {
         .map(|r| shows(r)[1].1.as_str().unwrap().to_string())
         .collect();
     assert_eq!(sides, set_of(&["game"]));
+}
+
+/// The step-9 outside review, each finding reproduced (the record,
+/// "Findings"): a body's malformed field is unread at that field and never
+/// fails the search; a note the index cannot see decides nothing whatever
+/// it says; an object note is unread too; a league-less character in a
+/// realm with no league on record is priced by its row; a price past the
+/// search's rule for numbers is unread at its number, never a float that
+/// drops digits into another price's bucket.
+fn one_priced(public: bool, more: Value, amount: &str) -> (Store, Annotations) {
+    let mut s = store();
+    list_tabs(
+        &mut s,
+        "pc",
+        "Standard",
+        json!([{ "id": "s1", "name": "Sale", "type": "PremiumStash", "metadata": { "public": public } }]),
+        10,
+    );
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "s1",
+        "Sale",
+        vec![item("i1", "Ring", "Iron Ring", "Rare", more)],
+        20,
+    );
+    let mut intent = common::intent(&s);
+    set(
+        &mut intent,
+        "item/i1",
+        Buyout::Exact(price(amount, "chaos")),
+    );
+    (s, intent)
+}
+
+#[test]
+fn review_a_malformed_field_of_one_body_is_unread_there_and_never_fails_the_search() {
+    // the inventoryId is no string: the snapshot carries it as unread and
+    // the search, which never reads it, is not the poorer
+    let (s, intent) = one_priced(true, json!({ "inventoryId": 5 }), "12");
+    let a = asked(&s, &intent, query("has:priced"));
+    assert_eq!(ids(&a), ["i1"]);
+    // an object note, which SQLite's extract flattens to text, is unread
+    // as a number is: undecided, with the deriver's hint, since a refresh
+    // may bring a body that reads
+    for note in [json!({ "x": 1 }), json!(["~price 5 chaos"]), json!(5)] {
+        let (s, intent) = one_priced(true, json!({ "note": note }), "12");
+        let a = asked(&s, &intent, query("has:priced"));
+        assert_eq!(a["total"]["undecided"]["count"], 1, "note={note}: {a}");
+        let why = &a["total"]["undecided_items"][0]["why"][0];
+        assert_eq!(why["unread"], "the price: the note cannot be read");
+        assert!(
+            why["hint"]
+                .as_str()
+                .unwrap()
+                .starts_with("a refresh may help")
+        );
+    }
+}
+
+#[test]
+fn review_an_unread_note_the_index_cannot_see_decides_nothing() {
+    // a private tab: the note is residue whatever it says (C81), and the
+    // owner's row prices the item
+    let (s, intent) = one_priced(false, json!({ "note": 5 }), "12");
+    let a = asked(&s, &intent, query("has:priced"));
+    assert_eq!(ids(&a), ["i1"]);
+    assert_eq!(shows(&a["rows"][0])[0].1, json!("12 chaos"));
+    // a character's item likewise
+    let mut s = store();
+    list_characters(
+        &mut s,
+        "pc",
+        json!([{ "id": "c1", "name": "Mover", "league": "Standard" }]),
+        10,
+    );
+    fetch_character(
+        &mut s,
+        "pc",
+        json!({ "id": "c1", "name": "Mover", "league": "Standard",
+                "equipment": [ item("worn", "Ring", "Iron Ring", "Rare", json!({ "note": 5 })) ], "inventory": [] }),
+        20,
+    );
+    let mut intent = common::intent(&s);
+    set(
+        &mut intent,
+        "character/c1",
+        Buyout::Exact(price("3", "divine")),
+    );
+    let a = asked(&s, &intent, query("has:priced"));
+    assert_eq!(ids(&a), ["worn"]);
+    assert_eq!(shows(&a["rows"][0])[0].1, json!("3 divine"));
+}
+
+#[test]
+fn review_a_league_less_character_in_a_realm_with_no_league_is_priced_by_its_row() {
+    let mut s = store();
+    list_characters(&mut s, "pc", json!([{ "id": "c1", "name": "Mover" }]), 10);
+    fetch_character(
+        &mut s,
+        "pc",
+        json!({ "id": "c1", "name": "Mover",
+                "equipment": [ item("i1", "Ring", "Iron Ring", "Rare", json!({})) ], "inventory": [] }),
+        20,
+    );
+    let mut intent = common::intent(&s);
+    set(&mut intent, "item/i1", Buyout::Exact(price("12", "chaos")));
+    let a = asked(&s, &intent, query("has:priced"));
+    assert_eq!(ids(&a), ["i1"]);
+    assert_eq!(a["total"]["undecided"]["count"], 0);
+    let shown =
+        serde_json::to_value(acquisition_search::show(&s, &intent, "i1", false).unwrap()).unwrap();
+    assert_eq!(shown["price"]["text"], "12 chaos");
+}
+
+#[test]
+fn review_a_price_past_the_search_s_number_rule_is_unread_at_its_number() {
+    // two prices a float cannot tell apart, and one it can: the first two
+    // are priced and their amount is unread — undecided, never one bucket
+    let (mut s, mut intent) = one_priced(true, json!({}), "9007199254740993/1");
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "s1",
+        "Sale",
+        vec![
+            item("i1", "Ring", "Iron Ring", "Rare", json!({})),
+            item("i2", "Ring", "Iron Ring", "Rare", json!({})),
+            item("i3", "Ring", "Iron Ring", "Rare", json!({})),
+        ],
+        30,
+    );
+    set(
+        &mut intent,
+        "item/i2",
+        Buyout::Exact(price("9007199254740992/1", "chaos")),
+    );
+    set(
+        &mut intent,
+        "item/i3",
+        Buyout::Exact(price("1/18446744073709551615", "chaos")),
+    );
+    let priced = asked(&s, &intent, query("has:priced"));
+    assert_eq!(ids(&priced), ["i1", "i2", "i3"]);
+    let amount = asked(&s, &intent, query("price.amount>=1"));
+    let [matched, failed, lacked, undecided] = counts_of(&s, &intent, &amount["terms"][0]);
+    assert_eq!(
+        (matched.0, failed.0, lacked.0, undecided.0),
+        (1, 0, 0, 2),
+        "{amount}"
+    );
+    assert_eq!(matched.1, set_of(&["i3"]));
+    assert_eq!(undecided.1, set_of(&["i1", "i2"]));
+    let why = &asked(&s, &intent, query("undecided(price.amount)"))["rows"][0]["matched"][0]["shows"]
+        [0]["undecided"];
+    assert_eq!(why["unread"], "the price's number");
+    assert!(
+        why["problem"]
+            .as_str()
+            .unwrap()
+            .ends_with("is written longer than the search reads a number"),
+        "{why}"
+    );
+    // the lot alone past the rule: the amount reads, the lot does not
+    let lot = asked(&s, &intent, query("price.lot>=1"));
+    let [matched, _, lacked, undecided] = counts_of(&s, &intent, &lot["terms"][0]);
+    assert_eq!(
+        (matched.1, lacked.0, undecided.1),
+        (set_of(&["i1", "i2"]), 0, set_of(&["i3"]))
+    );
+    // a count by the amount: no bucket holds two prices that differ
+    let counted = asked(
+        &s,
+        &intent,
+        json!({ "query": { "text": "has:priced" }, "view": { "counts": { "keys": ["price.amount"] } } }),
+    );
+    let buckets: Vec<(Value, u64)> = counted["view"]["counts"]["tables"][0]["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| (b["bucket"].clone(), b["count"].as_u64().unwrap()))
+        .collect();
+    assert_eq!(buckets, [(json!("value"), 1), (json!("undecided"), 2)]);
+    for bucket in counted["view"]["counts"]["tables"][0]["buckets"]
+        .as_array()
+        .unwrap()
+    {
+        members(&s, &intent, bucket);
+    }
 }

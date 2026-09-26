@@ -140,7 +140,7 @@ pub struct Reason {
     pub hint: &'static str,
 }
 
-const UNREAD_HINT: &str =
+pub(crate) const UNREAD_HINT: &str =
     "a refresh may help; a body GGG really gives this way needs a build that reads it";
 
 /// What a row shows of a term that matched (C100: the lines the query
@@ -295,10 +295,21 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
             })
             .collect(),
         // the price is the listing state's, never the body's: what left it
-        // open is its own reason, made once there (`price.rs`)
-        (Thing::Price | Thing::PriceAmount | Thing::PriceCurrency | Thing::PriceLot, _) => {
-            held.price.unread().into_iter().collect()
-        }
+        // open is its own reason, made once there (`price.rs`); a number of
+        // it past the search's rule leaves that part open alone
+        (Thing::Price | Thing::PriceCurrency, _) => held.price.unread().into_iter().collect(),
+        (Thing::PriceAmount, _) => held
+            .price
+            .unread()
+            .into_iter()
+            .chain(held.price.price().and_then(|p| p.amount_unread.as_ref()))
+            .collect(),
+        (Thing::PriceLot, _) => held
+            .price
+            .unread()
+            .into_iter()
+            .chain(held.price.price().and_then(|p| p.lot_unread.as_ref()))
+            .collect(),
         // the deriver says under `reqlevel` when the Level row may have
         // been lost, so a sibling that could not be read leaves it closed
         (Thing::ReqLevel, _) => held
@@ -382,7 +393,7 @@ pub(crate) fn number(held: &Held, thing: Thing) -> Option<f64> {
         Thing::Sockets | Thing::Links | Thing::SocketColour(_) => {
             counted(held, thing).value().map(|n| n as f64)
         }
-        Thing::PriceAmount => held.price.price().map(|p| p.amount),
+        Thing::PriceAmount => held.price.price().and_then(|p| p.amount),
         Thing::PriceLot => held.price.price().and_then(|p| p.lot).map(|n| n as f64),
         _ => None,
     }
@@ -1146,7 +1157,7 @@ fn reason(unread: &Unread) -> Reason {
         hint: match &unread.part {
             Part::Class(_) => crate::class::CLASS_HINT,
             Part::Total(_) => crate::totals::TOTAL_HINT,
-            Part::Price(_) => crate::price::PRICE_HINT,
+            Part::Price(gap) => gap.hint(),
             _ => UNREAD_HINT,
         },
     }

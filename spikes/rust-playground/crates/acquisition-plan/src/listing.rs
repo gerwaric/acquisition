@@ -107,11 +107,16 @@
 //! census 2c); it is `None` where there is no stash to publish. A note
 //! the store could not read — the body carries one that is no string
 //! (`ItemSnapshot::note_unread`) — is a statement of unknown content at
-//! the most specific level there is, so the effective price is
-//! `unresolved` whatever the rows and the tab say, as an unreadable row
-//! leaves it (C81); the game side states nothing from it and says so
-//! (`note_unread`). Found by the search's generators at step 9
-//! (2026-09-25), when the snapshot still failed whole on such a body.
+//! the most specific level there is, so where the game side can speak —
+//! a public tab — the effective price is `unresolved` whatever the rows
+//! and the tab say, as an unreadable row leaves it (C81); where it cannot
+//! — a non-public tab, a character's items — the note is residue at most
+//! whatever it says, and the rows decide as they would. The game side
+//! states nothing from it either way and says so (`note_unread`). Found
+//! by the search's generators at step 9 (2026-09-25), when the snapshot
+//! still failed whole on such a body; the public gate by the step's
+//! outside review, which found the override deciding a private tab's
+//! item.
 //!
 //! **The relation is over the two sides' presence and content.** `none`:
 //! no row applies and the game states nothing. `manual_only` and
@@ -1197,9 +1202,10 @@ fn listing(
         unreadable.as_ref(),
         &game.reading,
     );
-    let effective = if game.note_unread {
+    let effective = if game.note_unread && game.public == Some(true) {
         // the note is the most specific statement there is (C81): one that
-        // cannot be read could decide over anything
+        // cannot be read could decide over anything — where the index
+        // could see it at all
         Effective {
             kind: "unresolved".into(),
             price: None,
@@ -1554,6 +1560,7 @@ mod tests {
             y: Some(0),
             note: note.map(str::to_string),
             note_unread: false,
+            inventory_id_unread: false,
             inventory_id: Some(
                 if kind == "stash" {
                     "Stash1"
@@ -1861,6 +1868,35 @@ mod tests {
                 l.effective.why
             );
             assert!(l.why.ends_with("; the note cannot be read"), "{}", l.why);
+        }
+        // where the game side cannot speak — the character's item, an item
+        // in the non-public tab — an unread note is residue at most, and
+        // the effective price is what it was without it (the step-9 review)
+        let baseline = resolve(&snapshot()).unwrap();
+        let mut muted = snapshot();
+        let mut gated = Vec::new();
+        for item in muted.items.iter_mut() {
+            let private = item.location_kind == "character" || item.location_id == "t1";
+            if private {
+                item.note = None;
+                item.note_unread = true;
+                gated.push(item_target(&item.id));
+            }
+        }
+        assert!(gated.len() >= 2, "{gated:?}");
+        let gated_report = resolve(&muted).unwrap();
+        for target in &gated {
+            let (now, was) = (get(&gated_report, target), get(&baseline, target));
+            assert!(now.game.note_unread);
+            // the decision, not the sentence, which now says the note
+            // cannot be read
+            let decision =
+                |e: &Effective| (e.kind.clone(), e.price.clone(), e.side, e.from.clone());
+            assert_eq!(
+                decision(&now.effective),
+                decision(&was.effective),
+                "{target}"
+            );
         }
         // the row on `i-plain` is still reported, and the tab price on
         // `i-invalid`'s tab: nothing is hidden by the unread note

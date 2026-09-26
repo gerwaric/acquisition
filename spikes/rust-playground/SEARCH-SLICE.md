@@ -95,6 +95,7 @@ reads first: the shapes of fault that came back until they were named.
 | **A cut in the query's order.** A reason made beyond the item's parts took its place from the term that met it first, so two spellings of one query showed different sixes | step 7 | rule 9; `eval::why` orders such a reason by what it says; the audit test in `tests/pseudo.rs` asks two spellings |
 | **A block past its bound.** Rows appended after the cut — the vocabulary's computed values, 39 under a limit of 1 — with the omission uncounted | step 7 | invariant 5; every list an answer holds is cut by the limit and counts its rest, a new kind of row with its own count; the audit test |
 | **A number no game displays, read as one.** Scientific notation through a length check; a product past the units rounded in silence | step 7 | `exact::reads` reads decimal syntax alone; `Exact::times` is none where the units cannot hold it; the input is unread to what asked it |
+| **A join inherits the producer's grain.** A field the other area's read typed strictly — a note, a slot — failed that read whole on one malformed body, and the join made every such failure the search's, for queries that never asked the field; an override in the producer decided without the gate its own rule states (a note where no index sees it); a number from the intent file bypassed the crate's rule for numbers and two prices met in one bucket; coverage was derived from the locations that name a league, and a character with none went unpriced | step 9, the first outside review: four of five | rule 8 at the producer's grain (`ItemSnapshot::note_unread`, `inventory_id_unread`; `body_string`); C81's own gate (`game.public`) on the override; `exact::reads` on every number that enters (`price::number`); `price::leagues` |
 | **A claim the code did not make.** A hand count wrong; `DERIVATION` not moved when a body derived to another item; a cause named before it was measured; "covered" said of a property whose generators could not reach the case; a record row crediting the wrong commit | every step | every count worked by hand and then run; the constant's rule on its own doc; a number stated only after measuring; the generators reaching what a fix touched (`reqlevel` joined them at step 6) |
 
 The yields by look, per step — what a review found each time it came
@@ -103,6 +104,7 @@ back, the last look's zero being what a step closed on: step 4, 6, 5,
 step 7 (Astra), 6, 4, 0 — the third look the generators' (the ledger,
 "7 · the third look"): one harness fault of the look's own, none of the
 product's. Step 8: 5, 2, 0 — a socket whose group is unread read as possibly none, then counted twice.
+Step 9: 5 — every one reproduced and held (`tests/price.rs`, the `review_` tests; `listing.rs`, `snapshot.rs`): a join that inherited the store's failure grain, twice; an override past the gate its own rule states; a producer's SQL type taken for the JSON's; a number from another area past the crate's rule.
 Five blind seats at step 5 (`f357de39`; Sonnet, one question each over
 the owner's real store, `--help` and `--describe` their only sources)
 answered every question in three to six invocations and found two
@@ -334,6 +336,10 @@ timings, coverage no fixture reaches, and questions for the seat.
   decimal price lacks `price.lot` (P2): both at the plan's foot, for the
   seat, built on the builder's recommendation.
 - `show`'s price is the item's league's listing state, or every league
-  of its realm for a league-less character; an item in a realm with no
-  league on record is *uncovered*, a reason of its own, met by fixtures
-  alone.
+  of its realm for a league-less character, and one read under the empty
+  league name for a realm that names none (the review, 4); *uncovered*
+  stays a reason of its own that no fixture reaches now.
+- A price whose amount or lot is past the crate's rule for numbers (ten
+  whole digits, four decimals) is priced and its number unread: the
+  pricing area accepts what the search will not read as a number, and
+  the seat may meet a bulk lot written that long.

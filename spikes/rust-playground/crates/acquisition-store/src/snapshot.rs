@@ -169,16 +169,22 @@ pub struct ItemSnapshot {
     /// The item's `note`, exactly as the API returned it; `None` when the
     /// body carried none, or carried one that is no string.
     pub note: Option<String>,
-    /// The body carries a `note` that is no string: nothing here says what
-    /// it would read as, and a consumer must not read the silence as "no
-    /// note" (the search's rule 8, at the note's grain; found by its
-    /// generators at step 9, 2026-09-25).
+    /// The body carries a `note` that is no string — a number, an object,
+    /// an array: nothing here says what it would read as, and a consumer
+    /// must not read the silence as "no note" (the search's rule 8, at the
+    /// note's grain; found by its generators at step 9, 2026-09-25, and
+    /// the object case by the step's outside review).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub note_unread: bool,
     /// The item's `inventoryId`, verbatim: a character item's slot, the
     /// literal `Stash1` for every stash item (T13), absent on a socketed
     /// item. A forum link to a character item is addressed by it.
     pub inventory_id: Option<String>,
+    /// The body carries an `inventoryId` that is no string: carried as
+    /// none, and said here (the step-9 review: one such body failed the
+    /// snapshot whole).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inventory_id_unread: bool,
     /// `responses.id` of the fetch that last saw the item here.
     pub seen_response: Option<i64>,
     pub last_seen: i64,
@@ -536,16 +542,34 @@ fn read_characters(
         .collect()
 }
 
+/// A string field of the body as one two-path `json_extract` hands it
+/// over: a JSON array of the values, their JSON types kept — a string
+/// quoted, an object an object, an absent path or a JSON `null` a `null`
+/// (SQLite's single-path extract flattens an object to its text, which
+/// read as a note; the step-9 review). A string is read, `null` is none
+/// — as the search's deriver reads a body — and anything else is unread
+/// at that field alone, never a failed read (C47).
+fn body_string(extracted: Option<&Value>) -> (Option<String>, bool) {
+    match extracted {
+        None | Some(Value::Null) => (None, false),
+        Some(Value::String(text)) => (Some(text.clone()), false),
+        Some(_) => (None, true),
+    }
+}
+
 /// Live items at this league's live tabs and this league's (or
 /// league-less) live characters of the realm — the same membership
 /// [`read_tabs`] and [`read_characters`] report, so an item never cites a
 /// location the snapshot does not carry. The note is the body's `note`,
-/// verbatim; the body itself stays in the store.
+/// verbatim; the body itself stays in the store. The two body fields are
+/// one extract, so each body is parsed once (measured 2026-09-25: two
+/// extracts, one two-path extract and a type check beside an extract cost
+/// 80, 80 and 100 ms over 21,311 bodies).
 fn read_items(tx: &rusqlite::Transaction, realm: &str, league: &str) -> Result<Vec<ItemSnapshot>> {
     let mut stmt = tx.prepare(
         "SELECT i.id, i.location_kind, i.location_id, i.container, i.socketed_in,
                 COALESCE(i.name, ''), COALESCE(i.type_line, ''), i.stack_size, i.x, i.y,
-                json_extract(i.json, '$.note'), json_extract(i.json, '$.inventoryId'),
+                json_extract(i.json, '$.note', '$.inventoryId'),
                 i.seen_response, i.last_seen
            FROM items i
           WHERE i.realm = ?1 AND i.removed_at IS NULL
@@ -558,14 +582,16 @@ fn read_items(tx: &rusqlite::Transaction, realm: &str, league: &str) -> Result<V
           ORDER BY i.location_kind, i.location_id, i.y IS NULL, i.y, i.x, i.id",
     )?;
     let rows = stmt.query_map([realm, league], |r| {
-        // GGG's note is a string; a body carrying anything else there is
-        // malformed at the note alone, and is carried as unread rather
-        // than failing the snapshot whole (C47)
-        let (note, note_unread) = match r.get::<_, rusqlite::types::Value>(10)? {
-            rusqlite::types::Value::Null => (None, false),
-            rusqlite::types::Value::Text(text) => (Some(text), false),
-            _ => (None, true),
-        };
+        // GGG's note and inventoryId are strings; a body carrying anything
+        // else there is malformed at that field alone, and is carried as
+        // unread rather than failing the snapshot whole (C47)
+        let fields: Option<String> = r.get(10)?;
+        let fields: Vec<Value> = fields
+            .as_deref()
+            .and_then(|text| serde_json::from_str(text).ok())
+            .unwrap_or_default();
+        let (note, note_unread) = body_string(fields.first());
+        let (inventory_id, inventory_id_unread) = body_string(fields.get(1));
         Ok(ItemSnapshot {
             id: r.get(0)?,
             location_kind: r.get(1)?,
@@ -579,9 +605,10 @@ fn read_items(tx: &rusqlite::Transaction, realm: &str, league: &str) -> Result<V
             y: r.get(9)?,
             note,
             note_unread,
-            inventory_id: r.get(11)?,
-            seen_response: r.get(12)?,
-            last_seen: r.get(13)?,
+            inventory_id,
+            inventory_id_unread,
+            seen_response: r.get(11)?,
+            last_seen: r.get(12)?,
         })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
@@ -1297,15 +1324,19 @@ mod tests {
         let mut noted = item("i-noted");
         noted["note"] = json!("~price 5 chaos");
         noted["stackSize"] = json!(20);
-        // a note that is no string: unread at the note, never a failed read
+        // a note that is no string: unread at the note, never a failed
+        // read; an object is one too (SQLite's extract flattens it to text)
         let mut odd = item("i-odd");
         odd["note"] = json!(5);
+        odd["inventoryId"] = json!(5);
+        let mut objnote = item("i-objnote");
+        objnote["note"] = json!({ "x": 1 });
         s.record(
             &stash_ep("c1", None),
             &json!({}),
             200,
             &json!({ "stash": { "id": "c1", "name": "~price 3 chaos", "type": "PremiumStash",
-                                "items": [ noted.clone(), item("i-plain"), gem_holder.clone(), item("i-gone"), odd.clone() ] } }),
+                                "items": [ noted.clone(), item("i-plain"), gem_holder.clone(), item("i-gone"), odd.clone(), objnote.clone() ] } }),
             110,
         )
         .unwrap();
@@ -1315,7 +1346,7 @@ mod tests {
             &json!({}),
             200,
             &json!({ "stash": { "id": "c1", "name": "~price 3 chaos", "type": "PremiumStash",
-                                "items": [ noted, item("i-plain"), gem_holder, odd ] } }),
+                                "items": [ noted, item("i-plain"), gem_holder, odd, objnote ] } }),
             120,
         )
         .unwrap();
@@ -1394,11 +1425,14 @@ mod tests {
                 ("ch-1", "i-worn", Some("~price 2222 jewellers"), false),
                 ("c1", "i-armour", None, false),
                 ("c1", "i-noted", Some("~price 5 chaos"), false),
+                ("c1", "i-objnote", None, true),
                 ("c1", "i-odd", None, true),
                 ("c1", "i-plain", None, false),
                 ("c1", "i-gem", Some("~b/o 2 divine"), false),
             ]
         );
+        let odd = snap.items.iter().find(|i| i.id == "i-odd").unwrap();
+        assert!(odd.inventory_id.is_none() && odd.inventory_id_unread);
         let gem = snap.items.iter().find(|i| i.id == "i-gem").unwrap();
         assert_eq!(gem.socketed_in.as_deref(), Some("i-armour"));
         assert_eq!((gem.x, gem.y), (None, None));

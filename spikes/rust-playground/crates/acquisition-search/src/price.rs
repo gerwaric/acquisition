@@ -19,17 +19,25 @@
 //!   `has:priced` holds, and `price.amount`, `price.currency` and
 //!   `price.lot` are its parts. A listing resolved to `none`, `no_price`
 //!   or `skip` is known absence (C93): `-has:priced` finds it, and every
-//!   `price.*` term is lacked. `unresolved` — a row that cannot be read
-//!   sits where it could decide — is undecided with that reason, said
-//!   once here at the item's grain (rule 8), and so is an item no listing
-//!   state covered (a league-less character in a realm with no league on
-//!   record, which the snapshot cannot be asked for).
+//!   `price.*` term is lacked. `unresolved` — a row, or a note where the
+//!   index could see one, that cannot be read sits where it could decide
+//!   — is undecided with that reason, said once here at the item's grain
+//!   (rule 8). A price's number is read under the crate's one rule for
+//!   numbers (`exact::reads`: ten whole digits and four decimals): an
+//!   amount or a lot the intent file holds beyond it is unread at that
+//!   part — `has:priced` holds, `price.amount` is undecided — never a
+//!   float that drops its last digits (the step-9 review: two prices
+//!   past 2^53 in one bucket).
 //!
 //! # As built
 //!
 //! - **The join is over every (realm, league) the corpus's locations
 //!   name**, one snapshot and one `resolve` each; an item's price is its
-//!   own item listing's, by id. The snapshots are reads of their own,
+//!   own item listing's, by id. A league-less character is carried by the
+//!   snapshot of every league of its realm; where its realm names no
+//!   league at all, one snapshot under the empty league name — which no
+//!   tab has — carries it, so its rows decide as they would (the step-9
+//!   review). The snapshots are reads of their own,
 //!   after the corpus's one transaction, so the facts revision and the
 //!   intent revision are read again after them (`corpus.rs`): a corpus
 //!   whose facts or intent moved between is read again, never labelled
@@ -60,18 +68,18 @@ pub use acquisition_plan::game_side::NOTE_PARSER_VERSION;
 use crate::derive::{Part, Unread};
 use crate::error::SearchError;
 
-/// The hint on every price reason: the intent file or the listing state,
-/// not a refresh, is what could change (C93: a hint, never a guarantee).
-pub const PRICE_HINT: &str = "a refresh will not help; `acq price show <target>` names the row, and a build that reads it or a rewrite of it resolves the price";
-
 /// C93's closed list of reasons: the kind a count tallies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PriceGap {
     /// A row that cannot be read sits where it could decide (C81).
     Unresolved,
+    /// The item's note is no string, where the index could see one.
+    NoteUnread,
     /// No listing state covered the item's place.
     Uncovered,
+    /// The price's amount or lot is written longer than the search reads.
+    NumberUnread,
 }
 
 impl PriceGap {
@@ -79,7 +87,28 @@ impl PriceGap {
     pub fn unread(self) -> &'static str {
         match self {
             PriceGap::Unresolved => "the price: a row that could decide cannot be read",
+            PriceGap::NoteUnread => "the price: the note cannot be read",
             PriceGap::Uncovered => "the price: no listing state covers the item's league",
+            PriceGap::NumberUnread => "the price's number",
+        }
+    }
+
+    /// What might resolve it — never a guarantee (C93): the intent file
+    /// for a row, the body for a note, and for a number the search's own
+    /// rule, which no refresh and no rewrite of the row within the rule
+    /// changes.
+    pub fn hint(self) -> &'static str {
+        match self {
+            PriceGap::Unresolved => {
+                "a refresh will not help; `acq price show <target>` names the row, and a build that reads it or a rewrite of it resolves the price"
+            }
+            PriceGap::NoteUnread => crate::eval::UNREAD_HINT,
+            PriceGap::Uncovered => {
+                "a refresh of the realm's stash list would give its leagues a listing state; `acq price show <target>` resolves the item meanwhile"
+            }
+            PriceGap::NumberUnread => {
+                "the search reads at most ten whole digits and four decimals; a price within them is read"
+            }
         }
     }
 }
@@ -89,7 +118,7 @@ impl PriceGap {
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum Priced {
     /// The effective statement carries a price.
-    Is(PriceOf),
+    Is(Box<PriceOf>),
     /// Resolved, and no price: `none`, `no_price` or `skip`.
     None { kind: String, why: String },
     /// Not established: why, in the deriver's shape of a reason.
@@ -101,11 +130,18 @@ pub enum Priced {
 pub struct PriceOf {
     /// `exact` or `negotiable`.
     pub kind: String,
-    /// The number the price states: a decimal, or a ratio's `wanted`.
-    pub amount: f64,
-    /// A ratio's lot; a decimal price has none.
+    /// The number the price states — a decimal, or a ratio's `wanted` —
+    /// where it is within the search's rule for numbers; none where it is
+    /// not, and `amount_unread` says so.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount_unread: Option<Unread>,
+    /// A ratio's lot, within the rule; a decimal price has none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lot: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lot_unread: Option<Unread>,
     /// The currency table's tag (C68).
     pub currency: String,
     /// The price as the listing state prints it: `5 chaos`, `2/3 divine b/o`.
@@ -119,15 +155,35 @@ pub struct PriceOf {
     pub why: String,
 }
 
+fn unread(gap: PriceGap, problem: impl Into<String>) -> Unread {
+    Unread {
+        part: Part::Price(gap),
+        problem: problem.into(),
+        line: None,
+        name: None,
+        socket: None,
+    }
+}
+
+/// A price's number under the crate's rule (`exact::reads`): the float
+/// the parser reads a typed bound as, or why it is not one.
+fn number(text: &str, what: &str) -> (Option<f64>, Option<Unread>) {
+    if crate::exact::reads(text) {
+        (text.parse().ok(), None)
+    } else {
+        (
+            None,
+            Some(unread(
+                PriceGap::NumberUnread,
+                format!("the {what} `{text}` is written longer than the search reads a number"),
+            )),
+        )
+    }
+}
+
 impl Priced {
     pub(crate) fn open(gap: PriceGap, problem: impl Into<String>) -> Priced {
-        Priced::Open(Unread {
-            part: Part::Price(gap),
-            problem: problem.into(),
-            line: None,
-            name: None,
-            socket: None,
-        })
+        Priced::Open(unread(gap, problem))
     }
 
     fn uncovered() -> Priced {
@@ -147,7 +203,7 @@ impl Priced {
         if effective.kind == "unresolved" {
             if listing.game.note_unread {
                 return Priced::open(
-                    PriceGap::Unresolved,
+                    PriceGap::NoteUnread,
                     "the note cannot be read: it is no string, and a note would decide (C81)",
                 );
             }
@@ -176,27 +232,35 @@ impl Priced {
             };
         };
         use acquisition_plan::price::Amount;
-        let (amount, lot) = match price.amount {
-            // the canonical decimal text, read as the parser reads a typed
-            // bound: one float for one decimal (`exact.rs`)
-            Amount::Decimal { .. } => (price.amount.to_string().parse().unwrap_or(f64::NAN), None),
-            Amount::Ratio { wanted, lot } => (wanted as f64, Some(lot)),
+        // the canonical text, read as the parser reads a typed bound: one
+        // float for one decimal (`exact.rs`), and none past the rule
+        let ((amount, amount_unread), (lot, lot_unread)) = match price.amount {
+            Amount::Decimal { .. } => (number(&price.amount.to_string(), "amount"), (None, None)),
+            Amount::Ratio { wanted, lot } => (
+                number(&wanted.to_string(), "amount"),
+                match number(&lot.to_string(), "lot") {
+                    (Some(_), None) => (Some(lot), None),
+                    (_, unread) => (None, unread),
+                },
+            ),
         };
-        Priced::Is(PriceOf {
+        Priced::Is(Box::new(PriceOf {
             kind: effective.kind.clone(),
             amount,
+            amount_unread,
             lot,
+            lot_unread,
             currency: price.currency.clone(),
             text: effective.to_string(),
             side: effective.side_word(),
             from: effective.from.as_ref().map(ToString::to_string),
             why: effective.why.clone(),
-        })
+        }))
     }
 
     pub fn price(&self) -> Option<&PriceOf> {
         match self {
-            Priced::Is(price) => Some(price),
+            Priced::Is(price) => Some(price.as_ref()),
             Priced::None { .. } | Priced::Open(_) => None,
         }
     }
@@ -213,14 +277,25 @@ impl Priced {
 /// The (realm, league) pairs a set of locations names: every stash tab's,
 /// and every character's that has one. A league-less character is carried
 /// by the snapshot of every league of its realm, so it needs no pair of
-/// its own; where its realm has none, its items are uncovered.
+/// its own — unless its realm names none, and then one snapshot under the
+/// empty league name, which no tab has, carries the realm's league-less
+/// characters and nothing else (the module doc).
 pub(crate) type Leagues = BTreeSet<(String, String)>;
 
 pub(crate) fn leagues(locations: &[LocationRow]) -> Leagues {
-    locations
+    let mut leagues: Leagues = locations
         .iter()
         .filter_map(|l| l.league.clone().map(|league| (l.realm.clone(), league)))
-        .collect()
+        .collect();
+    for l in locations
+        .iter()
+        .filter(|l| l.kind == "character" && l.league.is_none())
+    {
+        if !leagues.iter().any(|(realm, _)| *realm == l.realm) {
+            leagues.insert((l.realm.clone(), String::new()));
+        }
+    }
+    leagues
 }
 
 /// The prices of every item the listing state of these leagues covers, by
