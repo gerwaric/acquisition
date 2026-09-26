@@ -194,6 +194,13 @@ It exercises all six of the lines the seat revisits first
 and sort scalar, C93's undecided route, C95's sum rule, C98's basis as
 printed, C104's text.
 
+Sat 2026-09-26 on the release build at `94a3d18c` (the record, the
+ledger row "the first seat"): ten faults, F1–F10, and ten verdicts,
+V1–V10, the record's "Holes ruled". The owner's order for what follows
+(2026-09-26, V10 and after): a fix session against the seat's hash,
+then the trade site's computed values as a research track, then
+percentile, category and step 10.
+
 ## After step 5 — provisional, his to reorder; 10 and 11 wait for the seat
 
 | Step | Builds | Needs | Reads | Closes on |
@@ -202,7 +209,10 @@ printed, C104's text.
 | 7 · computed values | the totals table (C94) after the coverage trial; `pseudo.total_res`; a weight may be a fraction (the site's own `+94.5 total maximum Life` over `+90` life and `+9` Strength, `pseudo-stats/README.md`), and whether a total is ever rounded is shown to the owner first (gap 6); the sum-status table; then `pseudo.dps`, `pseudo.pdps` (C101) | 6 for the worked example | C94, C95; the contract detail, C94 and C101; the reference, *Values* and *A sum's status*; `counts.rs`, `eval.rs`, `exact.rs`; `search/pseudo-stats/README.md`, `cpp-search/data/pseudomods.toml`; gap 6 and E2 (the record, "Holes ruled"); the coverage-trial park | AQ2; the reference's worked example whole, every count as printed there |
 | 8 · sockets | `sockets`, `links`, `sockets.<colour>`, `linked(…)` (C101); undecoded shapes counted unread (S16) | 4 | C101; the contract detail, C101; `derive.rs`; S16, S58, S59; `item-facts/README.md`, the socket shapes | OQ3's socket reading |
 | 9 · price | the effective price joined read-only (C81, C100); the crate links `acquisition-plan`; the basis gains the intent revision; the reason *price unresolved* | 4 | C81 (`decisions/pricing.md`), C98, C100; `corpus.rs`, `answer.rs`; the planner's effective-price read | OQ6: the item found with the owner's own price; a valuation asked for is a stated limit (C102) |
-| 10 · continuing and exchanging | `--next` refused across a changed basis; `--membership all` (the reference, *Membership*): the read hands removed items over with `removed_at`, every such row marked, the scope block counting each, an `id:` term that matches nothing live naming the removed id and its route, `acq show` on a removed item; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | C98, C100, C104, C108; the reference, *Membership*, *Explain*, *Outside the first surface*; `answer.rs`, `corpus.rs`; gap 3 (the record) | AQ3 whole; AQ4 across a refresh that removed the item; M5 |
+| 9b · the seat's fixes | F1–F10 as tests named for the fault, against the seat's hash, the 65 asks replayed (`runs/seat-2026-09-26/replay.sh`) and every diff read and explained in the commit; the class reading (V1 blighted maps past the API's prefix, V2 invitations by frame, F2 a term false under every candidate); the undecided display (V8); the tab type as a field (V10, the park fired); the examples teaching `class:ring` where they taught `base:ring` | 9 | the report (`runs/seat-2026-09-26/REPORT.md`, gitignored); `class.rs`, `eval.rs`, `answer.rs`, `bind.rs`; the contract detail, C93 and C106 | every F held by a test; the replay's diffs each explained; M3 at the fix's hash, the six spiking asks in the script (V9) |
+| 9c · the trade site's computed values | a research track (`.claude/skills/research-track/SKILL.md`): what each pseudo of the site counts — the ranged `adds # to # <type> damage [to attacks|spells]` family, `total_life`, T4's lines, Base Percentile's formula (V5) — settled by human-run trade searches under `SURFACES.md`; what cannot be mimicked (affix counts, the owner's caveat on V6) listed as out of reach | 9b | C94, C99, C102; `search/pseudo-stats/README.md`; the trade-site row in `SURFACES.md` | a committed brief; a row per pseudo with its evidence; the totals table's changes as rows, none applied without one |
+| 9d · percentile and category | `pseudo.defence_pct` as the site's Base Percentile (V5); category as a grouping above class (V1: the beasts are its first case), from the trade site's categories and/or RePoE under C106's admission test (owner, 2026-09-26), computed from class and reviewed base rules in one place (rule 10), never a second classifier | 9c | C101, C106; `class.rs`, `totals.rs`; the grouping park's entry | OQ5 by category; a beast found by its category |
+| 10 · continuing and exchanging | in the order the seat wanted them (the sitter, 2026-09-26): `--explain` and `show --against` first — a zero answer was where they were missed; `--next` and `--request` for the MCP, an agent pages and replays; `--view locations`, `--fields`, `--rebind` and `show --basis` had no consumer at the seat and wait for one. `--next` refused across a changed basis; `--membership all` (the reference, *Membership*): the read hands removed items over with `removed_at`, every such row marked, the scope block counting each, an `id:` term that matches nothing live naming the removed id and its route, `acq show` on a removed item; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | C98, C100, C104, C108; the reference, *Membership*, *Explain*, *Outside the first surface*; `answer.rs`, `corpus.rs`; gap 3 (the record) | AQ3 whole; AQ4 across a refresh that removed the item; M5 |
 | 11 · the close | the MCP tool over the same request, with an agent's seat as its own consumer (P2), `--membership all` among what it validates; `acq items search` retired (below); the closed record; this file deleted; `search/` shrunk; `DESIGN.md`'s paragraphs into module docs | all | everything above; `decisions/frontends.md`; the kill list (`DIGEST.md`); `MCP-REFERENCE.md`; "What happens to `acq items search`" below | AQ1–AQ5 driven through the MCP; the gate; the kill-list recheck |
 
 Not in this plan: the trade translation (C99, headed "Direction"). No
@@ -248,11 +258,12 @@ the new verb to answer what `--removed` answers: `--membership all`, step
 | Park | Fired by | Then |
 | --- | --- | --- |
 | the totals coverage trial | step 7, before the first recipe was accepted — fired 2026-09-23 | `search/pseudo-stats/scripts/coverage-trial.py` over the deriver's census; the rows stood (M6, `search/MEASUREMENTS.md`) |
-| a grouping above class | step 6 reaching OQ5 — fired 2026-09-23 | brought to the owner; kept parked, OQ5 pinned from his words, the trigger now the seat (`decisions/search.md`) |
+| a grouping above class | step 6 reaching OQ5 — fired 2026-09-23; the seat — fired 2026-09-26 (V1: the beasts follow the trade site's categories; OQ5 took 18 terms) | brought to the owner; kept parked, OQ5 pinned from his words, the trigger now the seat (`decisions/search.md`) |
 | a unique's variant as a field (C107) | step 4 reaching OQ2 | the trigger reopens the question, not the build: brought to the owner with his Ashes of the Stars as the first test |
 | the digest's kill list | step 11, the last acceptance test written | recheck against the tests and the reference before any removal |
 | a persisted projection; the store's search-at-scale park | M3, only if the load exceeds 500 ms — an evaluator cost over budget is the totals batch park's (owner, 2026-09-24, `decisions/search.md`) | reported with the numbers; it opens the experiment among the candidates, never persistence by default. The seat goes ahead: slow is not wrong |
-| the totals batch (`decisions/search.md`) | M3, a totals ask over 500 ms; or a consumer that holds the corpus asking | reported with the numbers; built as a step 7b of 4b's shape, the generators reaching `pseudo` first |
+| the totals batch (`decisions/search.md`) | M3, a totals ask over 500 ms; or a consumer that holds the corpus asking — fired at step 9 by the letter | V9 (2026-09-26): stays parked, the spikes measured first; revisited at step 11 with a corpus's join time fixed |
+| a tab's type as a field (`decisions/search.md`) | the first seat behind it — fired 2026-09-26 | V10: built in 9b |
 | pricing on the MCP (`decisions/frontends.md`) | step 11, the read model landed | the owner's call whether it is built then |
 | the sticky default realm | the GUI's realm control (2026-09-25), no step of this slice | the GUI stream's |
 
@@ -272,6 +283,7 @@ command that produced them, the verdict one line in `SEARCH-SLICE.md`.
 | M4 | `~` over all displayed text (the reference: "its cost … is unmeasured") | step 4 |
 | M5 | a re-derive while a refresh is writing — a mock session over a fixture store; the reload's cost per committed tab, which a resident consumer pays | step 10 |
 | M6 | the totals coverage trial | step 7 |
+| M3 again | at `94a3d18c`, the six asks the seat saw at 695–715 ms in the script, on the copy: whether the spikes are the ask's or the machine's (V9) | before 9b changes the floor |
 | M7 | the resident memory of a held corpus — the derived items and their lines, which a GUI holds all day (M1 measured the streaming read alone, 8.7 MB) | step 10, beside M5 |
 
 Not owed by this build: whether job events reach a client that did not
@@ -285,5 +297,5 @@ line in `SEARCH-SLICE.md`, "Holes ruled", its rule in `search/DESIGN.md`.
 
 | # | Hole | Built meanwhile | Recommendation |
 | --- | --- | --- | --- |
-| T3 | the reference names computed values no step builds: `pseudo.defence_pct` (C101, its formula unpinned) and a ranged total (`pseudo.cold_damage.avg`; which lines a site ranged pseudo sums is unread) | each refused by name, the entry naming no step | a step of the owner's choosing, or the seat: the table admits a ranged total the day one is evidenced |
-| T4 | the trial's uncounted lines (M6): `#% increased Attack and Cast Speed` (46 lines) counts in neither speed total; `# to Level of Socketed AoE Gems` (20) and `Duration Gems` (12) have no total; conditional resistances (`while on Low Life`, `during any Flask Effect`, `while affected by Herald of …`) are counted by none | the C++ app's rows, unchanged: a row added is a definition changed | rule per line at the seat; a word-based trial measures coverage, never membership |
+| T3 | `pseudo.defence_pct` — V5 (2026-09-26): the site's Base Percentile, to be built (9d), its formula 9c's to evidence. The ranged total: 9c evidences its lines (owner, 2026-09-26: "there's a planned research session that will get us what we need for this") | refused by name until 9d | admitted the day a trade search evidences its lines (9c) |
+| T4 | the trial's uncounted lines (M6) — V6 (2026-09-26): every total counts what the trade site's pseudo of that name counts, settled by a human-run trade search where unknown (9c); the owner's caveat: some, such as affix counts, may not be mimicable | the C++ app's rows, unchanged until 9c evidences a change | rule per line from 9c's rows |

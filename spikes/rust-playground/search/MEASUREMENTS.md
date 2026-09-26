@@ -168,8 +168,10 @@ one — the vocabulary whole at the audited step 7 build, measured beneath
 the table, ruled at T5 and under again at `57ec6a9e`. What an ask over
 budget fires is the owner's (2026-09-24): "M3 reports asks over 500 ms,
 but only a load over budget triggers the projection experiment. An
-evaluator cost over budget lands against the batch park." The debug
-build is what the seat feels behind the README's alias. Step 4's per-ask
+evaluator cost over budget lands against the batch park." The first
+seat ran the release build (the owner's choice, 2026-09-26), so what it
+felt is the number the budget judges; its wall times are the seat block
+at the foot. Step 4's per-ask
 table is above; here the first ask after the copy is written, and the
 range of the warm medians, in ms. This table is the standing benchmark
 ledger until the first M3 rerun after the slice's close, which moves it
@@ -304,3 +306,18 @@ items, 0 on the four `[]`, `links` on 3,452. The copy's socket shapes:
 one contiguous run, so the C++ run rule (S22) and GGG's number agree
 here; an abyssal socket (73 items) and a resonator's (7) is always a
 group of its own.
+
+**The first seat's wall times (`94a3d18c`, release, 2026-09-26): 48
+search asks, median 445 ms; eight over 500, six of them cheap asks at
+695–715 ms of unknown cause.** The wrapper's wall time
+(`runs/seat-2026-09-26/ask.sh`), process start to exit, on the owner's
+store (22,623 pc items), not the copy; one binary throughout. The 48
+successful search asks (`--describe` and `--realm all` among them):
+median 445, least 17 (`--describe`). Over 500: the 18-term OQ5 (ask 52,
+509), the totals ask (56, 531), and six at 695–715 — asks 3 (the first
+empty query), 24 (`frame=quest`), 49 (`class=rings --limit 0`), 53 and
+60 (vocabulary counts), 62 (a bare phrase) — whose spread is larger
+than the totals' own cost and whose cause is unmeasured. poe2 (98
+items) 41 ms; `show` 127–152; a refusal 8–21. The disposition (V9,
+owner): the totals batch stays parked; the spikes are measured first —
+an M3 rerun at this hash, on the copy, with the six asks in the script.

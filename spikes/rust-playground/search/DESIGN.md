@@ -576,6 +576,20 @@ unresolved, each with the one read that closes it).
   calling it legacy is history the export does not carry — legacy is
   never a field (C107); a unique's variant, a label its source prints,
   is the parked candidate (`decisions/search.md`, "Parked").
+  **Three class readings ruled at the first seat (V1, V2, 2026-09-26;
+  built at 9b):** a blighted or blight-ravaged map's class is read from
+  the base past the prefix the API adds (`Blighted Map (Tier 13)` reads
+  as `Map (Tier 13)`, Maps); an invitation's class is its frame's — the
+  quest frame Quest Items, any other Misc Map Items; a captured beast's
+  class follows the trade site's categories, the grouping above class's
+  first case (9d).
+- **C93 — the undecided block's shape (V8, 2026-09-26; built at 9b).**
+  An answer shows its undecided items as one line per distinct reason,
+  each with one example item, then the one route to them all; after the
+  rows, before the routes. No item list and no count per reason: no
+  term selects a reason, so such a count would have no route (C105). The
+  JSON has the same shape. A per-reason count and its selector wait for
+  someone missing the number.
 - **C99 (K5).** `count` carries its minimum and its maximum; `weight`
   and `weight2` differ in how a per-stat requirement gates a
   contribution (S57), and a weighted group translates only where that
