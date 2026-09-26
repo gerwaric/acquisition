@@ -619,7 +619,11 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         for touched in &row.matched {
             shows.extend(touched.shows.iter().map(evidence_text));
         }
-        shows.dedup();
+        // a line the sort and a term both show is printed once, wherever
+        // the two sit (the seat's ask 56 replayed: the sorted total's
+        // lines, the class, then the same lines again)
+        let mut seen = std::collections::HashSet::new();
+        shows.retain(|s| seen.insert(s.clone()));
         if !shows.is_empty() {
             line(format!("            {}", shows.join(" · ")));
         }

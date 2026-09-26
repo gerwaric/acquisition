@@ -717,6 +717,28 @@ fn first_seat_the_text_says_what_sorted_what_an_id_is_and_of_every_realm() {
         shown.contains("sorts by 95 · +95 to maximum Life (explicit)"),
         "{shown}"
     );
+    // a line the sort and a term both show is printed once, with another
+    // term's evidence between them (the seat's ask 56 replayed)
+    let shown = text(&acq(
+        &base,
+        &[
+            "search",
+            "--realm",
+            "pc",
+            "class:ring \"# to maximum Life\">=90",
+            "--sort",
+            "line(\"# to maximum Life\").arg1",
+            "--desc",
+            "--limit",
+            "1",
+        ],
+    ));
+    assert!(shown.contains("class Rings"), "{shown}");
+    assert_eq!(
+        shown.matches("+95 to maximum Life (explicit)").count(),
+        1,
+        "{shown}"
+    );
     let shown = text(&acq(&base, &["search", "--realm", "pc", "id:r"]));
     assert!(
         shown.contains("nothing in scope carries the id of term 0: id:r — an id is matched whole"),
