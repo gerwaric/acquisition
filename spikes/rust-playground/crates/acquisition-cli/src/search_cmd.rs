@@ -599,10 +599,18 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         if let Some(sorted) = &row.sort {
             // what sorted the row (F6): a field's name before its number,
             // a line or a sum's contributors after
+            // a row that sorts last says by what (the review of 9b: `sorts
+            // last: incomplete` named no field)
+            let key = match &a.view {
+                ViewOut::Rows(rows) => rows.sort.as_deref().unwrap_or_default(),
+                ViewOut::Counts(_) | ViewOut::Cross(_) => "",
+            };
             let by = match (&sorted.value, sorted.status) {
                 (Some(value), None) => format!("by {}", number(value)),
-                (Some(value), Some(status)) => format!("last: {status} at {}", number(value)),
-                (None, status) => format!("last: {}", status.unwrap_or("no value")),
+                (Some(value), Some(status)) => {
+                    format!("last: {status} at {} ({key})", number(value))
+                }
+                (None, status) => format!("last: {} ({key})", status.unwrap_or("no value")),
             };
             let mut rest = sorted.shows.iter();
             let named = match sorted.shows.first() {

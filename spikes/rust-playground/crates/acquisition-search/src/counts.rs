@@ -505,6 +505,7 @@ fn label_of(
     def: &'static FieldDef,
     of: &Of,
     twins: &HashSet<String>,
+    leagues: &HashSet<String>,
     tabs: &Tabs,
 ) -> (Label, Option<Selects>) {
     let test = |field: &str, op: Op, value: Value| Node::Test {
@@ -555,7 +556,19 @@ fn label_of(
         (Of::Tab(at), Some(term)) => {
             let mut terms = vec![term];
             if let Some(league) = &at.league {
-                terms.push(test("league", Op::Eq, Value::Text(league.clone())));
+                // `=` is any-case: where the corpus holds another spelling of
+                // the league, the term selects this one alone (the review of
+                // 9b: one id under `Standard` and `standard` was two buckets
+                // of one whose route returned both)
+                terms.push(if leagues.contains(&bind::folded(league)) {
+                    test(
+                        "league",
+                        Op::Match,
+                        Value::Text(bind::exact_pattern(league)),
+                    )
+                } else {
+                    test("league", Op::Eq, Value::Text(league.clone()))
+                });
             }
             (
                 Some(at.clone()),
@@ -627,6 +640,14 @@ fn spelled(of: &Of, tabs: &Tabs) -> (u8, Exact, String, String) {
         Of::None => (1, none, String::new(), String::new()),
         Of::Undecided => (2, none, String::new(), String::new()),
     }
+}
+
+/// The folds more than one spelling of a league shares: what a tab's
+/// route tests its league by.
+fn league_twins(corpus: &Corpus) -> HashSet<String> {
+    twins(corpus, |held| {
+        held.place.league.as_deref().into_iter().collect()
+    })
 }
 
 fn field_twins(corpus: &Corpus, def: &'static FieldDef) -> HashSet<String> {
@@ -730,8 +751,9 @@ fn field_table(
             .add(scalars.as_ref().map(|s| s[m]));
     }
     let twins = field_twins(matches.corpus, def);
+    let leagues = league_twins(matches.corpus);
     let bucket = |of: &Of, pile: &Pile, tally: Vec<Tallied>| {
-        let (label, selects) = label_of(def, of, &twins, &tabs);
+        let (label, selects) = label_of(def, of, &twins, &leagues, &tabs);
         Bucket {
             label,
             count: routed(matches, pile.items, selects),
@@ -816,6 +838,7 @@ pub(crate) fn crossed(bound: &BoundCounts, matches: &Matches<'_>) -> CrossOut {
         .iter()
         .map(|def| field_twins(matches.corpus, def))
         .collect();
+    let leagues = league_twins(matches.corpus);
     let mut ranked_cells: Vec<(Vec<Of>, Pile)> = cells.into_iter().collect();
     // most carried first, then each key's value in turn
     ranked_cells.sort_by(|(a, x), (b, y)| {
@@ -833,7 +856,7 @@ pub(crate) fn crossed(bound: &BoundCounts, matches: &Matches<'_>) -> CrossOut {
             let (labels, selects): (Vec<Label>, Vec<Option<Selects>>) = of
                 .iter()
                 .enumerate()
-                .map(|(k, of)| label_of(defs[k], of, &twins[k], &tabs))
+                .map(|(k, of)| label_of(defs[k], of, &twins[k], &leagues, &tabs))
                 .unzip();
             // a cell's route carries both keys, and is none where one cannot
             // be said; a tab's names its realm, and no cross holds two tabs
@@ -865,7 +888,7 @@ pub(crate) fn crossed(bound: &BoundCounts, matches: &Matches<'_>) -> CrossOut {
             .zip(&margins)
             .map(|(def, [none, undecided])| {
                 let route = |n: usize, of: Of| {
-                    let (_, selects) = label_of(def, &of, &empty, &tabs);
+                    let (_, selects) = label_of(def, &of, &empty, &empty, &tabs);
                     routed(matches, n, selects)
                 };
                 Margin {

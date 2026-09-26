@@ -992,8 +992,27 @@ impl Binder {
                 // asks; a total's is never absence (owner, 2026-09-24, T2:
                 // "has: applies to a derived field, never to a total. A
                 // ring has no dps; every item has a total.")
-                let (named, _) =
-                    bind_pseudo(name.get("pseudo.".len()..).unwrap_or_default(), None)?;
+                let short = name.get("pseudo.".len()..).unwrap_or_default();
+                let (named, _) = bind_pseudo(short, None).map_err(|e| {
+                    // a near name is offered as it is asked here (the review
+                    // of 9b): `has:` on a derived field, a comparison on a
+                    // total, which `has:` never takes (T2)
+                    if e.kind != ErrorKind::UnknownName {
+                        return e;
+                    }
+                    let derived: Vec<&str> = crate::pseudo::derived_names().collect();
+                    let readings: Vec<String> = near(short, crate::pseudo::names())
+                        .into_iter()
+                        .map(|n| {
+                            if derived.contains(&n) {
+                                format!("has:pseudo.{n}")
+                            } else {
+                                format!("pseudo.{n}>0")
+                            }
+                        })
+                        .collect();
+                    e.with_readings(readings)
+                })?;
                 match named {
                     crate::pseudo::Named::Derived(_) => Ok(Atom::HasComputed(named)),
                     crate::pseudo::Named::Total { .. } => Err(tree::has_on_computed(name)),

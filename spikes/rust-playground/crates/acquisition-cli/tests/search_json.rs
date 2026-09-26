@@ -798,6 +798,28 @@ fn first_seat_the_text_says_what_sorted_what_an_id_is_and_of_every_realm() {
         ),
         (2, 1)
     );
+    // the review of 9b, a presentation gap: a row that sorts last names
+    // what it was sorted by — r3's implicit array is unread, so its 40 is
+    // no largest, and `plain` has no life line at all
+    let shown = text(&acq(
+        &base,
+        &[
+            "search",
+            "--realm",
+            "pc",
+            "rarity=rare",
+            "--sort",
+            "line(\"# to maximum Life\").arg1",
+        ],
+    ));
+    assert!(
+        shown.contains("sorts last: incomplete at 40 (line(\"# to maximum Life\").arg1)"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("sorts last: no satisfying occurrence (line(\"# to maximum Life\").arg1)"),
+        "{shown}"
+    );
     let shown = text(&acq(&base, &["search", "--realm", "pc", "id:r"]));
     assert!(
         shown.contains("nothing in scope carries the id of term 0: id:r — an id is matched whole"),

@@ -952,6 +952,75 @@ fn review_an_invitation_whose_frame_is_unread_is_open_for_the_frame() {
     assert_eq!(counts(&asked(&s, "pc", "class:map"), "0"), (1, 0, 0, 1));
 }
 
+/// Review, a query gap: one tab id under two leagues spelled alike but
+/// for case — `Standard` and `standard`, a fixture the store's ingest
+/// admits — was two buckets of one item whose route returned both, since
+/// `league=` is any-case. The route tests the league by the pattern that
+/// selects one spelling, as a text field's bucket does.
+#[test]
+fn review_a_tabs_route_selects_its_leagues_spelling_where_two_differ_by_case() {
+    let mut s = store();
+    for (league, id, at) in [("Standard", "a", 10), ("standard", "b", 11)] {
+        list_tabs(&mut s, "pc", league, json!([tab("d1", "Dump")]), at);
+        fetch_tab(
+            &mut s,
+            "pc",
+            league,
+            "d1",
+            "Dump",
+            vec![item(id, "Doom Loop", "Iron Ring", "Rare", json!({}))],
+            at + 10,
+        );
+    }
+    let table = &view(&s, "pc", "", json!({ "counts": { "keys": ["tab"] } }))["view"]["counts"]["tables"]
+        [0];
+    let buckets = table["buckets"].as_array().unwrap();
+    assert_eq!(buckets.len(), 2, "{table}");
+    for b in buckets {
+        assert_eq!(b["count"], 1);
+        assert!(b["term"].as_str().unwrap().contains("league~"), "{b}");
+        members(&s, b);
+    }
+    // one league alone: the plain term, as before
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("d1", "Dump")]), 10);
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "d1",
+        "Dump",
+        vec![item("a", "Doom Loop", "Iron Ring", "Rare", json!({}))],
+        20,
+    );
+    let table = &view(&s, "pc", "", json!({ "counts": { "keys": ["tab"] } }))["view"]["counts"]["tables"]
+        [0];
+    assert_eq!(table["buckets"][0]["term"], "id:d1 league=Standard");
+}
+
+/// Review, a query gap: `has:Pseudo.dpx` offered the bare `pseudo.dps`,
+/// which is no query, and `has:pseudo.total_re` bare totals, which
+/// `has:` never takes (T2). What is offered is asked as it was asked —
+/// `has:` on a derived field, a comparison on a total — and binds.
+#[test]
+fn review_has_on_a_misspelt_computed_value_offers_what_binds() {
+    let (corpus, _) = generated::fixture(vec![json!({})]);
+    let e = ask(&corpus, "has:Pseudo.dpx").unwrap_err().to_json();
+    assert_eq!(e["kind"], "unknown_name");
+    assert_eq!(e["readings"], json!(["has:pseudo.dps"]));
+    let e = ask(&corpus, "has:pseudo.total_re").unwrap_err().to_json();
+    assert_eq!(e["kind"], "unknown_name");
+    let readings = e["readings"].as_array().unwrap();
+    assert!(
+        readings.contains(&json!("pseudo.total_res>0")),
+        "{readings:?}"
+    );
+    for reading in readings {
+        let reading = reading.as_str().unwrap();
+        ask(&corpus, reading).unwrap_or_else(|e| panic!("`{reading}` offered, refused: {e}"));
+    }
+}
+
 /// Review, 4 and 5: F4 offered `line("T").arg1=foo`, which the parser
 /// refuses, and on a template with a ranged pair and a third number
 /// offered no `arg3`. A reading is a query that binds (rule 5), and the
