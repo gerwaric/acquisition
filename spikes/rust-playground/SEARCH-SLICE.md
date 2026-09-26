@@ -68,6 +68,7 @@ commit's.
 | 7 · computed values | `b5d62d92` | `totals.rs` and `reference/totals-v1.toml`: the totals table as reference data (C94, C68) — 35 totals, 104 rows, by `tools/totals-table.py` from the C++ app's pseudomod tables at `master@946a4f51`; `pseudo.rs`: the `pseudo.` namespace, `pseudo.dps` and `pseudo.pdps` (C101); the basis gains `totals v1` (C98); `--describe` lists every computed value. `pseudo.defence_pct` and a ranged total refused by name, the entry naming no step. `tests/pseudo.rs`, `tests/answer.rs` (the worked example whole), `tests/acceptance.rs` (AQ2 as worded). M6 and M3 below; T1, T2 and T5 ruled below, T3 and T4 at the plan's foot; the observations of step 7 below. |
 | 7 · the third look | `ecb83b65` | The generators reach the computed values, nothing else (owner, 2026-09-24, `66a20acf`): resistance lines and a `properties` array with holes in the bodies; a total's comparison, the derived fields' comparisons and `has:`, the probe, the case alt and the three sorts in the query tree; an eighth anchor past the reasons bound, a fixed case beside the rare find. Shown to catch the first round's 1 and 5 and a mutant per property; its 2 is held by `exact.rs`'s unit test. No source changed. |
 | 8 · sockets | `ec024ceb`; reviewed `dca017f5`, `7010f658` | `sockets.rs`, and `derive.rs` reads the socket collection at the socket's grain (C101, rule 8); a count is an interval of what was read, decided where the whole interval agrees (`eval.rs`); `linked( … )` bound in `group.rs` beside a line's group; `show` and a row print the layout, made once; `--describe` gains the fields and the `linked` block. `DERIVATION` 9. `tests/sockets.rs` (every count by hand; three mutants caught), `tests/derive.rs`, `tests/acceptance.rs` (OQ3 as worded); the generators reach the sockets (`tests/common/generated.rs`). M2, M3 and the copy's counts below; K1 ruled below; the observations of step 8 below. |
+| 9 · price | `57c2f78b` | `price.rs`: the effective price joined read-only from the pricing area's listing state (C81, C100) — one snapshot and one `resolve` per (realm, league) the corpus names, keyed by item id; the crate links `acquisition-plan` (C89); the basis gains the intent revision, the currency table's and the note parser's versions (C98), the facts and intent revisions read again after the join and the corpus read again where either moved; `has:priced`, `price.amount`, `price.currency` (the table's tags, a closed set), `price.lot`; the reason *price unresolved* (`Part::Price`); a count by a number keeps its decimals (`Of::Number` is `Exact`); `show` carries the price; the CLI opens the intent file beside the store and prints the price and the basis whole. The store gains `Annotations::revision` and carries a note that is no string as unread (`ItemSnapshot::note_unread`); the planner leaves such an item's price unresolved (C81). `tests/price.rs` (thirteen items by hand, every route followed), `tests/acceptance.rs` (OQ6), the generators reach the price, the CLI's `search_json.rs`. M3 below; P1 and P2 at the plan's foot; the observations of step 9 below. |
 
 ## Findings
 
@@ -133,6 +134,11 @@ number there was measured, never recalled. The verdicts:
   agree.
 - Step 8: every socket bucket a value or `none`, `undecided` 0; every
   group on the copy one contiguous run.
+- M3 (step 9): the price join raised every release ask by 150–180 ms
+  (the empty query 276 → 445); the load stays under 500 ms, so the
+  projection park does not fire by the owner's rule, and two totals
+  asks crossed 500 with the higher floor — a shape the ruling did not
+  name, for the owner (the observations of step 9).
 
 ## Holes ruled, and where the rule went
 
@@ -294,3 +300,40 @@ timings, coverage no fixture reaches, and questions for the seat.
   the seat.
 - A poe2 socket's `type`, a gem's own `colour` and `socket`: kept, asked
   by nothing.
+
+**Step 9.**
+
+- M3's two asks over budget (AQ2 as worded 529 ms, the worked example
+  whole 528) are the totals' unchanged 84 ms on a floor the price join
+  raised by 170: neither a load over budget (the empty query is 445)
+  nor an evaluator cost that grew, so neither park's trigger reads on
+  it as ruled (2026-09-24). Two candidates, each unmeasured: join the
+  price only when the request names it, the basis still naming the
+  intent revision (one aggregate query); or a store read of the items'
+  notes that does not `json_extract` every stored body. The owner's.
+- The generators reached the pricing area before any seat did: a body
+  whose note is no string failed the pricing snapshot whole, and would
+  have failed `acq price status` the same way; fixed at the store and
+  the planner (`57c2f78b`), a finding of the pricing area's and held
+  by its tests. Over the copy no note is one, so the path is fixtures'
+  alone.
+- The price join is read after the corpus's transaction, so its
+  consistency is a check, not a snapshot: the facts and intent
+  revisions read again, and the corpus read again where either moved,
+  three times before an error. A store read that hands the pricing
+  snapshot over inside the corpus's transaction would make the reread
+  unnecessary; no consumer has met the error.
+- The intent revision on the basis is the whole file's — a sync-policy
+  write moves it too, and a held corpus reloads for it. No consumer
+  holds a corpus across asks yet.
+- `price.from` on a row names the tab, substash or character a
+  statement came from and nothing when it is the item's own; the
+  cross-checks' copied item showed the address otherwise. The same
+  shape bit the unresolved reason, now worded from the listing's parts.
+- A skip or a no-price row is known absence for `has:priced` (P1); a
+  decimal price lacks `price.lot` (P2): both at the plan's foot, for the
+  seat, built on the builder's recommendation.
+- `show`'s price is the item's league's listing state, or every league
+  of its realm for a league-less character; an item in a realm with no
+  league on record is *uncovered*, a reason of its own, met by fixtures
+  alone.

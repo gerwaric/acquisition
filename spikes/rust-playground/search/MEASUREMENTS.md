@@ -184,6 +184,7 @@ to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 | `4237d2f3` | step 7, the two audits' fixes | 465 | 275–360, the vocabulary whole 954 | 1,852–2,748, the vocabulary whole 6,555 |
 | `57ec6a9e` | step 7, T5 | — | the vocabulary whole 316 | the vocabulary whole 2,130 |
 | `ec024ceb` | step 8, with its four asks added to the script | 448 | 276–370 | 1,862–2,762 |
+| `57c2f78b` | step 9, with its four asks added to the script | 622 | 443–529: two over, AQ2 as worded 529 and the worked example whole 528 | 2,282–3,184 |
 
 The asks each step added to the script, at the step's build, warm
 medians in ms; a step's empty query is its floor.
@@ -213,6 +214,31 @@ medians in ms; a step's empty query is its floor.
 | `57ec6a9e`, T5 | the vocabulary whole | 316 | 2,130 |
 | `ec024ceb`, step 8 | the empty query | 276 | 1,862 |
 | | the four socket asks (OQ3 by colour, OQ3 within one link group, `links` sorted, `--count links`) | 281–282 | 1,864–1,872 |
+| `57c2f78b`, step 9 | the empty query | 445 | 2,285 |
+| | `has:priced` · OQ6 (`name="Ashes of the Stars" has:priced`) · `--count price.currency --sum price.amount` over `has:priced` | 443 · 446 · 447 | 2,282 · 2,287 · 2,283 |
+| | `price.amount>=1` sorted by it | 487 | 2,285 |
+
+**The price join's cost (step 9, `57c2f78b`): the floor rose from 276
+to 445 ms release, and two totals asks crossed 500 ms with it.** The
+same copy, the same script, the same minutes: the empty query 276 → 445
+ms release and 1,862 → 2,285 debug, every earlier ask up by the same
+150–180 ms, and the two asks whose evaluator cost is the totals' — AQ2
+as worded 359 → 529, the worked example whole 356 → 528, their own cost
+84 ms at step 7 and 84 now — over the budget on the higher floor. The
+join is one pricing snapshot and one `resolve` per (realm, league) the
+scope names; the copy's pc realm holds two, Standard (21,311 items) and
+Allflame (1,312), and `target/release/acq --json price status --realm pc
+--league <l>` over the copy — process start to exit, the median of ten
+— is 119 ms for Standard and 13 for Allflame, which is the join's cost
+within the noise. What the 119 ms is made of — the snapshot's
+`json_extract` over 21,311 stored bodies against `resolve`'s 21,311
+listings — is unmeasured. The load, the empty query, stands at 445 ms:
+55 under the budget, so the projection park's trigger does not fire by
+the owner's rule (2026-09-24), and the two asks over it are an
+evaluator cost on a floor the join raised — a shape the ruling did not
+name, brought to the owner (`SEARCH-SLICE.md`, "Observations still
+open", step 9). Over the copy's fresh intent file the game alone prices
+what `has:priced` finds; the count is the answer's, not recorded here.
 
 What the table says: a class table's or a totals table's parse is
 within the noise of the empty query; a total asked of every item is the

@@ -172,8 +172,9 @@ Composition whole (`and or not - ( ) holds undecided`); phrases and
 `text:`; `name` and `base` with `:` `=` `~`; `rarity`, `frame`, `class`
 (step 6: the game's names, `--describe class`), `ilvl`, `reqlevel`,
 `is:`, `has:`; place (`league: tab: character: container:`); `id:`;
-`line(…)` whole, the shorthand, `sum(…)`; `--sort --desc --limit
---json`; `--count`, `--cross`, `--sum`, and the vocabulary.
+the price (step 9: `has:priced`, `price.amount`, `price.currency`,
+`price.lot`); `line(…)` whole, the shorthand, `sum(…)`; `--sort --desc
+--limit --json`; `--count`, `--cross`, `--sum`, and the vocabulary.
 
 A row shows the lines the query touched (C100), so an item's other
 lines are read through `acq show <id>`, or by naming them in the query;
