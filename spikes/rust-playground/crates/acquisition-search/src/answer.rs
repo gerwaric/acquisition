@@ -1124,8 +1124,12 @@ fn resolved_values(term: &Term, held: &Held, outcome: Outcome) -> Vec<String> {
             .filter(|v| test.holds(v))
             .map(str::to_string)
             .collect(),
-        Atom::Closed { thing, .. } if outcome == Outcome::Matched => eval::texts(held, *thing)
+        // what the closed set's selector picked of the item's values — an
+        // item that is each of two classes carries one the term did not
+        // pick (the rule of 2026-09-26; `class.rs`)
+        Atom::Closed { thing, values } if outcome == Outcome::Matched => eval::texts(held, *thing)
             .into_iter()
+            .filter(|v| values.iter().any(|legal| legal.eq_ignore_ascii_case(v)))
             .map(str::to_string)
             .collect(),
         _ => Vec::new(),

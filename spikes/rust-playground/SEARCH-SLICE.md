@@ -173,7 +173,7 @@ commit's message. One line each.
 | 4 | B8 the apostrophe: `--query-file`, every printed command shell-quoted; a single-quoted string (gap 2's (c)) closed — the fix, if typing one bites at the seat, is the adapter's or the help's, never the grammar's | the reference, *Strings*; `search_cmd.rs` | `28606ed4`, `3b7cf192` |
 | 4b | what a number is and what one written longer becomes; nothing reaches a bound together without an occurrence that counts; what a row shows of one term | the reference, *Slots*; `eval.rs`, `answer.rs` | `2b01b1bf` |
 | 5 | E1 a value bucket's term selects the counted spelling, a tab's its full coordinate with its substashes; E2 `--sum` takes the item's `sum( … )`, never a raw line projection; E3 the vocabulary's `undecided` is uncertainty about presence; E4 the view combinations stay errors and no grand total is needed; E5 `line` never crosses | C95, C105; `counts.rs`, `answer.rs` (`View::of`), `bind.rs` (`bind_sum`) | `0df86686`, `f357de39` |
-| 6 | G1 class names are the game's plurals, `:` picks by word; G2 a base under several classes is undecided, the table never chooses; G3 every release state enters, a stash keeps what the game removed; G4 no table for `poe2`, every item there undecided; G5 RePoE's licence read, the table carries base and class names only | `class.rs`; `tools/class-table.py`; `SURFACES.md` | `18e1f5be` |
+| 6 | G1 class names are the game's plurals, `:` picks by word; G2 a base under several classes: the frame picks among them, the item each that remains (revised at 9b, owner 2026-09-26: "The frame picks among candidates, then any remaining match is true"; first: undecided, the table never chooses); G3 every release state enters, a stash keeps what the game removed; G4 no table for `poe2`, every item there undecided; G5 RePoE's licence read, the table carries base and class names only | `class.rs`; `tools/class-table.py`; `SURFACES.md` | `18e1f5be` |
 | 7 | T1 a total is never rounded, `94.5` is `94.5`; T2 `has:` applies to a derived field, never to a total — `-has:pseudo.dps` routes the lacked count, `has:pseudo.total_res` an error with readings | `totals.rs`, `exact::Exact::halved`; `bind.rs`, `tree::has_on_computed`, `answer.rs`; the reference, *Values* | `c81ebe1e`; T1 as built at `b5d62d92`, T2 at `f098232a` |
 | 7 | T5 `line` alone lists no computed values, a narrowing lists those it matches, `--describe` names them; an ask over budget fires the projection park only by its load, an evaluator cost the totals batch park; the batch parked with its trigger, a 7b of 4b's shape, generators first | `pseudo.rs`, `counts.rs`; the reference, `--count line`; the two parks in `decisions/search.md` | `66a20acf`; built at `57ec6a9e` |
 | 6 | G6 the grouping above class stays parked; OQ5 pinned from the owner's words with the wearable classes spelled out, the park's trigger now the seat | the park in `decisions/search.md`; `tests/acceptance.rs` | `0d3c65af` |
@@ -318,9 +318,6 @@ timings, coverage no fixture reaches, and questions for the seat.
   which terms together empty it — `--explain`, step 10.
 - `--json` for one row is 12,670 bytes: the scope's seven leagues where
   the question touched two, `"Rare"` where the language writes `rare`.
-- The review of 9b asked what `class:X` is on a base under several
-  classes when every candidate satisfies `X` — undecided today, true by
-  the symmetric rule; it changes an answer, so it is the owner's.
 - 9b: the digest's S53 wording ("not a field") was overtaken by step 6;
   the help says the derivation, and the digest, accepted, is not edited.
 - The owner's questions to the sitter, answered as evidence, no ruling:

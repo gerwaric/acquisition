@@ -372,7 +372,7 @@ pub(crate) fn texts(held: &Held, thing: Thing) -> Vec<&str> {
         Thing::Note => one(&item.note),
         Thing::Rarity => one(&item.rarity),
         Thing::Frame => one(&item.frame),
-        Thing::Class => held.class.name().into_iter().collect(),
+        Thing::Class => held.class.names(),
         Thing::League => one(&place.league),
         Thing::Container => one(&place.container),
         Thing::Tab if place.kind == "stash" => place

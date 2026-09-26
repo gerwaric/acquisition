@@ -22,7 +22,9 @@
 //! - **A key is a field `has:` can be asked of, or `line`.** Every field
 //!   has at most one value on an item, so its buckets sum exactly to the
 //!   total (C105's second invariant); `line` puts an item in a bucket for
-//!   each template it carries, and only the first invariant holds.
+//!   each template it carries, and `class` an item that is each of
+//!   several classes (`class.rs`) in a bucket for each, and only the
+//!   first invariant holds for those.
 //! - **A place value is one realm's under an all-realms scope** (F3, the
 //!   first seat: pc's Standard and poe2's were one `Standard` of 21,409,
 //!   and its route returned both): a league, a character, a container, a
@@ -455,6 +457,18 @@ fn is_place(thing: Thing) -> bool {
     )
 }
 
+/// The buckets an item is in under a key: one, or — for `class`, where
+/// the item is each of several classes (`class.rs`) — one for each.
+fn buckets_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs, by_realm: bool) -> Vec<Of> {
+    if def.thing == Thing::Class {
+        let names = held.class.names();
+        if names.len() > 1 {
+            return names.into_iter().map(|n| Of::Text(n.to_string())).collect();
+        }
+    }
+    vec![bucket_of(def, held, tabs, by_realm)]
+}
+
 fn bucket_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs, by_realm: bool) -> Of {
     match eval::outcome(&Atom::Has(def.thing), held, &[]) {
         Outcome::Undecided => return Of::Undecided,
@@ -739,16 +753,17 @@ fn field_table(
     let mut tally: BTreeMap<String, usize> = BTreeMap::new();
     let by_realm = matches.corpus.realm == Realm::All;
     for (m, held) in matches.held().enumerate() {
-        let of = bucket_of(def, held, &mut tabs, by_realm);
-        if of == Of::Undecided {
-            for kind in eval::unread_kinds(&Atom::Has(def.thing), held) {
-                *tally.entry(kind).or_default() += 1;
+        for of in buckets_of(def, held, &mut tabs, by_realm) {
+            if of == Of::Undecided {
+                for kind in eval::unread_kinds(&Atom::Has(def.thing), held) {
+                    *tally.entry(kind).or_default() += 1;
+                }
             }
+            piles
+                .entry(of)
+                .or_default()
+                .add(scalars.as_ref().map(|s| s[m]));
         }
-        piles
-            .entry(of)
-            .or_default()
-            .add(scalars.as_ref().map(|s| s[m]));
     }
     let twins = field_twins(matches.corpus, def);
     let leagues = league_twins(matches.corpus);
@@ -808,19 +823,18 @@ pub(crate) fn crossed(bound: &BoundCounts, matches: &Matches<'_>) -> CrossOut {
     let mut margins: Vec<[usize; 2]> = vec![[0, 0]; defs.len()];
     let by_realm = matches.corpus.realm == Realm::All;
     for (m, held) in matches.held().enumerate() {
-        let of: Vec<Of> = defs
+        let per_key: Vec<Vec<Of>> = defs
             .iter()
-            .map(|def| bucket_of(def, held, &mut tabs, by_realm))
+            .map(|def| buckets_of(def, held, &mut tabs, by_realm))
             .collect();
         let mut kinds: Vec<String> = Vec::new();
-        for (k, (def, of)) in defs.iter().zip(&of).enumerate() {
-            match of {
-                Of::None => margins[k][0] += 1,
-                Of::Undecided => {
-                    margins[k][1] += 1;
-                    kinds.extend(eval::unread_kinds(&Atom::Has(def.thing), held));
-                }
-                _ => {}
+        for (k, (def, of)) in defs.iter().zip(&per_key).enumerate() {
+            if of.contains(&Of::None) {
+                margins[k][0] += 1;
+            }
+            if of.contains(&Of::Undecided) {
+                margins[k][1] += 1;
+                kinds.extend(eval::unread_kinds(&Atom::Has(def.thing), held));
             }
         }
         // once for the table: a part that left both keys open is one part
@@ -829,10 +843,26 @@ pub(crate) fn crossed(bound: &BoundCounts, matches: &Matches<'_>) -> CrossOut {
         for kind in kinds {
             *tally.entry(kind).or_default() += 1;
         }
-        cells
-            .entry(of)
-            .or_default()
-            .add(scalars.as_ref().map(|s| s[m]));
+        // an item in each of several classes is in a cell for each
+        let mut combos: Vec<Vec<Of>> = vec![Vec::new()];
+        for options in &per_key {
+            combos = combos
+                .into_iter()
+                .flat_map(|combo| {
+                    options.iter().map(move |o| {
+                        let mut combo = combo.clone();
+                        combo.push(o.clone());
+                        combo
+                    })
+                })
+                .collect();
+        }
+        for of in combos {
+            cells
+                .entry(of)
+                .or_default()
+                .add(scalars.as_ref().map(|s| s[m]));
+        }
     }
     let twins: Vec<HashSet<String>> = defs
         .iter()

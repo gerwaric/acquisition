@@ -1127,6 +1127,10 @@ fn shown_text(s: &Shown) -> String {
     use acquisition_search::Classed;
     match &s.class {
         Classed::Is(class) => out.push_str(&format!("class   {class}\n")),
+        Classed::All(classes) => out.push_str(&format!(
+            "class   {} (each: the table lists the base under both)\n",
+            classes.join(", ")
+        )),
         Classed::Among { why, .. } | Classed::Open(why) => {
             out.push_str(&format!("class   undecided: {}\n", why.problem));
         }

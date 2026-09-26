@@ -75,8 +75,8 @@ fn bucket<'a>(table: &'a Value, value: &str) -> Vec<&'a Value> {
 }
 
 /// One tab, `Gear`, of what the seat met: three blighted maps, two
-/// invitations, an Energy Blade, two itemised beasts, a plain map and a
-/// ring.
+/// invitations, a rare Energy Blade and one whose frame could not be
+/// read, two itemised beasts, a plain map and a ring.
 fn seat_stash() -> Store {
     let mut s = store();
     list_tabs(&mut s, "pc", "Standard", json!([tab("g1", "Gear")]), 10);
@@ -93,6 +93,13 @@ fn seat_stash() -> Store {
             plain("inv", "Polaric Invitation", "Normal", json!({})),
             plain("quest", "Incandescent Invitation", "Quest", json!({})),
             item("blade", "Storm Edge", "Energy Blade", "Rare", json!({})),
+            item(
+                "zblade",
+                "Dull Edge",
+                "Energy Blade",
+                "Rare",
+                json!({ "frameTypeId": 7 }),
+            ),
             item("beast", "Dune Hellion", "Dune Hellion", "Rare", json!({})),
             item("wolf", "Snow Wolf", "Snow Wolf", "Rare", json!({})),
             item("ring", "Doom Loop", "Iron Ring", "Rare", json!({})),
@@ -152,36 +159,41 @@ fn v2_an_invitations_class_is_its_frames() {
 }
 
 /// F2: `class:X` on an item whose base the table lists under several
-/// classes is undecided only where a candidate satisfies `X` — the table
-/// never chooses, and a term false under every candidate needs no choice
-/// (C93: undecided is where the truth cannot be established).
+/// classes was undecided under every `X`. The rule since 2026-09-26
+/// (owner: "The frame picks among candidates, then any remaining match
+/// is true"): the rare blade is each of two sword classes, so
+/// `class:sword` is true and `class:ring` false; the blade whose frame
+/// could not be read keeps its candidates, so a term false under every
+/// one is false and a term a candidate satisfies is undecided (C93).
 #[test]
 fn f2_a_class_term_false_under_every_candidate_class_is_false() {
     let s = seat_stash();
-    // ring matched; blade failed, its three classes none of them Rings;
-    // beast and wolf undecided, the table lacking their bases
+    // ring matched; the blades failed, no candidate of theirs Rings; beast
+    // and wolf undecided, the table lacking their bases
     let a = asked(&s, "pc", "class:ring");
-    assert_eq!(counts(&a, "0"), (1, 6, 0, 2), "{}", a["terms"][0]);
+    assert_eq!(counts(&a, "0"), (1, 7, 0, 2), "{}", a["terms"][0]);
     assert_eq!(
         ids(&asked(&s, "pc", "-class:ring")),
-        ["b13", "b16", "blade", "inv", "m1", "quest"]
+        ["b13", "b16", "blade", "inv", "m1", "quest", "zblade"]
     );
-    // a candidate the term names keeps it open
+    // the rare blade is a sword, and no gem; the frameless one is open
+    // under a candidate it may be
     let swords = asked(&s, "pc", "class:sword");
-    assert_eq!(counts(&swords, "0"), (0, 6, 0, 3), "{}", swords["terms"][0]);
+    assert_eq!(counts(&swords, "0"), (1, 6, 0, 3), "{}", swords["terms"][0]);
+    assert_eq!(ids(&swords), ["blade"]);
     assert_eq!(
         ids(&asked(&s, "pc", "undecided(class:sword)")),
-        ["beast", "blade", "wolf"]
+        ["beast", "wolf", "zblade"]
     );
+    assert_eq!(counts(&asked(&s, "pc", "class:gem"), "0"), (0, 7, 0, 3));
     assert_eq!(
         ids(&asked(&s, "pc", "undecided(class:ring)")),
         ["beast", "wolf"]
     );
-    // the class itself is still not established: `undecided(class)` lists
-    // it, `has:class` is open, and a count by class keeps it undecided
+    // what is not established: the beasts and the frameless blade
     assert_eq!(
         ids(&asked(&s, "pc", "undecided(class)")),
-        ["beast", "blade", "wolf"]
+        ["beast", "wolf", "zblade"]
     );
     assert_eq!(
         asked(&s, "pc", "has:class")["terms"][0]["undecided"]["count"],
@@ -193,12 +205,88 @@ fn f2_a_class_term_false_under_every_candidate_class_is_false() {
     assert_eq!(undecided["bucket"], "undecided");
     assert_eq!(undecided["count"], 3);
     // every route returns exactly what it counted (invariant 4): the
-    // failed route admits the blade, whose class no `has:` establishes
+    // failed route admits the frameless blade, whose class no `has:`
+    // establishes
     let a = asked(&s, "pc", "class:ring");
-    assert_eq!(members(&s, &a["terms"][0]["failed"]).len(), 6);
-    assert!(members(&s, &a["terms"][0]["failed"]).contains("blade"));
+    assert_eq!(members(&s, &a["terms"][0]["failed"]).len(), 7);
+    assert!(members(&s, &a["terms"][0]["failed"]).contains("zblade"));
     assert_eq!(members(&s, &a["terms"][0]["undecided"]).len(), 2);
     assert_eq!(a["terms"][0]["lacked"]["count"], 0);
+}
+
+/// Owner, 2026-09-26, revising G2: "The frame picks among candidates,
+/// then any remaining match is true." One name for two things — a gem
+/// frame keeps the gem classes, any other frame the rest; one thing
+/// listed twice — a breachstone is Breachstones and Misc Map Items, and
+/// a count by class lists it under each, every bucket's route returning
+/// what it counted.
+#[test]
+fn g2_the_frame_picks_among_candidates_and_the_item_is_each_that_remains() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("g1", "Gear")]), 10);
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "g1",
+        "Gear",
+        vec![
+            plain("gem", "Energy Blade", "Gem", json!({})),
+            item("sword", "Storm Edge", "Energy Blade", "Rare", json!({})),
+            plain("stone", "Chayula's Breachstone", "Normal", json!({})),
+            plain("echo", "Echo of Loneliness", "Quest", json!({})),
+            plain("frag", "Echo of Loneliness", "Normal", json!({})),
+        ],
+        20,
+    );
+    assert_eq!(ids(&asked(&s, "pc", "class:gem")), ["gem"]);
+    assert_eq!(ids(&asked(&s, "pc", "class:sword")), ["sword"]);
+    assert_eq!(
+        ids(&asked(&s, "pc", "class=\"One Hand Swords\"")),
+        ["sword"]
+    );
+    assert_eq!(
+        ids(&asked(&s, "pc", "class=\"Two Hand Swords\"")),
+        ["sword"]
+    );
+    assert_eq!(ids(&asked(&s, "pc", "class=Breachstones")), ["stone"]);
+    assert_eq!(ids(&asked(&s, "pc", "class=\"Misc Map Items\"")), ["stone"]);
+    assert_eq!(ids(&asked(&s, "pc", "class=\"Quest Items\"")), ["echo"]);
+    assert_eq!(ids(&asked(&s, "pc", "class=\"Map Fragments\"")), ["frag"]);
+    assert_eq!(asked(&s, "pc", "undecided(class)")["total"]["matched"], 0);
+    // a `:` says what it resolved to, both classes of an item among them
+    let a = asked(&s, "pc", "class:map");
+    let picked: Vec<&str> = a["terms"][0]["resolved"]["values"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v["value"].as_str().unwrap())
+        .collect();
+    assert_eq!(picked, ["Map Fragments", "Misc Map Items"]);
+    // counted under each: five items, seven entries, every route exact
+    let table = &view(&s, "pc", "", json!({ "counts": { "keys": ["class"] } }))["view"]["counts"]["tables"]
+        [0];
+    let mut sum = 0;
+    for b in table["buckets"].as_array().unwrap() {
+        sum += b["count"].as_u64().unwrap();
+        members(&s, b);
+    }
+    assert_eq!(sum, 7);
+    let cross = &view(
+        &s,
+        "pc",
+        "",
+        json!({ "cross": { "keys": ["class", "rarity"] } }),
+    )["view"]["cross"];
+    assert_eq!(cross["cells_in_all"], 7);
+    for cell in cross["cells"].as_array().unwrap() {
+        members(&s, cell);
+    }
+    let shown = serde_json::to_value(common::show(&s, "stone", false).unwrap()).unwrap();
+    assert_eq!(
+        shown["class"],
+        json!({ "all": ["Breachstones", "Misc Map Items"] })
+    );
 }
 
 /// V8 (owner: "i like your proposal better. let's go with it as you've
@@ -236,14 +324,11 @@ fn v8_the_undecided_block_is_one_line_per_distinct_reason_with_an_example() {
         reasons[0]["hint"],
         "a refresh will not help; a reference update may"
     );
-    assert_eq!(
-        reasons[1]["unread"],
-        "the class: base under several classes"
-    );
-    assert_eq!(reasons[1]["example"]["id"], "blade");
+    assert_eq!(reasons[1]["unread"], "`frameTypeId`");
+    assert_eq!(reasons[1]["example"]["id"], "zblade");
     assert_eq!(
         reasons[1]["problem"],
-        "`Energy Blade` is in the class table under One Hand Swords and Skill Gems and Two Hand Swords (classes v1): the table never chooses"
+        "`frameTypeId` is a number, not a string"
     );
     assert!(reasons[0].get("path").is_none() && reasons[0].get("term").is_none());
     assert!(a["total"].get("reasons_left_out").is_none());
@@ -257,7 +342,7 @@ fn v8_the_undecided_block_is_one_line_per_distinct_reason_with_an_example() {
     let route: Request =
         serde_json::from_value(a["total"]["undecided"]["request"].clone()).unwrap();
     let routed = as_json(&answer(&load(&s, Some("pc")), &route).unwrap());
-    assert_eq!(ids(&routed), ["beast", "blade", "wolf"]);
+    assert_eq!(ids(&routed), ["beast", "wolf", "zblade"]);
     // bounded: eleven flags unread are eleven reasons, ten listed and one
     // counted, in the item's order
     let flags = [
