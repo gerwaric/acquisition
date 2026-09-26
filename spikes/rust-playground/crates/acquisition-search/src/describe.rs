@@ -275,7 +275,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     ];
     let composition = vec![
         Named {
-            examples: vec!["rarity=rare base:ring", "rarity=rare and base:ring"],
+            examples: vec!["rarity=rare class:ring", "rarity=rare and class:ring"],
             ..named(
                 "and",
                 "composition",
@@ -283,7 +283,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             )
         },
         Named {
-            examples: vec!["base:ring or base:amulet"],
+            examples: vec!["class:ring or class:amulet"],
             ..named("or", "composition", "either")
         },
         Named {
@@ -295,7 +295,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             )
         },
         Named {
-            examples: vec!["(base:ring or base:amulet) rarity=rare"],
+            examples: vec!["(class:ring or class:amulet) rarity=rare"],
             ..named("( )", "composition", "grouping, and nothing else")
         },
         Named {

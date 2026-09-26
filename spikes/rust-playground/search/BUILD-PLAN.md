@@ -152,16 +152,16 @@ What the seat can ask:
 
 ```
 acq search --realm pc '"# to maximum Life">=90' --sort 'line("# to maximum Life").arg1' --desc --limit 10
-acq search --realm pc 'rarity=rare base:ring line(template:resistance is:fractured)'
+acq search --realm pc 'rarity=rare class:ring line(template:resistance is:fractured)'
 acq search --realm pc 'name="Ashes of the Stars"'
-acq search --realm pc 'rarity=rare base:ring "+#% to Cold Resistance" -"+#% to Chaos Resistance"'
+acq search --realm pc 'rarity=rare class:ring "+#% to Cold Resistance" -"+#% to Chaos Resistance"'
 acq search --realm pc 'line(template:explode) -is:corrupted tab:dump'
 acq search --realm pc 'line("Adds # to # Cold Damage" low>=15 high<=45)'
-acq search --realm pc '(rarity=rare base:ring) sum("# to maximum Life")>=90'
+acq search --realm pc '(rarity=rare class:ring) sum("# to maximum Life")>=90'
 acq search --realm pc 'undecided("# to maximum Life">=90)'
 acq search --realm all 'id:<a handle an answer printed>'
 acq show <an id an answer printed>
-acq search --realm pc 'rarity=rare base:ring' --count line:resist,life
+acq search --realm pc 'rarity=rare class:ring' --count line:resist,life
 acq search --realm pc --count tab,league,rarity
 acq search --realm pc 'rarity=unique' --cross league,tab
 acq search --realm pc 'frame=currency' --count base --sum stack
