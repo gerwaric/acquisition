@@ -297,6 +297,10 @@ VALUES
                                  resonator's (DV) counts in sockets, under no colour, and is asked for
                                  by its line or its base (K1)
   has:priced   price.amount  price.currency  price.lot
+                                 the effective price (C81), joined read-only: has:priced holds where it
+                                 carries a price — a listing resolved to skip or no price lacks it (P1,
+                                 ruled 2026-09-25); price.lot is a ratio's lot, which a decimal price
+                                 lacks — 5 and 5/1 stay two spellings, as the game keeps them (P2, the same)
   --sort takes a number: ilvl, stack, line(P).<slot>, sum( … ); a ranged value needs a slot. An
   item with no satisfying occurrence sorts last either way, and so does one whose largest is not
   established — a source P admits is unread, or an occurrence P may select holds a larger number:

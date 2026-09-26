@@ -167,6 +167,7 @@ commit's message. One line each.
 | 7 | T5 `line` alone lists no computed values, a narrowing lists those it matches, `--describe` names them; an ask over budget fires the projection park only by its load, an evaluator cost the totals batch park; the batch parked with its trigger, a 7b of 4b's shape, generators first | `pseudo.rs`, `counts.rs`; the reference, `--count line`; the two parks in `decisions/search.md` | `66a20acf`; built at `57ec6a9e` |
 | 6 | G6 the grouping above class stays parked; OQ5 pinned from the owner's words with the wearable classes spelled out, the park's trigger now the seat | the park in `decisions/search.md`; `tests/acceptance.rs` | `0d3c65af` |
 | 8 | K1 the colour words are the reference's four; an abyssal (`A`) or resonator (`DV`) socket counts in `sockets` and is asked for by its line or base | `sockets.rs`; the reference, *Values* | `dca017f5`; as built at `ec024ceb` |
+| 9 | P1 a listing resolved to `skip` or `no_price` lacks `has:priced`, known absence beside no row at all — a `price.kind` field waits for a seat that asks for skips (C101); P2 a decimal price lacks `price.lot`, a ratio has one | the reference, *Values*; `price.rs` | the ruling commit |
 | plan | gap 1 a line break inside a template; gap 4 a node forced true or false, `true()` and `false()`; gap 5 `name`, `typeline` and `base` each what GGG gives; gap 6 the totals example cites the C++ app's table, and whether a fractional total is ever rounded is step 7's to show | the reference, *Strings*, *Composition*, *Item-level*; the contract detail, C94 | `acfc37cd`, `152bfde3`, `fe9ca5f4`; 6 at `aeeba6d3` |
 | plan | gap 3 membership is a scope value — `live` by default, `all` on request with every removed row marked, `removed` alone waits for a question, the prune verb advances the revision; `all` moved to step 10 | the reference, *Membership*; C108; the plan, step 10 | `3b7cf192`, `d829c25a`, `ea68d7c2` |
 
@@ -308,11 +309,13 @@ timings, coverage no fixture reaches, and questions for the seat.
 - M3's two asks over budget (AQ2 as worded 529 ms, the worked example
   whole 528) are the totals' unchanged 84 ms on a floor the price join
   raised by 170: neither a load over budget (the empty query is 445)
-  nor an evaluator cost that grew, so neither park's trigger reads on
-  it as ruled (2026-09-24). Two candidates, each unmeasured: join the
-  price only when the request names it, the basis still naming the
-  intent revision (one aggregate query); or a store read of the items'
-  notes that does not `json_extract` every stored body. The owner's.
+  nor an evaluator cost that grew; by the letter of the totals batch
+  park's trigger, "a totals ask over budget", it fired. Three candidates,
+  each unmeasured: join the price only when the request names it; the
+  note as an ingest column, which would take the snapshot's read from
+  about 80 ms to about 14; the persisted projection. The owner's
+  disposition (2026-09-25): a good signal, addressed after the seat and
+  the last steps, not before, even at the cost of slower testing.
 - The generators reached the pricing area before any seat did: a body
   whose note is no string failed the pricing snapshot whole, and would
   have failed `acq price status` the same way; fixed at the store and
