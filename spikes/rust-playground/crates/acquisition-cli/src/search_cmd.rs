@@ -1071,7 +1071,9 @@ fn shown_text(s: &Shown) -> String {
     use acquisition_search::Classed;
     match &s.class {
         Classed::Is(class) => out.push_str(&format!("class   {class}\n")),
-        Classed::Open(why) => out.push_str(&format!("class   undecided: {}\n", why.problem)),
+        Classed::Among { why, .. } | Classed::Open(why) => {
+            out.push_str(&format!("class   undecided: {}\n", why.problem));
+        }
         Classed::BaseUnread => out.push_str("class   undecided: the base was not read\n"),
     }
     // what the listing state prices it at (C81): the price, or why none

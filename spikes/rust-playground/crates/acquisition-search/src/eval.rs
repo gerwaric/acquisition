@@ -55,7 +55,11 @@
 //! - **The class is the table's** (`class.rs`): what it gave is the item's
 //!   one value of `class`, and what stopped it is one reason beside the
 //!   deriver's unread parts — shown, tallied and hinted as they are, its
-//!   hint the table's. `reqlevel` is the deriver's number.
+//!   hint the table's. A base the table lists under several classes keeps
+//!   them, and `class:X` on it is undecided only where a candidate
+//!   satisfies `X`, failed otherwise (F2, the first seat): the class is
+//!   not established, but the term's truth is. `reqlevel` is the
+//!   deriver's number.
 //! - **Outcomes are computed for every term on every item, and nothing
 //!   else is**: what a row shows ([`evidence`]) and why an item is
 //!   undecided ([`reasons`]) are worked out only for the items an answer
@@ -103,6 +107,7 @@ use std::borrow::Cow;
 use serde::Serialize;
 
 use crate::bind::{Atom, BProbe, Bound, NumTest, SortKey, Term, Thing};
+use crate::class::Classed;
 use crate::corpus::Held;
 use crate::derive::{Line, Part, Shown, Slot, Unread};
 use crate::exact::{self, Exact};
@@ -601,6 +606,20 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
             )
         }
         Atom::Closed { thing, values } => {
+            // a base under several classes keeps its candidates (`class.rs`,
+            // F2): the term is open only where one of them satisfies it
+            if *thing == Thing::Class
+                && let Classed::Among { candidates, .. } = &held.class
+            {
+                let possible = candidates
+                    .iter()
+                    .any(|c| values.iter().any(|legal| legal.eq_ignore_ascii_case(c)));
+                return if possible {
+                    Outcome::Undecided
+                } else {
+                    Outcome::Failed
+                };
+            }
             let has = texts(held, *thing);
             decided(
                 has.iter()

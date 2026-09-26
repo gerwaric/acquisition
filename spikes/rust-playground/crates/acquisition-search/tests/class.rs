@@ -16,7 +16,8 @@ use serde_json::{Value, json};
 /// `Gear` (g1): `ring` an Iron Ring; `nova`, a transfigured gem whose
 /// base is its own name (`Ice Nova of Frostbolts`); `blade`, an Energy
 /// Blade, which the table lists under three classes; `invite`, a Polaric
-/// Invitation, under two; `beast`, an itemised beast no table lists;
+/// Invitation, under two, which its frame decides since the first seat
+/// (V2; `tests/seat_faults.rs`); `beast`, an itemised beast no table lists;
 /// `blank`, an item with no base at all; `odd`, whose `baseType` is a
 /// number, so unread; `late`, a helmet whose `Level` requirement reads
 /// `soon`. `Vault` (v1) in poe2: `p2ring`, an Iron Ring the table has no
@@ -136,16 +137,17 @@ fn c93_what_the_table_cannot_class_is_undecided_with_its_reason() {
     let s = stash();
     let a = asked(&s, "pc", "class:ring");
     assert_eq!(ids(&a), ["ring"]);
-    // ring matched; nova, late failed (a class, not this one); blade,
-    // invite, beast, blank, odd undecided; nothing lacked, ever
-    assert_eq!(counts(&a, "0"), (1, 2, 0, 5));
+    // ring matched; nova, late, invite failed (a class, not this one), and
+    // blade too — none of its three candidates is Rings (F2, the first
+    // seat); beast, blank, odd undecided; nothing lacked, ever
+    assert_eq!(counts(&a, "0"), (1, 4, 0, 3));
     assert_eq!(
         a["rows"][0]["matched"][0]["shows"][0],
         json!({ "value": { "name": "class", "value": "Rings" } })
     );
 
     let open = asked(&s, "pc", "undecided(class)");
-    assert_eq!(ids(&open), ["beast", "blade", "blank", "invite", "odd"]);
+    assert_eq!(ids(&open), ["beast", "blade", "blank", "odd"]);
     let why = |id: &str| -> Value {
         open["rows"]
             .as_array()
@@ -175,10 +177,6 @@ fn c93_what_the_table_cannot_class_is_undecided_with_its_reason() {
         why("blade")["undecided"]["problem"],
         "`Energy Blade` is in the class table under One Hand Swords and Skill Gems and Two Hand Swords (classes v1): the table never chooses"
     );
-    assert_eq!(
-        why("invite")["undecided"]["unread"],
-        "the class: base under several classes"
-    );
     assert_eq!(why("blank")["undecided"]["unread"], "the class: no base");
     // the base unread is the deriver's reason, said once
     assert_eq!(why("odd")["undecided"]["unread"], "`baseType`");
@@ -200,12 +198,12 @@ fn c93_what_the_table_cannot_class_is_undecided_with_its_reason() {
 
     // known absence never occurs: every item has a class
     assert_eq!(asked(&s, "all", "-has:class")["total"]["matched"], 0);
-    assert_eq!(asked(&s, "all", "has:class")["total"]["matched"], 3);
+    assert_eq!(asked(&s, "all", "has:class")["total"]["matched"], 4);
     // composition carries it (C93): true and undecided is undecided —
-    // invite and blank, the two normal-frame items the table cannot
-    // class — and false and undecided is false, so the rare ones are not
+    // blank, the one normal-frame item the table cannot class — and false
+    // and undecided is false, so the rare ones are not
     let a = asked(&s, "pc", "class:ring frame=normal");
-    assert_eq!(a["total"]["undecided"]["count"], 2);
+    assert_eq!(a["total"]["undecided"]["count"], 1);
     assert_eq!(a["total"]["matched"], 0);
 }
 
@@ -231,7 +229,7 @@ fn a_class_is_picked_among_the_games_names_and_never_guessed() {
     // a word two names hold picks both; a misspelling offers the near one
     let staves = asked(&s, "pc", "class:stave");
     assert_eq!(staves["total"]["matched"], 0);
-    assert_eq!(counts(&staves, "0"), (0, 3, 0, 5));
+    assert_eq!(counts(&staves, "0"), (0, 5, 0, 3));
     let e = ask(&corpus, "class:stavs").unwrap_err().to_json();
     assert_eq!(e["kind"], "unknown_value");
     assert_eq!(e["readings"], json!(["class=Staves"]));
@@ -278,9 +276,10 @@ fn c105_a_count_by_class_tallies_every_reason_and_sums_to_the_total() {
         buckets,
         [
             ("Helmets".to_string(), 1),
+            ("Misc Map Items".to_string(), 1),
             ("Rings".to_string(), 1),
             ("Skill Gems".to_string(), 1),
-            ("undecided".to_string(), 6),
+            ("undecided".to_string(), 5),
         ]
     );
     let undecided = table["buckets"].as_array().unwrap().last().unwrap();
@@ -290,17 +289,17 @@ fn c105_a_count_by_class_tallies_every_reason_and_sums_to_the_total() {
         json!([
             { "unread": "`baseType`", "items": 1 },
             { "unread": "the class: base not in the table", "items": 1 },
-            { "unread": "the class: base under several classes", "items": 2 },
+            { "unread": "the class: base under several classes", "items": 1 },
             { "unread": "the class: no base", "items": 1 },
             { "unread": "the class: no table for the realm", "items": 1 },
         ])
     );
     assert_eq!(a["total"]["matched"], 9);
-    // the route returns the six, over every realm
+    // the route returns the five, over every realm
     assert_eq!(undecided["denominator"], "scope");
     let route: Request = serde_json::from_value(undecided["request"].clone()).unwrap();
     let followed = as_json(&answer(&load(&s, Some("all")), &route).unwrap());
-    assert_eq!(followed["total"]["matched"], 6);
+    assert_eq!(followed["total"]["matched"], 5);
     // crossed with the realm's league: a margin per key
     let crossed: Request = serde_json::from_value(json!({
         "scope": { "realm": "all" },
@@ -311,7 +310,7 @@ fn c105_a_count_by_class_tallies_every_reason_and_sums_to_the_total() {
     let c = as_json(&answer(&load(&s, Some("all")), &crossed).unwrap());
     let margins = &c["view"]["cross"]["margins"];
     assert_eq!(margins[0]["key"], "class");
-    assert_eq!(margins[0]["undecided"]["count"], 6);
+    assert_eq!(margins[0]["undecided"]["count"], 5);
     assert_eq!(margins[0]["none"]["count"], 0);
 }
 
@@ -326,6 +325,13 @@ fn c106_show_says_the_class_or_why_there_is_none_and_the_basis_cites_the_table()
     let beast = shown("beast");
     assert_eq!(beast["class"]["open"]["part"], "class");
     assert_eq!(beast["class"]["open"]["of"], "not_in_table");
+    let blade = shown("blade");
+    assert_eq!(
+        blade["class"]["among"]["candidates"],
+        json!(["One Hand Swords", "Skill Gems", "Two Hand Swords"])
+    );
+    assert_eq!(blade["class"]["among"]["why"]["of"], "several");
+    assert_eq!(shown("invite")["class"], json!({ "is": "Misc Map Items" }));
     assert_eq!(shown("odd")["class"], json!("base_unread"));
     assert_eq!(shown("p2ring")["class"]["open"]["of"], "no_table_for_realm");
     assert_eq!(shown("ring")["basis"]["classes"], CLASS_TABLE_VERSION);

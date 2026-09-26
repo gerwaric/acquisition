@@ -575,14 +575,8 @@ unresolved, each with the one read that closes it).
   is unregistered). "A roll outside the base's current range" is data;
   calling it legacy is history the export does not carry — legacy is
   never a field (C107); a unique's variant, a label its source prints,
-  is the parked candidate (`decisions/search.md`, "Parked").
-  **Three class readings ruled at the first seat (V1, V2, 2026-09-26;
-  built at 9b):** a blighted or blight-ravaged map's class is read from
-  the base past the prefix the API adds (`Blighted Map (Tier 13)` reads
-  as `Map (Tier 13)`, Maps); an invitation's class is its frame's — the
-  quest frame Quest Items, any other Misc Map Items; a captured beast's
-  class follows the trade site's categories, the grouping above class's
-  first case (9d).
+  is the parked candidate (`decisions/search.md`, "Parked"). The three
+  class readings the first seat ruled (V1, V2) are `class.rs`'s doc.
 - **C93 — the undecided block's shape (V8, 2026-09-26; built at 9b).**
   An answer shows its undecided items as one line per distinct reason,
   each with one example item, then the one route to them all; after the

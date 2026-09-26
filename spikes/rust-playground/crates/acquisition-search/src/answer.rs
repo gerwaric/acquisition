@@ -19,7 +19,8 @@
 //!   the scope, not appended to the query that counted them.
 //! - **The routes of a term**: matched is the term; undecided is
 //!   `undecided(term)`; lacked is `-has:<field>`, or `-line(<selector>)`;
-//!   failed is `has:<field> -term`, or `line(<selector>) -term` — with
+//!   failed is `has:<field> -term` — `-term` alone for `class`, which
+//!   never lacks (`class.rs`) — or `line(<selector>) -term` — with
 //!   `or undecided(line(<selector>))` where the selector asks a flag, which
 //!   an occurrence with unread flags leaves open; a `linked( … )` lacks
 //!   with `-has:links`, an item with no link group, and fails with
@@ -949,6 +950,16 @@ fn routes(term: &Term) -> Routes {
             (Some(failed), Some(not(selected)), together)
         }
         (Atom::Has(_) | Atom::HasComputed(_), _) => (None, Some(not(node.clone())), None),
+        // a class never lacks (`class.rs`), and `has:class` is open on an
+        // item whose base is under several classes while `class:X` on it
+        // may be false (F2): the failed route is the not alone
+        (
+            Atom::Closed {
+                thing: Thing::Class,
+                ..
+            },
+            _,
+        ) => (Some(not(node.clone())), None, None),
         // a link group's member is one of the item's link groups: an item
         // with none lacks it
         (Atom::Links(_), _) => {

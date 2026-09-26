@@ -36,19 +36,41 @@
 //!   `baseType` as displayed (`derive::shown`) against the table's names
 //!   as the export spells them. A transfigured gem's base is its own
 //!   name, which the table holds from `gems.json`.
+//! - **Three readings the first seat ruled (V1, V2, 2026-09-26; C106's
+//!   contract detail, taken here at step 9b).** A blighted or
+//!   blight-ravaged map's class is read from its base past the prefix the
+//!   API adds ([`MAP_PREFIXES`]): `Blighted Map (Tier 13)` reads as `Map
+//!   (Tier 13)`, Maps — the prefix is read past, never matched inside, and
+//!   only where the base itself is not in the table. An invitation's
+//!   class is its frame's: a base the table lists under exactly Misc Map
+//!   Items and Quest Items ([`INVITATION_CLASSES`]) is Quest Items under
+//!   the quest frame and Misc Map Items under any other — a quest
+//!   invitation exists only in a character's inventory, and none was on
+//!   the owner's store to confirm it against (the record, "Holes ruled").
+//!   A captured beast's class follows the trade site's categories, the
+//!   grouping above class's first case, and waits for it (the plan, 9d):
+//!   until then its base is not in the table.
 //! - **What the table cannot class is undecided with its reason** (C93,
 //!   C105), one [`ClassGap`] each, said once, where the table is read
-//!   (rule 8 of the plan): the base is not in the table (a blighted map,
-//!   an itemised beast); it is in the table under more than one class
-//!   (`Energy Blade`, a Maven's invitation — the table lists each and
-//!   never chooses); the item's realm has no table (`poe2`); the item has
-//!   no base. Each is `undecided(class)`: its reason on the row, its kind
-//!   tallied beneath a count's `undecided` bucket, and its hint that a
-//!   refresh will not help and a reference update may. A base the deriver
-//!   could not read leaves the class open too, and that is the deriver's
-//!   unread and not a second one here ([`Classed::BaseUnread`]). Known
-//!   absence never occurs — every item has a class — so `-has:class`
-//!   selects nothing and a count by class has no `none` bucket.
+//!   (rule 8 of the plan): the base is not in the table (an itemised
+//!   beast); it is in the table under more than one class (`Energy
+//!   Blade`: the table lists each and never chooses); the item's realm
+//!   has no table (`poe2`); the item has no base. Each is
+//!   `undecided(class)`: its reason on the row, its kind tallied beneath a
+//!   count's `undecided` bucket, and its hint that a refresh will not help
+//!   and a reference update may. A base the deriver could not read leaves
+//!   the class open too, and that is the deriver's unread and not a second
+//!   one here ([`Classed::BaseUnread`]). Known absence never occurs — every
+//!   item has a class — so `-has:class` selects nothing, a count by class
+//!   has no `none` bucket, and a class term's failed route is its not.
+//! - **A base under several classes keeps its candidates**
+//!   ([`Classed::Among`]; F2, the first seat): the table never chooses,
+//!   and `class:X` on such an item is undecided only where a candidate
+//!   satisfies `X` — a term false under every candidate needs no choice
+//!   and is false (C93: undecided is where the truth cannot be
+//!   established). The class itself stays not established: `has:class`
+//!   is open, `undecided(class)` lists the item, a count by class keeps
+//!   it undecided (`eval.rs`).
 //! - **The version is on the basis** (C98; C106's clause (c)): `classes`
 //!   beside the derivation, so two builds shipping different tables never
 //!   label one answer alike.
@@ -71,6 +93,14 @@ pub const CLASS_TABLE_VERSION: u32 = 1;
 /// The hint on every class reason: the table, not the store, is what
 /// could change (C93: a hint, never a guarantee).
 pub const CLASS_HINT: &str = "a refresh will not help; a reference update may";
+
+/// The prefixes the API adds to a map's base (V1): read past, the base is
+/// the table's — `Blighted Map (Tier 13)` is `Map (Tier 13)`, Maps.
+pub const MAP_PREFIXES: [&str; 2] = ["Blighted ", "Blight-ravaged "];
+
+/// The two classes the table lists an invitation's base under (V2): its
+/// frame decides — the quest frame the second, any other the first.
+pub const INVITATION_CLASSES: [&str; 2] = ["Misc Map Items", "Quest Items"];
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -333,22 +363,53 @@ impl ClassTable {
             };
         };
         match self.of(base).as_slice() {
-            [] => open(
-                ClassGap::NotInTable,
-                format!(
-                    "`{base}` is not in the class table (classes v{})",
-                    self.version
-                ),
-            ),
+            [] => {
+                // V1: a map's base past the prefix the API adds
+                let past = MAP_PREFIXES
+                    .iter()
+                    .find_map(|prefix| base.strip_prefix(prefix))
+                    .map(|rest| self.of(rest));
+                match past.as_deref() {
+                    Some([one]) => Classed::Is((*one).to_string()),
+                    _ => open(
+                        ClassGap::NotInTable,
+                        format!(
+                            "`{base}` is not in the class table (classes v{})",
+                            self.version
+                        ),
+                    ),
+                }
+            }
             [one] => Classed::Is((*one).to_string()),
-            several => open(
-                ClassGap::Several,
-                format!(
-                    "`{base}` is in the class table under {} (classes v{}): the table never chooses",
-                    several.join(" and "),
-                    self.version
-                ),
-            ),
+            several => {
+                // V2: an invitation's class is its frame's
+                let invitation = several.len() == INVITATION_CLASSES.len()
+                    && INVITATION_CLASSES.iter().all(|c| several.contains(c));
+                let by_frame = item.frame.as_deref().map(|frame| {
+                    if frame.eq_ignore_ascii_case("quest") {
+                        INVITATION_CLASSES[1]
+                    } else {
+                        INVITATION_CLASSES[0]
+                    }
+                });
+                match (invitation, by_frame) {
+                    (true, Some(class)) => Classed::Is(class.to_string()),
+                    _ => Classed::Among {
+                        candidates: several.iter().map(|c| (*c).to_string()).collect(),
+                        why: Unread {
+                            part: Part::Class(ClassGap::Several),
+                            problem: format!(
+                                "`{base}` is in the class table under {} (classes v{}): the table never chooses",
+                                several.join(" and "),
+                                self.version
+                            ),
+                            line: None,
+                            name: None,
+                            socket: None,
+                        },
+                    },
+                }
+            }
         }
     }
 }
@@ -359,6 +420,13 @@ impl ClassTable {
 pub enum Classed {
     /// The class of the item's base, as the game names it.
     Is(String),
+    /// The base is listed under several classes, kept, and the table never
+    /// chooses: why, as the one unread that `undecided(class)` shows (the
+    /// module doc, F2).
+    Among {
+        candidates: Vec<String>,
+        why: Unread,
+    },
     /// The base was read and the table could not class it: why, as the
     /// one unread that `undecided(class)` shows.
     Open(Unread),
@@ -371,15 +439,24 @@ impl Classed {
     pub fn name(&self) -> Option<&str> {
         match self {
             Classed::Is(name) => Some(name),
-            Classed::Open(_) | Classed::BaseUnread => None,
+            Classed::Among { .. } | Classed::Open(_) | Classed::BaseUnread => None,
         }
     }
 
     /// The reason the table gives, where it gave one.
     pub fn open(&self) -> Option<&Unread> {
         match self {
+            Classed::Among { why, .. } => Some(why),
             Classed::Open(unread) => Some(unread),
             Classed::Is(_) | Classed::BaseUnread => None,
+        }
+    }
+
+    /// The classes the base may be of, where the table lists several.
+    pub fn candidates(&self) -> &[String] {
+        match self {
+            Classed::Among { candidates, .. } => candidates,
+            Classed::Is(_) | Classed::Open(_) | Classed::BaseUnread => &[],
         }
     }
 }
