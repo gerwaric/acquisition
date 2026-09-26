@@ -589,17 +589,13 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
             "{}{head}",
             if i == 0 { "rows    " } else { "        " }
         ));
-        // what an earlier part of the row showed is not printed again by a
-        // later one; within one part every occurrence prints, two identical
-        // lines being two (the review of 9b, 2026-09-26: a total of 40
-        // showed contributors of 10 and 20 alone)
-        let mut shows: Vec<String> = Vec::new();
-        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-        let mut part = |shows: &mut Vec<String>, part: Vec<String>| {
-            let fresh: Vec<String> = part.into_iter().filter(|s| !seen.contains(s)).collect();
-            seen.extend(fresh.iter().cloned());
-            shows.extend(fresh);
-        };
+        // each part of the row — the sort, each term — shows a set of the
+        // item's occurrences, so a line printed twice by one part is two
+        // occurrences: the row prints each line as many times as the part
+        // that shows it most, in the order the parts show it, whichever
+        // order the terms were written in (the review of 9b, 2026-09-26,
+        // twice: a total of 40 showed contributors of 10 and 20 alone)
+        let mut parts: Vec<Vec<String>> = Vec::new();
         if let Some(sorted) = &row.sort {
             // what sorted the row (F6): a field's name before its number,
             // a line or a sum's contributors after
@@ -625,13 +621,31 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                     a.show_command(&row.id)
                 ));
             }
-            part(&mut shows, by_sort);
+            parts.push(by_sort);
         }
         for touched in &row.matched {
-            part(
-                &mut shows,
-                touched.shows.iter().map(evidence_text).collect(),
-            );
+            parts.push(touched.shows.iter().map(evidence_text).collect());
+        }
+        let mut need: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        for part in &parts {
+            let mut in_part: std::collections::HashMap<&str, usize> =
+                std::collections::HashMap::new();
+            for s in part {
+                *in_part.entry(s.as_str()).or_default() += 1;
+            }
+            for (s, n) in in_part {
+                let most = need.entry(s).or_default();
+                *most = (*most).max(n);
+            }
+        }
+        let mut printed: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        let mut shows: Vec<String> = Vec::new();
+        for s in parts.iter().flatten() {
+            let done = printed.entry(s.as_str()).or_default();
+            if *done < need[s.as_str()] {
+                *done += 1;
+                shows.push(s.clone());
+            }
         }
         if !shows.is_empty() {
             line(format!("            {}", shows.join(" · ")));
@@ -1109,7 +1123,7 @@ fn shown_text(s: &Shown) -> String {
             out.push_str(&format!("class   undecided: {}\n", why.problem));
         }
         Classed::BaseUnread => out.push_str("class   undecided: the base was not read\n"),
-        Classed::FrameUnread => out.push_str(
+        Classed::FrameUnread { .. } => out.push_str(
             "class   undecided: the frame, which decides an invitation's class, was not read\n",
         ),
     }

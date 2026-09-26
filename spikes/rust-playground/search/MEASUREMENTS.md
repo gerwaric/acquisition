@@ -333,9 +333,10 @@ seat's binary was `--workspace --release`, `9ecf385d…` — the same source
 under another feature unification, which cargo uplifts by turns: a
 no-op build swapped the hash. Every one of the six is within the noise
 of the asks beside it (the empty query 427, the six 446–459), and the
-two totals asks are over 500 as they were at step 9 (530, 528). So the
-asks' own cost is not the spike; what cost those six 250 ms more on the
-owner's machine — the owner's store rather than the copy, a cold cache,
-another process — did not recur here and is unmeasured (a review of 9b
-corrected the first wording, which named the machine); the disposition
+two totals asks are over 500 as they were at step 9 (530, 528). On the
+copy the six cost what their neighbours cost; what cost them 250 ms
+more on the owner's machine — the owner's store rather than the copy,
+a cold cache, another process, or the asks there — did not recur here
+and is unmeasured (a review of 9b corrected the first wording, which
+named the machine); the disposition
 is V9's: the totals batch stays parked, revisited at step 11.

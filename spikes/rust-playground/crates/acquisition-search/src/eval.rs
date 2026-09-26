@@ -286,7 +286,8 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
                 Part::Body => true,
                 Part::Field(key) => {
                     key == "baseType"
-                        || (key == "frameTypeId" && matches!(held.class, Classed::FrameUnread))
+                        || (key == "frameTypeId"
+                            && matches!(held.class, Classed::FrameUnread { .. }))
                 }
                 _ => false,
             })
@@ -625,9 +626,11 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
         }
         Atom::Closed { thing, values } => {
             // a base under several classes keeps its candidates (`class.rs`,
-            // F2): the term is open only where one of them satisfies it
+            // F2), whether the table or an unread frame left it there: the
+            // term is open only where one of them satisfies it
             if *thing == Thing::Class
-                && let Classed::Among { candidates, .. } = &held.class
+                && let Classed::Among { candidates, .. } | Classed::FrameUnread { candidates } =
+                    &held.class
             {
                 let possible = candidates
                     .iter()

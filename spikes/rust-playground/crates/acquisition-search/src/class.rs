@@ -402,7 +402,9 @@ impl ClassTable {
                     (true, Some(class)) => Classed::Is(class.to_string()),
                     // the frame decides and could not be read: the deriver's
                     // unread on it is the reason, said once (the review of 9b)
-                    (true, None) if frame_unread => Classed::FrameUnread,
+                    (true, None) if frame_unread => Classed::FrameUnread {
+                        candidates: several.iter().map(|c| (*c).to_string()).collect(),
+                    },
                     _ => Classed::Among {
                         candidates: several.iter().map(|c| (*c).to_string()).collect(),
                         why: Unread {
@@ -444,7 +446,8 @@ pub enum Classed {
     BaseUnread,
     /// An invitation's base, whose frame decides (V2), and the frame
     /// could not be read: the deriver's unread on `frameTypeId` says so.
-    FrameUnread,
+    /// The candidates are kept, as [`Classed::Among`] keeps them (F2).
+    FrameUnread { candidates: Vec<String> },
 }
 
 impl Classed {
@@ -454,7 +457,7 @@ impl Classed {
             Classed::Among { .. }
             | Classed::Open(_)
             | Classed::BaseUnread
-            | Classed::FrameUnread => None,
+            | Classed::FrameUnread { .. } => None,
         }
     }
 
@@ -463,15 +466,15 @@ impl Classed {
         match self {
             Classed::Among { why, .. } => Some(why),
             Classed::Open(unread) => Some(unread),
-            Classed::Is(_) | Classed::BaseUnread | Classed::FrameUnread => None,
+            Classed::Is(_) | Classed::BaseUnread | Classed::FrameUnread { .. } => None,
         }
     }
 
     /// The classes the base may be of, where the table lists several.
     pub fn candidates(&self) -> &[String] {
         match self {
-            Classed::Among { candidates, .. } => candidates,
-            Classed::Is(_) | Classed::Open(_) | Classed::BaseUnread | Classed::FrameUnread => &[],
+            Classed::Among { candidates, .. } | Classed::FrameUnread { candidates } => candidates,
+            Classed::Is(_) | Classed::Open(_) | Classed::BaseUnread => &[],
         }
     }
 }

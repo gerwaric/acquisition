@@ -941,7 +941,15 @@ fn review_an_invitation_whose_frame_is_unread_is_open_for_the_frame() {
         1
     );
     let shown = serde_json::to_value(common::show(&s, "noframe", false).unwrap()).unwrap();
-    assert_eq!(shown["class"], json!("frame_unread"));
+    assert_eq!(
+        shown["class"]["frame_unread"]["candidates"],
+        json!(["Misc Map Items", "Quest Items"])
+    );
+    // the candidates are kept (F2, the validation of the review): a term
+    // false under both is false, and `-class:ring` finds the item
+    assert_eq!(ids(&asked(&s, "pc", "-class:ring")), ["inv", "noframe"]);
+    assert_eq!(counts(&asked(&s, "pc", "class:ring"), "0"), (0, 2, 0, 0));
+    assert_eq!(counts(&asked(&s, "pc", "class:map"), "0"), (1, 0, 0, 1));
 }
 
 /// Review, 4 and 5: F4 offered `line("T").arg1=foo`, which the parser

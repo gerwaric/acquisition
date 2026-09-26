@@ -765,6 +765,39 @@ fn first_seat_the_text_says_what_sorted_what_an_id_is_and_of_every_realm() {
         1,
         "{shown}"
     );
+    // the validation of the review: a sort that shows one of the two
+    // identical lines hides neither from a later total, and the terms'
+    // order changes no count (rule 9)
+    let counts = |query: &str, sort: &str| -> (usize, usize) {
+        let shown = text(&acq(
+            &base,
+            &["search", "--realm", "poe2", query, "--sort", sort],
+        ));
+        assert!(shown.contains("id twin"), "{shown}");
+        (
+            shown.matches("+10 to maximum Life (explicit)").count(),
+            shown.matches("+20 to maximum Life (explicit)").count(),
+        )
+    };
+    let one_of_the_twins = "line(\"# to maximum Life\" arg1<=10).arg1";
+    assert_eq!(
+        counts("sum(\"# to maximum Life\")>=40", one_of_the_twins),
+        (2, 1)
+    );
+    assert_eq!(
+        counts(
+            "sum(\"# to maximum Life\")>=40 \"# to maximum Life\"",
+            one_of_the_twins
+        ),
+        (2, 1)
+    );
+    assert_eq!(
+        counts(
+            "\"# to maximum Life\" sum(\"# to maximum Life\")>=40",
+            one_of_the_twins
+        ),
+        (2, 1)
+    );
     let shown = text(&acq(&base, &["search", "--realm", "pc", "id:r"]));
     assert!(
         shown.contains("nothing in scope carries the id of term 0: id:r — an id is matched whole"),
