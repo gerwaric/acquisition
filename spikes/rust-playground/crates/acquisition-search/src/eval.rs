@@ -271,21 +271,34 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
                 | Part::SocketColour
                 | Part::Class(_)
                 | Part::Total(_)
-                | Part::Price(_) => false,
+                | Part::Price(_)
+                | Part::TabType => false,
             })
             .collect(),
         // the base, or the body, unread leaves the class open; the table's
-        // own reason is the class's (`class.rs`)
+        // own reason is the class's (`class.rs`); the frame's unread is
+        // the class's where the frame decides (an invitation's, V2)
         (Thing::Class, _) => held
             .item
             .unread
             .iter()
             .filter(|u| match &u.part {
                 Part::Body => true,
-                Part::Field(key) => key == "baseType",
+                Part::Field(key) => {
+                    key == "baseType"
+                        || (key == "frameTypeId" && matches!(held.class, Classed::FrameUnread))
+                }
                 _ => false,
             })
             .chain(held.class.open())
+            .collect(),
+        // the store's read gave a stash tab no type: unread, said where the
+        // place was read (`corpus::tab_type_unread`)
+        (Thing::TabType, _) => held
+            .item
+            .unread
+            .iter()
+            .filter(|u| matches!(u.part, Part::TabType))
             .collect(),
         // the collection, or an element that may be any socket, leaves
         // every count open; a socket's colour only the colour counts, its
@@ -485,7 +498,8 @@ fn unread_lines<'a>(held: &'a Held, group: &Group) -> Vec<&'a Unread> {
             | Part::SocketColour
             | Part::Class(_)
             | Part::Total(_)
-            | Part::Price(_) => false,
+            | Part::Price(_)
+            | Part::TabType => false,
         })
         .collect()
 }
@@ -1207,6 +1221,7 @@ fn reason(unread: &Unread) -> Reason {
             Part::Class(gap) => gap.unread().to_string(),
             Part::Total(gap) => gap.unread().to_string(),
             Part::Price(gap) => gap.unread().to_string(),
+            Part::TabType => "the tab's type".to_string(),
         },
         problem: unread.problem.clone(),
         hint: match &unread.part {

@@ -27,6 +27,7 @@ use crate::answer::command;
 use crate::class::Classed;
 use crate::corpus::{
     Basis, Place, REREADS, class_table, currency_table, locations, moved, placed, still_at,
+    tab_type_unread,
 };
 use crate::derive::{Facts, Item, Line, derive};
 use crate::describe::limit;
@@ -113,7 +114,9 @@ fn read_one(
                             .cloned()
                             .collect::<Vec<LocationRow>>(),
                     );
-                    return Ok(Ok((basis, place, derive(facts, &stored), stored, leagues)));
+                    let mut item = derive(facts, &stored);
+                    item.unread.extend(tab_type_unread(&place));
+                    return Ok(Ok((basis, place, item, stored, leagues)));
                 }
             }
             Ok(Err((

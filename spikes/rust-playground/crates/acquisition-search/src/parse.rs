@@ -872,14 +872,37 @@ impl<'a> Parser<'a> {
             self.pos = at;
             return self.error(ErrorKind::SlotMissing, message, start);
         };
+        // a reading is a query that binds (rule 5): a text compares with
+        // no number, and a template with no number takes no slot (the
+        // review of 9b, 2026-09-26)
+        if matches!(rhs, Value::Text(_)) {
+            return self.error(
+                ErrorKind::ComparisonNeedsNumber,
+                "a line's number compares with a number",
+                start,
+            );
+        }
         let slots: Vec<String> = match sole_template(&where_) {
             Some(template) => {
                 let slots = template::slots(template);
-                if slots.ranged.is_some() {
-                    ["low", "high", "avg"].map(String::from).to_vec()
-                } else {
-                    (1..=slots.count).map(|n| format!("arg{n}")).collect()
+                if slots.count == 0 {
+                    return template::default_slot(template)
+                        .err()
+                        .unwrap_or_else(|| LanguageError::new(ErrorKind::SlotMissing, message))
+                        .at(start, self.pos);
                 }
+                let mut words: Vec<String> = Vec::new();
+                if let Some((low, high)) = slots.ranged {
+                    words.extend(["low", "high", "avg"].map(String::from));
+                    words.extend(
+                        (1..=slots.count)
+                            .filter(|n| *n != low && *n != high)
+                            .map(|n| format!("arg{n}")),
+                    );
+                } else {
+                    words.extend((1..=slots.count).map(|n| format!("arg{n}")));
+                }
+                words
             }
             None => vec!["arg1".to_string()],
         };

@@ -801,3 +801,184 @@ fn f6_a_row_says_what_it_sorts_by() {
         json!({ "status": "no satisfying occurrence" })
     );
 }
+
+// ---- the review of 9b (2026-09-26), each reproduced first --------------------------------
+
+/// Review, 2: a stash tab whose GGG `type` was no string is stored as
+/// none, and the search read it as known absence — `-has:tab.type`
+/// matched it. Every stash tab has a type, so none on one is unread,
+/// said where the place is read; a character's item still lacks it.
+#[test]
+fn review_a_stash_tabs_type_the_store_could_not_read_is_unread() {
+    let mut s = store();
+    list_tabs(
+        &mut s,
+        "pc",
+        "Standard",
+        json!([tab("d1", "Dump"), { "id": "n1", "name": "Odd", "type": 123 }]),
+        10,
+    );
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "d1",
+        "Dump",
+        vec![item("r1", "Doom Loop", "Iron Ring", "Rare", json!({}))],
+        20,
+    );
+    s.record(
+        &acquisition_store::Endpoint::Stash {
+            realm: "pc".into(),
+            league: "Standard".into(),
+            id: "n1".into(),
+            sub: None,
+        },
+        &json!({ "id": "n1" }),
+        200,
+        &json!({ "stash": { "id": "n1", "name": "Odd", "type": 123,
+                            "items": [item("odd", "Hex Band", "Iron Ring", "Rare", json!({}))] } }),
+        21,
+    )
+    .unwrap();
+    list_characters(
+        &mut s,
+        "pc",
+        json!([{ "id": "c1", "name": "Mover", "league": "Standard" }]),
+        30,
+    );
+    fetch_character(
+        &mut s,
+        "pc",
+        json!({ "id": "c1", "name": "Mover", "league": "Standard", "equipment": [
+            item("worn", "Grim Clasp", "Leather Belt", "Rare", json!({})) ] }),
+        31,
+    );
+    // the character's item lacks it; the odd tab's is not established
+    assert_eq!(ids(&asked(&s, "pc", "-has:tab.type")), ["worn"]);
+    let a = asked(&s, "pc", "has:tab.type");
+    assert_eq!(counts(&a, "0"), (1, 0, 1, 1), "{}", a["terms"][0]);
+    assert_eq!(ids(&asked(&s, "pc", "undecided(tab.type)")), ["odd"]);
+    let why =
+        &asked(&s, "pc", "undecided(tab.type)")["rows"][0]["matched"][0]["shows"][0]["undecided"];
+    assert_eq!(why["unread"], "the tab's type");
+    assert!(
+        why["problem"]
+            .as_str()
+            .unwrap()
+            .contains("no type for tab n1"),
+        "{why}"
+    );
+    assert_eq!(
+        asked(&s, "pc", "tab.type=PremiumStash")["terms"][0]["undecided"]["count"],
+        1
+    );
+    // counted apart, with its kind tallied, and routed
+    let table = &view(&s, "pc", "", json!({ "counts": { "keys": ["tab.type"] } }))["view"]["counts"]
+        ["tables"][0];
+    let undecided = table["buckets"].as_array().unwrap().last().unwrap();
+    assert_eq!(undecided["bucket"], "undecided");
+    assert_eq!(
+        undecided["tally"],
+        json!([{ "unread": "the tab's type", "items": 1 }])
+    );
+    assert_eq!(
+        members(&s, undecided),
+        ["odd".to_string()].into_iter().collect()
+    );
+    let shown = serde_json::to_value(common::show(&s, "odd", false).unwrap()).unwrap();
+    assert_eq!(shown["item"]["unread"][0]["part"], "tab_type");
+    assert!(shown["place"].get("tab_type").is_none());
+}
+
+/// Review, 3: an invitation whose frame could not be read was open with
+/// the class table's reason — "the table never chooses; a refresh will
+/// not help" — where the missing evidence is the frame, which a refresh
+/// may bring. The class stays undecided, for the frame's reason, once.
+#[test]
+fn review_an_invitation_whose_frame_is_unread_is_open_for_the_frame() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("g1", "Gear")]), 10);
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "g1",
+        "Gear",
+        vec![
+            plain(
+                "noframe",
+                "Polaric Invitation",
+                "Normal",
+                json!({ "frameTypeId": 7 }),
+            ),
+            plain("inv", "Polaric Invitation", "Normal", json!({})),
+        ],
+        20,
+    );
+    assert_eq!(ids(&asked(&s, "pc", "class=\"Misc Map Items\"")), ["inv"]);
+    let open = asked(&s, "pc", "undecided(class)");
+    assert_eq!(ids(&open), ["noframe"]);
+    let why = &open["rows"][0]["matched"][0]["shows"][0]["undecided"];
+    assert_eq!(why["unread"], "`frameTypeId`");
+    assert_eq!(why["problem"], "`frameTypeId` is a number, not a string");
+    assert!(
+        why["hint"]
+            .as_str()
+            .unwrap()
+            .starts_with("a refresh may help"),
+        "{why}"
+    );
+    assert_eq!(
+        open["rows"][0]["matched"][0]["shows"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        asked(&s, "pc", "class=\"Quest Items\"")["terms"][0]["undecided"]["count"],
+        1
+    );
+    let shown = serde_json::to_value(common::show(&s, "noframe", false).unwrap()).unwrap();
+    assert_eq!(shown["class"], json!("frame_unread"));
+}
+
+/// Review, 4 and 5: F4 offered `line("T").arg1=foo`, which the parser
+/// refuses, and on a template with a ranged pair and a third number
+/// offered no `arg3`. A reading is a query that binds (rule 5), and the
+/// slot words are every one the template has.
+#[test]
+fn review_f4_offers_only_readings_that_bind_and_every_slot_the_template_has() {
+    let e =
+        serde_json::to_value(parse_query("line(\"# to maximum Life\")=foo").unwrap_err()).unwrap();
+    assert_eq!(e["kind"], "comparison_needs_number", "{e}");
+    assert!(e.get("readings").is_none(), "{e}");
+    let shield =
+        "line(\"# to # Added Physical Damage per # Armour or Evasion Rating on Shield\")>=1";
+    let e = serde_json::to_value(parse_query(shield).unwrap_err()).unwrap();
+    assert_eq!(e["kind"], "slot_missing");
+    let readings: Vec<&str> = e["readings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r.as_str().unwrap())
+        .collect();
+    assert_eq!(readings.len(), 8, "{readings:?}");
+    assert!(
+        readings.iter().any(|r| r.ends_with(".arg3>=1")),
+        "{readings:?}"
+    );
+    assert!(
+        readings.iter().any(|r| r.ends_with(" arg3>=1)")),
+        "{readings:?}"
+    );
+    for reading in readings {
+        parse_query(reading).unwrap_or_else(|e| panic!("{reading}: {e}"));
+    }
+    // a template with no number takes no slot: no reading is offered
+    let e =
+        serde_json::to_value(parse_query("line(\"Cannot be Frozen\")>=1").unwrap_err()).unwrap();
+    assert_eq!(e["kind"], "slot_missing");
+    assert!(e.get("readings").is_none(), "{e}");
+}

@@ -129,7 +129,8 @@ fn seed(base: &Path) {
 }
 
 /// A second realm in the same store: one ring in a poe2 tab named as the
-/// pc one is, and a pc item with more lines than a row shows.
+/// pc one is, a ring there with two identical life lines, and a pc item
+/// with more lines than a row shows.
 fn seed_more(base: &Path) {
     let mut store = Store::open(&account_path(&base.join("mock"), USER)).unwrap();
     let mut record = |ep: Endpoint, realm: &str, body: Value, at: i64| {
@@ -165,7 +166,8 @@ fn seed_more(base: &Path) {
         },
         "poe2",
         json!({ "stash": { "id": "p1", "name": "Rings", "type": "PremiumStash",
-            "items": [ring("two", vec!["+30 to Spirit".to_string()])] } }),
+            "items": [ring("two", vec!["+30 to Spirit".to_string()]),
+                      ring("twin", vec!["+10 to maximum Life".to_string(), "+20 to maximum Life".to_string(), "+10 to maximum Life".to_string()])] } }),
         50,
     );
     record(
@@ -736,6 +738,30 @@ fn first_seat_the_text_says_what_sorted_what_an_id_is_and_of_every_realm() {
     assert!(shown.contains("class Rings"), "{shown}");
     assert_eq!(
         shown.matches("+95 to maximum Life (explicit)").count(),
+        1,
+        "{shown}"
+    );
+    // the review of 9b, 1: two identical lines are two, whatever an
+    // earlier part of the row showed — a sum of 40 shows 10, 20 and 10
+    let shown = text(&acq(
+        &base,
+        &[
+            "search",
+            "--realm",
+            "poe2",
+            "sum(\"# to maximum Life\")>=40",
+            "--sort",
+            "sum(\"# to maximum Life\")",
+        ],
+    ));
+    assert!(shown.contains("sorts by 40"), "{shown}");
+    assert_eq!(
+        shown.matches("+10 to maximum Life (explicit)").count(),
+        2,
+        "{shown}"
+    );
+    assert_eq!(
+        shown.matches("+20 to maximum Life (explicit)").count(),
         1,
         "{shown}"
     );

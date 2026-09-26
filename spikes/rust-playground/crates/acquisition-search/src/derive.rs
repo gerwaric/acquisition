@@ -303,6 +303,9 @@ pub enum Part {
     /// The price, which the listing state could not establish
     /// (`price.rs`): only what asks the price.
     Price(PriceGap),
+    /// The tab's type, which the store's read handed over as none for a
+    /// stash tab (`corpus::tab_type_unread`): only what asks `tab.type`.
+    TabType,
 }
 
 /// What a slot word names on one occurrence.

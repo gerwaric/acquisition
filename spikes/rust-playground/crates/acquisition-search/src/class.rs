@@ -47,6 +47,8 @@
 //!   the quest frame and Misc Map Items under any other — a quest
 //!   invitation exists only in a character's inventory, and none was on
 //!   the owner's store to confirm it against (the record, "Holes ruled").
+//!   An invitation whose frame could not be read is open for the frame,
+//!   the deriver's reason ([`Classed::FrameUnread`]), never the table's.
 //!   A captured beast's class follows the trade site's categories, the
 //!   grouping above class's first case, and waits for it (the plan, 9d):
 //!   until then its base is not in the table.
@@ -392,8 +394,15 @@ impl ClassTable {
                         INVITATION_CLASSES[0]
                     }
                 });
+                let frame_unread = item
+                    .unread_in(&Part::Field("frameTypeId".to_string()))
+                    .next()
+                    .is_some();
                 match (invitation, by_frame) {
                     (true, Some(class)) => Classed::Is(class.to_string()),
+                    // the frame decides and could not be read: the deriver's
+                    // unread on it is the reason, said once (the review of 9b)
+                    (true, None) if frame_unread => Classed::FrameUnread,
                     _ => Classed::Among {
                         candidates: several.iter().map(|c| (*c).to_string()).collect(),
                         why: Unread {
@@ -433,13 +442,19 @@ pub enum Classed {
     /// The base itself could not be read: the deriver's unread says so,
     /// and this says nothing twice.
     BaseUnread,
+    /// An invitation's base, whose frame decides (V2), and the frame
+    /// could not be read: the deriver's unread on `frameTypeId` says so.
+    FrameUnread,
 }
 
 impl Classed {
     pub fn name(&self) -> Option<&str> {
         match self {
             Classed::Is(name) => Some(name),
-            Classed::Among { .. } | Classed::Open(_) | Classed::BaseUnread => None,
+            Classed::Among { .. }
+            | Classed::Open(_)
+            | Classed::BaseUnread
+            | Classed::FrameUnread => None,
         }
     }
 
@@ -448,7 +463,7 @@ impl Classed {
         match self {
             Classed::Among { why, .. } => Some(why),
             Classed::Open(unread) => Some(unread),
-            Classed::Is(_) | Classed::BaseUnread => None,
+            Classed::Is(_) | Classed::BaseUnread | Classed::FrameUnread => None,
         }
     }
 
@@ -456,7 +471,7 @@ impl Classed {
     pub fn candidates(&self) -> &[String] {
         match self {
             Classed::Among { candidates, .. } => candidates,
-            Classed::Is(_) | Classed::Open(_) | Classed::BaseUnread => &[],
+            Classed::Is(_) | Classed::Open(_) | Classed::BaseUnread | Classed::FrameUnread => &[],
         }
     }
 }

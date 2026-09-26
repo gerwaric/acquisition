@@ -589,7 +589,17 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
             "{}{head}",
             if i == 0 { "rows    " } else { "        " }
         ));
+        // what an earlier part of the row showed is not printed again by a
+        // later one; within one part every occurrence prints, two identical
+        // lines being two (the review of 9b, 2026-09-26: a total of 40
+        // showed contributors of 10 and 20 alone)
         let mut shows: Vec<String> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut part = |shows: &mut Vec<String>, part: Vec<String>| {
+            let fresh: Vec<String> = part.into_iter().filter(|s| !seen.contains(s)).collect();
+            seen.extend(fresh.iter().cloned());
+            shows.extend(fresh);
+        };
         if let Some(sorted) = &row.sort {
             // what sorted the row (F6): a field's name before its number,
             // a line or a sum's contributors after
@@ -606,24 +616,23 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                 }
                 _ => by,
             };
-            shows.push(format!("sorts {named}"));
-            shows.extend(rest.map(evidence_text));
+            let mut by_sort = vec![format!("sorts {named}")];
+            by_sort.extend(rest.map(evidence_text));
             if sorted.left_out > 0 {
-                shows.push(format!(
+                by_sort.push(format!(
                     "{} more sorted: {}",
                     sorted.left_out,
                     a.show_command(&row.id)
                 ));
             }
+            part(&mut shows, by_sort);
         }
         for touched in &row.matched {
-            shows.extend(touched.shows.iter().map(evidence_text));
+            part(
+                &mut shows,
+                touched.shows.iter().map(evidence_text).collect(),
+            );
         }
-        // a line the sort and a term both show is printed once, wherever
-        // the two sit (the seat's ask 56 replayed: the sorted total's
-        // lines, the class, then the same lines again)
-        let mut seen = std::collections::HashSet::new();
-        shows.retain(|s| seen.insert(s.clone()));
         if !shows.is_empty() {
             line(format!("            {}", shows.join(" · ")));
         }
@@ -1100,6 +1109,9 @@ fn shown_text(s: &Shown) -> String {
             out.push_str(&format!("class   undecided: {}\n", why.problem));
         }
         Classed::BaseUnread => out.push_str("class   undecided: the base was not read\n"),
+        Classed::FrameUnread => out.push_str(
+            "class   undecided: the frame, which decides an invitation's class, was not read\n",
+        ),
     }
     // what the listing state prices it at (C81): the price, or why none
     match &s.price {

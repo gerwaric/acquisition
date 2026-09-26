@@ -46,7 +46,7 @@ the two blind proposals it produced are
 `548ecc4f`)
 (`brainstorming-notes/26-search-review-by-fable.md`,
 `brainstorming-notes/27-search-review-by-astra.md`), and the reconciliation,
-`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the model page, the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17; its contract detail is `DESIGN.md`, which opens with the language reference — the surface on one page, an example per construct (the stage-5 audit's finding 5, harvested 2026-09-19). Stage 6 is the build, under `BUILD-PLAN.md`: a brief the owner edits before it runs, deleted at the close; this file is its record.
+`brainstorming-notes/31-search-reconciliation.md`, which Astra checks. Stage 5 is the ruling packet, `brainstorming-notes/28-search-ruling-packet.md` (the owner's answers, Astra's check under note 33 at `a0d85b23`), harvested into `decisions/search.md` 2026-09-17, its contract detail `DESIGN.md` with the language reference at its head (harvested 2026-09-19). Stage 6 is the build under `BUILD-PLAN.md`, this file its record.
 
 ## Step ledger
 
@@ -69,8 +69,8 @@ commit's.
 | 7 · the third look | `ecb83b65` | The generators reach the computed values, nothing else (owner, 2026-09-24, `66a20acf`): resistance lines and a `properties` array with holes in the bodies; a total's comparison, the derived fields' comparisons and `has:`, the probe, the case alt and the three sorts in the query tree; an eighth anchor past the reasons bound, a fixed case beside the rare find. Shown to catch the first round's 1 and 5 and a mutant per property; its 2 is held by `exact.rs`'s unit test. No source changed. |
 | 8 · sockets | `ec024ceb`; reviewed `dca017f5`, `7010f658` | `sockets.rs`, and `derive.rs` reads the socket collection at the socket's grain (C101, rule 8); a count is an interval of what was read, decided where the whole interval agrees (`eval.rs`); `linked( … )` bound in `group.rs` beside a line's group; `show` and a row print the layout, made once; `--describe` gains the fields and the `linked` block. `DERIVATION` 9. `tests/sockets.rs` (every count by hand; three mutants caught), `tests/derive.rs`, `tests/acceptance.rs` (OQ3 as worded); the generators reach the sockets (`tests/common/generated.rs`). M2, M3 and the copy's counts below; K1 ruled below; the observations of step 8 below. |
 | 9 · price | `57c2f78b`; reviewed `1e0d85c6`, `7ff3c947` | `price.rs`: the effective price joined read-only from the pricing area's listing state, one snapshot and one `resolve` per (realm, league), by item id (C81, C100); the crate links `acquisition-plan` (C89); the basis gains the intent revision and the currency and note-parser versions (C98); `has:priced`, `price.amount`, `price.currency` (the table's tags), `price.lot`; `Part::Price`; `Of::Number` is `Exact`; `show` carries the price; the CLI opens the intent file beside the store. The store: `Annotations::revision`, `ItemSnapshot::note_unread` and `inventory_id_unread`; the planner: an unread note decides only where the index sees it. `tests/price.rs`, `tests/acceptance.rs` (OQ6), the generators, the CLI's `search_json.rs`. M3 below; P1, P2 ruled below. |
-| the first seat | `94a3d18c`, the release build (sha256 `9ecf385d…`; the owner's choice, so the seat feels the number the budget judges); the run is `runs/seat-2026-09-26/` — brief, 65 journaled asks, report, `replay.sh` — gitignored, so the fix commits carry each fault's story | An agent's seat with the owner in the loop (the plan, "The first seat"): a second session drove `acq search` and `acq show` on the owner's store through a journaling wrapper, one binary, no daemon, no repository edit; the orchestrating session routed the report. 65 asks; 10 faults, F1–F10 (the findings below), each to be held by a test named for it in a fix session against the same hash, which replays the 65 asks and reads every diff; 10 verdicts, V1–V10 ("Holes ruled"); the six lines (the observations below); the wall times in `search/MEASUREMENTS.md`, the seat block. |
-| 9b · the seat's fixes | `0d5706d1`–`0e4c91ad` | The class reading (V1, V2; F2: `Classed::Among`); the undecided block by reason (V8, F9); `tab.type` (V10, the park deleted); the answer's words (F1, F3–F8, F10: `bind::near`, `Sorted.shows`, `counts::Of::Placed`); the examples teach `class:ring`. `tests/seat_faults.rs`, twelve tests each seen to fail at `94a3d18c` first, and the CLI's `search_json.rs`. The 65 asks replayed on the owner's store: 37 same, 27 differ — each a fix, ask 2 by construction, or a day's age on the scope line — but one, a line shown twice, fixed at `0e4c91ad`. Every `class:` term's 583 undecided are 158, the beasts, until 9d. |
+| the first seat | `94a3d18c`, the release build (sha256 `9ecf385d…`; the owner's choice, so the seat feels the number the budget judges); the run is `runs/seat-2026-09-26/` — brief, 65 journaled asks, report, `replay.sh` — gitignored, so the fix commits carry each fault's story | An agent's seat with the owner in the loop (the plan, "The first seat"): a second session drove `acq search` and `acq show` on the owner's store through a journaling wrapper, one binary, no daemon, no repository edit; the orchestrating session routed the report. 65 asks; 10 faults, F1–F10, held at 9b; 10 verdicts, V1–V10 ("Holes ruled"); the six lines (the observations below); the wall times in `search/MEASUREMENTS.md`, the seat block. |
+| 9b · the seat's fixes | `0d5706d1`–`0e4c91ad` | The class reading (V1, V2; F2: `Classed::Among`); the undecided block by reason (V8, F9); `tab.type` (V10, the park deleted); the answer's words (F1, F3–F8, F10: `bind::near`, `Sorted.shows`, `counts::Of::Placed`); the examples teach `class:ring`. `tests/seat_faults.rs`, twelve tests each seen to fail at `94a3d18c` first, and the CLI's `search_json.rs`. 64 of the 65 asks replayed on the owner's store (22 has no trailer): 37 same, 27 differ — each a fix, ask 2 by construction, or a day's age on the scope line — but one, a line shown twice, fixed at `0e4c91ad`. A review at `1f9c868c` found five more, each held by a `review_` test: a row's text dropped a second identical line; a stash tab's unreadable `type` read as absence; an invitation's unread frame got the table's reason; F4 offered `=foo` and omitted `arg3`. Every `class:` term's 583 undecided are 158, the beasts, until 9d. |
 
 ## Findings
 
@@ -80,11 +80,9 @@ taken — and a finding a test holds is held there and nowhere else (P5):
 the test names the fault, the commit that fixed it tells the story, and
 `git log` over the step's range is the ledger of rounds. Every finding
 of steps 1 to 7 is held by a test, by a measurement below, or by a
-ruled hole; the full table — each finding as the auditor found it, its
-verdict, its fix commit and what holds it — is this file at `aeeba6d3`,
-and step 7's two rounds at `e0420428`.
-What this section keeps is the checklist a review of a search change
-reads first: the shapes of fault that came back until they were named.
+ruled hole; the full table is this file at `aeeba6d3`, and step 7's
+two rounds at `e0420428`. What stays is the checklist a review reads
+first: the shapes of fault that came back until they were named.
 
 | Shape | Where it came back | Held by |
 | --- | --- | --- |
@@ -150,8 +148,8 @@ number there was measured, never recalled. The verdicts:
   does not fire; two totals asks over 500 on the higher floor, ruled at
   the seat (V9).
 - M3 again at the seat's hash (9b, V9): the six asks the seat saw at
-  695–715 ms are 446–459 on the copy — the spikes were the machine's,
-  never the asks'; the totals batch stays parked. M3 at 9b's hash
+  695–715 ms are 446–459 on the copy — the spikes did not recur, their
+  cause unmeasured; the totals batch stays parked. M3 at 9b's hash
   (`0e4c91ad`): the empty query 448, every ask 441–529, the same two
   totals asks over 500; the fixes moved no ask past the noise.
 
@@ -318,9 +316,11 @@ timings, coverage no fixture reaches, and questions for the seat.
   lists as no field.
 - A zero answer counts and routes every term; what was wanted first was
   which terms together empty it — `--explain`, step 10.
-- `--json` for one row is 12,670 bytes: `counted_at` seven times, the
-  scope's seven leagues where the question touched two, `"Rare"` where
-  the language writes `rare`.
+- `--json` for one row is 12,670 bytes: the scope's seven leagues where
+  the question touched two, `"Rare"` where the language writes `rare`.
+- The review of 9b asked what `class:X` is on a base under several
+  classes when every candidate satisfies `X` — undecided today, true by
+  the symmetric rule; it changes an answer, so it is the owner's.
 - 9b: the digest's S53 wording ("not a field") was overtaken by step 6;
   the help says the derivation, and the digest, accepted, is not edited.
 - The owner's questions to the sitter, answered as evidence, no ruling:

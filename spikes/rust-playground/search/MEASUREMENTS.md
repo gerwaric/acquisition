@@ -326,15 +326,16 @@ items) 41 ms; `show` 127–152; a refusal 8–21. The disposition (V9,
 owner): the totals batch stays parked; the spikes are measured first —
 an M3 rerun at this hash, on the copy, with the six asks in the script.
 
-**M3 again at the seat's hash (`94a3d18c`, 2026-09-26, before 9b changed the floor): the six asks the seat saw at 695–715 ms land at 446–459 ms on the copy — the spikes were the machine's, never the asks'.** The
+**M3 again at the seat's hash (`94a3d18c`, 2026-09-26, before 9b changed the floor): the six asks the seat saw at 695–715 ms land at 446–459 ms on the copy — the spikes did not recur, and their cause is unmeasured.** The
 same script with the six added, the release form the script builds
 (`cargo build --release -p acquisition-cli`, sha256 `aefa167c…`); the
 seat's binary was `--workspace --release`, `9ecf385d…` — the same source
 under another feature unification, which cargo uplifts by turns: a
 no-op build swapped the hash. Every one of the six is within the noise
 of the asks beside it (the empty query 427, the six 446–459), and the
-two totals asks are over 500 as they were at step 9 (530, 528). What on
-the owner's machine cost those six 250 ms more — the owner's store
-rather than the copy, a cold cache, another process — is unmeasured;
-the disposition is V9's: the totals batch stays parked, revisited at
-step 11.
+two totals asks are over 500 as they were at step 9 (530, 528). So the
+asks' own cost is not the spike; what cost those six 250 ms more on the
+owner's machine — the owner's store rather than the copy, a cold cache,
+another process — did not recur here and is unmeasured (a review of 9b
+corrected the first wording, which named the machine); the disposition
+is V9's: the totals batch stays parked, revisited at step 11.

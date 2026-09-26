@@ -54,7 +54,7 @@ use acquisition_store::{Annotations, Store};
 use serde::{Deserialize, Serialize};
 
 use crate::class::{self, CLASS_TABLE_VERSION, ClassTable, Classed};
-use crate::derive::{Facts, Item, derive};
+use crate::derive::{Facts, Item, Part, Unread, derive};
 use crate::error::SearchError;
 use crate::price::{self, CURRENCY_TABLE_VERSION, NOTE_PARSER_VERSION, Priced};
 use crate::totals::{self, TOTALS_TABLE_VERSION, TotalsTable};
@@ -365,7 +365,8 @@ impl Corpus {
                     }
                     let body = std::mem::take(&mut row.body);
                     let (facts, place) = placed(&index, row);
-                    let item = derive(facts, &body);
+                    let mut item = derive(facts, &body);
+                    item.unread.extend(tab_type_unread(&place));
                     items.push(Held {
                         class: table.classify(&item),
                         item,
@@ -462,6 +463,24 @@ fn realm_needed(held: &[String]) -> SearchError {
         ),
     )
     .with_offers(held.iter().map(|r| format!("--realm {r}")).collect())
+}
+
+/// What the store's read could not give of a stash tab's type, said once
+/// where the place is read (rule 8 of the plan): GGG's `type` that was no
+/// string is stored as none, and every stash tab has one, so none on a
+/// stash tab is unread — never the known absence a character's item has
+/// (the review of 9b, 2026-09-26).
+pub(crate) fn tab_type_unread(place: &Place) -> Option<Unread> {
+    (place.kind == "stash" && place.tab_type.is_none()).then(|| Unread {
+        part: Part::TabType,
+        problem: format!(
+            "the store holds no type for tab {}: GGG's `type` was no string when it was listed",
+            place.id
+        ),
+        line: None,
+        name: None,
+        socket: None,
+    })
 }
 
 pub(crate) fn is_folder(location: &LocationRow) -> bool {
