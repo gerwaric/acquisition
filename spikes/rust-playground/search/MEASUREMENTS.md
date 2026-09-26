@@ -185,6 +185,7 @@ to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 | `57ec6a9e` | step 7, T5 | — | the vocabulary whole 316 | the vocabulary whole 2,130 |
 | `ec024ceb` | step 8, with its four asks added to the script | 448 | 276–370 | 1,862–2,762 |
 | `57c2f78b` | step 9, with its four asks added to the script | 622 | 443–529: two over, AQ2 as worded 529 and the worked example whole 528 | 2,282–3,184 |
+| `1e0d85c6` | step 9, the review's fixes (one two-path extract for the note and the slot) | 1,113 | 443–528, the same two over; the series' empty query 902 with the copy's cache still cold, 446–449 asked alone afterwards | 2,285–3,191 |
 
 The asks each step added to the script, at the step's build, warm
 medians in ms; a step's empty query is its floor.
@@ -232,7 +233,9 @@ Allflame (1,312), and `target/release/acq --json price status --realm pc
 — is 119 ms for Standard and 13 for Allflame, which is the join's cost
 within the noise. What the 119 ms is made of — the snapshot's
 `json_extract` over 21,311 stored bodies against `resolve`'s 21,311
-listings — is unmeasured. The load, the empty query, stands at 445 ms:
+listings — is unmeasured; the review's fix, which reads both body
+fields in one two-path extract, changed no ask by more than the noise
+(`1e0d85c6`). The load, the empty query, stands at 445 ms:
 55 under the budget, so the projection park's trigger does not fire by
 the owner's rule (2026-09-24), and the two asks over it are an
 evaluator cost on a floor the join raised — a shape the ruling did not
