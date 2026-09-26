@@ -12,7 +12,7 @@ mod common;
 
 use std::collections::BTreeSet;
 
-use acquisition_search::{Request, answer};
+use acquisition_search::{Request, answer, describe, parse_query};
 use acquisition_store::Store;
 use common::*;
 use serde_json::{Value, json};
@@ -282,5 +282,161 @@ fn v8_the_undecided_block_is_one_line_per_distinct_reason_with_an_example() {
         let unread = reason["unread"].as_str().unwrap();
         assert!(flags.iter().any(|f| unread == format!("`{f}`")), "{unread}");
         assert_eq!(reason["example"]["id"], "i0");
+    }
+}
+
+/// V10 (owner: "let's add tab type in the next build session"): GGG's
+/// `type` of the tab an item is in is the field `tab.type`, verbatim from
+/// the store's read (C108), so everything in a map tab, whatever it is
+/// called, can be asked for; a substash's is its tab's; an item on a
+/// character lacks it.
+#[test]
+fn v10_a_tabs_type_is_a_field() {
+    let mut s = store();
+    list_tabs(
+        &mut s,
+        "pc",
+        "Standard",
+        json!([
+            tab("d1", "Dump"),
+            { "id": "m1", "name": "Atlas", "type": "MapStash" },
+            { "id": "q1", "name": "Bulk", "type": "QuadStash" }
+        ]),
+        10,
+    );
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "d1",
+        "Dump",
+        vec![item("r1", "Doom Loop", "Iron Ring", "Rare", json!({}))],
+        20,
+    );
+    let sub = |sub: Option<&str>| acquisition_store::Endpoint::Stash {
+        realm: "pc".into(),
+        league: "Standard".into(),
+        id: "m1".into(),
+        sub: sub.map(str::to_string),
+    };
+    s.record(
+        &sub(None),
+        &json!({ "id": "m1" }),
+        200,
+        &json!({ "stash": { "id": "m1", "name": "Atlas", "type": "MapStash", "items": [],
+                            "children": [{ "id": "s1", "name": "1", "type": "MapStash" }] } }),
+        21,
+    )
+    .unwrap();
+    s.record(
+        &sub(Some("s1")),
+        &json!({ "id": "m1", "sub": "s1" }),
+        200,
+        &json!({ "stash": { "id": "s1", "name": "1", "type": "MapStash",
+                            "items": [item("map", "", "Beach Map", "Normal", json!({}))] } }),
+        22,
+    )
+    .unwrap();
+    s.record(
+        &acquisition_store::Endpoint::Stash {
+            realm: "pc".into(),
+            league: "Standard".into(),
+            id: "q1".into(),
+            sub: None,
+        },
+        &json!({ "id": "q1" }),
+        200,
+        &json!({ "stash": { "id": "q1", "name": "Bulk", "type": "QuadStash",
+                            "items": [plain("chaos", "Chaos Orb", "Currency", json!({ "stackSize": 3 }))] } }),
+        23,
+    )
+    .unwrap();
+    list_characters(
+        &mut s,
+        "pc",
+        json!([{ "id": "c1", "name": "Mover", "league": "Standard" }]),
+        30,
+    );
+    fetch_character(
+        &mut s,
+        "pc",
+        json!({ "id": "c1", "name": "Mover", "league": "Standard", "equipment": [
+            item("worn", "Grim Clasp", "Leather Belt", "Rare", json!({})) ] }),
+        31,
+    );
+    // the map is found by what its tab is, not what it is called
+    assert_eq!(ids(&asked(&s, "pc", "tab.type=MapStash")), ["map"]);
+    assert_eq!(ids(&asked(&s, "pc", "tab.type:map")), ["map"]);
+    assert_eq!(ids(&asked(&s, "pc", "tab.type=quadstash")), ["chaos"]);
+    assert_eq!(
+        ids(&asked(&s, "pc", "tab.type:stash")),
+        ["chaos", "map", "r1"]
+    );
+    // `tab:` is still the name, never the type
+    assert_eq!(asked(&s, "pc", "tab:mapstash")["total"]["matched"], 0);
+    assert_eq!(ids(&asked(&s, "pc", "tab:atlas")), ["map"]);
+    // known absence on a character (C93), never undecided
+    assert_eq!(ids(&asked(&s, "pc", "-has:tab.type")), ["worn"]);
+    let a = asked(&s, "pc", "tab.type=MapStash");
+    assert_eq!(counts(&a, "0"), (1, 2, 1, 0), "{}", a["terms"][0]);
+    assert_eq!(a["rows"][0]["place"]["tab_type"], "MapStash");
+    // a `:` says what it picked (invariant 2)
+    let picked = asked(&s, "pc", "tab.type:stash");
+    assert_eq!(
+        picked["terms"][0]["resolved"]["values"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    // counted, `none` for the character's item, every bucket routed
+    let table = &view(&s, "pc", "", json!({ "counts": { "keys": ["tab.type"] } }))["view"]["counts"]
+        ["tables"][0];
+    let shape: Vec<(String, u64)> = table["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| {
+            (
+                b["value"].as_str().map_or_else(
+                    || format!("({})", b["bucket"].as_str().unwrap()),
+                    str::to_string,
+                ),
+                b["count"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        shape,
+        [
+            ("MapStash".to_string(), 1),
+            ("PremiumStash".to_string(), 1),
+            ("QuadStash".to_string(), 1),
+            ("(none)".to_string(), 1)
+        ]
+    );
+    for b in table["buckets"].as_array().unwrap() {
+        members(&s, b);
+    }
+    // the help lists it, under `tab` too, and `show` carries it
+    let d = serde_json::to_value(describe(&["tab".to_string()]).unwrap()).unwrap();
+    let names: Vec<&str> = d["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["tab", "tab.type"]);
+    let shown = serde_json::to_value(common::show(&s, "map", false).unwrap()).unwrap();
+    assert_eq!(shown["place"]["tab_type"], "MapStash");
+    let shown = serde_json::to_value(common::show(&s, "worn", false).unwrap()).unwrap();
+    assert!(shown["place"].get("tab_type").is_none());
+    for example in [
+        "tab.type=MapStash",
+        "tab.type:map",
+        "undecided(tab.type)",
+        "has:tab.type",
+    ] {
+        parse_query(example).unwrap_or_else(|e| panic!("{example}: {e}"));
     }
 }

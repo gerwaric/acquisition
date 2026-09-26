@@ -154,6 +154,11 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
                     vec!["price.currency=chaos", "price.currency:div"],
                 ),
                 Thing::PriceLot => (f.what.to_string(), vec!["price.lot>=2", "-has:price.lot"]),
+                Thing::Tab => (f.what.to_string(), vec!["tab:dump", "tab=\"Tier 1\""]),
+                Thing::TabType => (
+                    f.what.to_string(),
+                    vec!["tab.type=MapStash", "tab.type:map", "-has:tab.type"],
+                ),
                 _ => (f.what.to_string(), Vec::new()),
             };
             Named {

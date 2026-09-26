@@ -209,6 +209,7 @@ fn body_key(thing: Thing) -> Option<&'static str> {
         | Thing::PriceLot
         | Thing::League
         | Thing::Tab
+        | Thing::TabType
         | Thing::Character
         | Thing::Container
         | Thing::Id => {
@@ -366,6 +367,7 @@ pub(crate) fn texts(held: &Held, thing: Thing) -> Vec<&str> {
             .into_iter()
             .chain(place.parent.as_ref().and_then(|p| p.name.as_deref()))
             .collect(),
+        Thing::TabType if place.kind == "stash" => one(&place.tab_type),
         Thing::Character if place.kind == "character" => one(&place.name),
         Thing::PriceCurrency => held
             .price
@@ -374,6 +376,7 @@ pub(crate) fn texts(held: &Held, thing: Thing) -> Vec<&str> {
             .into_iter()
             .collect(),
         Thing::Tab
+        | Thing::TabType
         | Thing::Character
         | Thing::Text
         | Thing::Ilvl

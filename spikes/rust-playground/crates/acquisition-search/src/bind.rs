@@ -55,6 +55,13 @@
 //!   sort, a sum and a count's key take them as they take `ilvl`; a colour
 //!   word outside the four is an authoring error offering them. A link
 //!   group, `linked( … )`, is bound in `group.rs` beside a line's.
+//! - **A tab's type is the place field `tab.type`** (V10, the first seat;
+//!   the park's trigger fired 2026-09-26): GGG's `type` verbatim from the
+//!   store's read (C108, `corpus::Place`), text like the other place
+//!   fields, so `tab.type=MapStash` and `tab.type:map` find everything in
+//!   a map tab whatever it is called; no list is embedded, since GGG adds
+//!   a type with a league, and `--count tab.type` reads what the store
+//!   holds.
 //! - **The price is four names** (`price.rs`, C81, C100; the build plan,
 //!   step 9): `priced` is presence alone — `has:priced`, `-has:priced`,
 //!   `undecided(priced)` — and a comparison on it or a count by it is an
@@ -246,6 +253,8 @@ pub(crate) enum Thing {
     PriceLot,
     League,
     Tab,
+    /// GGG's `type` of the tab, verbatim (V10).
+    TabType,
     Character,
     Container,
     Id,
@@ -408,6 +417,12 @@ pub(crate) const FIELDS: &[FieldDef] = &[
         thing: Thing::Tab,
         kind: Kind::Text,
         what: "the name of the stash tab the item is in; in a substash, that name and its tab's",
+    },
+    FieldDef {
+        name: "tab.type",
+        thing: Thing::TabType,
+        kind: Kind::Text,
+        what: "GGG's `type` of the stash tab the item is in, verbatim — MapStash, QuadStash, CurrencyStash, …: what the tab is, where `tab` is what it is called; a substash's is its tab's; an item on a character lacks it",
     },
     FieldDef {
         name: "character",

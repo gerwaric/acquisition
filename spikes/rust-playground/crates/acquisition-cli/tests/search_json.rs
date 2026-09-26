@@ -857,6 +857,7 @@ fn describe_and_show_print_json_whole_and_text_from_it() {
             "price.lot",
             "league",
             "tab",
+            "tab.type",
             "character",
             "container",
             "id",

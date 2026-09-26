@@ -38,10 +38,11 @@
 //!   with it, so a total is never asked of a corpus over a table that
 //!   does not load.
 //! - **Place is the store's** (C103): the league as the read joined it, the
-//!   location by its full coordinate (C54), its name and its parent's from
-//!   the header. An item whose location the header does not list cannot
-//!   occur — the read hands over live items at live locations — and would
-//!   carry its ids and no names.
+//!   location by its full coordinate (C54), its name, its parent's and
+//!   its tab's `type` (V10: `tab.type`, verbatim, a substash's own or its
+//!   tab's) from the header. An item whose location the header does not
+//!   list cannot occur — the read hands over live items at live locations
+//!   — and would carry its ids and no names.
 //! - **Coverage is stated from the header**: a folder is a row no fetch
 //!   fills and is counted apart; a location never fetched is one no item
 //!   predicate supports a claim about (invariant 6 of the surface).
@@ -138,6 +139,11 @@ pub struct Place {
     pub kind: String,
     pub id: String,
     pub name: Option<String>,
+    /// GGG's `type` of the tab, verbatim, as the store's read hands it
+    /// over (C108); a substash's own, or its tab's where it has none; a
+    /// character has none (the field `tab.type`, V10).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tab_type: Option<String>,
     /// A substash's tab.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent: Option<Named>,
@@ -218,23 +224,27 @@ pub(crate) fn placed(index: &Locations<'_>, row: CorpusItem) -> (Facts, Place) {
             .copied()
     };
     let location = at(&row.location_kind, &row.location_id);
+    let tab = location
+        .filter(|l| l.kind == "stash")
+        .and_then(|l| l.parent.as_deref())
+        .and_then(|parent| at("stash", parent))
+        // a tab's parent is its folder: only a substash's parent is
+        // where an item sits
+        .filter(|p| !is_folder(p));
     let place = Place {
         realm: row.realm.clone(),
         league: row.league.clone(),
         kind: row.location_kind.clone(),
         id: row.location_id.clone(),
         name: location.map(|l| l.name.clone()),
-        parent: location
+        tab_type: location
             .filter(|l| l.kind == "stash")
-            .and_then(|l| l.parent.as_deref())
-            .and_then(|parent| at("stash", parent))
-            // a tab's parent is its folder: only a substash's parent is
-            // where an item sits
-            .filter(|p| !is_folder(p))
-            .map(|p| Named {
-                id: p.id.clone(),
-                name: Some(p.name.clone()),
-            }),
+            .and_then(|l| l.tab_type.clone())
+            .or_else(|| tab.and_then(|t| t.tab_type.clone())),
+        parent: tab.map(|p| Named {
+            id: p.id.clone(),
+            name: Some(p.name.clone()),
+        }),
         container: row.container.clone(),
         socketed_in: row.socketed_in.clone().map(|id| Named { id, name: None }),
     };

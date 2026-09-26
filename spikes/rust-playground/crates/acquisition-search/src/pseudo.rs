@@ -605,6 +605,7 @@ mod tests {
                 kind: "stash".to_string(),
                 id: "t".to_string(),
                 name: None,
+                tab_type: None,
                 parent: None,
                 container: None,
                 socketed_in: None,
