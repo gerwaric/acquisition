@@ -59,6 +59,16 @@ of these and nothing else:
 | `one-source` | one source names it and no other speaks of this pseudo | its locator |
 | `text-only` | no source names it; the template's words alone make it a candidate | the template's row in `mod-templates.csv` |
 
+What puts a template in reach of a pseudo by its words is a table in
+`scripts/candidates.py`, one entry per pseudo, printed in the README:
+the reader must be able to see why a template is a `text-only`
+candidate and why another is not. Templates of one conditional shape
+(`during Flask effect`, `while on Low Life`, a minion's, a monster's, a
+passive's grant) are one family: each keeps its row, the family names
+one representative for the sheet, and the others say `family:` in their
+note, as the first pass's rooms do. Drop no shape because it looks
+unlikely; the count of what a family holds is the finding.
+
 Never raise a row's status on likelihood. Whether the three tools are
 independent readings of the site is not known, and agreement among them
 is not the site's answer. Whether a `sources-agree` row is admitted
