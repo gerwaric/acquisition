@@ -677,6 +677,58 @@ fn c53_search_json_is_the_answer_whole_and_the_text_is_a_function_of_it() {
     );
 }
 
+/// The first seat's words (2026-09-26; `tests/seat_faults.rs` holds the
+/// JSON): a row says what it sorts by (F6), a partial id is said to find
+/// nothing because an id is whole (F7), the terms header under every
+/// realm says so (F8), and a closed set's refusal is near names and not
+/// the list (F5).
+#[test]
+fn first_seat_the_text_says_what_sorted_what_an_id_is_and_of_every_realm() {
+    let base = base();
+    seed(&base);
+    seed_more(&base);
+    let shown = text(&acq(&base, &["search", "--realm", "all", "is:corrupted"]));
+    assert!(
+        shown.contains("over live items of every realm in all leagues"),
+        "{shown}"
+    );
+    let shown = text(&acq(
+        &base,
+        &[
+            "search", "--realm", "pc", "--sort", "ilvl", "--desc", "--limit", "1",
+        ],
+    ));
+    assert!(shown.contains("sorts by ilvl 84"), "{shown}");
+    let shown = text(&acq(
+        &base,
+        &[
+            "search",
+            "--realm",
+            "pc",
+            "rarity=rare",
+            "--sort",
+            "line(\"# to maximum Life\").arg1",
+            "--desc",
+            "--limit",
+            "1",
+        ],
+    ));
+    assert!(
+        shown.contains("sorts by 95 · +95 to maximum Life (explicit)"),
+        "{shown}"
+    );
+    let shown = text(&acq(&base, &["search", "--realm", "pc", "id:r"]));
+    assert!(
+        shown.contains("nothing in scope carries the id of term 0: id:r — an id is matched whole"),
+        "{shown}"
+    );
+    let out = acq(&base, &["search", "--realm", "pc", "class:staff"]);
+    let err = String::from_utf8(out.stderr).unwrap();
+    assert!(err.contains("near it"), "{err}");
+    assert!(err.contains("class=Staves"), "{err}");
+    assert!(!err.contains("Abyss Jewels"), "{err}");
+}
+
 #[test]
 fn c11_a_failure_is_structured_and_a_later_steps_flag_is_refused_by_name() {
     let base = base();

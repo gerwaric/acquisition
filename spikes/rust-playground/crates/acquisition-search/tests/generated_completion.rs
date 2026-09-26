@@ -45,7 +45,7 @@ use std::collections::{BTreeMap, HashMap};
 use acquisition_search::Corpus;
 use common::generated::*;
 use proptest::prelude::*;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 const STORED: &str = "i0";
 /// How many of each kind the measurement prints.
@@ -255,19 +255,27 @@ fn check(
         let Ok(answer) = run(corpus, &request("", Some(&value), false, scope.len())) else {
             continue;
         };
-        let scalars: HashMap<&str, &Value> = answer["rows"]
+        // the scalar alone: what a row shows of its sort (F6, the first
+        // seat) carries an occurrence's flags, which a completion may fill
+        let scalars: HashMap<&str, Value> = answer["rows"]
             .as_array()
             .ok_or("no rows")?
             .iter()
-            .filter_map(|row| Some((row["id"].as_str()?, &row["sort"])))
+            .filter_map(|row| {
+                let sort = &row["sort"];
+                Some((
+                    row["id"].as_str()?,
+                    json!({ "value": sort["value"], "status": sort["status"] }),
+                ))
+            })
             .collect();
         let scalar = |id: &str| {
             scalars
                 .get(id)
-                .copied()
+                .cloned()
                 .ok_or_else(|| format!("`--sort {value}` over {stored}: no row for {id}"))
         };
-        let each: Vec<&Value> = completions
+        let each: Vec<Value> = completions
             .iter()
             .map(|id| scalar(id))
             .collect::<Result<_, _>>()?;

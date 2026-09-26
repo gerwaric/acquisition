@@ -540,7 +540,7 @@ fn c92_c95_a_computed_value_sorts_and_sums() {
         .as_array()
         .unwrap()
         .iter()
-        .map(|r| (r["id"].as_str().unwrap().to_string(), r["sort"].clone()))
+        .map(|r| (r["id"].as_str().unwrap().to_string(), scalar(&r["sort"])))
         .collect();
     assert_eq!(rows[0], ("ring_a".to_string(), json!({ "value": 124 })));
     assert_eq!(
@@ -562,17 +562,17 @@ fn c92_c95_a_computed_value_sorts_and_sums() {
         json!({ "rows": { "sort": "pseudo.dps", "desc": true } }),
     )
     .unwrap();
-    let rows: Vec<(&str, &Value)> = a["rows"]
+    let rows: Vec<(&str, Value)> = a["rows"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|r| (r["id"].as_str().unwrap(), &r["sort"]))
+        .map(|r| (r["id"].as_str().unwrap(), scalar(&r["sort"])))
         .collect();
-    assert_eq!(rows[0], ("sword", &json!({ "value": 281.875 })));
-    assert_eq!(rows[1], ("wand", &json!({ "value": 76.3 })));
+    assert_eq!(rows[0], ("sword", json!({ "value": 281.875 })));
+    assert_eq!(rows[1], ("wand", json!({ "value": 76.3 })));
     // the rest last, in the store's order: odd with what was readable
     // (nothing), the rings lacking the field
-    assert_eq!(rows[2], ("odd", &json!({ "status": "incomplete" })));
+    assert_eq!(rows[2], ("odd", json!({ "status": "incomplete" })));
     assert!(
         rows[3..]
             .iter()

@@ -69,7 +69,13 @@
 //!   resolved to nothing in this scope — a group's bound selector picked
 //!   no occurrence, a field's term matched no item — each with the values
 //!   sharing its words — a suggestion to type, never a match made for the author
-//!   (S107: never fuzzy-matched); and the root's undecided route.
+//!   (S107: never fuzzy-matched); an `id:` that matched nothing, with the
+//!   note that an id is whole (F7); and the root's undecided route.
+//! - **A row says what it sorts by** (F6, the first seat: a sort on a line
+//!   the query did not name showed the number alone): the field by its
+//!   name, the occurrence whose slot is the largest, a sum's
+//!   contributors, a computed value's inputs — shown as a matched term's
+//!   evidence is, bounded the same way (`eval::sorted_by`).
 //! - **Membership is `live`**: the store's read hands over no removed item
 //!   (the build plan, gap 3).
 
@@ -90,6 +96,11 @@ use crate::{json, parse, print};
 
 /// The register's wording for a line the search cannot name (C102, S107).
 pub const S107: &str = "a line the search cannot name is shown as unknown, with what it knows of it, and never fuzzy-matched";
+
+/// What a zero answer says of an `id:` term that matched nothing (F7, the
+/// first seat): the help's rule, where the reader is.
+pub const ID_WHOLE: &str =
+    "an id is matched whole, as an answer printed it: a part of one finds nothing";
 
 /// How many rows an answer returns when the request names no limit.
 pub const DEFAULT_LIMIT: usize = 20;
@@ -470,7 +481,10 @@ fn is_zero(n: &usize) -> bool {
     *n == 0
 }
 
-/// An item's sort scalar, or why it has none (C92).
+/// An item's sort scalar, or why it has none (C92), and what it sorts by
+/// (F6, the first seat): the field with its name, the occurrence whose
+/// slot is the largest, a sum's contributors, a computed value's inputs —
+/// as a matched term's `shows` are, bounded the same way.
 #[derive(Debug, Clone, Serialize)]
 pub struct Sorted {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -478,6 +492,10 @@ pub struct Sorted {
     /// `no satisfying occurrence`, or `incomplete` beside what was readable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<&'static str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub shows: Vec<Evidence>,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub left_out: usize,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -497,6 +515,10 @@ pub struct Nothing {
     pub term: String,
     pub of: String,
     pub suggestions: Vec<Suggestion>,
+    /// Why nothing could carry it, where that is not S107's: an `id:`
+    /// that is no whole id ([`ID_WHOLE`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -742,19 +764,21 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                     })
                     .filter(|t| !t.shows.is_empty())
                     .collect(),
-                sort: scalars.as_ref().map(|s| match s[m] {
-                    Scalar::Value(n) => Sorted {
-                        value: Some(eval::number_json(n.as_f64())),
-                        status: None,
-                    },
-                    Scalar::None => Sorted {
-                        value: None,
-                        status: Some("no satisfying occurrence"),
-                    },
-                    Scalar::Incomplete(n) => Sorted {
-                        value: n.map(|n| eval::number_json(n.as_f64())),
-                        status: Some("incomplete"),
-                    },
+                sort: scalars.as_ref().zip(sort).map(|(s, (_, key))| {
+                    let (shows, left_out) = eval::sorted_by(key, held);
+                    let (value, status) = match s[m] {
+                        Scalar::Value(n) => (Some(eval::number_json(n.as_f64())), None),
+                        Scalar::None => (None, Some("no satisfying occurrence")),
+                        Scalar::Incomplete(n) => {
+                            (n.map(|n| eval::number_json(n.as_f64())), Some("incomplete"))
+                        }
+                    };
+                    Sorted {
+                        value,
+                        status,
+                        shows,
+                        left_out,
+                    }
                 }),
             }
         })
@@ -1161,6 +1185,17 @@ fn nothing(corpus: &Corpus, term: &Term, picked: bool, matched: usize) -> Option
                 },
                 Atom::Closed { thing, .. },
             ) if matched == 0 => (field.clone(), None, Some(*thing)),
+            // an id is whole, and one that matched nothing says so (F7):
+            // no value shares words with it
+            (_, Atom::Id(_)) if matched == 0 => {
+                return Some(Nothing {
+                    path: term.path.clone(),
+                    term: print::print(&term.node),
+                    of: "id".to_string(),
+                    suggestions: Vec::new(),
+                    note: Some(ID_WHOLE),
+                });
+            }
             _ => return None,
         };
     let values_of = |held: &'_ Held| -> Vec<String> {
@@ -1234,6 +1269,7 @@ fn nothing(corpus: &Corpus, term: &Term, picked: bool, matched: usize) -> Option
         term: print::print(&term.node),
         suggestions,
         of,
+        note: None,
     })
 }
 

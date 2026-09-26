@@ -159,6 +159,17 @@ pub fn as_json(answer: &Answer) -> Value {
     serde_json::to_value(answer).unwrap()
 }
 
+/// A row's sort scalar alone — its value and status — without what the
+/// row shows of it (F6, the first seat), which follows the item's order.
+pub fn scalar(sort: &Value) -> Value {
+    let mut scalar = sort.clone();
+    if let Some(fields) = scalar.as_object_mut() {
+        fields.remove("shows");
+        fields.remove("left_out");
+    }
+    scalar
+}
+
 /// The ids of an answer's rows, sorted.
 pub fn ids(answer: &Value) -> Vec<String> {
     let mut ids: Vec<String> = answer["rows"]

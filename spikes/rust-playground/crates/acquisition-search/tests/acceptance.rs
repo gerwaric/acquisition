@@ -396,10 +396,9 @@ fn oq4_a_staff_by_what_is_remembered_and_league_is_place_never_origin() {
         .unwrap_err()
         .to_json();
     assert_eq!(e["kind"], "unknown_value");
-    // `staff` is three edits from `Staves`, past what near names reach,
-    // so the offer is the whole list (an observation for the seat)
-    let readings = e["readings"].as_array().unwrap();
-    assert!(readings.len() > 50 && readings.contains(&json!("class=Staves")));
+    // `staff` is three edits from `Staves` and one plural away: the seat's
+    // F5 made the near names the offer, the game's two staff classes
+    assert_eq!(e["readings"], json!(["class=Staves", "class=Warstaves"]));
     assert_eq!(ids(&asked(&s, r##"base:staff "spell skill""##)), ["staff"]);
     assert_eq!(a["rows"][0]["place"]["name"], "Crucible leftovers");
     assert_eq!(

@@ -568,7 +568,7 @@ impl<'a> Parser<'a> {
             return self.call(word, start);
         }
         let name = self.dotted(start)?;
-        let computed = name == "pseudo" || name.starts_with("pseudo.");
+        let computed = tree::is_computed(name);
         if !self.at_op() && !computed {
             return Err(self
                 .spaced_operator(name, start)
@@ -620,7 +620,7 @@ impl<'a> Parser<'a> {
         if name == "realm" {
             return Err(tree::realm_is_scope().at(start, self.pos));
         }
-        if name == "pseudo" || name.starts_with("pseudo.") {
+        if tree::is_computed(name) {
             let value = pseudo(name).map_err(|e| e.at(start, self.pos))?;
             return self.comparison(value, start);
         }
@@ -812,6 +812,9 @@ impl<'a> Parser<'a> {
                     let slot = self.slot_word()?;
                     return self.projected_comparison(where_, slot, start);
                 }
+                if of == Collection::Lines && self.at_op() {
+                    return Err(self.comparison_after_group(where_, start));
+                }
                 Ok(Node::Members {
                     of,
                     where_: Box::new(where_),
@@ -850,6 +853,66 @@ impl<'a> Parser<'a> {
         )
         .with_readings(offered.iter().map(|c| format!("{c}(")).collect())
         .at(start, self.pos)
+    }
+
+    /// `line("T")>=15` (F4, the first seat): the group is the line, and a
+    /// comparison names one of its numbers — after the group,
+    /// `line("T").low>=15`, or inside it, `line("T" low>=15)`. One pair of
+    /// readings for each slot word the group's one quoted template takes
+    /// — `low`, `high`, `avg` on a ranged line, `arg<N>` otherwise — and
+    /// for `arg1` where it names no template; each a query that binds.
+    fn comparison_after_group(&mut self, where_: Member, start: usize) -> LanguageError {
+        let at = self.pos;
+        let message = "a comparison on `line( … )` names one of the line's numbers: after the group, line( … ).<slot>>=…, or inside it, line( … <slot>>=…)";
+        let parsed = self
+            .op()
+            .filter(|op| !matches!(op, Op::Contains | Op::Match))
+            .and_then(|op| self.value(op).ok().map(|rhs| (op, rhs)));
+        let Some((op, rhs)) = parsed else {
+            self.pos = at;
+            return self.error(ErrorKind::SlotMissing, message, start);
+        };
+        let slots: Vec<String> = match sole_template(&where_) {
+            Some(template) => {
+                let slots = template::slots(template);
+                if slots.ranged.is_some() {
+                    ["low", "high", "avg"].map(String::from).to_vec()
+                } else {
+                    (1..=slots.count).map(|n| format!("arg{n}")).collect()
+                }
+            }
+            None => vec!["arg1".to_string()],
+        };
+        let mut readings = Vec::new();
+        for slot in slots {
+            readings.push(print::print(&Node::Compare {
+                value: ValueRef::Projection {
+                    lines: Box::new(where_.clone()),
+                    slot: slot.clone(),
+                },
+                op,
+                rhs: rhs.clone(),
+            }));
+            let test = Member::Test {
+                attr: slot,
+                op,
+                value: rhs.clone(),
+            };
+            let inside = match &where_ {
+                Member::All(members) => {
+                    let mut members = members.clone();
+                    members.push(test);
+                    Member::All(members)
+                }
+                single => Member::All(vec![single.clone(), test]),
+            };
+            readings.push(print::print(&Node::Members {
+                of: Collection::Lines,
+                where_: Box::new(inside),
+            }));
+        }
+        self.error(ErrorKind::SlotMissing, message, start)
+            .with_readings(readings)
     }
 
     /// `line(P).slot op value` lowers to `line(P slot op value)`: a
@@ -1019,7 +1082,7 @@ impl<'a> Parser<'a> {
         if name == "realm" {
             return Err(tree::realm_is_scope().at(start, self.pos));
         }
-        if name == "pseudo" || name.starts_with("pseudo.") {
+        if tree::is_computed(name) {
             return pseudo(name).map_err(|e| e.at(start, self.pos));
         }
         Ok(ValueRef::Field(name.to_string()))
@@ -1202,7 +1265,7 @@ impl<'a> Parser<'a> {
                 .spaced_operator(name, start)
                 .unwrap_or_else(|| self.bare_word(name, start, of, true)));
         }
-        if name == "has" || name == "realm" || name == "pseudo" || name.starts_with("pseudo.") {
+        if name == "has" || name == "realm" || tree::is_computed(name) {
             return Err(self.error(
                 ErrorKind::NotInsideGroup,
                 format!("`{name}` is asked of the item, never inside a member's group"),
@@ -1256,6 +1319,23 @@ fn template_test(template: &str) -> Member {
         op: Op::Eq,
         value: Value::Text(template.to_string()),
     }
+}
+
+/// The one quoted template among a group's conjuncts, when it has exactly
+/// one: what a comparison after the group takes its slot words from.
+fn sole_template(where_: &Member) -> Option<&str> {
+    let mut all = Vec::new();
+    template::conjuncts(where_, &mut all);
+    let mut quoted = all.into_iter().filter_map(|m| match m {
+        Member::Test {
+            attr,
+            op: Op::Eq,
+            value: Value::Text(template),
+        } if attr == "template" => Some(template.as_str()),
+        _ => None,
+    });
+    let first = quoted.next()?;
+    quoted.next().is_none().then_some(first)
 }
 
 /// The slot a slotless comparison means, by the template's own numbers. A

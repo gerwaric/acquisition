@@ -653,15 +653,23 @@ fn c97_under_all_realms_a_row_is_one_realms() {
     assert_eq!(life["buckets"][1]["request"]["scope"]["realm"], "poe2");
     assert_eq!(members(&s, &life["buckets"][1]), set(&["second"]));
     assert_eq!(members(&s, &life["buckets"][0]).len(), 4);
-    // a field's value is one bucket whatever realm holds it, routed over
-    // the scope asked
+    // a place value is one realm's too since the first seat (F3): pc's
+    // Standard and poe2's are two buckets, each routed over its realm
     let league = &a["view"]["counts"]["tables"][1];
-    assert_eq!(bucket(league, "Standard")["count"], 6);
-    assert_eq!(
-        bucket(league, "Standard")["request"]["scope"]["realm"],
-        "all"
-    );
-    assert_eq!(members(&s, bucket(league, "Standard")).len(), 6);
+    let standard: Vec<(&str, u64)> = league["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|b| b["value"] == "Standard")
+        .map(|b| (b["realm"].as_str().unwrap(), b["count"].as_u64().unwrap()))
+        .collect();
+    assert_eq!(standard, [("pc", 5), ("poe2", 1)]);
+    for b in league["buckets"].as_array().unwrap() {
+        if b["value"] == "Standard" {
+            assert_eq!(b["request"]["scope"]["realm"], b["realm"]);
+            members(&s, b);
+        }
+    }
 }
 
 /// `--cross`: one table of the cells that hold an item, each cell's route

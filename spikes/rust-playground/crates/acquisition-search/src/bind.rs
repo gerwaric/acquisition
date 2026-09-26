@@ -28,8 +28,14 @@
 //!   `class`, whose list is the class table's names (`class.rs`, C106).
 //!   `=` names one value, `:` and `~` pick among the legal ones, and a
 //!   word that picks none is an authoring error with the near ones
-//!   offered. A flag or a source GGG adds is derived and shown the day it
-//!   appears and cannot be asked for until its list gains it.
+//!   offered — a plural the game spells otherwise among them — and, with
+//!   none near, the list inline where it is short and behind `--describe
+//!   <field>` where it is not (F5: a refusal right in kind, wrong in
+//!   size). A flag or a source GGG adds is derived and shown the day it
+//!   appears and cannot be asked for until its list gains it. A name the
+//!   language knows is known in any case, a computed value's too (F10),
+//!   and a computed value is near a misspelt one — behind `has:` only a
+//!   derived field, since `has:` on a total is refused (T2).
 //! - **`reqlevel` is a number** the deriver reads from the `Level`
 //!   requirement (the build plan, step 6): `reqlevel=..30`, `-has:reqlevel`.
 //! - **Atomic terms are numbered by path** — `0`, `1`, `3.1` — as the
@@ -471,19 +477,29 @@ fn distance(a: &str, b: &str) -> usize {
 }
 
 /// The known names a typed one may have meant, nearest first: an edit or
-/// two away, or one the start of the other. A suggestion, never a binding.
+/// two away — from the word or from a plural it may take, since the
+/// game's names are plural (G1) and `staff` means `Staves` (F5, the
+/// first seat) — or one the start of the other, or, last, a name that
+/// holds the word whole (`Warstaves`). A suggestion, never a binding.
 pub(crate) fn near<'a>(word: &str, known: &[&'a str]) -> Vec<&'a str> {
     let word = word.to_ascii_lowercase();
+    let forms = plural_forms(&word);
+    let budget = if word.chars().count() <= 3 { 1 } else { 2 };
     let mut scored: Vec<(usize, &'a str)> = known
         .iter()
         .filter_map(|k| {
             let lower = k.to_ascii_lowercase();
-            let d = distance(&word, &lower);
-            let budget = if word.chars().count() <= 3 { 1 } else { 2 };
+            let d = forms
+                .iter()
+                .map(|form| distance(form, &lower))
+                .min()
+                .unwrap_or(usize::MAX);
             if d <= budget {
                 Some((d, *k))
             } else if lower.starts_with(&word) || word.starts_with(&lower) {
                 Some((budget + 1, *k))
+            } else if word.chars().count() >= 4 && forms.iter().any(|form| lower.contains(form)) {
+                Some((budget + 2, *k))
             } else {
                 None
             }
@@ -491,6 +507,35 @@ pub(crate) fn near<'a>(word: &str, known: &[&'a str]) -> Vec<&'a str> {
         .collect();
     scored.sort();
     scored.into_iter().map(|(_, k)| k).take(3).collect()
+}
+
+/// The word, and the plurals a typed singular may take: a bare `s`, `es`,
+/// `y` to `ies`, `f`, `ff` or `fe` to `ves` (`staff` to `staves`).
+fn plural_forms(word: &str) -> Vec<String> {
+    let mut forms = vec![word.to_string(), format!("{word}s"), format!("{word}es")];
+    if let Some(stem) = word.strip_suffix('y') {
+        forms.push(format!("{stem}ies"));
+    }
+    if let Some(stem) = word
+        .strip_suffix("ff")
+        .or_else(|| word.strip_suffix("fe"))
+        .or_else(|| word.strip_suffix('f'))
+    {
+        forms.push(format!("{stem}ves"));
+    }
+    forms
+}
+
+/// How many values of a closed list a refusal prints inline; a longer
+/// list is `--describe <field>`'s (F5).
+const LISTED_INLINE: usize = 12;
+
+/// A field's name, by the thing it names.
+pub(crate) fn field_name(thing: Thing) -> &'static str {
+    FIELDS
+        .iter()
+        .find(|f| f.thing == thing)
+        .map_or("", |f| f.name)
 }
 
 // ---- the bound query -----------------------------------------------------------------
@@ -942,19 +987,20 @@ impl Binder {
                 })?;
                 test(def, *op, value)
             }
-            Node::Has(name) if name.starts_with("pseudo.") => {
+            Node::Has(name) if tree::is_computed(name) => {
                 // a derived field's absence is a property's, which `has:`
                 // asks; a total's is never absence (owner, 2026-09-24, T2:
                 // "has: applies to a derived field, never to a total. A
                 // ring has no dps; every item has a total.")
-                let (named, _) = bind_pseudo(&name["pseudo.".len()..], None)?;
+                let (named, _) =
+                    bind_pseudo(name.get("pseudo.".len()..).unwrap_or_default(), None)?;
                 match named {
                     crate::pseudo::Named::Derived(_) => Ok(Atom::HasComputed(named)),
                     crate::pseudo::Named::Total { .. } => Err(tree::has_on_computed(name)),
                 }
             }
             Node::Has(name) => {
-                let def = known_field(name, |near| format!("has:{near}"))?;
+                let def = known_field_among(name, Computed::Derived, |near| format!("has:{near}"))?;
                 match def.thing {
                     Thing::Text | Thing::Id => Err(LanguageError::new(
                         ErrorKind::OperatorMismatch,
@@ -1025,8 +1071,25 @@ impl Binder {
     }
 }
 
+/// Which computed values a near-name suggestion may offer beside the
+/// fields: every one, or the derived fields alone — `has:` on a total is
+/// an error the same build prints (T2), never a reading (rule 5).
+#[derive(Clone, Copy)]
+enum Computed {
+    All,
+    Derived,
+}
+
 fn known_field(
     name: &str,
+    reading: impl Fn(&str) -> String,
+) -> Result<&'static FieldDef, LanguageError> {
+    known_field_among(name, Computed::All, reading)
+}
+
+fn known_field_among(
+    name: &str,
+    computed: Computed,
     reading: impl Fn(&str) -> String,
 ) -> Result<&'static FieldDef, LanguageError> {
     if let Some(field) = field(name) {
@@ -1047,7 +1110,21 @@ fn known_field(
         ));
     }
     let names: Vec<&'static str> = FIELDS.iter().map(|f| f.name).collect();
-    Err(unknown("field", name, &names, reading))
+    // a computed value is a name the language knows too (F10): near it,
+    // offered as `pseudo.<name>`, and never listed among the fields
+    let computed: Vec<String> = match computed {
+        Computed::All => crate::pseudo::names().to_vec(),
+        Computed::Derived => crate::pseudo::derived_names().collect(),
+    }
+    .into_iter()
+    .map(|n| format!("pseudo.{n}"))
+    .collect();
+    let among: Vec<&str> = names
+        .iter()
+        .copied()
+        .chain(computed.iter().map(String::as_str))
+        .collect();
+    Err(unknown_among("field", name, &names, &among, reading))
 }
 
 pub(crate) fn unknown(
@@ -1056,7 +1133,19 @@ pub(crate) fn unknown(
     known: &[&'static str],
     reading: impl Fn(&str) -> String,
 ) -> LanguageError {
-    let near = near(name, known);
+    unknown_among(what, name, known, known, reading)
+}
+
+/// An unknown name: `known` is what the message lists when nothing is
+/// near; `among` is what a near name is looked for in.
+fn unknown_among(
+    what: &str,
+    name: &str,
+    known: &[&str],
+    among: &[&str],
+    reading: impl Fn(&str) -> String,
+) -> LanguageError {
+    let near = near(name, among);
     let message = if near.is_empty() {
         format!(
             "`{name}` is no {what} the language knows: {}",
@@ -1242,28 +1331,40 @@ pub(crate) fn closed(
     if !picked.is_empty() {
         return Ok(picked);
     }
-    let offered = match near(word, list) {
-        near if near.is_empty() => list.to_vec(),
-        near => near,
+    // the near names first, and a long list behind `--describe` (F5, the
+    // first seat: `class:staff` answered with all 82 names, twice)
+    let near = near(word, list);
+    let (message, offered) = if !near.is_empty() {
+        (format!("`{word}` is no `{name}`; near it:"), near)
+    } else if list.len() <= LISTED_INLINE {
+        (
+            format!("`{word}` is no `{name}`: {}", list.join(", ")),
+            list.to_vec(),
+        )
+    } else {
+        (
+            format!(
+                "`{word}` is no `{name}`, and no name is near it: --describe {name} lists the {}",
+                list.len()
+            ),
+            Vec::new(),
+        )
     };
-    Err(LanguageError::new(
-        ErrorKind::UnknownValue,
-        format!("`{word}` is no `{name}`: {}", list.join(", ")),
-    )
-    // through the printer, so a value with a space is quoted (the step-6
-    // review, 3)
-    .with_readings(
-        offered
-            .iter()
-            .map(|v| {
-                print::print(&Node::Test {
-                    field: name.to_string(),
-                    op: Op::Eq,
-                    value: Value::Text((*v).to_string()),
+    Err(LanguageError::new(ErrorKind::UnknownValue, message)
+        // through the printer, so a value with a space is quoted (the
+        // step-6 review, 3)
+        .with_readings(
+            offered
+                .iter()
+                .map(|v| {
+                    print::print(&Node::Test {
+                        field: name.to_string(),
+                        op: Op::Eq,
+                        value: Value::Text((*v).to_string()),
+                    })
                 })
-            })
-            .collect(),
-    ))
+                .collect(),
+        ))
 }
 
 // ---- a bare word's closed-set readings -------------------------------------------------

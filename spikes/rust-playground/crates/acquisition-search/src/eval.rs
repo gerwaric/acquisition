@@ -1218,6 +1218,37 @@ fn reason(unread: &Unread) -> Reason {
     }
 }
 
+/// What a row shows of its sort (F6, the first seat): the field by its
+/// name with its number, the occurrence whose slot is the largest — the
+/// first of them where several tie — a sum's contributors, a computed
+/// value's inputs; bounded as a term's evidence is, the rest counted.
+pub(crate) fn sorted_by(key: &SortKey, held: &Held) -> (Vec<Evidence>, usize) {
+    let mut all: Vec<Evidence> = match key {
+        SortKey::Number(thing) => number(held, *thing)
+            .map(|n| Evidence::Value {
+                name: crate::bind::field_name(*thing).to_string(),
+                value: number_json(n),
+            })
+            .into_iter()
+            .collect(),
+        SortKey::Projection { group, slot } => {
+            let largest = satisfying(held, &group.whole)
+                .filter_map(|line| value(line, slot))
+                .reduce(f64::max);
+            satisfying(held, &group.whole)
+                .filter(|line| largest.is_some_and(|most| value(line, slot) == Some(most)))
+                .take(1)
+                .map(line_evidence)
+                .collect()
+        }
+        SortKey::Sum { group, .. } => satisfying(held, &group.whole).map(line_evidence).collect(),
+        SortKey::Pseudo { named, .. } => pseudo::evidence(*named, held),
+    };
+    let left_out = all.len().saturating_sub(SHOWN);
+    all.truncate(SHOWN);
+    (all, left_out)
+}
+
 /// What an item sorts by, and what a count sums (`counts.rs`): in units,
 /// so that a total is added again exactly.
 #[derive(Debug, Clone, Copy, PartialEq)]

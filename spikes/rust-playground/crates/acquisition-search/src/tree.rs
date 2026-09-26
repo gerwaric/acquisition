@@ -227,6 +227,17 @@ pub(crate) fn is_name(s: &str) -> bool {
 }
 
 /// The words that name a number (the reference, *Slots*).
+/// Whether a name is the computed namespace's — `pseudo`, or `pseudo.…`
+/// — in any case, as every name is read (F10, the first seat: `has:Pseudo.DPS`
+/// offered no reading).
+pub(crate) fn is_computed(name: &str) -> bool {
+    name.get(..6)
+        .is_some_and(|head| head.eq_ignore_ascii_case("pseudo"))
+        && name
+            .get(6..)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+}
+
 pub fn is_slot_word(s: &str) -> bool {
     matches!(s, "low" | "high" | "avg") || arg_index(s).is_some()
 }
@@ -378,7 +389,7 @@ fn check_field(field: &str) -> Result<(), LanguageError> {
             format!("`{field}:` is its own node, never a field"),
         ));
     }
-    if field == "pseudo" || field.starts_with("pseudo.") {
+    if is_computed(field) {
         return Err(invalid(
             ErrorKind::Tree,
             "a `pseudo.` name is a computed value: a `value` comparison, never a `field` test",

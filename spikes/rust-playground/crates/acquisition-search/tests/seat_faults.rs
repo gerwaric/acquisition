@@ -65,6 +65,15 @@ fn members(s: &Store, counted: &Value) -> BTreeSet<String> {
     ids
 }
 
+fn bucket<'a>(table: &'a Value, value: &str) -> Vec<&'a Value> {
+    table["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|b| b["bucket"] == "value" && b["value"] == value)
+        .collect()
+}
+
 /// One tab, `Gear`, of what the seat met: three blighted maps, two
 /// invitations, an Energy Blade, two itemised beasts, a plain map and a
 /// ring.
@@ -439,4 +448,356 @@ fn v10_a_tabs_type_is_a_field() {
     ] {
         parse_query(example).unwrap_or_else(|e| panic!("{example}: {e}"));
     }
+}
+
+/// F3: under `--realm all` a place value — a league, a character, a
+/// container, a tab's type — is keyed by realm, as a tab and a vocabulary
+/// row are (C96, C97): poe2's Standard is another league, and its bucket's
+/// route is scoped to its realm. Under one realm nothing changes.
+#[test]
+fn f3_under_all_realms_a_place_value_is_keyed_by_realm() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("d1", "Dump")]), 10);
+    list_tabs(&mut s, "pc", "Hardcore", json!([tab("d2", "Dump")]), 11);
+    list_tabs(&mut s, "poe2", "Standard", json!([tab("p1", "Dump")]), 12);
+    let ring = |id: &str| item(id, "Doom Loop", "Iron Ring", "Rare", json!({}));
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "d1",
+        "Dump",
+        vec![ring("a"), ring("b")],
+        20,
+    );
+    fetch_tab(&mut s, "pc", "Hardcore", "d2", "Dump", vec![ring("c")], 21);
+    fetch_tab(
+        &mut s,
+        "poe2",
+        "Standard",
+        "p1",
+        "Dump",
+        vec![ring("d")],
+        22,
+    );
+    let a = view(
+        &s,
+        "all",
+        "",
+        json!({ "counts": { "keys": ["league", "tab.type"] } }),
+    );
+    let league = &a["view"]["counts"]["tables"][0];
+    let rows: Vec<(String, String, u64)> = league["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| {
+            (
+                b["realm"].as_str().unwrap().to_string(),
+                b["value"].as_str().unwrap().to_string(),
+                b["count"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            ("pc".to_string(), "Standard".to_string(), 2),
+            ("pc".to_string(), "Hardcore".to_string(), 1),
+            ("poe2".to_string(), "Standard".to_string(), 1)
+        ]
+    );
+    let standard = bucket(league, "Standard");
+    assert_eq!(standard[0]["request"]["scope"]["realm"], "pc");
+    assert_eq!(standard[1]["request"]["scope"]["realm"], "poe2");
+    assert_eq!(standard[0]["term"], "league=Standard");
+    for b in league["buckets"].as_array().unwrap() {
+        members(&s, b);
+    }
+    // the tab's type too: one PremiumStash bucket for each realm
+    let types = &a["view"]["counts"]["tables"][1];
+    assert_eq!(bucket(types, "PremiumStash").len(), 2);
+    // a crossed table's cell carries the realm of its place key
+    let c = view(
+        &s,
+        "all",
+        "",
+        json!({ "cross": { "keys": ["league", "rarity"] } }),
+    );
+    let cells = c["view"]["cross"]["cells"].as_array().unwrap();
+    assert_eq!(cells.len(), 3, "{cells:?}");
+    for cell in cells {
+        assert!(cell["of"][0]["realm"].is_string(), "{cell}");
+        members(&s, cell);
+    }
+    // under one realm the key is the value alone, routed over the scope
+    let one = view(&s, "pc", "", json!({ "counts": { "keys": ["league"] } }));
+    let league = &one["view"]["counts"]["tables"][0];
+    assert!(league["buckets"][0].get("realm").is_none());
+    assert_eq!(
+        bucket(league, "Standard")[0]["request"]["scope"]["realm"],
+        "pc"
+    );
+}
+
+/// F1: the help's limit S53 contradicted its own field list — "an item's
+/// class is not a field" beside `class`, a closed-set field. It says what
+/// step 6 made true: the class is a derivation the search owns, read from
+/// the base by the class table, and an item the table cannot class is
+/// undecided with its reason.
+#[test]
+fn f1_the_helps_limit_on_class_says_what_the_class_table_made_true() {
+    let d = serde_json::to_value(describe(&[]).unwrap()).unwrap();
+    let s53 = d["limits"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|l| l["id"] == "S53")
+        .unwrap()["said"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(!s53.contains("is not a field"), "{s53}");
+    assert!(s53.contains("class table"), "{s53}");
+    assert!(s53.contains("undecided"), "{s53}");
+    assert!(
+        d["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["name"] == "class" && f["kind"] == "closed set")
+    );
+}
+
+/// F4: a comparison written after `line( … )` — `line("T")>=15` — got a
+/// parser message that said nothing of the language. It names the two
+/// spellings that exist, `line("T").<slot>>=15` and `line("T" <slot>>=15)`,
+/// one pair per slot the template has, each a query that binds.
+#[test]
+fn f4_a_comparison_after_a_line_group_names_the_two_spellings() {
+    let ranged = "line(\"Adds # to # Cold Damage\")>=15";
+    let e = parse_query(ranged).unwrap_err();
+    let e = serde_json::to_value(&e).unwrap();
+    assert_eq!(e["kind"], "slot_missing", "{e}");
+    let readings: Vec<&str> = e["readings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r.as_str().unwrap())
+        .collect();
+    assert_eq!(
+        readings,
+        [
+            "line(\"Adds # to # Cold Damage\").low>=15",
+            "line(\"Adds # to # Cold Damage\" low>=15)",
+            "line(\"Adds # to # Cold Damage\").high>=15",
+            "line(\"Adds # to # Cold Damage\" high>=15)",
+            "line(\"Adds # to # Cold Damage\").avg>=15",
+            "line(\"Adds # to # Cold Damage\" avg>=15)",
+        ]
+    );
+    for reading in readings {
+        parse_query(reading).unwrap_or_else(|e| panic!("{reading}: {e}"));
+    }
+    // one number: the one slot; no quoted template: arg1
+    for (text, first, second) in [
+        (
+            "line(\"# to maximum Life\")>=90",
+            "line(\"# to maximum Life\").arg1>=90",
+            "line(\"# to maximum Life\" arg1>=90)",
+        ),
+        (
+            "line(template:cold is:fractured)=15..45",
+            "line(template:cold is:fractured).arg1=15..45",
+            "line(template:cold is:fractured arg1=15..45)",
+        ),
+    ] {
+        let e = serde_json::to_value(parse_query(text).unwrap_err()).unwrap();
+        assert_eq!(e["kind"], "slot_missing", "`{text}`: {e}");
+        assert_eq!(e["readings"], json!([first, second]), "`{text}`");
+        parse_query(first).unwrap();
+        parse_query(second).unwrap();
+    }
+    // the message says where a slot goes, and the span is the group's
+    let e = parse_query(ranged).unwrap_err();
+    assert!(e.message.contains("slot"), "{}", e.message);
+    assert_eq!(e.span, Some((0, ranged.len())));
+}
+
+/// F5: `class:staff` answered with all 82 names, twice, and the one meant
+/// not singled out. A closed set's refusal offers the near names first —
+/// a plural the game spells otherwise among them — and leaves the full
+/// list to `--describe <field>`; a short list is still printed whole.
+#[test]
+fn f5_a_closed_sets_refusal_offers_the_near_names_and_not_the_list() {
+    let (corpus, _) = generated::fixture(vec![json!({})]);
+    let e = ask(&corpus, "class:staff").unwrap_err().to_json();
+    assert_eq!(e["kind"], "unknown_value");
+    assert_eq!(e["readings"], json!(["class=Staves", "class=Warstaves"]));
+    let message = e["error"].as_str().unwrap();
+    assert!(!message.contains("Abyss Jewels"), "{message}");
+    // the seat's ask 48: `=` on the singular
+    let e = ask(&corpus, "class=ring").unwrap_err().to_json();
+    assert_eq!(e["readings"][0], "class=Rings");
+    assert!(!e["error"].as_str().unwrap().contains("Abyss Jewels"));
+    // nothing near: the list is behind --describe, never inline
+    let e = ask(&corpus, "class:zzzz").unwrap_err().to_json();
+    assert_eq!(e["kind"], "unknown_value");
+    assert!(e.get("readings").is_none(), "{e}");
+    let message = e["error"].as_str().unwrap();
+    assert!(message.contains("--describe class"), "{message}");
+    assert!(!message.contains("Abyss Jewels"), "{message}");
+    // a short list is printed whole, as before
+    let e = ask(&corpus, "rarity=zz").unwrap_err().to_json();
+    assert!(
+        e["error"]
+            .as_str()
+            .unwrap()
+            .contains("normal, magic, rare, unique")
+    );
+    assert_eq!(
+        e["readings"],
+        json!([
+            "rarity=normal",
+            "rarity=magic",
+            "rarity=rare",
+            "rarity=unique"
+        ])
+    );
+    let e = ask(&corpus, "rarity=rar").unwrap_err().to_json();
+    assert_eq!(e["readings"], json!(["rarity=rare"]));
+    // the plural forms a name may take: y to ies, f to ves, a bare s
+    for (typed, first) in [
+        ("class=glove", "class=Gloves"),
+        ("class=boot", "class=Boots"),
+        ("class=\"body armour\"", "class=\"Body Armours\""),
+        ("class=quiver", "class=Quivers"),
+        ("class:stavs", "class=Staves"),
+    ] {
+        let e = ask(&corpus, typed).unwrap_err().to_json();
+        assert_eq!(e["readings"][0], first, "`{typed}`: {e}");
+    }
+}
+
+/// F10: `has:Pseudo.DPS` offered no near reading. A computed value's name
+/// is any-case, as every name is, and a misspelling offers the near one
+/// — never `has:` on a total, which the same build refuses (T2).
+#[test]
+fn f10_a_computed_value_is_named_in_any_case_and_a_near_one_is_offered() {
+    let (corpus, _) = generated::fixture(vec![json!({
+        "properties": [
+            { "name": "Physical Damage", "values": [["10-20", 0]], "displayMode": 0 },
+            { "name": "Attacks per Second", "values": [["1.5", 0]], "displayMode": 0 } ]
+    })]);
+    for (typed, as_written) in [
+        ("has:Pseudo.DPS", "has:pseudo.dps"),
+        ("Pseudo.DPS>=1", "pseudo.dps>=1"),
+        ("PSEUDO.total_res>=0", "pseudo.total_res>=0"),
+        ("undecided(Pseudo.Total_Res)", "undecided(pseudo.total_res)"),
+    ] {
+        let a = as_json(&ask(&corpus, typed).unwrap_or_else(|e| panic!("`{typed}`: {e}")));
+        let b = as_json(&ask(&corpus, as_written).unwrap());
+        assert_eq!(a["total"], b["total"], "`{typed}`");
+    }
+    let e = ask(&corpus, "has:psuedo.dps").unwrap_err().to_json();
+    assert_eq!(e["kind"], "unknown_name");
+    assert_eq!(e["readings"], json!(["has:pseudo.dps"]));
+    let e = ask(&corpus, "psuedo.dps>=1").unwrap_err().to_json();
+    assert_eq!(e["readings"], json!(["pseudo.dps>=1"]));
+    // a total is never offered behind `has:` (T2)
+    let e = ask(&corpus, "has:psuedo.total_res").unwrap_err().to_json();
+    assert_eq!(e["kind"], "unknown_name");
+    for reading in e["readings"].as_array().into_iter().flatten() {
+        let reading = reading.as_str().unwrap();
+        ask(&corpus, reading).unwrap_or_else(|e| panic!("`{reading}` offered, refused: {e}"));
+    }
+    assert_eq!(
+        ask(&corpus, "has:pseudo.total_res").unwrap_err().to_json()["kind"],
+        "has_on_computed"
+    );
+}
+
+/// F7: a partial id got the never-fetched sentence as its zero
+/// explanation. `id:` takes an id whole, as an answer printed it, and a
+/// zero answer says so: the term is listed among what resolved to nothing,
+/// with that note and no suggestion.
+#[test]
+fn f7_a_partial_id_is_said_to_find_nothing_because_an_id_is_whole() {
+    let (corpus, _) = generated::fixture(vec![json!({}), json!({})]);
+    let whole = as_json(&ask(&corpus, "id:i0").unwrap());
+    assert_eq!(whole["total"]["matched"], 1);
+    let part = as_json(&ask(&corpus, "id:i").unwrap());
+    assert_eq!(part["total"]["matched"], 0);
+    let nothing = part["zero"]["resolved_to_nothing"].as_array().unwrap();
+    assert_eq!(nothing.len(), 1, "{nothing:?}");
+    assert_eq!(nothing[0]["of"], "id");
+    assert_eq!(nothing[0]["term"], "id:i");
+    assert_eq!(nothing[0]["suggestions"], json!([]));
+    assert!(
+        nothing[0]["note"].as_str().unwrap().contains("whole"),
+        "{}",
+        nothing[0]
+    );
+    // an id that matched is not in the block
+    assert_eq!(
+        as_json(&ask(&corpus, "id:i0 rarity=unique").unwrap())["zero"]["resolved_to_nothing"],
+        json!([])
+    );
+}
+
+/// F6: a sort on a line the query did not name showed the number and not
+/// the line, and a field's sort the number and not the field. A row says
+/// what it sorts by: the field, the occurrence whose slot sorted it, a
+/// sum's contributors, a computed value's inputs — as the query's own
+/// terms are shown (C100).
+#[test]
+fn f6_a_row_says_what_it_sorts_by() {
+    let (corpus, _) = generated::fixture(vec![
+        json!({ "ilvl": 78, "explicitMods": ["Adds 1 to 4 Cold Damage", "+30 to maximum Life"] }),
+        json!({ "ilvl": 73, "explicitMods": ["Adds 3 to 9 Cold Damage", "+20 to maximum Life", "+25 to maximum Life"] }),
+    ]);
+    let sorted = |sort: &str| -> Value {
+        let a = generated::run(
+            &corpus,
+            &generated::request("rarity=rare", Some(sort), true, 10),
+        )
+        .unwrap();
+        a["rows"][0].clone()
+    };
+    // a field: its name beside the number
+    let row = sorted("ilvl");
+    assert_eq!(row["id"], "i0");
+    assert_eq!(
+        row["sort"],
+        json!({ "value": 78, "shows": [{ "value": { "name": "ilvl", "value": 78 } }] })
+    );
+    // a line: the occurrence whose slot sorted the row
+    let row = sorted("line(\"Adds # to # Cold Damage\").high");
+    assert_eq!(row["id"], "i1");
+    assert_eq!(row["sort"]["value"], 9);
+    assert_eq!(
+        row["sort"]["shows"],
+        json!([{ "line": { "source": "explicit", "flags": [], "text": "Adds 3 to 9 Cold Damage" } }])
+    );
+    // a sum: what it added
+    let row = sorted("sum(\"# to maximum Life\")");
+    assert_eq!(row["id"], "i1");
+    assert_eq!(row["sort"]["value"], 45);
+    let texts: Vec<&str> = row["sort"]["shows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["line"]["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(texts, ["+20 to maximum Life", "+25 to maximum Life"]);
+    // nothing to sort by: nothing shown, the status as before
+    let a = generated::run(
+        &corpus,
+        &generated::request("rarity=rare", Some("line(template:spirit).arg1"), true, 10),
+    )
+    .unwrap();
+    assert_eq!(
+        a["rows"][0]["sort"],
+        json!({ "status": "no satisfying occurrence" })
+    );
 }

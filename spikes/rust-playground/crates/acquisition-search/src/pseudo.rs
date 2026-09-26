@@ -175,6 +175,11 @@ pub(crate) fn names() -> &'static [&'static str] {
     &NAMES
 }
 
+/// The derived fields' names alone: what `has:` may be offered (T2).
+pub(crate) fn derived_names() -> impl Iterator<Item = &'static str> {
+    Derived::ALL.into_iter().map(Derived::name)
+}
+
 /// The value of a computed value on one item (the module doc).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Valued {

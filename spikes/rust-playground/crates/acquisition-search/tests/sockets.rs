@@ -682,7 +682,7 @@ fn review_a_socket_whose_group_is_unread_is_a_socket_still_and_an_open_group_say
     }))
     .unwrap();
     let r = as_json(&answer(&load(&s, Some("pc")), &sorted).unwrap());
-    assert_eq!(r["rows"][0]["sort"], json!({ "value": 1 }));
+    assert_eq!(scalar(&r["rows"][0]["sort"]), json!({ "value": 1 }));
     // 4: the help answers to each colour field
     let d =
         serde_json::to_value(acquisition_search::describe(&["sockets.red".to_string()]).unwrap())

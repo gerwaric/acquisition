@@ -73,7 +73,7 @@ pub const LIMITS: &[Limit] = &[
     },
     Limit {
         id: "S53",
-        said: "an item's class is not a field; a class the search names is a derivation it owns, and an item it cannot class is shown unclassed",
+        said: "an item's class is a derivation the search owns — read from its base by the class table (C106), never a fact GGG gives — and an item the table cannot class is undecided with its reason (C93)",
     },
     Limit {
         id: "S107",

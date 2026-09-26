@@ -129,8 +129,9 @@ fn c102_s53_a_class_is_a_derivation_the_search_owns_and_says_so() {
         .iter()
         .map(|l| l["said"].as_str().unwrap())
         .collect();
+    // the wording since the first seat (F1): what step 6 made true
     assert!(limits.contains(
-        &"an item's class is not a field; a class the search names is a derivation it owns, and an item it cannot class is shown unclassed"
+        &"an item's class is a derivation the search owns — read from its base by the class table (C106), never a fact GGG gives — and an item the table cannot class is undecided with its reason (C93)"
     ));
     let class = serde_json::to_value(describe(&["class".to_string()]).unwrap()).unwrap();
     let what = class["fields"][0]["what"].as_str().unwrap();

@@ -443,8 +443,12 @@ fn c92_the_sort_scalar_and_an_item_without_one_last_either_way() {
     // r3 100; r1 and r5 95 in the store's order; r2's largest is 75; r6's
     // 95 is no largest while its implicit array is unread; r7 has none
     assert_eq!(order, ["r3", "r1", "r5", "r2", "r6", "r7"]);
-    assert_eq!(down[3].1, json!({ "value": 75 }));
-    assert_eq!(down[4].1, json!({ "value": 95, "status": "incomplete" }));
+    // a row says what it sorts by since the first seat (F6): the
+    // occurrence whose slot is the largest, beside the number
+    assert_eq!(down[3].1["value"], 75);
+    assert_eq!(down[3].1["shows"][0]["line"]["text"], "+75 to maximum Life");
+    assert_eq!(down[4].1["value"], 95);
+    assert_eq!(down[4].1["status"], "incomplete");
     assert_eq!(down[5].1, json!({ "status": "no satisfying occurrence" }));
     let up = sorted(false);
     let order: Vec<&str> = up.iter().map(|(id, _)| id.as_str()).collect();

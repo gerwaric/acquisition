@@ -467,7 +467,9 @@ fn review_every_reading_a_class_error_offers_binds() {
     for text in ["class:bodyarmour", "class=body", "class:nosuchclass"] {
         let e = ask(&corpus, text).unwrap_err().to_json();
         assert_eq!(e["kind"], "unknown_value", "{text}");
-        for reading in e["readings"].as_array().unwrap() {
+        // a word with no name near it offers nothing, and points at
+        // `--describe class` (F5, the first seat)
+        for reading in e["readings"].as_array().into_iter().flatten() {
             let reading = reading.as_str().unwrap();
             assert!(
                 ask(&corpus, reading).is_ok(),

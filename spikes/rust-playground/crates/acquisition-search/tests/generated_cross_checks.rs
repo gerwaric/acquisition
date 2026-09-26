@@ -54,14 +54,22 @@ fn term_members(
         .collect()
 }
 
-/// `id → sort` of every item, by the empty query.
+/// `id → sort` of every item, by the empty query: the scalar alone — what
+/// a row shows of its sort (F6, the first seat) is in the item's order,
+/// which the reorderings below change.
 fn scalars(corpus: &Corpus, scope: &Ids, value: &str) -> Option<HashMap<String, Value>> {
     let answer = run(corpus, &request("", Some(value), false, scope.len().max(1))).ok()?;
     Some(
         answer["rows"]
             .as_array()?
             .iter()
-            .filter_map(|row| Some((row["id"].as_str()?.to_string(), row["sort"].clone())))
+            .filter_map(|row| {
+                let sort = &row["sort"];
+                Some((
+                    row["id"].as_str()?.to_string(),
+                    json!({ "value": sort["value"], "status": sort["status"] }),
+                ))
+            })
             .collect(),
     )
 }

@@ -423,6 +423,29 @@ fn place_text(place: &acquisition_search::corpus::Place) -> String {
     out
 }
 
+/// One piece of a row's evidence, as a term's or a sort's.
+fn evidence_text(evidence: &acquisition_search::answer::Evidence) -> String {
+    use acquisition_search::answer::Evidence;
+    match evidence {
+        Evidence::Line {
+            source,
+            flags,
+            text,
+        } => {
+            let kind: Vec<&str> = std::iter::once(source.as_str())
+                .chain(flags.iter().map(String::as_str))
+                .collect();
+            format!("{} ({})", text.replace('\n', " / "), kind.join(", "))
+        }
+        Evidence::Shown { part, text } => format!("{text} ({part})"),
+        Evidence::Value { name, value } => format!("{name} {}", json_text(value)),
+        Evidence::Undecided { path, term, reason } => format!(
+            "term {path} {term} is undecided: {} unread — {}; {}",
+            reason.unread, reason.problem, reason.hint
+        ),
+    }
+}
+
 fn answer_text(a: &Answer, all_routes: bool) -> String {
     let now = acquisition_store::now();
     let mut out = String::new();
@@ -479,8 +502,11 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
 
     if !a.terms.is_empty() {
         line(format!(
-            "terms   each term evaluated independently over live {} items in all leagues",
-            scope.realm.as_str()
+            "terms   each term evaluated independently over live {} in all leagues",
+            match &scope.realm {
+                Realm::All => "items of every realm".to_string(),
+                Realm::One(realm) => format!("{realm} items"),
+            }
         ));
         let width = a
             .terms
@@ -565,34 +591,33 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         ));
         let mut shows: Vec<String> = Vec::new();
         if let Some(sorted) = &row.sort {
-            shows.push(match (&sorted.value, sorted.status) {
-                (Some(value), None) => format!("sorts by {}", number(value)),
-                (Some(value), Some(status)) => format!("sorts last: {status} at {}", number(value)),
-                (None, status) => format!("sorts last: {}", status.unwrap_or("no value")),
-            });
+            // what sorted the row (F6): a field's name before its number,
+            // a line or a sum's contributors after
+            let by = match (&sorted.value, sorted.status) {
+                (Some(value), None) => format!("by {}", number(value)),
+                (Some(value), Some(status)) => format!("last: {status} at {}", number(value)),
+                (None, status) => format!("last: {}", status.unwrap_or("no value")),
+            };
+            let mut rest = sorted.shows.iter();
+            let named = match sorted.shows.first() {
+                Some(acquisition_search::answer::Evidence::Value { name, .. }) => {
+                    rest.next();
+                    by.replacen("by ", &format!("by {name} "), 1)
+                }
+                _ => by,
+            };
+            shows.push(format!("sorts {named}"));
+            shows.extend(rest.map(evidence_text));
+            if sorted.left_out > 0 {
+                shows.push(format!(
+                    "{} more sorted: {}",
+                    sorted.left_out,
+                    a.show_command(&row.id)
+                ));
+            }
         }
         for touched in &row.matched {
-            for evidence in &touched.shows {
-                use acquisition_search::answer::Evidence;
-                shows.push(match evidence {
-                    Evidence::Line {
-                        source,
-                        flags,
-                        text,
-                    } => {
-                        let kind: Vec<&str> = std::iter::once(source.as_str())
-                            .chain(flags.iter().map(String::as_str))
-                            .collect();
-                        format!("{} ({})", text.replace('\n', " / "), kind.join(", "))
-                    }
-                    Evidence::Shown { part, text } => format!("{text} ({part})"),
-                    Evidence::Value { name, value } => format!("{name} {}", json_text(value)),
-                    Evidence::Undecided { path, term, reason } => format!(
-                        "term {path} {term} is undecided: {} unread — {}; {}",
-                        reason.unread, reason.problem, reason.hint
-                    ),
-                });
-            }
+            shows.extend(touched.shows.iter().map(evidence_text));
         }
         shows.dedup();
         if !shows.is_empty() {
@@ -638,7 +663,10 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         for nothing in &zero.resolved_to_nothing {
             line(format!(
                 "nothing in scope carries the {} of term {}: {} — {}",
-                nothing.of, nothing.path, nothing.term, zero.said
+                nothing.of,
+                nothing.path,
+                nothing.term,
+                nothing.note.unwrap_or(zero.said)
             ));
             for s in &nothing.suggestions {
                 line(format!(

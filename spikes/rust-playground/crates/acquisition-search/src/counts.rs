@@ -23,6 +23,12 @@
 //!   has at most one value on an item, so its buckets sum exactly to the
 //!   total (C105's second invariant); `line` puts an item in a bucket for
 //!   each template it carries, and only the first invariant holds.
+//! - **A place value is one realm's under an all-realms scope** (F3, the
+//!   first seat: pc's Standard and poe2's were one `Standard` of 21,409,
+//!   and its route returned both): a league, a character, a container, a
+//!   tab's type is keyed by realm as a tab and a vocabulary row are,
+//!   labelled with it, and its route is scoped to it (C96, C97). Under
+//!   one realm the value alone is the key.
 //! - **`tab` is counted by the tab, never by its name.** An item in a
 //!   substash is in its tab's bucket. A name is no identity — two leagues
 //!   each have a `Dump` — and `tab=` tests a substash's name beside its
@@ -408,6 +414,11 @@ fn twins<'a>(corpus: &'a Corpus, of: impl Fn(&'a Held) -> Vec<&'a str>) -> HashS
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum Of {
     Text(String),
+    /// A place value under an all-realms scope, keyed by its realm (F3).
+    Placed {
+        realm: String,
+        value: String,
+    },
     /// A value outside its closed list.
     Unlisted(String),
     /// A number, in units: a price's decimals kept (`exact.rs`).
@@ -435,7 +446,16 @@ struct Selects {
     realm: Option<String>,
 }
 
-fn bucket_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs) -> Of {
+/// Whether a field is the item's place, which under an all-realms scope
+/// is keyed by realm (F3): a league is one realm's, a character too.
+fn is_place(thing: Thing) -> bool {
+    matches!(
+        thing,
+        Thing::League | Thing::Character | Thing::Container | Thing::TabType
+    )
+}
+
+fn bucket_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs, by_realm: bool) -> Of {
     match eval::outcome(&Atom::Has(def.thing), held, &[]) {
         Outcome::Undecided => return Of::Undecided,
         Outcome::Failed | Outcome::Lacked => return Of::None,
@@ -470,6 +490,10 @@ fn bucket_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs) -> Of {
         (Some(value), bind::Kind::Closed(list)) => match bind::legal(list(), value) {
             Some(legal) => Of::Text(legal.to_string()),
             None => Of::Unlisted(value.to_string()),
+        },
+        (Some(value), _) if by_realm && is_place(def.thing) => Of::Placed {
+            realm: held.place.realm.clone(),
+            value: value.to_string(),
         },
         (Some(value), _) => Of::Text(value.to_string()),
     }
@@ -515,7 +539,7 @@ fn label_of(
             Some(test("id", Op::Contains, Value::Text(at.id.clone()))),
         ),
         Of::Unlisted(value) => ("value", Some(Json::from(value.as_str())), None),
-        Of::Text(value) => {
+        Of::Text(value) | Of::Placed { value, .. } => {
             let term = if twins.contains(&bind::folded(value)) {
                 test(def.name, Op::Match, Value::Text(bind::exact_pattern(value)))
             } else {
@@ -525,8 +549,9 @@ fn label_of(
         }
     };
     // a tab is its coordinate: the id, and the league the tab is listed
-    // under, over its realm
-    let (tab, selects) = match (of, term) {
+    // under, over its realm; a place value under every realm is one
+    // realm's, and routes over it (F3)
+    let (tab, realm, selects) = match (of, term) {
         (Of::Tab(at), Some(term)) => {
             let mut terms = vec![term];
             if let Some(league) = &at.league {
@@ -534,13 +559,23 @@ fn label_of(
             }
             (
                 Some(at.clone()),
+                Some(at.realm.clone()),
                 Some(Selects {
                     terms,
                     realm: Some(at.realm.clone()),
                 }),
             )
         }
+        (Of::Placed { realm, .. }, Some(term)) => (
+            None,
+            Some(realm.clone()),
+            Some(Selects {
+                terms: vec![term],
+                realm: Some(realm.clone()),
+            }),
+        ),
         (_, term) => (
+            None,
             None,
             term.map(|term| Selects {
                 terms: vec![term],
@@ -553,7 +588,7 @@ fn label_of(
         value,
         id: tab.as_ref().map(|at| at.id.clone()),
         league: tab.as_ref().and_then(|at| at.league.clone()),
-        realm: tab.map(|at| at.realm),
+        realm,
         term: selects.as_ref().map(|s| match s.terms.as_slice() {
             [one] => print::print(one),
             many => print::print(&Node::All(many.to_vec())),
@@ -577,6 +612,7 @@ fn spelled(of: &Of, tabs: &Tabs) -> (u8, Exact, String, String) {
     match of {
         Of::Number(n) => (0, *n, String::new(), String::new()),
         Of::Text(v) | Of::Unlisted(v) => (0, none, v.clone(), String::new()),
+        Of::Placed { realm, value } => (0, none, value.clone(), realm.clone()),
         Of::Tab(at) => (
             0,
             none,
@@ -680,8 +716,9 @@ fn field_table(
     let mut piles: HashMap<Of, Pile> = HashMap::new();
     let mut tabs = Tabs::new();
     let mut tally: BTreeMap<String, usize> = BTreeMap::new();
+    let by_realm = matches.corpus.realm == Realm::All;
     for (m, held) in matches.held().enumerate() {
-        let of = bucket_of(def, held, &mut tabs);
+        let of = bucket_of(def, held, &mut tabs, by_realm);
         if of == Of::Undecided {
             for kind in eval::unread_kinds(&Atom::Has(def.thing), held) {
                 *tally.entry(kind).or_default() += 1;
@@ -747,10 +784,11 @@ pub(crate) fn crossed(bound: &BoundCounts, matches: &Matches<'_>) -> CrossOut {
     let mut tabs = Tabs::new();
     let mut tally: BTreeMap<String, usize> = BTreeMap::new();
     let mut margins: Vec<[usize; 2]> = vec![[0, 0]; defs.len()];
+    let by_realm = matches.corpus.realm == Realm::All;
     for (m, held) in matches.held().enumerate() {
         let of: Vec<Of> = defs
             .iter()
-            .map(|def| bucket_of(def, held, &mut tabs))
+            .map(|def| bucket_of(def, held, &mut tabs, by_realm))
             .collect();
         let mut kinds: Vec<String> = Vec::new();
         for (k, (def, of)) in defs.iter().zip(&of).enumerate() {
