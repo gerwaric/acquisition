@@ -89,6 +89,14 @@
 //!   field whose input the item lacks is lacked. Its sort scalar and its
 //!   reasons are the same functions', and a total's arithmetic is this
 //!   module's own sum over each row's group.
+//! - **The price** (`price.rs`; C81, C100) is read as the listing state
+//!   answered it: `has:priced` is a witness where the effective statement
+//!   carries a price, known absence where it resolved to none, no price
+//!   or skip, and undecided — with the listing state's own reason — where
+//!   a row that could decide cannot be read; `price.amount`,
+//!   `price.currency` and `price.lot` are that price's parts, lacked with
+//!   it, and open with it. A price term shows the price as printed, the
+//!   side that decided and the target it came from.
 
 use std::borrow::Cow;
 
@@ -189,6 +197,10 @@ fn body_key(thing: Thing) -> Option<&'static str> {
         | Thing::Sockets
         | Thing::Links
         | Thing::SocketColour(_)
+        | Thing::Price
+        | Thing::PriceAmount
+        | Thing::PriceCurrency
+        | Thing::PriceLot
         | Thing::League
         | Thing::Tab
         | Thing::Character
@@ -197,6 +209,14 @@ fn body_key(thing: Thing) -> Option<&'static str> {
             return None;
         }
     })
+}
+
+/// Whether a thing is the price or one of its parts (`price.rs`).
+fn is_price_thing(thing: Thing) -> bool {
+    matches!(
+        thing,
+        Thing::Price | Thing::PriceAmount | Thing::PriceCurrency | Thing::PriceLot
+    )
 }
 
 /// Whether a thing is a count over the sockets (`sockets.rs`).
@@ -243,7 +263,8 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
                 | Part::SocketGroup
                 | Part::SocketColour
                 | Part::Class(_)
-                | Part::Total(_) => false,
+                | Part::Total(_)
+                | Part::Price(_) => false,
             })
             .collect(),
         // the base, or the body, unread leaves the class open; the table's
@@ -273,6 +294,11 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
                 _ => false,
             })
             .collect(),
+        // the price is the listing state's, never the body's: what left it
+        // open is its own reason, made once there (`price.rs`)
+        (Thing::Price | Thing::PriceAmount | Thing::PriceCurrency | Thing::PriceLot, _) => {
+            held.price.unread().into_iter().collect()
+        }
         // the deriver says under `reqlevel` when the Level row may have
         // been lost, so a sibling that could not be read leaves it closed
         (Thing::ReqLevel, _) => held
@@ -324,6 +350,12 @@ pub(crate) fn texts(held: &Held, thing: Thing) -> Vec<&str> {
             .chain(place.parent.as_ref().and_then(|p| p.name.as_deref()))
             .collect(),
         Thing::Character if place.kind == "character" => one(&place.name),
+        Thing::PriceCurrency => held
+            .price
+            .price()
+            .map(|p| p.currency.as_str())
+            .into_iter()
+            .collect(),
         Thing::Tab
         | Thing::Character
         | Thing::Text
@@ -333,6 +365,9 @@ pub(crate) fn texts(held: &Held, thing: Thing) -> Vec<&str> {
         | Thing::Sockets
         | Thing::Links
         | Thing::SocketColour(_)
+        | Thing::Price
+        | Thing::PriceAmount
+        | Thing::PriceLot
         | Thing::Id => Vec::new(),
     }
 }
@@ -347,6 +382,8 @@ pub(crate) fn number(held: &Held, thing: Thing) -> Option<f64> {
         Thing::Sockets | Thing::Links | Thing::SocketColour(_) => {
             counted(held, thing).value().map(|n| n as f64)
         }
+        Thing::PriceAmount => held.price.price().map(|p| p.amount),
+        Thing::PriceLot => held.price.price().and_then(|p| p.lot).map(|n| n as f64),
         _ => None,
     }
 }
@@ -358,6 +395,7 @@ fn present(held: &Held, thing: Thing) -> bool {
     match thing {
         Thing::Sockets | Thing::SocketColour(_) => held.item.sockets.is_some(),
         Thing::Links => sockets::groups(&held.item).is_some_and(|g| g.has_group()),
+        Thing::Price => held.price.price().is_some(),
         _ => number(held, thing).is_some() || !texts(held, thing).is_empty(),
     }
 }
@@ -426,7 +464,8 @@ fn unread_lines<'a>(held: &'a Held, group: &Group) -> Vec<&'a Unread> {
             | Part::SocketGroup
             | Part::SocketColour
             | Part::Class(_)
-            | Part::Total(_) => false,
+            | Part::Total(_)
+            | Part::Price(_) => false,
         })
         .collect()
 }
@@ -917,6 +956,12 @@ fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
                 text: v.to_string(),
             })
             .collect(),
+        // a price term shows the price as the listing state prints it
+        Atom::Number { thing, .. } | Atom::Closed { thing, .. } | Atom::Has(thing)
+            if is_price_thing(*thing) =>
+        {
+            crate::price::evidence(held)
+        }
         // a socket count shows its layout beside the number
         Atom::Number { thing, .. } if is_socket_thing(*thing) => {
             let name = match &term.node {
@@ -1095,11 +1140,13 @@ fn reason(unread: &Unread) -> Reason {
             Part::SocketColour => "a socket's colour".to_string(),
             Part::Class(gap) => gap.unread().to_string(),
             Part::Total(gap) => gap.unread().to_string(),
+            Part::Price(gap) => gap.unread().to_string(),
         },
         problem: unread.problem.clone(),
         hint: match &unread.part {
             Part::Class(_) => crate::class::CLASS_HINT,
             Part::Total(_) => crate::totals::TOTAL_HINT,
+            Part::Price(_) => crate::price::PRICE_HINT,
             _ => UNREAD_HINT,
         },
     }

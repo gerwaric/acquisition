@@ -1129,6 +1129,7 @@ mod tests {
             x: Some(x),
             y: Some(y),
             note: None,
+            note_unread: false,
             inventory_id: Some(
                 if kind == "stash" {
                     "Stash1"

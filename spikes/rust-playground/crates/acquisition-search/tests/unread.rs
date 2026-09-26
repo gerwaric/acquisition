@@ -5,7 +5,7 @@
 
 mod common;
 
-use acquisition_search::{Corpus, answer, show};
+use acquisition_search::{Corpus, answer};
 use acquisition_store::Store;
 use common::*;
 use serde_json::{Value, json};
@@ -122,16 +122,16 @@ fn c93_a_line_with_unread_flags_is_no_witness_that_it_is_not_crafted() {
             .unwrap()
             .contains("`flags.crafted` is a string, not yes or no")
     );
-    let shown = serde_json::to_value(show(&s, "one", false).unwrap()).unwrap();
+    let shown = serde_json::to_value(common::show(&s, "one", false).unwrap()).unwrap();
     // a readable object names the flag it could not read; an unreadable
     // one leaves every flag open
     assert_eq!(shown["lines"][0]["flags_unknown"], json!(["crafted"]));
     assert!(shown["lines"][0].get("flags_unread").is_none());
-    let whole = serde_json::to_value(show(&s, "whole", false).unwrap()).unwrap();
+    let whole = serde_json::to_value(common::show(&s, "whole", false).unwrap()).unwrap();
     assert_eq!(whole["lines"][0]["flags_unread"], true);
     assert_eq!(shown["item"]["unread"][0]["part"], "flags");
     assert!(
-        serde_json::to_value(show(&s, "plain", false).unwrap()).unwrap()["lines"][0]
+        serde_json::to_value(common::show(&s, "plain", false).unwrap()).unwrap()["lines"][0]
             .get("flags_unread")
             .is_none()
     );
@@ -344,7 +344,7 @@ fn c93_an_unread_flag_never_erases_the_known_no_beside_it() {
     assert_eq!(of(&corpus, "f", "-is:shaper"), (1, 0));
     assert_eq!(of(&corpus, "f", "-is:hunter"), (0, 1));
     assert_eq!(of(&corpus, "f", "-is:corrupted"), (1, 0));
-    let shown = serde_json::to_value(show(&s, "f", false).unwrap()).unwrap();
+    let shown = serde_json::to_value(common::show(&s, "f", false).unwrap()).unwrap();
     assert_eq!(shown["lines"][0]["flags_unknown"], json!(["fractured"]));
     assert!(shown["lines"][0].get("flags_unread").is_none());
     assert_eq!(

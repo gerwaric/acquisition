@@ -7,8 +7,10 @@ pub mod generated;
 
 use std::path::PathBuf;
 
+use acquisition_search::show::Shown;
 use acquisition_search::{Answer, Corpus, Realm, Request, SearchError, answer};
-use acquisition_store::{Endpoint, Store};
+use acquisition_store::corpus::RealmScope;
+use acquisition_store::{Annotations, Endpoint, Store};
 use serde_json::{Value, json};
 
 /// A facts file of this test's own. The process id alone is not: ids come
@@ -130,9 +132,27 @@ pub fn request(text: &str) -> Request {
     serde_json::from_value(json!({ "query": { "text": text } })).unwrap()
 }
 
+/// An intent file of this test's own, in memory, bound to the store's
+/// account: what a corpus is loaded beside where no price is written.
+pub fn intent(s: &Store) -> Annotations {
+    let uuid = s
+        .read_corpus(RealmScope::All, |header, _| Ok(header.account_uuid.clone()))
+        .unwrap();
+    Annotations::open_memory_for(&uuid).unwrap()
+}
+
 pub fn load(s: &Store, realm: Option<&str>) -> Corpus {
+    load_with(s, &intent(s), realm)
+}
+
+pub fn load_with(s: &Store, intent: &Annotations, realm: Option<&str>) -> Corpus {
     let realm = realm.map(|r| Realm::parse(r).unwrap());
-    Corpus::load(s, realm.as_ref()).unwrap()
+    Corpus::load(s, intent, realm.as_ref()).unwrap()
+}
+
+/// `show` beside an empty intent file.
+pub fn show(s: &Store, id: &str, body: bool) -> Result<Shown, SearchError> {
+    acquisition_search::show(s, &intent(s), id, body)
 }
 
 pub fn as_json(answer: &Answer) -> Value {

@@ -167,8 +167,14 @@ pub struct ItemSnapshot {
     pub x: Option<i64>,
     pub y: Option<i64>,
     /// The item's `note`, exactly as the API returned it; `None` when the
-    /// body carried none.
+    /// body carried none, or carried one that is no string.
     pub note: Option<String>,
+    /// The body carries a `note` that is no string: nothing here says what
+    /// it would read as, and a consumer must not read the silence as "no
+    /// note" (the search's rule 8, at the note's grain; found by its
+    /// generators at step 9, 2026-09-25).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub note_unread: bool,
     /// The item's `inventoryId`, verbatim: a character item's slot, the
     /// literal `Stash1` for every stash item (T13), absent on a socketed
     /// item. A forum link to a character item is addressed by it.
@@ -552,6 +558,14 @@ fn read_items(tx: &rusqlite::Transaction, realm: &str, league: &str) -> Result<V
           ORDER BY i.location_kind, i.location_id, i.y IS NULL, i.y, i.x, i.id",
     )?;
     let rows = stmt.query_map([realm, league], |r| {
+        // GGG's note is a string; a body carrying anything else there is
+        // malformed at the note alone, and is carried as unread rather
+        // than failing the snapshot whole (C47)
+        let (note, note_unread) = match r.get::<_, rusqlite::types::Value>(10)? {
+            rusqlite::types::Value::Null => (None, false),
+            rusqlite::types::Value::Text(text) => (Some(text), false),
+            _ => (None, true),
+        };
         Ok(ItemSnapshot {
             id: r.get(0)?,
             location_kind: r.get(1)?,
@@ -563,7 +577,8 @@ fn read_items(tx: &rusqlite::Transaction, realm: &str, league: &str) -> Result<V
             stack_size: r.get(7)?,
             x: r.get(8)?,
             y: r.get(9)?,
-            note: r.get(10)?,
+            note,
+            note_unread,
             inventory_id: r.get(11)?,
             seen_response: r.get(12)?,
             last_seen: r.get(13)?,
@@ -1282,12 +1297,15 @@ mod tests {
         let mut noted = item("i-noted");
         noted["note"] = json!("~price 5 chaos");
         noted["stackSize"] = json!(20);
+        // a note that is no string: unread at the note, never a failed read
+        let mut odd = item("i-odd");
+        odd["note"] = json!(5);
         s.record(
             &stash_ep("c1", None),
             &json!({}),
             200,
             &json!({ "stash": { "id": "c1", "name": "~price 3 chaos", "type": "PremiumStash",
-                                "items": [ noted.clone(), item("i-plain"), gem_holder.clone(), item("i-gone") ] } }),
+                                "items": [ noted.clone(), item("i-plain"), gem_holder.clone(), item("i-gone"), odd.clone() ] } }),
             110,
         )
         .unwrap();
@@ -1297,7 +1315,7 @@ mod tests {
             &json!({}),
             200,
             &json!({ "stash": { "id": "c1", "name": "~price 3 chaos", "type": "PremiumStash",
-                                "items": [ noted, item("i-plain"), gem_holder ] } }),
+                                "items": [ noted, item("i-plain"), gem_holder, odd ] } }),
             120,
         )
         .unwrap();
@@ -1358,19 +1376,27 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["ch-1"]
         );
-        let notes: Vec<(&str, &str, Option<&str>)> = snap
+        let notes: Vec<(&str, &str, Option<&str>, bool)> = snap
             .items
             .iter()
-            .map(|i| (i.location_id.as_str(), i.id.as_str(), i.note.as_deref()))
+            .map(|i| {
+                (
+                    i.location_id.as_str(),
+                    i.id.as_str(),
+                    i.note.as_deref(),
+                    i.note_unread,
+                )
+            })
             .collect();
         assert_eq!(
             notes,
             [
-                ("ch-1", "i-worn", Some("~price 2222 jewellers")),
-                ("c1", "i-armour", None),
-                ("c1", "i-noted", Some("~price 5 chaos")),
-                ("c1", "i-plain", None),
-                ("c1", "i-gem", Some("~b/o 2 divine")),
+                ("ch-1", "i-worn", Some("~price 2222 jewellers"), false),
+                ("c1", "i-armour", None, false),
+                ("c1", "i-noted", Some("~price 5 chaos"), false),
+                ("c1", "i-odd", None, true),
+                ("c1", "i-plain", None, false),
+                ("c1", "i-gem", Some("~b/o 2 divine"), false),
             ]
         );
         let gem = snap.items.iter().find(|i| i.id == "i-gem").unwrap();

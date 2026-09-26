@@ -7,7 +7,7 @@
 
 mod common;
 
-use acquisition_search::{Request, TOTALS_TABLE_VERSION, answer, describe, show};
+use acquisition_search::{Request, TOTALS_TABLE_VERSION, answer, describe};
 use acquisition_store::Store;
 use common::*;
 use serde_json::{Value, json};
@@ -217,7 +217,7 @@ fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_zero() {
     // the basis cites the table's version (C98)
     assert_eq!(a["basis"]["totals"], TOTALS_TABLE_VERSION);
     assert_eq!(
-        serde_json::to_value(show(&s, "ring_a", false).unwrap()).unwrap()["basis"]["totals"],
+        serde_json::to_value(common::show(&s, "ring_a", false).unwrap()).unwrap()["basis"]["totals"],
         TOTALS_TABLE_VERSION
     );
 }
@@ -326,7 +326,7 @@ fn audit_an_unrelated_malformed_property_hides_no_derived_field() {
         ["ele", "nameless"]
     );
     // the reason is the element's own, named (`derive::Unread::name`)
-    let shown = serde_json::to_value(show(&s, "ele", false).unwrap()).unwrap();
+    let shown = serde_json::to_value(common::show(&s, "ele", false).unwrap()).unwrap();
     assert_eq!(
         (
             &shown["item"]["unread"][0]["name"],

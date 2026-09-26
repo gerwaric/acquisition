@@ -4,8 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-# C89: the store, and nothing else of the workspace until a query reads the
-# effective price
+# C89: the store, and the planner for the effective price a query reads
+# (C81, C100; `price.rs`) — nothing else of the workspace
+acquisition-plan = { path = "../acquisition-plan" }
 acquisition-store = { path = "../acquisition-store" }
 anyhow.workspace = true
 # `~`, and every other text comparison: one any-case matcher (bind.rs)

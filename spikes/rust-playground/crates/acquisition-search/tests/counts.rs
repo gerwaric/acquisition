@@ -776,9 +776,9 @@ fn a_view_that_cannot_be_is_an_authoring_error() {
             "rarity",
         ),
         (
-            json!({ "counts": { "keys": ["price.currency"] } }),
-            "not_built",
-            "price.* (step 9)",
+            json!({ "counts": { "keys": ["priced"] } }),
+            "view",
+            "yes or no",
         ),
         (
             json!({ "counts": { "keys": ["text"] } }),

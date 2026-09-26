@@ -55,6 +55,11 @@ ASKS = [
     ("OQ3 within one link group", ["linked(red>=3 green>=1)"]),
     ("links sorted", ["links>=5", "--sort", "links", "--desc", "--limit", "10"]),
     ("--count links", ["", "--count", "links"]),
+    # step 9: the effective price, joined from the listing state
+    ("has:priced", ["has:priced"]),
+    ("OQ6 a unique by name, priced", ['name="Ashes of the Stars" has:priced']),
+    ("--count price.currency --sum price.amount", ["has:priced", "--count", "price.currency", "--sum", "price.amount"]),
+    ("price.amount sorted", ["price.amount>=1", "--sort", "price.amount", "--desc", "--limit", "10"]),
 ]
 
 def main():

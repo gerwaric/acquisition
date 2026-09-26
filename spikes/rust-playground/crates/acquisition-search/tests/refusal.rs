@@ -90,12 +90,7 @@ fn every_construct_of_the_reference_evaluates_or_is_refused_by_its_name_on_the_l
     assert!(evaluated > 0 && !refusals.is_empty());
     // what the corpus can reach of the list is refused by that name; the
     // flags are the CLI's to refuse, by the same function
-    for construct in [
-        "pseudo.defence_pct",
-        "pseudo.<name>.<slot>",
-        "has:priced",
-        "price.*",
-    ] {
+    for construct in ["pseudo.defence_pct", "pseudo.<name>.<slot>"] {
         assert!(
             refusals.contains(construct),
             "no case of the corpus met `{construct}`: {refusals:?}"

@@ -67,7 +67,7 @@ pub(crate) fn reads(literal: &str) -> bool {
 
 /// A number in whole units: a displayed number, a mean, or a total of
 /// them. Ordered and added as the integer it is.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct Exact(i128);
 
 impl Exact {

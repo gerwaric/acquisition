@@ -943,6 +943,22 @@ impl Annotations {
         rows.into_iter().map(row_from_raw).collect()
     }
 
+    /// The file's revision: the sum of every row's revision, tombstones
+    /// included, which every write through this API raises by exactly one
+    /// — a create lands at 1, an update, a delete and a create over a
+    /// tombstone each add one — so two reads that agree bracket a state no
+    /// write has touched. What a consumer that joins intent to facts names
+    /// in its basis (C98; the search's `corpus.rs`), read in one statement
+    /// so it is one moment's; never a row's own revision, which the
+    /// compare-and-swap uses.
+    pub fn revision(&self) -> Result<i64, AnnotationError> {
+        Ok(self.conn.query_row(
+            "SELECT COALESCE(SUM(revision), 0) FROM annotations",
+            [],
+            |r| r.get(0),
+        )?)
+    }
+
     /// Store-managed backup (C35): a consistent snapshot of this file at
     /// `dest`, via SQLite's `VACUUM INTO`, published atomically. `VACUUM
     /// INTO` writes `dest` directly and never fsyncs it, so an interrupted
@@ -1219,6 +1235,33 @@ mod tests {
             )
             .unwrap();
         assert_eq!(row.revision, 2);
+    }
+
+    /// The file's revision moves by one on every write — create, update,
+    /// delete, create over the tombstone — and by nothing else.
+    #[test]
+    fn the_files_revision_rises_by_one_per_write_tombstones_included() {
+        let mut a = Annotations::open_memory().unwrap();
+        assert_eq!(a.revision().unwrap(), 0);
+        a.put::<Buyout>("item", "i1", &price("1"), None, &via_test())
+            .unwrap();
+        assert_eq!(a.revision().unwrap(), 1);
+        a.put::<Buyout>("item", "i2", &price("1"), None, &via_test())
+            .unwrap();
+        assert_eq!(a.revision().unwrap(), 2);
+        a.put::<Buyout>("item", "i1", &price("2"), Some(1), &via_test())
+            .unwrap();
+        assert_eq!(a.revision().unwrap(), 3);
+        a.delete("item", "i1", "buyout", 2, &via_test()).unwrap();
+        assert_eq!(a.revision().unwrap(), 4);
+        // the tombstone still counts; a create over it carries on from it
+        a.put::<Buyout>("item", "i1", &price("3"), None, &via_test())
+            .unwrap();
+        assert_eq!(a.revision().unwrap(), 5);
+        // a read moves nothing
+        a.list(None, None).unwrap();
+        a.get("item", "i1", "buyout").unwrap();
+        assert_eq!(a.revision().unwrap(), 5);
     }
 
     fn conflict_revision(e: AnnotationError) -> Option<i64> {

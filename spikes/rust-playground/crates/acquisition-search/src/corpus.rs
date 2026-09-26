@@ -18,11 +18,20 @@
 //!   answer, no migration, and two files of one account are two stores. A
 //!   file moved is another store, which costs a reload; an id the file
 //!   itself carries is parked (`decisions/search.md`). Stores that are no
-//!   file — a test's, in memory — share one name. The intent revision joins it with price (the
-//!   build plan, step 9). [`Corpus::is_current`] is C98's check before
-//!   every answer: a consumer that holds a corpus across asks compares, and
-//!   reloads whole when it differs; an answer already given stays what its
-//!   basis says it was.
+//!   file — a test's, in memory — share one name. The intent file's
+//!   revision joins it with the price (`price.rs`; the build plan, step
+//!   9), with the currency table's and the note parser's versions the
+//!   listing state was resolved under. [`Corpus::is_current`] is C98's
+//!   check before every answer: a consumer that holds a corpus across asks
+//!   compares, and reloads whole when it differs; an answer already given
+//!   stays what its basis says it was.
+//! - **Each item's price is the listing state's** (`price.rs`, C81, C100):
+//!   after the one read, one pricing snapshot and one `resolve` for each
+//!   (realm, league) the scope's locations name, joined by item id. Those
+//!   snapshots are reads of their own, so the facts revision and the intent
+//!   revision are read again after them and the whole corpus is read again
+//!   where either moved — three times, then an error — so no answer is
+//!   labelled with a basis its prices were not read at.
 //! - **Each item is classed as it is derived** (`class.rs`): the table is
 //!   checked before the read, so a build whose table does not load answers
 //!   nothing rather than an unclassed corpus; the totals table is checked
@@ -39,13 +48,14 @@
 
 use std::collections::HashMap;
 
-use acquisition_store::Store;
 use acquisition_store::corpus::{CorpusHeader, CorpusItem, LocationRow, RealmScope, Revision};
+use acquisition_store::{Annotations, Store};
 use serde::{Deserialize, Serialize};
 
 use crate::class::{self, CLASS_TABLE_VERSION, ClassTable, Classed};
 use crate::derive::{Facts, Item, derive};
 use crate::error::SearchError;
+use crate::price::{self, CURRENCY_TABLE_VERSION, NOTE_PARSER_VERSION, Priced};
 use crate::totals::{self, TOTALS_TABLE_VERSION, TotalsTable};
 
 /// The version of [`derive()`]'s reading of a body: it moves when the same
@@ -111,6 +121,12 @@ pub struct Basis {
     pub classes: u32,
     /// The totals table's version (C94).
     pub totals: u32,
+    /// The intent file's revision the prices were read at (C98, C81).
+    pub intent: i64,
+    /// The currency table's version (C68).
+    pub currency: u32,
+    /// The note parser's version (C69).
+    pub notes: u32,
 }
 
 /// Where an item sits, by name and id.
@@ -137,13 +153,14 @@ pub struct Named {
     pub name: Option<String>,
 }
 
-/// One held item: what the body says, where it is, and what the class
-/// table says of it.
+/// One held item: what the body says, where it is, what the class table
+/// says of it, and what the listing state prices it at.
 #[derive(Debug, Clone)]
 pub struct Held {
     pub item: Item,
     pub place: Place,
     pub class: Classed,
+    pub price: Priced,
 }
 
 /// What the scope block says was searched (C96).
@@ -237,8 +254,9 @@ pub(crate) fn placed(index: &Locations<'_>, row: CorpusItem) -> (Facts, Place) {
 }
 
 impl Basis {
-    /// The basis of what one read of `store` handed over.
-    pub(crate) fn of(store: &Store, header: &CorpusHeader) -> Basis {
+    /// The basis of what one read of `store` handed over, with the intent
+    /// revision the prices were read at.
+    pub(crate) fn of(store: &Store, header: &CorpusHeader, intent: i64) -> Basis {
         use sha2::{Digest as _, Sha256};
         let path = store.path();
         let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
@@ -250,6 +268,9 @@ impl Basis {
             derivation: DERIVATION,
             classes: CLASS_TABLE_VERSION,
             totals: TOTALS_TABLE_VERSION,
+            intent,
+            currency: CURRENCY_TABLE_VERSION,
+            notes: NOTE_PARSER_VERSION,
         }
     }
 }
@@ -266,13 +287,37 @@ pub(crate) fn totals_table() -> Result<&'static TotalsTable, SearchError> {
     totals::table().map_err(|e| SearchError::scope("totals_table", e.to_string()))
 }
 
+/// How many times a corpus is read again when the facts or the intent
+/// moved while its prices were being joined, before that is an error.
+pub(crate) const REREADS: usize = 3;
+
 impl Corpus {
-    /// Read and derive every live item of `realm` under one snapshot. A
-    /// named realm the store does not hold is a valid scope of no items; no
-    /// realm named is resolved against what the store holds (C96): the one
-    /// it holds, all when it holds none, and an error listing them when it
+    /// Read and derive every live item of `realm` under one snapshot, and
+    /// join each item's price from the listing state (`price.rs`). A named
+    /// realm the store does not hold is a valid scope of no items; no realm
+    /// named is resolved against what the store holds (C96): the one it
+    /// holds, all when it holds none, and an error listing them when it
     /// holds several.
-    pub fn load(store: &Store, realm: Option<&Realm>) -> Result<Corpus, SearchError> {
+    pub fn load(
+        store: &Store,
+        intent: &Annotations,
+        realm: Option<&Realm>,
+    ) -> Result<Corpus, SearchError> {
+        for _ in 0..REREADS {
+            if let Some(corpus) = Self::read(store, intent, realm)? {
+                return Ok(corpus);
+            }
+        }
+        Err(moved())
+    }
+
+    /// One read: the corpus, or nothing where the facts or the intent moved
+    /// before its prices were joined.
+    fn read(
+        store: &Store,
+        intent: &Annotations,
+        realm: Option<&Realm>,
+    ) -> Result<Option<Corpus>, SearchError> {
         let wanted = match realm {
             Some(Realm::One(realm)) => Some(realm.clone()),
             _ => None,
@@ -284,7 +329,9 @@ impl Corpus {
         let named = realm.cloned();
         let table = class_table()?;
         totals_table()?;
-        store
+        currency_table()?;
+        let intent_revision = price::intent_revision(intent)?;
+        let (mut corpus, leagues) = store
             .read_corpus(scope, |header, rows| {
                 let realm = match named {
                     Some(realm) => realm,
@@ -313,6 +360,8 @@ impl Corpus {
                         class: table.classify(&item),
                         item,
                         place,
+                        // joined below, once the read is done
+                        price: Priced::open(price::PriceGap::Uncovered, "not joined yet"),
                     });
                 }
                 name_sockets(&mut items);
@@ -325,22 +374,38 @@ impl Corpus {
                     })
                     .cloned()
                     .collect();
-                Ok(Ok(Corpus {
-                    basis: Basis::of(store, header),
-                    account_name: header.account_name.clone(),
-                    coverage: coverage(header, &realm, &locations, items.len()),
-                    realm,
-                    items,
-                }))
+                let leagues = price::leagues(&locations);
+                Ok(Ok((
+                    Corpus {
+                        basis: Basis::of(store, header, intent_revision),
+                        account_name: header.account_name.clone(),
+                        coverage: coverage(header, &realm, &locations, items.len()),
+                        realm,
+                        items,
+                    },
+                    leagues,
+                )))
             })
-            .map_err(SearchError::store)?
+            .map_err(SearchError::store)??;
+        let mut prices = price::join(store, intent, &leagues)?;
+        if !still_at(store, intent, &corpus.basis)? {
+            return Ok(None);
+        }
+        for held in &mut corpus.items {
+            held.price = price::of_item(&mut prices, &held.item.facts.id);
+        }
+        Ok(Some(corpus))
     }
 
     /// C98's check before every answer: whether this is the store the
-    /// corpus was read from, and its facts still stand at that revision.
-    pub fn is_current(&self, store: &Store) -> Result<bool, SearchError> {
+    /// corpus was read from, its facts still stand at that revision, and
+    /// the intent file at its.
+    pub fn is_current(&self, store: &Store, intent: &Annotations) -> Result<bool, SearchError> {
+        let intent_revision = price::intent_revision(intent)?;
         let now = store
-            .read_corpus(RealmScope::All, |header, _| Ok(Basis::of(store, header)))
+            .read_corpus(RealmScope::All, |header, _| {
+                Ok(Basis::of(store, header, intent_revision))
+            })
             .map_err(SearchError::store)?;
         Ok(now == self.basis)
     }
@@ -348,6 +413,33 @@ impl Corpus {
     pub fn items(&self) -> &[Held] {
         &self.items
     }
+}
+
+/// Whether the facts and the intent still stand at the basis: what the
+/// prices were joined after, checked before the corpus is handed over.
+pub(crate) fn still_at(
+    store: &Store,
+    intent: &Annotations,
+    basis: &Basis,
+) -> Result<bool, SearchError> {
+    let facts = store.revision().map_err(SearchError::store)?;
+    Ok(facts == basis.snapshot && price::intent_revision(intent)? == basis.intent)
+}
+
+/// The store or the intent file kept moving while a corpus was read.
+pub(crate) fn moved() -> SearchError {
+    SearchError::scope(
+        "basis_moved",
+        format!(
+            "the facts or the intent file changed {REREADS} times while a corpus was being read: a refresh or a price write is under way — ask again"
+        ),
+    )
+}
+
+/// The currency table, or the error a build whose table does not load
+/// answers with (`price.rs`).
+pub(crate) fn currency_table() -> Result<(), SearchError> {
+    price::currency_table().map_err(|e| SearchError::scope("currency_table", e))
 }
 
 fn realm_needed(held: &[String]) -> SearchError {

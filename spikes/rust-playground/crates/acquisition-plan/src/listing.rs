@@ -104,7 +104,14 @@
 //! shown but never a side. Both texts ride verbatim with their parser
 //! readings beside the statement. `public` is the listing's
 //! `metadata.public` being exactly `true` (absent means not public,
-//! census 2c); it is `None` where there is no stash to publish.
+//! census 2c); it is `None` where there is no stash to publish. A note
+//! the store could not read — the body carries one that is no string
+//! (`ItemSnapshot::note_unread`) — is a statement of unknown content at
+//! the most specific level there is, so the effective price is
+//! `unresolved` whatever the rows and the tab say, as an unreadable row
+//! leaves it (C81); the game side states nothing from it and says so
+//! (`note_unread`). Found by the search's generators at step 9
+//! (2026-09-25), when the snapshot still failed whole on such a body.
 //!
 //! **The relation is over the two sides' presence and content.** `none`:
 //! no row applies and the game states nothing. `manual_only` and
@@ -308,6 +315,10 @@ pub struct GameSide {
     /// (C81).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub residue: bool,
+    /// The item's note is there and could not be read: the effective
+    /// price is unresolved by it (the module doc).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub note_unread: bool,
 }
 
 /// How the two sides stand to each other (C69).
@@ -909,6 +920,7 @@ fn tab_game_side(info: &TabInfo<'_>, table: &CurrencyTable) -> GameSide {
         substash_name,
         public: None,
         residue: false,
+        note_unread: false,
     };
     if let Some(t) = info.game_tab {
         let reading = game_side::read(Source::TabName, &t.name, table);
@@ -934,8 +946,16 @@ fn tab_game_side(info: &TabInfo<'_>, table: &CurrencyTable) -> GameSide {
 /// The note in front of the tab half (C69): a note that reads as a price
 /// or `skip` is the statement where the tab is public; any other note
 /// has no effect and the tab applies (T18). Where there is no public
-/// tab the note is residue at most.
-fn with_note(mut side: GameSide, note: Option<&str>, table: &CurrencyTable) -> GameSide {
+/// tab the note is residue at most. A note the store could not read
+/// states nothing here and is marked, so the effective price can say it
+/// is unresolved by it (the module doc).
+fn with_note(
+    mut side: GameSide,
+    note: Option<&str>,
+    note_unread: bool,
+    table: &CurrencyTable,
+) -> GameSide {
+    side.note_unread = note_unread;
     if let Some(text) = note {
         let reading = game_side::read(Source::Note, text, table);
         if speaks(&reading) {
@@ -1177,13 +1197,33 @@ fn listing(
         unreadable.as_ref(),
         &game.reading,
     );
-    let effective = effective(
-        chain,
-        manual.as_ref(),
-        unreadable.as_ref(),
-        &game,
-        &subject.target,
-    );
+    let effective = if game.note_unread {
+        // the note is the most specific statement there is (C81): one that
+        // cannot be read could decide over anything
+        Effective {
+            kind: "unresolved".into(),
+            price: None,
+            side: None,
+            from: Some(subject.target.clone()),
+            why: format!(
+                "unresolved: the note on {} cannot be read (it is no string) and would decide (C81)",
+                subject.target
+            ),
+        }
+    } else {
+        effective(
+            chain,
+            manual.as_ref(),
+            unreadable.as_ref(),
+            &game,
+            &subject.target,
+        )
+    };
+    let why = if game.note_unread {
+        format!("{why}; the note cannot be read")
+    } else {
+        why
+    };
     let manual_problem =
         unreadable.map(|u| format!("the row on {} cannot be read: {}", u.target, u.why));
     Listing {
@@ -1309,6 +1349,7 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
             substash_name: None,
             public: None,
             residue: false,
+            note_unread: false,
         };
         let basis = Basis {
             response: c.listed_response,
@@ -1336,8 +1377,10 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
                     substash_name: None,
                     public: None,
                     residue: false,
+                    note_unread: false,
                 },
                 item.note.as_deref(),
+                item.note_unread,
                 table,
             );
             (location, chain, game)
@@ -1347,7 +1390,12 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
                     let mut chain = Vec::with_capacity(info.chain.len() + 1);
                     chain.push(own);
                     chain.extend(info.chain.iter().cloned());
-                    let game = with_note(tab_game_side(info, table), item.note.as_deref(), table);
+                    let game = with_note(
+                        tab_game_side(info, table),
+                        item.note.as_deref(),
+                        item.note_unread,
+                        table,
+                    );
                     (info.target.clone(), chain, game)
                 }
                 None => {
@@ -1368,8 +1416,10 @@ pub fn resolve(snapshot: &PricingSnapshot) -> Result<ListingReport, ListingError
                             substash_name: None,
                             public: None,
                             residue: false,
+                            note_unread: false,
                         },
                         item.note.as_deref(),
+                        item.note_unread,
                         table,
                     );
                     (location, chain, game)
@@ -1503,6 +1553,7 @@ mod tests {
             x: Some(0),
             y: Some(0),
             note: note.map(str::to_string),
+            note_unread: false,
             inventory_id: Some(
                 if kind == "stash" {
                     "Stash1"
@@ -1777,6 +1828,56 @@ mod tests {
         assert_eq!(report.counts.by_game_statement["none"], 3);
         assert_eq!(report.counts.game_priced, 5);
         assert_eq!(report.counts.residue, 1);
+    }
+
+    /// C81 — a note the store could not read is a statement of unknown
+    /// content at item level, so nothing decides: unresolved beside a
+    /// game tab price and beside the item's own row alike, the row and
+    /// the tab still shown. Found by the search's generators (step 9).
+    #[test]
+    fn c81_a_note_that_cannot_be_read_leaves_the_price_unresolved() {
+        let mut snap = snapshot();
+        for item in snap.items.iter_mut() {
+            if item.id == "i-plain" || item.id == "i-invalid" {
+                item.note = None;
+                item.note_unread = true;
+            }
+        }
+        let report = resolve(&snap).unwrap();
+        for id in ["i-plain", "i-invalid"] {
+            let l = get(&report, &item_target(id));
+            assert!(l.game.note_unread && l.game.note.is_none());
+            assert_eq!(
+                (l.effective.side, l.effective.kind.as_str()),
+                (None, "unresolved"),
+                "{id}"
+            );
+            assert_eq!(l.effective.from, Some(item_target(id)));
+            assert!(
+                l.effective
+                    .why
+                    .starts_with(&format!("unresolved: the note on item/{id} cannot be read")),
+                "{}",
+                l.effective.why
+            );
+            assert!(l.why.ends_with("; the note cannot be read"), "{}", l.why);
+        }
+        // the row on `i-plain` is still reported, and the tab price on
+        // `i-invalid`'s tab: nothing is hidden by the unread note
+        assert_eq!(
+            get(&report, &item_target("i-plain"))
+                .manual
+                .as_ref()
+                .map(|m| m.value.kind()),
+            Some("exact")
+        );
+        assert!(
+            get(&report, &item_target("i-invalid"))
+                .game
+                .tab_name
+                .is_some()
+        );
+        assert_eq!(report.counts.by_effective["unresolved"], 3);
     }
 
     /// C81 — the effective price is the more specific statement, the

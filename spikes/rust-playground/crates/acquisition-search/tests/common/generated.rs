@@ -18,13 +18,23 @@
 //! socket whose colour could not be read (an `attr` and no `sColour`),
 //! and one whose group could not.
 //!
+//! Since step 9 they reach the price (C81, C100): the fixture's tab is
+//! public and carries the owner's row, a note is a game price, a bulk
+//! ratio, a `~skip`, a word that is no price, or a hole — a note that is no
+//! string, which the store carries as unread and the listing state leaves
+//! unresolved — and `has:priced`, `price.amount`, `price.currency`,
+//! `price.lot` join the composition as comparisons, `has:`, probes and
+//! sorts.
+//!
 //! Nothing here reads the crate's tree, binder or evaluator: a query is
-//! rendered to text and asked, and a body enters through `Store::record`.
+//! rendered to text and asked, and a body enters through `Store::record`;
+//! a row enters through the pricing area's one write.
 
 use std::collections::{BTreeSet, HashMap};
 
+use acquisition_plan::price::{Buyout, Price, PriceTarget, set_buyout};
 use acquisition_search::{Corpus, Request, answer};
-use acquisition_store::{Endpoint, Store};
+use acquisition_store::{Annotations, Endpoint, Provenance, Store};
 use proptest::prelude::*;
 use serde_json::{Map, Value, json};
 
@@ -397,6 +407,15 @@ fn plain() -> BoxedStrategy<Q> {
             "tab:routes",
             "true()",
             "false()",
+            "has:priced",
+            "-has:priced",
+            "price.amount>=2",
+            "price.amount=1..5",
+            "price.amount<2",
+            "price.currency=chaos",
+            "price.currency:div",
+            "price.lot>=2",
+            "has:price.lot",
             "sockets>=2",
             "sockets=1..3",
             "has:sockets",
@@ -415,6 +434,9 @@ fn plain() -> BoxedStrategy<Q> {
     .prop_map(|text| Q::Plain(text.to_string()))
     .boxed()
 }
+
+/// The price's names (`price.rs`), as `undecided( … )` asks them.
+pub const PRICE: [&str; 3] = ["priced", "price.amount", "price.currency"];
 
 /// The computed values (`pseudo.rs`): a total over the resistance lines
 /// and the two derived fields over the properties, compared within the
@@ -509,6 +531,12 @@ fn alt() -> BoxedStrategy<Q> {
             "sockets.red>=1".into(),
             TermKind::Plain,
         ),
+        ("has:PRICED".into(), "has:priced".into(), TermKind::Plain),
+        (
+            "PRICE.Currency=Chaos".into(),
+            "price.currency=chaos".into(),
+            TermKind::Plain,
+        ),
     ];
     proptest::sample::select(pairs)
         .prop_map(|(spelled, explicit, kind)| Q::Alt(spelled, explicit, kind))
@@ -523,6 +551,8 @@ fn q_leaf(probes: bool) -> BoxedStrategy<Q> {
         2 => (group(), slot_word(), comparison()).prop_map(|(g, s, c)| Q::Proj(g, s, c)),
         open => (group(), slot_word(), any::<bool>()).prop_map(|(g, s, sum)| Q::Open(g, s, sum)),
         open => proptest::sample::select(PSEUDO.to_vec())
+            .prop_map(|value| Q::Probe(format!("undecided({value})"))),
+        open => proptest::sample::select(PRICE.to_vec())
             .prop_map(|value| Q::Probe(format!("undecided({value})"))),
         4 => plain(),
         3 => pseudo_leaf(),
@@ -567,7 +597,7 @@ pub enum Sort {
 pub fn sort() -> BoxedStrategy<Sort> {
     prop_oneof![
         3 => Just(Sort::None),
-        1 => proptest::sample::select(vec!["ilvl", "stack", "reqlevel", "sockets", "links", "sockets.red"]).prop_map(Sort::Field),
+        1 => proptest::sample::select(vec!["ilvl", "stack", "reqlevel", "sockets", "links", "sockets.red", "price.amount", "price.lot"]).prop_map(Sort::Field),
         1 => proptest::sample::select(PSEUDO.to_vec()).prop_map(Sort::Field),
         2 => (group(), slot_word()).prop_map(|(g, s)| Sort::Proj(g, s)),
         2 => (group(), slot_word()).prop_map(|(g, s)| Sort::Sum(g, s)),
@@ -1170,7 +1200,16 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
         known(vec![0, 1, 79, 80, 84], holes),
         known(vec![1, 20, 30, 45], holes),
         known(vec!["Doom Knot", "Life Ring"], holes),
-        known(vec!["~price 1 chaos", "keep"], holes),
+        known(
+            vec![
+                "~price 1 chaos",
+                "~price 5 chaos",
+                "~b/o 2/3 divine",
+                "~skip",
+                "keep",
+            ],
+            holes,
+        ),
         props(holes),
         socks(holes),
     )
@@ -1841,11 +1880,29 @@ pub fn anchors() -> Vec<Value> {
 
 // ---- the boundary -----------------------------------------------------------------------------------
 
-/// One tab of rare rings `i0`, `i1`, … in the realm `pc`, and an item in
-/// another realm that no answer over `pc` may return.
+/// One public tab of rare rings `i0`, `i1`, … in the realm `pc`, the
+/// owner's row on the tab (negotiable 1 divine) beneath every note, and an
+/// item in another realm that no answer over `pc` may return.
 pub fn fixture(bodies: Vec<Value>) -> (Corpus, Ids) {
     let (_, corpus, ids) = fixture_with_store(bodies);
     (corpus, ids)
+}
+
+/// The intent file the fixture is loaded beside: the owner's one row.
+pub fn fixture_intent() -> Annotations {
+    let mut intent = Annotations::open_memory_for("generated").unwrap();
+    set_buyout(
+        &mut intent,
+        &PriceTarget::from_address("tab", "pc/t").unwrap(),
+        &Buyout::Negotiable(Price {
+            amount: "1".parse().unwrap(),
+            currency: "divine".into(),
+        }),
+        None,
+        &Provenance::via("test"),
+    )
+    .unwrap();
+    intent
 }
 
 /// The same, with the store it was loaded from: what `show` reads.
@@ -1864,7 +1921,7 @@ pub fn fixture_with_store(bodies: Vec<Value>) -> (Store, Corpus, Ids) {
         &mut store,
         "pc",
         "Standard",
-        json!([super::tab("t", "Routes")]),
+        json!([{ "id": "t", "name": "Routes", "type": "PremiumStash", "metadata": { "public": true } }]),
         2,
     );
     let ids: Ids = (0..bodies.len()).map(|n| format!("i{n}")).collect();
@@ -1890,7 +1947,7 @@ pub fn fixture_with_store(bodies: Vec<Value>) -> (Store, Corpus, Ids) {
         vec![super::item("outside", "", "Iron Ring", "Rare", json!({}))],
         5,
     );
-    let corpus = super::load(&store, Some("pc"));
+    let corpus = super::load_with(&store, &fixture_intent(), Some("pc"));
     (store, corpus, ids)
 }
 

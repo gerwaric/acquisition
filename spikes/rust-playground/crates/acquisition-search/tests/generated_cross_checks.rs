@@ -29,7 +29,7 @@ mod common;
 
 use std::collections::{BTreeMap, HashMap};
 
-use acquisition_search::{Corpus, show};
+use acquisition_search::Corpus;
 use acquisition_store::Store;
 use common::generated::*;
 use proptest::prelude::*;
@@ -192,8 +192,9 @@ fn a_reason_is_of_what_its_term_asked(answer: &Value) -> Result<(), String> {
 fn evidence_is_the_items(store: &Store, answer: &Value) -> Result<(), String> {
     for row in answer["rows"].as_array().ok_or("no rows")? {
         let id = row["id"].as_str().ok_or("a row with no id")?;
-        let shown = serde_json::to_value(show(store, id, false).map_err(|e| e.to_string())?)
-            .map_err(|e| e.to_string())?;
+        let shown =
+            serde_json::to_value(common::show(store, id, false).map_err(|e| e.to_string())?)
+                .map_err(|e| e.to_string())?;
         let lines = shown["lines"].as_array().ok_or("show has no lines")?;
         let flags = |line: &Value| line["flags"].clone();
         for touched in row["matched"].as_array().ok_or("a row with no matched")? {

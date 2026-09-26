@@ -595,6 +595,10 @@ mod tests {
         };
         Held {
             item: derive(facts, body),
+            price: crate::price::Priced::None {
+                kind: "none".to_string(),
+                why: String::new(),
+            },
             place: Place {
                 realm: realm.to_string(),
                 league: Some("Standard".to_string()),

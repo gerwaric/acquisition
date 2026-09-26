@@ -7,7 +7,9 @@
 
 mod common;
 
-use acquisition_search::{Request, describe, show};
+use acquisition_plan::price::{Buyout, Price, PriceTarget, set_buyout};
+use acquisition_search::{Request, describe};
+use acquisition_store::Provenance;
 use acquisition_store::{Endpoint, Store};
 use common::*;
 use serde_json::{Value, json};
@@ -294,7 +296,7 @@ fn oq2_a_unique_by_name_its_place_and_every_line_through_show() {
     );
     assert!(none["zero"].is_object());
 
-    let shown = serde_json::to_value(show(&s, "ash", false).unwrap()).unwrap();
+    let shown = serde_json::to_value(common::show(&s, "ash", false).unwrap()).unwrap();
     assert_eq!(shown["item"]["name"], "Ashes of the Stars");
     assert_eq!(shown["place"]["name"], "Gear");
     let lines: Vec<(&str, &str, &Value)> = shown["lines"]
@@ -566,7 +568,7 @@ fn aq4_every_printed_id_is_accepted_back() {
         let id = row["id"].as_str().unwrap();
         assert_eq!(ids(&asked(&s, &format!("id:{id}"))), [id]);
         assert_eq!(
-            serde_json::to_value(show(&s, id, false).unwrap()).unwrap()["item"]["facts"]["id"],
+            serde_json::to_value(common::show(&s, id, false).unwrap()).unwrap()["item"]["facts"]["id"],
             id
         );
     }
@@ -575,11 +577,11 @@ fn aq4_every_printed_id_is_accepted_back() {
     assert_eq!(ids(&asked(&s, "id:m1")), ["map1"]);
     // an id that is no item says what it is, and one the store lacks says so
     assert_eq!(
-        show(&s, "g1", false).unwrap_err().to_json()["kind"],
+        common::show(&s, "g1", false).unwrap_err().to_json()["kind"],
         "not_an_item"
     );
     assert_eq!(
-        show(&s, "nope", false).unwrap_err().to_json()["kind"],
+        common::show(&s, "nope", false).unwrap_err().to_json()["kind"],
         "item_not_found"
     );
 }
@@ -646,7 +648,7 @@ fn c102_s12_a_veiled_line_is_shown_as_its_placeholder_and_no_value_matches_it() 
     ] {
         assert_eq!(asked(&s, value)["total"]["matched"], 0, "{value}");
     }
-    let shown = serde_json::to_value(show(&s, "veil", false).unwrap()).unwrap();
+    let shown = serde_json::to_value(common::show(&s, "veil", false).unwrap()).unwrap();
     let veiled = shown["lines"]
         .as_array()
         .unwrap()
@@ -693,7 +695,7 @@ fn c100_show_is_the_derived_item_and_the_stored_body_on_request() {
         )],
         40,
     );
-    let shown = serde_json::to_value(show(&s, "odd", true).unwrap()).unwrap();
+    let shown = serde_json::to_value(common::show(&s, "odd", true).unwrap()).unwrap();
     assert_eq!(shown["item"]["name"], "Odd One");
     assert_eq!(shown["lines"], json!([]));
     let unread: Vec<&str> = shown["item"]["unread"]
@@ -706,7 +708,7 @@ fn c100_show_is_the_derived_item_and_the_stored_body_on_request() {
     let body: Value = serde_json::from_str(shown["body"].as_str().unwrap()).unwrap();
     assert_eq!(body["explicitMods"], "not an array");
     assert!(
-        serde_json::to_value(show(&s, "ash", false).unwrap())
+        serde_json::to_value(common::show(&s, "ash", false).unwrap())
             .unwrap()
             .get("body")
             .is_none()
@@ -716,7 +718,7 @@ fn c100_show_is_the_derived_item_and_the_stored_body_on_request() {
     // removed from its tab: in the store, and not live
     fetch_tab(&mut s, "pc", "Standard", "n1", "Unopened", vec![], 50);
     assert_eq!(
-        show(&s, "odd", false).unwrap_err().to_json()["kind"],
+        common::show(&s, "odd", false).unwrap_err().to_json()["kind"],
         "item_not_live"
     );
 }
@@ -870,4 +872,57 @@ fn oq5_leveling_gear_from_the_owners_words_wearable_low_level_with_the_lines() {
     let mut rest = order[2..].to_vec();
     rest.sort_unstable();
     assert_eq!(rest, ["helm", "odd", "ring"]);
+}
+
+/// OQ6: the item found, `has:priced`, the price as the owner set it — the
+/// owner's row on the item, 30 divine by hand — and no valuation: the
+/// answer carries what the listing state resolved (C81) and nothing the
+/// search worked out about worth (C102: the search never values). The
+/// game's note on the same item would win a tie; here there is none.
+#[test]
+fn oq6_the_item_found_with_the_owners_own_price_and_no_valuation() {
+    let s = stash();
+    let mut intent = common::intent(&s);
+    set_buyout(
+        &mut intent,
+        &"item/ash".parse::<PriceTarget>().unwrap(),
+        &Buyout::Exact(Price {
+            amount: "30".parse().unwrap(),
+            currency: "divine".into(),
+        }),
+        None,
+        &Provenance::via("test"),
+    )
+    .unwrap();
+    let corpus = load_with(&s, &intent, Some("pc"));
+    let a = as_json(&ask(&corpus, r##"name="Ashes of the Stars" has:priced"##).unwrap());
+    assert_eq!(ids(&a), ["ash"]);
+    // the name is on the row's header and shows nothing; the price does
+    let priced = &a["rows"][0]["matched"][0];
+    assert_eq!(priced["term"], "has:priced");
+    assert_eq!(
+        priced["shows"],
+        json!([
+            { "value": { "name": "price", "value": "30 divine" } },
+            { "value": { "name": "price.side", "value": "manual" } },
+        ])
+    );
+    // before the row, the same question found the item and no price: known
+    // absence, and the lacked route names it
+    let before = as_json(
+        &ask(
+            &load(&s, Some("pc")),
+            r##"name="Ashes of the Stars" has:priced"##,
+        )
+        .unwrap(),
+    );
+    assert_eq!(before["total"]["matched"], 0);
+    assert_eq!(before["terms"][1]["lacked"]["count"], 12);
+    // nothing in the answer values the item: no rate, no worth, only what
+    // was set, in the currency it was set in
+    let printed = a.to_string().to_lowercase();
+    for word in ["worth", "valuation", "estimate", "market"] {
+        assert!(!printed.contains(word), "{word}: {printed}");
+    }
+    assert_eq!(a["basis"]["intent"], 1);
 }

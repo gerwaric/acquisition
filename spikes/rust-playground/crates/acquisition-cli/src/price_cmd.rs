@@ -1109,6 +1109,7 @@ mod tests {
             x: Some(0),
             y: Some(0),
             note: note.map(str::to_string),
+            note_unread: false,
             inventory_id: Some(
                 if kind == "stash" {
                     "Stash1"

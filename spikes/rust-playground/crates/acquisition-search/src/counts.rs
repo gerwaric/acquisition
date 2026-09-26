@@ -410,7 +410,8 @@ enum Of {
     Text(String),
     /// A value outside its closed list.
     Unlisted(String),
-    Number(i64),
+    /// A number, in units: a price's decimals kept (`exact.rs`).
+    Number(Exact),
     /// A tab, by its full coordinate (C54).
     Tab(TabAt),
     None,
@@ -462,7 +463,7 @@ fn bucket_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs) -> Of {
         return Of::Tab(at);
     }
     if let Some(n) = eval::number(held, def.thing) {
-        return Of::Number(n as i64);
+        return Of::Number(Exact::of(n));
     }
     match (eval::texts(held, def.thing).first(), def.kind) {
         (None, _) => Of::None,
@@ -501,8 +502,12 @@ fn label_of(
         ),
         Of::Number(n) => (
             "value",
-            Some(Json::from(*n)),
-            Some(test(def.name, Op::Eq, Value::Number(Number::Int(*n)))),
+            Some(eval::number_json(n.as_f64())),
+            Some(test(
+                def.name,
+                Op::Eq,
+                Value::Number(Number::from_f64(n.as_f64())),
+            )),
         ),
         Of::Tab(at) => (
             "value",
@@ -567,13 +572,14 @@ fn label_of(
 /// before `none` before `undecided`; a number by its size, a text by its
 /// spelling, a tab by its name, then its league, realm and id. The order
 /// follows the data, never the query (the build plan, rule 9).
-fn spelled(of: &Of, tabs: &Tabs) -> (u8, i64, String, String) {
+fn spelled(of: &Of, tabs: &Tabs) -> (u8, Exact, String, String) {
+    let none = Exact::default();
     match of {
         Of::Number(n) => (0, *n, String::new(), String::new()),
-        Of::Text(v) | Of::Unlisted(v) => (0, 0, v.clone(), String::new()),
+        Of::Text(v) | Of::Unlisted(v) => (0, none, v.clone(), String::new()),
         Of::Tab(at) => (
             0,
-            0,
+            none,
             tabs.get(at).cloned().flatten().unwrap_or_default(),
             format!(
                 "{} {} {}",
@@ -582,8 +588,8 @@ fn spelled(of: &Of, tabs: &Tabs) -> (u8, i64, String, String) {
                 at.id
             ),
         ),
-        Of::None => (1, 0, String::new(), String::new()),
-        Of::Undecided => (2, 0, String::new(), String::new()),
+        Of::None => (1, none, String::new(), String::new()),
+        Of::Undecided => (2, none, String::new(), String::new()),
     }
 }
 

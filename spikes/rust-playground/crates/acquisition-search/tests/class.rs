@@ -6,7 +6,7 @@
 
 mod common;
 
-use acquisition_search::{CLASS_TABLE_VERSION, ClassTable, Request, answer, class, show};
+use acquisition_search::{CLASS_TABLE_VERSION, ClassTable, Request, answer, class};
 use acquisition_store::Store;
 use common::*;
 use serde_json::{Value, json};
@@ -320,7 +320,7 @@ fn c105_a_count_by_class_tallies_every_reason_and_sums_to_the_total() {
 #[test]
 fn c106_show_says_the_class_or_why_there_is_none_and_the_basis_cites_the_table() {
     let s = stash();
-    let shown = |id: &str| serde_json::to_value(show(&s, id, false).unwrap()).unwrap();
+    let shown = |id: &str| serde_json::to_value(common::show(&s, id, false).unwrap()).unwrap();
     assert_eq!(shown("ring")["class"], json!({ "is": "Rings" }));
     assert_eq!(shown("nova")["class"], json!({ "is": "Skill Gems" }));
     let beast = shown("beast");
@@ -353,7 +353,7 @@ fn reqlevel_is_the_level_requirement_as_a_number() {
     );
     assert_eq!(ids(&asked(&s, "pc", r#""Requires Level soon""#)), ["late"]);
     assert_eq!(asked(&s, "pc", "-has:reqlevel")["total"]["matched"], 7);
-    let shown = serde_json::to_value(show(&s, "late", false).unwrap()).unwrap();
+    let shown = serde_json::to_value(common::show(&s, "late", false).unwrap()).unwrap();
     assert_eq!(shown["item"]["reqlevel"], Value::Null);
     assert_eq!(shown["item"]["unread"][0]["of"], "reqlevel");
 }
@@ -546,7 +546,7 @@ fn review_two_reqlevel_has_one_status_and_markup_hides_no_level_row() {
     assert!(r["rows"][1]["sort"]["status"].is_string());
     // finding 2: `[Level]` is a Level row, so its loss is said
     assert_eq!(asked(&s, "pc", "-has:reqlevel")["total"]["matched"], 0);
-    let shown = serde_json::to_value(show(&s, "marked", false).unwrap()).unwrap();
+    let shown = serde_json::to_value(common::show(&s, "marked", false).unwrap()).unwrap();
     assert_eq!(shown["item"]["reqlevel"], Value::Null);
     assert!(
         shown["item"]["unread"]

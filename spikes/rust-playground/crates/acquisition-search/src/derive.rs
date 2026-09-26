@@ -123,6 +123,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Map, Value};
 
 pub use crate::class::ClassGap;
+pub use crate::price::PriceGap;
 use crate::template;
 pub use crate::totals::TotalGap;
 use crate::tree::Number;
@@ -299,6 +300,9 @@ pub enum Part {
     /// A named total the totals table has no definition of for the item's
     /// realm (`totals.rs`): only what asks that total.
     Total(TotalGap),
+    /// The price, which the listing state could not establish
+    /// (`price.rs`): only what asks the price.
+    Price(PriceGap),
 }
 
 /// What a slot word names on one occurrence.

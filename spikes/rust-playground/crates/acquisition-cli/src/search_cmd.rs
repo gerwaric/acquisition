@@ -20,6 +20,10 @@
 //! - **The query may come from a file or stdin** (`--query-file`, the
 //!   plan's gap 2): a template with an apostrophe cannot be typed plainly
 //!   inside a shell's single quotes. A route is printed shell-quoted.
+//! - **The intent file is opened beside the store** (`plan_cmd::open_intent`,
+//!   as `acq price` opens it): the effective price a query reads is the
+//!   listing state's (C81, C100), and every basis names the intent
+//!   revision (C98). Nothing is written to it.
 
 use std::io::Read as _;
 
@@ -28,11 +32,13 @@ use acquisition_search::corpus::Realm;
 use acquisition_search::counts::{Bucket, CrossOut, Label, SumOf, Summed, Table};
 use acquisition_search::describe::Describe;
 use acquisition_search::show::Shown;
-use acquisition_search::{Corpus, SearchError, answer, describe, not_built, show};
+use acquisition_search::{Corpus, Priced, SearchError, answer, describe, not_built, show};
+use acquisition_store::{Store, account_path};
 use anyhow::{Context as _, Result};
 use serde::Serialize;
 
-use crate::store_cmd::{self, ago};
+use crate::plan_cmd::open_intent;
+use crate::store_cmd::ago;
 
 /// What `acq search` was typed with.
 #[derive(clap::Args)]
@@ -236,8 +242,8 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
     };
     // an authoring error is said before the store is read
     request.check().map_err(|e| fail(e.into(), json))?;
-    let store = store_cmd::open()?;
-    let corpus = Corpus::load(&store, realm.as_ref()).map_err(|e| fail(e, json))?;
+    let (store, intent) = open_store_and_intent()?;
+    let corpus = Corpus::load(&store, &intent, realm.as_ref()).map_err(|e| fail(e, json))?;
     let answered = answer(&corpus, &request).map_err(|e| fail(e, json))?;
     emit(&answered, json, |a| answer_text(a, args.routes))
 }
@@ -339,12 +345,36 @@ pub fn show_item(args: ShowArgs, json: bool) -> Result<()> {
             return Err(fail(not_built(construct).into(), json));
         }
     }
-    let store = store_cmd::open()?;
-    let shown = show(&store, &args.id, args.body).map_err(|e| fail(e, json))?;
+    let (store, intent) = open_store_and_intent()?;
+    let shown = show(&store, &intent, &args.id, args.body).map_err(|e| fail(e, json))?;
     emit(&shown, json, shown_text)
 }
 
+/// The selected account's facts and its intent file, as `acq price` opens
+/// them: the search reads both and writes neither.
+fn open_store_and_intent() -> Result<(Store, acquisition_store::Annotations)> {
+    let (dir, entry, intent) = open_intent()?;
+    let store = Store::open(&account_path(&dir, &entry.username))?;
+    Ok((store, intent))
+}
+
 // ---- text, a function of the JSON ---------------------------------------------------------------
+
+/// The basis line every answer and every `show` prints (C98).
+fn basis_text(b: &acquisition_search::Basis) -> String {
+    format!(
+        "basis   store {} · snapshot {} · facts v{} · intent {} · derivation {} · classes v{} · totals v{} · currency v{} · notes v{}",
+        b.store,
+        b.snapshot.response,
+        b.snapshot.facts_version,
+        b.intent,
+        b.derivation,
+        b.classes,
+        b.totals,
+        b.currency,
+        b.notes
+    )
+}
 
 fn plural(n: usize, one: &str, many: &str) -> String {
     format!("{n} {}", if n == 1 { one } else { many })
@@ -445,15 +475,7 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
             }
         ));
     }
-    line(format!(
-        "basis   store {} · snapshot {} · facts v{} · derivation {} · classes v{} · totals v{}",
-        a.basis.store,
-        a.basis.snapshot.response,
-        a.basis.snapshot.facts_version,
-        a.basis.derivation,
-        a.basis.classes,
-        a.basis.totals
-    ));
+    line(basis_text(&a.basis));
 
     if !a.terms.is_empty() {
         line(format!(
@@ -1052,6 +1074,21 @@ fn shown_text(s: &Shown) -> String {
         Classed::Open(why) => out.push_str(&format!("class   undecided: {}\n", why.problem)),
         Classed::BaseUnread => out.push_str("class   undecided: the base was not read\n"),
     }
+    // what the listing state prices it at (C81): the price, or why none
+    match &s.price {
+        Priced::Is(p) => out.push_str(&format!(
+            "price   {} · {}{}\n",
+            p.text,
+            p.side,
+            p.from
+                .as_deref()
+                .filter(|from| *from != format!("item/{}", item.facts.id))
+                .map(|from| format!(" · from {from}"))
+                .unwrap_or_default()
+        )),
+        Priced::None { kind, .. } => out.push_str(&format!("price   none ({kind})\n")),
+        Priced::Open(why) => out.push_str(&format!("price   undecided: {}\n", why.problem)),
+    }
     if let Some(stack) = item.stack {
         out.push_str(&format!("stack   {stack}\n"));
     }
@@ -1130,15 +1167,7 @@ fn shown_text(s: &Shown) -> String {
             u.problem
         ));
     }
-    out.push_str(&format!(
-        "basis   store {} · snapshot {} · facts v{} · derivation {} · classes v{} · totals v{}\n",
-        s.basis.store,
-        s.basis.snapshot.response,
-        s.basis.snapshot.facts_version,
-        s.basis.derivation,
-        s.basis.classes,
-        s.basis.totals
-    ));
+    out.push_str(&format!("{}\n", basis_text(&s.basis)));
     if let Some(body) = &s.body {
         out.push_str(&format!("body    {body}\n"));
     }

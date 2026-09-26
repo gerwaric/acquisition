@@ -118,6 +118,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
                 Kind::Text => ("text", Vec::new()),
                 Kind::Number => ("number", Vec::new()),
                 Kind::Handle => ("id", Vec::new()),
+                Kind::Presence => ("flag", Vec::new()),
                 Kind::Closed(list) => ("closed set", list().to_vec()),
             };
             // the class prints its definition and its source version
@@ -140,6 +141,19 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
                 Thing::ReqLevel => (f.what.to_string(), vec!["reqlevel=..30", "-has:reqlevel"]),
                 Thing::Sockets => (f.what.to_string(), vec!["sockets>=5", "-has:sockets"]),
                 Thing::Links => (f.what.to_string(), vec!["links=6", "-has:links"]),
+                Thing::Price => (
+                    f.what.to_string(),
+                    vec!["has:priced", "-has:priced", "undecided(priced)"],
+                ),
+                Thing::PriceAmount => (
+                    f.what.to_string(),
+                    vec!["price.amount>=5", "price.amount=1..10"],
+                ),
+                Thing::PriceCurrency => (
+                    f.what.to_string(),
+                    vec!["price.currency=chaos", "price.currency:div"],
+                ),
+                Thing::PriceLot => (f.what.to_string(), vec!["price.lot>=2", "-has:price.lot"]),
                 _ => (f.what.to_string(), Vec::new()),
             };
             Named {
@@ -329,7 +343,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     ];
     let keys: Vec<&'static str> = FIELDS
         .iter()
-        .filter(|f| !matches!(f.name, "text" | "id"))
+        .filter(|f| !matches!(f.name, "text" | "id" | "priced"))
         .map(|f| f.name)
         .chain(["line"])
         .collect();

@@ -358,7 +358,7 @@ fn invariant_6_a_search_writes_nothing() {
     for text in [WORKED, "", r##"name="nothing here""##] {
         ask(&corpus, text).unwrap();
     }
-    acquisition_search::show(&s, "r1", true).unwrap();
+    common::show(&s, "r1", true).unwrap();
     assert_eq!(dump(&path), before);
 }
 
@@ -479,7 +479,7 @@ fn c96_the_realm_is_the_scope_and_is_always_resolved() {
         vec![ring("rx", "Rare", json!({}))],
         41,
     );
-    let e = Corpus::load(&s, None).unwrap_err();
+    let e = Corpus::load(&s, &intent(&s), None).unwrap_err();
     assert_eq!(e.to_json()["kind"], "realm_needed");
     assert_eq!(
         e.to_json()["readings"],
@@ -536,8 +536,9 @@ fn c96_the_realm_is_the_scope_and_is_always_resolved() {
 fn c98_a_held_corpus_answers_at_its_basis_and_the_check_sees_the_change() {
     let s = worked();
     let path = s.path().to_path_buf();
-    let held = load(&s, Some("pc"));
-    assert!(held.is_current(&s).unwrap());
+    let intent = intent(&s);
+    let held = load_with(&s, &intent, Some("pc"));
+    assert!(held.is_current(&s, &intent).unwrap());
     let mut other = Store::open(&path).unwrap();
     fetch_tab(
         &mut other,
@@ -555,7 +556,7 @@ fn c98_a_held_corpus_answers_at_its_basis_and_the_check_sees_the_change() {
         (&json!(7), &json!(1))
     );
     assert_eq!(a["basis"], serde_json::to_value(&held.basis).unwrap());
-    assert!(!held.is_current(&s).unwrap());
+    assert!(!held.is_current(&s, &intent).unwrap());
 
     let next = load(&s, Some("pc"));
     assert!(next.basis.snapshot.response > held.basis.snapshot.response);
@@ -574,10 +575,14 @@ fn c98_a_held_corpus_answers_at_its_basis_and_the_check_sees_the_change() {
 fn c98_the_basis_names_the_store_and_the_check_tells_two_files_apart() {
     let (a, b) = (worked(), worked());
     assert_eq!(a.revision().unwrap(), b.revision().unwrap());
-    let (of_a, of_b) = (load(&a, Some("pc")), load(&b, Some("pc")));
+    let intent = intent(&a);
+    let (of_a, of_b) = (
+        load_with(&a, &intent, Some("pc")),
+        load_with(&b, &intent, Some("pc")),
+    );
     assert_eq!(of_a.basis.account, of_b.basis.account);
     assert_ne!(of_a.basis.store, of_b.basis.store);
-    assert!(of_a.is_current(&a).unwrap() && !of_a.is_current(&b).unwrap());
+    assert!(of_a.is_current(&a, &intent).unwrap() && !of_a.is_current(&b, &intent).unwrap());
     // twelve hex digits, no path: the same file under another handle is the same store
     let again = load(&Store::open(a.path()).unwrap(), Some("pc"));
     assert_eq!(again.basis, of_a.basis);

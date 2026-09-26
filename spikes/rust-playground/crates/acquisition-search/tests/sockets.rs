@@ -7,7 +7,7 @@
 
 mod common;
 
-use acquisition_search::{Request, answer, show, sockets};
+use acquisition_search::{Request, answer, sockets};
 use acquisition_store::Store;
 use common::*;
 use serde_json::{Value, json};
@@ -419,7 +419,7 @@ fn c105_a_socket_count_is_a_key_whose_buckets_sum_to_the_total() {
 #[test]
 fn show_gives_every_socket_as_read_and_the_layout_is_one_makers() {
     let s = stash();
-    let shown = |id: &str| serde_json::to_value(show(&s, id, false).unwrap()).unwrap();
+    let shown = |id: &str| serde_json::to_value(common::show(&s, id, false).unwrap()).unwrap();
     assert_eq!(
         shown("split")["item"]["sockets"],
         json!([
@@ -443,13 +443,13 @@ fn show_gives_every_socket_as_read_and_the_layout_is_one_makers() {
         shown("blind")["item"]["unread"][0],
         json!({ "part": "socket_colour", "problem": "`sockets[0]` has an `attr` and no `sColour`: the colour is not read from the attribute", "socket": 0 })
     );
-    let p2 = serde_json::to_value(show(&s, "p2bow", false).unwrap()).unwrap();
+    let p2 = serde_json::to_value(common::show(&s, "p2bow", false).unwrap()).unwrap();
     assert_eq!(
         p2["item"]["sockets"][0],
         json!({ "group": 0, "colour": null, "type": "gem" })
     );
     let layout = |id: &str| {
-        let item: acquisition_search::Item = show(&s, id, false).map(|s| s.item).unwrap();
+        let item: acquisition_search::Item = common::show(&s, id, false).map(|s| s.item).unwrap();
         sockets::layout(&item)
     };
     assert_eq!(layout("split").as_deref(), Some("R-R G-B"));
@@ -555,7 +555,7 @@ fn a_group_is_ggg_s_number_and_an_unplaced_socket_widens_every_group() {
         ids(&asked("id:weave links=2 sockets=3 sockets.red=2")),
         ["weave"]
     );
-    let weave: acquisition_search::Item = show(&s, "weave", false).unwrap().item;
+    let weave: acquisition_search::Item = common::show(&s, "weave", false).unwrap().item;
     assert_eq!(sockets::layout(&weave).as_deref(), Some("R-R G"));
     // mixed: 3 sockets, 2 red and 1 green, read; its largest group is 2 or 3
     assert_eq!(
@@ -586,7 +586,7 @@ fn a_group_is_ggg_s_number_and_an_unplaced_socket_widens_every_group() {
         ids(&asked("id:mixed undecided(linked(green>=1 size>=1))")),
         ["mixed"]
     );
-    let mixed: acquisition_search::Item = show(&s, "mixed", false).unwrap().item;
+    let mixed: acquisition_search::Item = common::show(&s, "mixed", false).unwrap().item;
     assert_eq!(
         sockets::layout(&mixed).as_deref(),
         Some("R-R G (group unread)")

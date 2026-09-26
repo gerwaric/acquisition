@@ -684,12 +684,10 @@ fn c11_a_failure_is_structured_and_a_later_steps_flag_is_refused_by_name() {
     seed(&base);
     for (args, kind) in [
         (vec!["search", "rare"], "bare_word"),
-        (vec!["search", "has:priced"], "not_built"),
         (vec!["search", "class:staff"], "unknown_value"),
         (vec!["search", "--fields", "name"], "not_built"),
         (vec!["search", "--view", "locations"], "not_built"),
         (vec!["search", "--count", "rarty"], "unknown_name"),
-        (vec!["search", "--count", "price.currency"], "not_built"),
         (vec!["search", "--sum", "stack"], "view"),
         (vec!["search", "--count", "tab", "--sort", "ilvl"], "view"),
         (
@@ -774,6 +772,59 @@ fn a_query_with_an_apostrophe_is_read_from_stdin_and_routed_shell_quoted() {
     );
 }
 
+/// Step 9 at a terminal: a price set through `acq price set` is what
+/// `acq search 'has:priced'` finds and `acq show` prints, the basis names
+/// the intent revision, and the text is a function of the JSON (C53).
+#[test]
+fn oq6_a_price_set_by_hand_is_found_shown_and_named_in_the_basis() {
+    let base = base();
+    seed(&base);
+    let before = sole_json(&acq(
+        &base,
+        &["--json", "search", "--realm", "pc", "has:priced"],
+    ));
+    assert_eq!(before["total"]["matched"], 0);
+    assert_eq!(before["basis"]["intent"], 0);
+    let set = acq(
+        &base,
+        &["price", "set", "item/r1", "exact", "12.5", "chaos"],
+    );
+    assert!(
+        set.status.success(),
+        "{}",
+        String::from_utf8_lossy(&set.stderr)
+    );
+    let a = sole_json(&acq(
+        &base,
+        &["--json", "search", "--realm", "pc", "has:priced"],
+    ));
+    assert_eq!(a["total"]["matched"], 1);
+    assert_eq!(a["rows"][0]["id"], "r1");
+    assert_eq!(
+        a["rows"][0]["matched"][0]["shows"][0]["value"]["value"],
+        "12.5 chaos"
+    );
+    assert_eq!(a["basis"]["intent"], 1);
+    let shown = text(&acq(&base, &["search", "--realm", "pc", "has:priced"]));
+    for needle in [
+        "price 12.5 chaos · price.side manual",
+        "· intent 1 ·",
+        "currency v1 · notes v2",
+    ] {
+        assert!(
+            shown.contains(needle),
+            "the text lacks `{needle}`:\n{shown}"
+        );
+    }
+    let one = sole_json(&acq(&base, &["--json", "show", "r1"]));
+    assert_eq!(one["price"]["status"], "is");
+    assert_eq!(one["price"]["text"], "12.5 chaos");
+    let shown = text(&acq(&base, &["show", "r1"]));
+    assert!(shown.contains("price   12.5 chaos · manual\n"), "{shown}");
+    let none = text(&acq(&base, &["show", "r2"]));
+    assert!(none.contains("price   none (none)"), "{none}");
+}
+
 #[test]
 fn describe_and_show_print_json_whole_and_text_from_it() {
     let base = base();
@@ -801,6 +852,10 @@ fn describe_and_show_print_json_whole_and_text_from_it() {
             "stack",
             "sockets",
             "links",
+            "priced",
+            "price.amount",
+            "price.currency",
+            "price.lot",
             "league",
             "tab",
             "character",

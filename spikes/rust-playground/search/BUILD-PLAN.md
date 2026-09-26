@@ -184,10 +184,9 @@ coverage list (`acq tabs` and `acq store characters` exist today;
 `--view locations` is step 10).
 
 What it refuses by name: `pseudo.defence_pct` and a ranged total,
-`pseudo.<name>.<slot>` (no step: the plan's foot), `sockets` `links`
-`linked(…)` (8), `has:priced` and `price.*` (9), `--fields`, `--next`, `--explain`,
-`--context`, `--view locations`, `--print-request` `--request`
-`--rebind`, `show --against` (10).
+`pseudo.<name>.<slot>` (no step: the plan's foot), `--fields`, `--next`,
+`--explain`, `--context`, `--view locations`, `--print-request`
+`--request` `--rebind`, `show --against` (10).
 
 It exercises all six of the lines the seat revisits first
 (`decisions/search.md`, "Standing"): C91's ambiguity error, C92's binder
@@ -286,3 +285,5 @@ line in `SEARCH-SLICE.md`, "Holes ruled", its rule in `search/DESIGN.md`.
 | --- | --- | --- | --- |
 | T3 | the reference names computed values no step builds: `pseudo.defence_pct` (C101, its formula unpinned) and a ranged total (`pseudo.cold_damage.avg`; which lines a site ranged pseudo sums is unread) | each refused by name, the entry naming no step | a step of the owner's choosing, or the seat: the table admits a ranged total the day one is evidenced |
 | T4 | the trial's uncounted lines (M6): `#% increased Attack and Cast Speed` (46 lines) counts in neither speed total; `# to Level of Socketed AoE Gems` (20) and `Duration Gems` (12) have no total; conditional resistances (`while on Low Life`, `during any Flask Effect`, `while affected by Herald of …`) are counted by none | the C++ app's rows, unchanged: a row added is a definition changed | rule per line at the seat; a word-based trial measures coverage, never membership |
+| P1 | what `has:priced` means of a listing the pricing area resolved to `skip` or `no_price` (C81 leaves the effective statement with no price): a thing the item lacks, or a kind of price with none | known absence — `-has:priced` finds them beside `none`; the kind is not a field, so "the owner's skips" cannot be asked | keep it: the planner's own type says a skip carries no price; if the seat asks for skips, `price.kind` is the field to add (C101), never a reading of `priced` |
+| P2 | `price.lot` on a decimal price — `~price 5 chaos`, the owner's `12.5 chaos` — where C67's amount is a decimal and not a `wanted/lot` ratio: a lot of one, or none | lacked: `-has:price.lot` finds every decimal price, `price.lot=1` a ratio written `n/1` alone | keep it: what was written, never a lot invented — `5` and `5/1` are two spellings the game itself keeps apart (T2); the seat says whether anyone asks |

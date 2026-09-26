@@ -55,6 +55,13 @@
 //!   sort, a sum and a count's key take them as they take `ilvl`; a colour
 //!   word outside the four is an authoring error offering them. A link
 //!   group, `linked( … )`, is bound in `group.rs` beside a line's.
+//! - **The price is four names** (`price.rs`, C81, C100; the build plan,
+//!   step 9): `priced` is presence alone — `has:priced`, `-has:priced`,
+//!   `undecided(priced)` — and a comparison on it or a count by it is an
+//!   authoring error that offers those, or `price.currency`; `price.amount`
+//!   and `price.lot` are numbers, and `price.currency` a closed set whose
+//!   legal values are the currency table's tags (C68), so a tag outside
+//!   the table is an authoring error with the near ones offered.
 
 use regex::{Regex, RegexBuilder};
 
@@ -87,16 +94,6 @@ pub const NOT_BUILT: &[NotBuilt] = &[
         construct: "pseudo.<name>.<slot>",
         step: None,
         what: "a ranged total: the totals table admits one, and this build ships none — which lines a site's ranged pseudo sums is unread (search/pseudo-stats/README.md, open question 2)",
-    },
-    NotBuilt {
-        construct: "has:priced",
-        step: Some(9),
-        what: "whether the item carries an effective price",
-    },
-    NotBuilt {
-        construct: "price.*",
-        step: Some(9),
-        what: "the effective price: amount, currency, lot",
     },
     NotBuilt {
         construct: "--fields",
@@ -180,16 +177,6 @@ pub fn not_built(construct: &str) -> LanguageError {
     }
 }
 
-/// The construct of [`NOT_BUILT`] a field's name belongs to.
-fn unbuilt_field(name: &str) -> Option<&'static str> {
-    match name {
-        "priced" => Some("has:priced"),
-        "price" => Some("price.*"),
-        _ if name.starts_with("price.") => Some("price.*"),
-        _ => None,
-    }
-}
-
 // ---- the vocabulary ------------------------------------------------------------
 
 pub(crate) const RARITIES: &[&str] = &["normal", "magic", "rare", "unique"];
@@ -249,6 +236,14 @@ pub(crate) enum Thing {
     Links,
     /// How many sockets of one colour, by GGG's letter.
     SocketColour(&'static str),
+    /// Whether the item carries an effective price (`price.rs`).
+    Price,
+    /// The number the price states.
+    PriceAmount,
+    /// The currency table's tag.
+    PriceCurrency,
+    /// A bulk ratio's lot.
+    PriceLot,
     League,
     Tab,
     Character,
@@ -264,6 +259,8 @@ pub(crate) enum Kind {
     Closed(fn() -> &'static [&'static str]),
     Number,
     Handle,
+    /// Asked with `has:` alone: yes, no, or not established.
+    Presence,
 }
 
 pub(crate) struct FieldDef {
@@ -375,6 +372,30 @@ pub(crate) const FIELDS: &[FieldDef] = &[
         thing: Thing::SocketColour("W"),
         kind: Kind::Number,
         what: "how many white sockets the item has, over every link group",
+    },
+    FieldDef {
+        name: "priced",
+        thing: Thing::Price,
+        kind: Kind::Presence,
+        what: "whether the item carries an effective price (C81): the game's note or public tab name, or the owner's row, whichever is the more specific, the game's on a tie; a listing resolved to none, no price or skip lacks it; one a row that cannot be read could decide is undecided",
+    },
+    FieldDef {
+        name: "price.amount",
+        thing: Thing::PriceAmount,
+        kind: Kind::Number,
+        what: "the number the effective price states: a decimal price's decimal, or a bulk ratio's wanted",
+    },
+    FieldDef {
+        name: "price.currency",
+        thing: Thing::PriceCurrency,
+        kind: Kind::Closed(crate::price::currency_tags),
+        what: "the effective price's currency, by the tag of the currency table (C68)",
+    },
+    FieldDef {
+        name: "price.lot",
+        thing: Thing::PriceLot,
+        kind: Kind::Number,
+        what: "a bulk ratio's lot — `wanted/lot` — which a decimal price lacks",
     },
     FieldDef {
         name: "league",
@@ -663,15 +684,20 @@ pub(crate) fn bind_key(text: &str) -> Result<Key, LanguageError> {
     let known = || -> Vec<&'static str> {
         FIELDS
             .iter()
-            .filter(|f| !matches!(f.thing, Thing::Text | Thing::Id))
+            .filter(|f| !matches!(f.thing, Thing::Text | Thing::Id | Thing::Price))
             .map(|f| f.name)
             .chain(["line"])
             .collect()
     };
-    if let Some(construct) = unbuilt_field(text) {
-        return Err(not_built(construct));
-    }
     match field(text) {
+        Some(def) if def.thing == Thing::Price => Err(LanguageError::new(
+            ErrorKind::View,
+            format!(
+                "`{}` is yes or no, not a value to count by: ask has:priced, or count by price.currency",
+                def.name
+            ),
+        )
+        .with_readings(vec!["price.currency".to_string()])),
         Some(def) if !matches!(def.thing, Thing::Text | Thing::Id) => Ok(Key::Field(def)),
         Some(def) => Err(LanguageError::new(
             ErrorKind::View,
@@ -988,9 +1014,6 @@ fn known_field(
     name: &str,
     reading: impl Fn(&str) -> String,
 ) -> Result<&'static FieldDef, LanguageError> {
-    if let Some(construct) = unbuilt_field(name) {
-        return Err(not_built(construct));
-    }
     if let Some(field) = field(name) {
         return Ok(field);
     }
@@ -1045,6 +1068,14 @@ pub(crate) fn values_of(def: &FieldDef) -> Result<&'static [&'static str], Langu
             )
         })?;
     }
+    if def.thing == Thing::PriceCurrency {
+        crate::price::currency_table().map_err(|e| {
+            LanguageError::new(
+                ErrorKind::Tree,
+                format!("the currency table this build ships does not load: {e}"),
+            )
+        })?;
+    }
     Ok(list())
 }
 
@@ -1076,6 +1107,18 @@ fn test(def: &'static FieldDef, op: Op, value: &Value) -> Result<Atom, LanguageE
                 test: num_test(def.name, op, value)?,
             }),
         },
+        Kind::Presence => Err(LanguageError::new(
+            ErrorKind::OperatorMismatch,
+            format!(
+                "`{}` is yes or no: it is asked with has: — has:{0}, -has:{0}, undecided({0})",
+                def.name
+            ),
+        )
+        .with_readings(vec![
+            format!("has:{}", def.name),
+            format!("-has:{}", def.name),
+            format!("undecided({})", def.name),
+        ])),
         Kind::Handle => match (op, value) {
             (Op::Contains | Op::Eq, Value::Text(id)) => Ok(Atom::Id(id.clone())),
             (Op::Contains | Op::Eq, Value::Number(n)) => Ok(Atom::Id(number_text(*n))),
