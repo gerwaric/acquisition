@@ -1,0 +1,13 @@
+pseudo,pseudo_text,template,weight_tested,agree,disagree,items,caveat
+pseudo.pseudo_total_attack_speed,+#% total Attack Speed,#% increased Attack Speed with Staves,0,1,0,p2[8],the control was the first member of its `if` group: that every member displays is not yet shown
+pseudo.pseudo_total_attack_speed,+#% total Attack Speed,#% increased Attack Speed with Swords,0,1,0,p2[3],the control was the first member of its `if` group: that every member displays is not yet shown
+pseudo.pseudo_total_attack_speed,+#% total Attack Speed,#% increased Attack Speed with Two Handed Melee Weapons,0,1,0,p2[8],the control was the first member of its `if` group: that every member displays is not yet shown
+pseudo.pseudo_total_attack_speed,+#% total Attack Speed,#% increased Attack and Cast Speed,0,10,0,p2[0];p2[1];p2[2];p2[3];p2[4];p2[5];p2[6];p2[7];p2[8];p2[9],the control was the first member of its `if` group: that every member displays is not yet shown
+pseudo.pseudo_total_cast_speed,+#% total Cast Speed,#% increased Attack and Cast Speed,0,10,0,p2[0];p2[1];p2[2];p2[3];p2[4];p2[5];p2[6];p2[7];p2[8];p2[9],the control was the first member of its `if` group: that every member displays is not yet shown
+pseudo.pseudo_total_cast_speed,+#% total Cast Speed,#% increased Cast Speed with Cold Skills,0,1,0,p2[2],the control was the first member of its `if` group: that every member displays is not yet shown
+pseudo.pseudo_total_fire_resistance,+#% total to Fire Resistance,#% to Fire Resistance,1,10,0,p2[0];p2[1];p2[2];p2[3];p2[4];p2[5];p2[6];p2[7];p2[8];p2[9],the control was the first member of its `if` group: that every member displays is not yet shown
+pseudo.pseudo_total_life,+# total maximum Life,# to Strength and Dexterity,0.5,1,0,p1[0],
+pseudo.pseudo_total_life,+# total maximum Life,# to Strength and Intelligence,0.5,10,0,p1[0];p1[1];p1[2];p1[3];p1[4];p1[5];p1[6];p1[7];p1[8];p1[9],
+pseudo.pseudo_total_life,+# total maximum Life,# to all Attributes,0.5,1,0,p1[7],
+pseudo.pseudo_total_life,+# total maximum Life,# to maximum Life,1,1,0,p1[3],
+pseudo.pseudo_total_life,+# total maximum Life,#% increased maximum Life,0,1,0,p1[1],

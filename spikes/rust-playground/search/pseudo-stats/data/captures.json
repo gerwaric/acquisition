@@ -1,0 +1,2092 @@
+{
+ "_generated": "by scripts/captures.py from raw/searches (MANIFEST.md) — do not edit",
+ "searches": {
+  "p1": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "stats": [
+     {
+      "type": "and",
+      "filters": [
+       {
+        "id": "pseudo.pseudo_total_life"
+       }
+      ]
+     },
+     {
+      "type": "count",
+      "filters": [
+       {
+        "id": "explicit.stat_1535626285"
+       },
+       {
+        "id": "explicit.stat_2543977012"
+       }
+      ],
+      "value": {
+       "min": 1
+      }
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "rarity": {
+        "option": "rare"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 20,
+    "total": 10000,
+    "inexact": true
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "Sol Splinter",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+10 to Strength and Dexterity",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_538848803",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Athletics",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+8 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1535626285",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Spirit",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "16% increased Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3291658075",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Chilling",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "16"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "6% increased Attack Speed with One Handed Melee Weapons",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1813451228",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Bandit's",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "4",
+            "max": "6"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+9 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Kraken Shard",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+9 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1535626285",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Spirit",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "14% increased Melee Critical Strike Chance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1199429645",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Weight",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "14"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "5% increased maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_983749596",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Vivid",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "7"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+4.5 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Foul Gaze",
+     "typeLine": "Ghastly Eye Jewel",
+     "baseType": "Ghastly Eye Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Abyss",
+       []
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+8 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1535626285",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Spirit",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+78 to Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2144192055",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Fleet",
+          "tier": "P3",
+          "level": 40,
+          "magnitudes": [
+           {
+            "min": "61",
+            "max": "100"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Minions deal 4 to 9 additional Physical Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1172029298",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Gleaming",
+          "tier": "P5",
+          "level": 42,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "8"
+           },
+           {
+            "min": "11",
+            "max": "14"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+4 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Dusk Visor",
+     "typeLine": "Vaal Mask",
+     "baseType": "Vaal Mask",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       17,
+       "Evasion Rating",
+       [
+        "234"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "42"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ev": 281,
+      "ev_aug": true,
+      "es": 50,
+      "es_aug": true
+     },
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+21 to Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_328541901",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Prodigy",
+          "tier": "S8",
+          "level": 22,
+          "magnitudes": [
+           {
+            "min": "18",
+            "max": "22"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+40 to maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Stout",
+          "tier": "P6",
+          "level": 24,
+          "magnitudes": [
+           {
+            "min": "55",
+            "max": "69"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+11% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Inuit",
+          "tier": "S8",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+11 to Strength and Intelligence",
+        "domain": "crafted",
+        "hash": "stat.crafted.stat_1535626285",
+        "flags": {
+         "crafted": true
+        },
+        "mods": [
+         {
+          "name": "of Craft",
+          "tier": "S0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "13% increased Evasion and Energy Shield",
+        "domain": "crafted",
+        "hash": "stat.crafted.stat_1999113824",
+        "flags": {
+         "crafted": true
+        },
+        "mods": [
+         {
+          "name": "Upgraded",
+          "tier": "P0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "14"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+10 to maximum Life",
+        "domain": "crafted",
+        "hash": "stat.crafted.stat_3299347043",
+        "flags": {
+         "crafted": true
+        },
+        "mods": [
+         {
+          "name": "Upgraded",
+          "tier": "P0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+55.5 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Chimeric Shard",
+     "typeLine": "Cobalt Jewel",
+     "baseType": "Cobalt Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+9 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1535626285",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Spirit",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "16% increased Mine Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2137912951",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Sabotage",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "16"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Gain 3 Energy Shield per Enemy Hit with Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_211381198",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Focus",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+4.5 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Spirit Shine",
+     "typeLine": "Cobalt Jewel",
+     "baseType": "Cobalt Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+9 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1535626285",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Spirit",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "3% increased Cast Speed with Fire Skills",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1476643878",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Pyromantic",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "5% increased Attack Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_681332047",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Berserking",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "3% increased Cast Speed while wielding a Staff",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2066542501",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Wright's",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+4.5 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Plague Essence",
+     "typeLine": "Cobalt Jewel",
+     "baseType": "Cobalt Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+2% Chance to Block Spell Damage while Dual Wielding",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_138741818",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Dissipating",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+9 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1535626285",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Spirit",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "34% reduced Poison Duration on you",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3301100256",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Neutralisation",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "-35",
+            "max": "-30"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+4.5 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Soul Shard",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+6 to all Attributes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Adaption",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "8"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+10 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1535626285",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Spirit",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "0.38% of Physical Attack Damage Leeched as Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3593843976",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Hungering",
+          "tier": "P0",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "0.2",
+            "max": "0.4"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+8 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Blight Heart",
+     "typeLine": "Cobalt Jewel",
+     "baseType": "Cobalt Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+9 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1535626285",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Spirit",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "14% increased Totem Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3851254963",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Shaman's",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "16"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "6% increased Attack Speed while Dual Wielding",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4249220643",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Harmonic",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "4",
+            "max": "6"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+11% to Global Critical Strike Multiplier",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3556824919",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Potency",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "9",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+4.5 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Foe Eye",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+8 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1535626285",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Spirit",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "16% increased Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3291658075",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Chilling",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "16"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "6% increased Attack Speed while Dual Wielding",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4249220643",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Harmonic",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "4",
+            "max": "6"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+4 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "p2": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "stats": [
+     {
+      "type": "and",
+      "filters": [
+       {
+        "id": "explicit.stat_2672805335"
+       },
+       {
+        "id": "explicit.stat_3372524247"
+       }
+      ]
+     },
+     {
+      "type": "if",
+      "filters": [
+       {
+        "id": "pseudo.pseudo_total_fire_resistance"
+       },
+       {
+        "id": "pseudo.pseudo_total_attack_speed"
+       },
+       {
+        "id": "pseudo.pseudo_total_cast_speed"
+       }
+      ]
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "rarity": {
+        "option": "rare"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 19,
+    "total": 4642
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "Vivid Hunger",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "15% increased Damage with Swords",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_83050999",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Vicious",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "16"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "15% increased Armour",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2866361420",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Armoured",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "18"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+12% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Dragon",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "4% increased Attack and Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2672805335",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Zeal",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "4"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+12% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Blood Rosary",
+     "typeLine": "Amber Amulet",
+     "baseType": "Amber Amulet",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+26 to Strength",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_4080418644",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 7,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+10 to Dexterity",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3261801346",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Mongoose",
+          "tier": "S9",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+46 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Opalescent",
+          "tier": "P7",
+          "level": 42,
+          "magnitudes": [
+           {
+            "min": "45",
+            "max": "49"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+44% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Magma",
+          "tier": "S2",
+          "level": 72,
+          "magnitudes": [
+           {
+            "min": "42",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "6% increased Attack and Cast Speed",
+        "domain": "crafted",
+        "hash": "stat.crafted.stat_2672805335",
+        "flags": {
+         "crafted": true
+        },
+        "mods": [
+         {
+          "name": "of Craft",
+          "tier": "S0",
+          "level": 50,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "6"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+44% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Spirit Bliss",
+     "typeLine": "Cobalt Jewel",
+     "baseType": "Cobalt Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "5% increased Cast Speed with Cold Skills",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_928238845",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Cryomantic",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+12% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Dragon",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "3% increased Attack and Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2672805335",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Zeal",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "4"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+12% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Hypnotic Vessel",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "6% increased Attack Speed with Swords",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3293699237",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Fencing",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "8"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+13% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Dragon",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "11% increased Totem Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_686254215",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Carved",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "3% increased Attack and Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2672805335",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Zeal",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "4"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+13% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Gale Heart",
+     "typeLine": "Paua Amulet",
+     "baseType": "Paua Amulet",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "23% increased Mana Regeneration Rate",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_789117908",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "17% increased Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3291658075",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Ice",
+          "tier": "S3",
+          "level": 36,
+          "magnitudes": [
+           {
+            "min": "16",
+            "max": "18"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+54 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Gentian",
+          "tier": "P6",
+          "level": 51,
+          "magnitudes": [
+           {
+            "min": "50",
+            "max": "54"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+28% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Kiln",
+          "tier": "S5",
+          "level": 36,
+          "magnitudes": [
+           {
+            "min": "24",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "3% increased Attack and Cast Speed",
+        "domain": "crafted",
+        "hash": "stat.crafted.stat_2672805335",
+        "flags": {
+         "crafted": true
+        },
+        "mods": [
+         {
+          "name": "of Craft",
+          "tier": "S0",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+28% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Empyrean Bulwark",
+     "typeLine": "Polished Spiked Shield",
+     "baseType": "Polished Spiked Shield",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       15,
+       "Chance to Block",
+       [
+        "26%"
+       ]
+      ],
+      [
+       17,
+       "Evasion Rating",
+       [
+        "111"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "23"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ev": 133,
+      "ev_aug": true,
+      "es": 28,
+      "es_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+4% chance to Suppress Spell Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3680664274",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Regenerate 2.9 Life per second",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3325883026",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Lizard",
+          "tier": "S9",
+          "level": 7,
+          "magnitudes": [
+           {
+            "min": "2.1",
+            "max": "8"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+51 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Gentian",
+          "tier": "P5",
+          "level": 51,
+          "magnitudes": [
+           {
+            "min": "50",
+            "max": "54"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+27% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Kiln",
+          "tier": "S5",
+          "level": 36,
+          "magnitudes": [
+           {
+            "min": "24",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "4% increased Attack and Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2672805335",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Zeal",
+          "tier": "S0",
+          "level": 15,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "4"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+27% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Damnation Blood",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "10% increased maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2748665614",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Enlightened",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+15% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Dragon",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "4% increased Attack and Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2672805335",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Zeal",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "4"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+15% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Carrion Hold",
+     "typeLine": "Embroidered Gloves",
+     "baseType": "Embroidered Gloves",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       18,
+       "Energy Shield",
+       [
+        "25"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "es": 30,
+      "es_aug": true
+     },
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+12 to maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Healthy",
+          "tier": "P8",
+          "level": 5,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "24"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "11% increased Rarity of Items found",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3917489142",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Raiding",
+          "tier": "S1",
+          "level": 30,
+          "magnitudes": [
+           {
+            "min": "11",
+            "max": "14"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+11% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Whelpling",
+          "tier": "S8",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "12% increased Attack and Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2672805335",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Elder",
+          "tier": "S2",
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+11% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Damnation Branch",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "5% increased Attack Speed with Two Handed Melee Weapons",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1917910910",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Warrior's",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "4",
+            "max": "6"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "8% increased Attack Speed with Staves",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1394963553",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Blunt",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "8"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+14% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Dragon",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "3% increased Attack and Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2672805335",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Zeal",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "4"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+14% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Fulgent Spawn",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "16% increased Damage with Axes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3314142259",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Sinister",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "16"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+13% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Dragon",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "2% increased Attack and Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2672805335",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Zeal",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "4"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+13% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    }
+   ]
+  }
+ }
+}

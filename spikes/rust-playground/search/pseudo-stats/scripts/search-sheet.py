@@ -7,18 +7,22 @@ a link is composed here and opened by a human in a browser. Nothing in this
 script touches the network (C79; SURFACES.md, the trade site's rows: access
 method `browser`).
 
-    search-sheet.py                # the pilot and the batch, if form (the default)
-    search-sheet.py --method if    # the same
+    search-sheet.py                # the pilot and the checks: what the owner is asked to run
+    search-sheet.py --method if    # the pilot and the batch, one search per candidate line
     search-sheet.py --method and   # the pilot and the batch, one search per pair
     search-sheet.py --self-test    # compose each captured request and compare ids
     search-sheet.py --verify       # decode every link in the sheet, compare its query
 
+The checks ask the site of every listed item at once whether a pseudo's rows
+are complete and sound (`checks`, below); the pilot showed the method, and the
+committed sheet is the pilot and the checks. The batch is the form before it,
+kept one command away and not run: 264 searches, one line at a time.
+
 The batch is generated from ../data/candidates.csv (scripts/candidates.py),
-in two forms, since the pilot's answer is not in: `if` — one search per
+in two forms, since the pilot's answer was not in: `if` — one search per
 candidate line, every pseudo it might feed in one `if` group (p2 asks whether
 an `if` group shows a value at all); `and` — one search per pair, the pseudo
-required as in p1. The committed sheet is the `if` form; the other is one
-command away. Rows are ordered by what a search is worth: the pilot, then
+required as in p1. Rows are ordered by what a search is worth: the pilot, then
 lines whose best pair is `sources-differ`, `text-only`, `one-source`,
 `sources-agree`, then the percentile's own cases (PERCENTILE_CASES), then
 the first pass's open question 5 (R1).
@@ -400,6 +404,110 @@ def batch(method):
     return ranked + percentile_case_searches() + OPEN_QUESTION_SEARCHES
 
 
+STATS = TRACK.parent / "trade-query" / "data" / "stats-2026-09-12.json"
+
+
+def ids_of(*texts):
+    """Every id, in every category, that displays one of the texts."""
+    wanted = set(texts)
+    found = {t: [] for t in texts}
+    for g in json.loads(STATS.read_text())["result"]:
+        if g["id"] == "pseudo":
+            continue
+        for e in g["entries"]:
+            if e["text"] in wanted:
+                found[e["text"]].append(e["id"])
+    for t, ids in found.items():
+        if not ids:
+            raise SystemExit(f"no stat displays {t!r}")
+    return [i for t in texts for i in found[t]]
+
+
+# The site as the checker. A pseudo's rows are complete when no listed item
+# shows the pseudo while carrying none of them, and sound when no listed item
+# carries one while showing no pseudo: each is one search over everything
+# listed, where the batch above asks one line at a time of ten items. A
+# search that finds nothing proves nothing until the same search, with one
+# row taken out, is seen to find something: every check has its mutant.
+LIFE = "pseudo.pseudo_total_life"
+LIFE_ROWS = ["+# to maximum Life", "+# to Strength", "+# to Strength and Dexterity",
+             "+# to Strength and Intelligence", "+# to all Attributes"]
+SPEED_ROWS = ["#% increased Attack Speed", "#% increased Attack Speed (Local)"]
+
+
+def checks():
+    return [
+        {
+            "search": "c1",
+            "decides": (
+                "complete: whether any listed item shows `+# total maximum Life` while "
+                "carrying none of the five lines p1 and q4 evidenced. None found: the rows "
+                "are all the site counts. Any found: its lines name what is missing"
+            ),
+            "control": "c2, this search with one row taken out, must find items",
+            "query": batch_query([group("and", [LIFE]), group("not", ids_of(*LIFE_ROWS))]),
+        },
+        {
+            "search": "c2",
+            "decides": (
+                "c1's mutant: the same search with `+# to all Attributes` left out of the "
+                "`not` group. It must find items, each carrying that line and no other row, "
+                "each showing half of it"
+            ),
+            "control": "the mutant is the control: nothing found means a `not` group of this size decides nothing",
+            "query": batch_query([group("and", [LIFE]),
+                                  group("not", ids_of(*[t for t in LIFE_ROWS if t != "+# to all Attributes"]))]),
+        },
+        {
+            "search": "c3",
+            "decides": (
+                "sound: whether any listed item carries one of the five lines while showing "
+                "no `+# total maximum Life` — the pseudo inside a `not` group. None found: "
+                "every row is counted wherever it appears"
+            ),
+            "control": "c4, this search with an uncounted line among the rows, must find items",
+            "query": batch_query([group("count", ids_of(*LIFE_ROWS), {"min": 1}),
+                                  group("not", [LIFE])]),
+        },
+        {
+            "search": "c4",
+            "decides": (
+                "c3's mutant: `#% increased maximum Life`, which p1 showed uncounted, added "
+                "to the rows. It must find items carrying that line and no counted one"
+            ),
+            "control": "the mutant is the control: nothing found means a pseudo inside a `not` group decides nothing",
+            "query": batch_query([group("count", ids_of(*LIFE_ROWS, "#% increased maximum Life"), {"min": 1}),
+                                  group("not", [LIFE])]),
+        },
+        {
+            "search": "c5",
+            "decides": (
+                "the method: every member of an `if` group displays, not the first alone "
+                "(p2's control was its group's first). Every item carries a cold and a fire "
+                "resistance line, so both totals must show, the second as well as the first"
+            ),
+            "control": "`+#% to Cold Resistance` and `+#% to Fire Resistance` are both required; the site counted fire (q5, p2)",
+            "query": batch_query([
+                group("and", ["explicit.stat_4220027924", "explicit.stat_3372524247"]),
+                group("if", ["pseudo.pseudo_total_cold_resistance",
+                             "pseudo.pseudo_total_fire_resistance"]),
+            ]),
+        },
+        {
+            "search": "c6",
+            "decides": (
+                "complete, for a total the build ships: whether any listed item shows "
+                "`+#% total Attack Speed` while carrying no `#% increased Attack Speed` "
+                "line, local or not — the shipped total's one row. What is found names "
+                "what else the site counts, the combined speed line of p2 among the candidates"
+            ),
+            "control": "c1 and c2 show what a `not` group over a line's every id finds",
+            "query": batch_query([group("and", ["pseudo.pseudo_total_attack_speed"]),
+                                  group("not", ids_of(*SPEED_ROWS))]),
+        },
+    ]
+
+
 def decode(link_text):
     token = link_text.rsplit("/", 1)[1]
     raw = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
@@ -448,14 +556,16 @@ def main():
         return self_test()
     if args == ["--verify"]:
         return verify()
-    if args in ([], ["--method", "if"]):
+    if args == []:
+        method = "site"
+    elif args == ["--method", "if"]:
         method = "if"
     elif args == ["--method", "and"]:
         method = "and"
     else:
         print(__doc__)
         return 2
-    searches = PILOT + batch(method)
+    searches = PILOT + (checks() if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
         sheet = csv.writer(out, lineterminator="\n")
@@ -475,11 +585,12 @@ def main():
                     body,
                 ]
             )
-    kinds = {"pilot": 0, "line": 0, "pair": 0, "percentile line": 0, "percentile case": 0,
-             "open question": 0}
+    kinds = {"pilot": 0, "check": 0, "line": 0, "pair": 0, "percentile line": 0,
+             "percentile case": 0, "open question": 0}
     for row in searches:
         s = row["search"]
-        kind = ("pilot" if s.startswith("p") else "percentile case" if s.startswith("C")
+        kind = ("pilot" if s.startswith("p") else "check" if s.startswith("c")
+                else "percentile case" if s.startswith("C")
                 else "open question" if s.startswith("R")
                 else "percentile line" if s.startswith("P") else "pair" if "." in s else "line")
         kinds[kind] += 1

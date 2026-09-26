@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot captured and read — 2026-09-26; the checks with the owner.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -13,12 +13,16 @@ Headline:
 - **The export separates** the unsuffixed `Adds # to # <type> Damage` on a weapon (`local_*`, is_local)
   from the same text elsewhere (`global_*`: uniques, bench crafts, grafts, veiled mods, delve gloves),
   as the site does with its `(Local)` ids; the committed census cannot split the owner's lines by class.
-- **Searches: 264 in the `if` form** (committed), 565 in the `and` form; 131 rows no stat id can search.
+- **The pilot opened** (p1, p2): the site takes a composed link, and an `if` group shows a value
+  without filtering by it. Total life counts `Strength and Dexterity`, `Strength and Intelligence`
+  and `all Attributes` at one half; the combined speed line feeds neither speed total. The sitting
+  is six checks that ask the site of every listed item at once, not the 264 searches part 1 counted.
 - `+#% to All Resistances` is named by APT under five resistance totals and left out by the C++
   tables (`sources-differ`, sheet row L001); the owner's corpus holds none.
 
 Per-row detail: `data/candidates.csv` (`scripts/candidates.py`), `data/percentile-check.csv`
-(`scripts/percentile.py`), `data/search-sheet.csv` (`scripts/search-sheet.py`, from the candidates).
+(`scripts/percentile.py`), `data/search-sheet.csv` (`scripts/search-sheet.py`), `data/captures.json`
+(`scripts/captures.py`, the owner's captures scrubbed), `data/evidence.csv` (`scripts/evidence.py`).
 Each regenerates byte-for-byte; run `percentile.py` before `candidates.py`, which reads its output.
 
 ## Part 1: the candidates by status
@@ -113,11 +117,14 @@ capture has three defence types, ward, a shield, a helmet or gloves, quality abo
 `Quality does not increase Defences` enchant, a unique's base, a reduced local line or the triple
 `#% increased Armour, Evasion and Energy Shield`: cases C1–C8 and the percentile lines P001–P034.
 
-## The searches, by form
+## The searches part 1 counted, by form
+
+Not run, and one command away (`search-sheet.py --method if`): the rows named L, P, C and R below
+and in the open questions are that sheet's. The committed sheet is the pilot and the checks.
 
 | Form | Pilot | Batch | Percentile lines | Percentile cases | Open question | Total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `--method if` (committed) | 2 | 219 lines | 34 | 8 | 1 (R1) | **264** |
+| `--method if` | 2 | 219 lines | 34 | 8 | 1 (R1) | **264** |
 | `--method and` | 2 | 520 pairs | 34 | 8 | 1 (R1) | **565** |
 
 Lines by their best pair: `sources-differ` 1, `text-only` 215, `one-source` 3 (percentile: 27, 7).
@@ -126,6 +133,42 @@ Controls: `+# to Strength` required, showing `+# total maximum Life` (the site c
 pseudo the control also feeds is read by value; a result with no items decides nothing and is
 rerun with the other control. L033 and L219 repeat the pilot's p2 and p1. 131 rows (72 of them
 representatives or direct) have no stat id: a skill gem's text, a description, a buff.
+
+## The pilot and the checks
+
+The owner ran p1 and p2 on 2026-09-26 (`MANIFEST.md`). The site returned each query as the sheet
+wrote it, less every `"disabled":false`, so the id it returns is not the id the link carried.
+
+| Pseudo | Line | Weight tested | Items agreeing | Disagreeing | From |
+| --- | --- | ---: | ---: | ---: | --- |
+| `+# total maximum Life` | `# to Strength and Intelligence` | 0.5 | 10 | 0 | p1 |
+| | `# to Strength and Dexterity` | 0.5 | 1 | 0 | p1[0]: 10 and 8 show `+9` |
+| | `# to all Attributes` | 0.5 | 1 | 0 | p1[7]: 6 and 10 show `+8` |
+| | `# to maximum Life` | 1 | 1 | 0 | p1[3]: 40, 10 crafted and 11 show `+55.5` |
+| | `#% increased maximum Life` | 0 | 1 | 0 | p1[1] |
+| `+#% total Attack Speed` | `#% increased Attack and Cast Speed` | 0 | 10 | 0 | p2 |
+| `+#% total Cast Speed` | `#% increased Attack and Cast Speed` | 0 | 10 | 0 | p2 |
+| `+#% total to Fire Resistance` | `#% to Fire Resistance` | 1 | 10 | 0 | p2, the control |
+
+40 readings of an item under a pseudo, none disagreeing; the conditional speed lines p2 met, one
+item each, are `data/evidence.csv`'s. The check can fail: `Strength and Intelligence` at 1
+disagrees on 10 items, `all Attributes` left out on 1, `maximum Life` left out on 1, the combined
+speed line counted on 10. p2's two speed rows carry a caveat: its control was its group's first
+member, and that every member of an `if` group displays is c5's to show.
+
+The checks ask what part 1's batch could not: a line-by-line search reads ten items, and a pseudo's
+rows are a claim about every item. Rows are **complete** when no listed item shows the pseudo while
+carrying none of them, **sound** when no listed item carries one while showing no pseudo. A search
+that finds nothing proves nothing until its mutant finds something.
+
+| Search | Asks | Its control |
+| --- | --- | --- |
+| c1 | total life, complete: the pseudo required, the five rows' 23 ids in a `not` group | c2 |
+| c2 | c1 with `all Attributes` left out: it must find items | the mutant |
+| c3 | total life, sound: a row required, the pseudo in a `not` group | c4 |
+| c4 | c3 with `#% increased maximum Life` among the rows: it must find items | the mutant |
+| c5 | every member of an `if` group displays: cold and fire required, both totals asked | both lines required |
+| c6 | total attack speed, complete, against the shipped total's one row | c1 and c2 |
 
 ## Left out
 
