@@ -68,7 +68,7 @@ commit's.
 | 7 · computed values | `b5d62d92` | `totals.rs` and `reference/totals-v1.toml`: the totals table as reference data (C94, C68) — 35 totals, 104 rows, by `tools/totals-table.py` from the C++ app's pseudomod tables at `master@946a4f51`; `pseudo.rs`: the `pseudo.` namespace, `pseudo.dps` and `pseudo.pdps` (C101); the basis gains `totals v1` (C98); `--describe` lists every computed value. `pseudo.defence_pct` and a ranged total refused by name, the entry naming no step. `tests/pseudo.rs`, `tests/answer.rs` (the worked example whole), `tests/acceptance.rs` (AQ2 as worded). M6 and M3 below; T1, T2 and T5 ruled below, T3 and T4 at the plan's foot; the observations of step 7 below. |
 | 7 · the third look | `ecb83b65` | The generators reach the computed values, nothing else (owner, 2026-09-24, `66a20acf`): resistance lines and a `properties` array with holes in the bodies; a total's comparison, the derived fields' comparisons and `has:`, the probe, the case alt and the three sorts in the query tree; an eighth anchor past the reasons bound, a fixed case beside the rare find. Shown to catch the first round's 1 and 5 and a mutant per property; its 2 is held by `exact.rs`'s unit test. No source changed. |
 | 8 · sockets | `ec024ceb`; reviewed `dca017f5`, `7010f658` | `sockets.rs`, and `derive.rs` reads the socket collection at the socket's grain (C101, rule 8); a count is an interval of what was read, decided where the whole interval agrees (`eval.rs`); `linked( … )` bound in `group.rs` beside a line's group; `show` and a row print the layout, made once; `--describe` gains the fields and the `linked` block. `DERIVATION` 9. `tests/sockets.rs` (every count by hand; three mutants caught), `tests/derive.rs`, `tests/acceptance.rs` (OQ3 as worded); the generators reach the sockets (`tests/common/generated.rs`). M2, M3 and the copy's counts below; K1 ruled below; the observations of step 8 below. |
-| 9 · price | `57c2f78b`; reviewed `1e0d85c6`, `7ff3c947` | `price.rs`: the effective price joined read-only from the pricing area's listing state (C81, C100) — one snapshot and one `resolve` per (realm, league) the corpus names, keyed by item id; the crate links `acquisition-plan` (C89); the basis gains the intent revision, the currency table's and the note parser's versions (C98), the facts and intent revisions read again after the join and the corpus read again where either moved; `has:priced`, `price.amount`, `price.currency` (the table's tags, a closed set), `price.lot`; the reason *price unresolved* (`Part::Price`); a count by a number keeps its decimals (`Of::Number` is `Exact`); `show` carries the price; the CLI opens the intent file beside the store and prints the price and the basis whole. The store gains `Annotations::revision` and carries a note that is no string as unread (`ItemSnapshot::note_unread`); the planner leaves such an item's price unresolved (C81). `tests/price.rs` (thirteen items by hand, every route followed), `tests/acceptance.rs` (OQ6), the generators reach the price, the CLI's `search_json.rs`. M3 below; P1 and P2 at the plan's foot; the observations of step 9 below. |
+| 9 · price | `57c2f78b`; reviewed `1e0d85c6`, `7ff3c947` | `price.rs`: the effective price joined read-only from the pricing area's listing state, one snapshot and one `resolve` per (realm, league), by item id (C81, C100); the crate links `acquisition-plan` (C89); the basis gains the intent revision and the currency and note-parser versions (C98); `has:priced`, `price.amount`, `price.currency` (the table's tags), `price.lot`; `Part::Price`; `Of::Number` is `Exact`; `show` carries the price; the CLI opens the intent file beside the store. The store: `Annotations::revision`, `ItemSnapshot::note_unread` and `inventory_id_unread`; the planner: an unread note decides only where the index sees it. `tests/price.rs`, `tests/acceptance.rs` (OQ6), the generators, the CLI's `search_json.rs`. M3 below; P1, P2 ruled below. |
 
 ## Findings
 
@@ -230,16 +230,9 @@ timings, coverage no fixture reaches, and questions for the seat.
 
 **Step 6.**
 
-- The class table over the copy (the measurement above): 56 of its 82
-  classes are carried; of 22,721 items 681 are undecided — 388 whose
-  base is not in the table, 230 of them blighted and blight-ravaged
-  maps (`Blighted Map (Tier N)` is no export base, though `Blighted
-  Map` is) and the rest itemised beasts foremost (71 distinct names in
-  all); 195 under several classes, the Eldritch and Maven's invitations
-  foremost; 98 in poe2. No gem is among them: `gems.json` supplied every
-  transfigured gem of the copy, 272 items step 2's census could not join
-  by base. Whether a blighted map's class, or an invitation's, is worth a
-  reviewed row of a later table version is the owner's (G2).
+- Whether a blighted map's class, or a Maven's invitation's, is worth a
+  reviewed row of a later table version is the owner's (G2): the copy's
+  undecided items by cause are `search/MEASUREMENTS.md`, the class block.
 - `class:staff` is answered with the whole list of 82 names, `staff`
   being three edits from `Staves` (G1): the first seat is where to learn
   whether the game's plurals bite.
@@ -285,10 +278,8 @@ timings, coverage no fixture reaches, and questions for the seat.
 - A derived field's lacked item sorts last with the status `no
   satisfying occurrence`, which is a line's wording; a field's and a
   computed value's is the same status today.
-- The generated properties reach `pseudo` since the third look
-  (`ecb83b65`), and still no `class`; the completion's measured half
-  after it: 9 groups failed as stored and lacked under a completion in
-  2,000 cases (19 and 21 with step 4b's generators).
+- The generated properties reach `pseudo` since the third look and
+  `price` since step 9, and still no `class`.
 - `has:Pseudo.DPS` is refused as no field the language knows: the
   `pseudo.` namespace is grammar, read by the parser as typed, where a
   name after it is matched in any case (B1). For the seat.
@@ -306,51 +297,22 @@ timings, coverage no fixture reaches, and questions for the seat.
 
 **Step 9.**
 
-- M3's two asks over budget (AQ2 as worded 529 ms, the worked example
-  whole 528) are the totals' unchanged 84 ms on a floor the price join
-  raised by 170: neither a load over budget (the empty query is 445)
-  nor an evaluator cost that grew; by the letter of the totals batch
-  park's trigger, "a totals ask over budget", it fired. Three candidates,
-  each unmeasured: join the price only when the request names it; the
-  note as an ingest column, which would take the snapshot's read from
-  about 80 ms to about 14; the persisted projection. The owner's
-  disposition (2026-09-25): a good signal, addressed after the seat and
-  the last steps, not before, even at the cost of slower testing. What
-  the discussion settled for then: the load is under its budget, so the
-  projection's trigger has not fired and the projection would not touch
-  the join; the effective price crosses facts and intent and so stays a
-  read-time derivation, its inputs the only lever; a note column makes
-  `note` an ingest fact, which under C103 moves the field from the
-  deriver to the store's read; the CLI pays the join on every ask, a
-  consumer that holds a corpus once per basis change, so the choice step
-  11 fixes in place is when a corpus joins — at load or on first ask.
-- The generators reached the pricing area before any seat did: a body
-  whose note is no string failed the pricing snapshot whole, and would
-  have failed `acq price status` the same way; fixed at the store and
-  the planner (`57c2f78b`), a finding of the pricing area's and held
-  by its tests. Over the copy no note is one, so the path is fixtures'
-  alone.
-- The price join is read after the corpus's transaction, so its
-  consistency is a check, not a snapshot: the facts and intent
-  revisions read again, and the corpus read again where either moved,
-  three times before an error. A store read that hands the pricing
-  snapshot over inside the corpus's transaction would make the reread
-  unnecessary; no consumer has met the error.
-- The intent revision on the basis is the whole file's — a sync-policy
-  write moves it too, and a held corpus reloads for it. No consumer
-  holds a corpus across asks yet.
-- `price.from` on a row names the tab, substash or character a
-  statement came from and nothing when it is the item's own; the
-  cross-checks' copied item showed the address otherwise. The same
-  shape bit the unresolved reason, now worded from the listing's parts.
-- A skip or a no-price row is known absence for `has:priced` (P1); a
-  decimal price lacks `price.lot` (P2): both at the plan's foot, for the
-  seat, built on the builder's recommendation.
-- `show`'s price is the item's league's listing state, or every league
-  of its realm for a league-less character, and one read under the empty
-  league name for a realm that names none (the review, 4); *uncovered*
-  stays a reason of its own that no fixture reaches now.
-- A price whose amount or lot is past the crate's rule for numbers (ten
-  whole digits, four decimals) is priced and its number unread: the
-  pricing area accepts what the search will not read as a number, and
-  the seat may meet a bulk lot written that long.
+- M3: the price join raised every release ask by 150–180 ms and two
+  totals asks crossed 500 with their evaluator cost unchanged; the
+  numbers, the join's breakdown and the three candidates are
+  `search/MEASUREMENTS.md`, the join paragraph; the owner's disposition
+  (after the seat) and what the discussion settled are the totals batch
+  and incremental-update parks (`decisions/search.md`).
+- The generators reached the pricing area before any seat did — a body
+  whose note is no string failed its snapshot whole — and the review
+  found four more of that shape (the findings above; `PRICING-SLICE.md`).
+  Over the copy no note is one, so the path is fixtures' alone.
+- The join is consistent by a check, not a snapshot (`corpus.rs`); no
+  consumer has met `basis_moved`. The intent revision on the basis is
+  the whole file's, so a sync-policy write reloads a held corpus too;
+  no consumer holds one across asks yet.
+- *Uncovered* — a league-less character in a realm with no league on
+  record — is a reason no fixture reaches now; a price whose amount or
+  lot is past the crate's rule for numbers (ten whole digits, four
+  decimals) is priced with its number unread, and the seat may meet a
+  bulk lot written that long.

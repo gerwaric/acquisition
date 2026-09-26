@@ -120,7 +120,13 @@ over the M3 copy (`raw/m3/store`, 22,721 items, revision 1126, facts v7),
 2,641, Utility Flasks 2,337, Support Gems 2,100, Rings 1,133, Jewels
 1,035; `undecided` 681, its tally *base not in the table* 388, *base
 under several classes* 195, *no table for the realm* 98; the buckets sum
-to 22,721 (C105). The same ask before G3 was reversed had Blade Trap
+to 22,721 (C105). Of the 388 not in the table, 230 are blighted and
+blight-ravaged maps (`Blighted Map (Tier N)` is no export base, though
+`Blighted Map` is) and the rest itemised beasts foremost, 71 distinct
+names in all; the 195 under several classes are the Eldritch and
+Maven's invitations foremost; no gem is among them, `gems.json` having
+supplied every transfigured gem of the copy, 272 items step 2's census
+could not join by base. The same ask before G3 was reversed had Blade Trap
 among the 393 not in the table and 686 undecided. M2 rerun at the step:
 0 unread, 0 unexplained; `reqlevel` reads a whole number on every item
 of the copy that has a `Level` requirement.
@@ -282,7 +288,7 @@ The rest are undecided rightly: a case the sampler cannot reach (a
 template at one value, a selector nothing carries, a bound no generated
 value breaks), a group no occurrence can satisfy (two quoted templates
 in one and), and a comparison on an incomplete subtotal, undecided
-whatever the subtotal already reaches. Rerun 2026-09-24 over the generators as step 8 left them: no counterexample; 16 groups and 29 fields were made true by every completion, each read — a decimal line's completions stay in tenths, a junk socket's group is drawn at random, a comparison on an incomplete subtotal is careful by rule — so the column is the sampler's reach now, not the evaluator's.
+whatever the subtotal already reaches. Over step 7's third-look generators (`ecb83b65`), 9 groups failed as stored and lacked under a completion in 2,000 cases, against 19 and 21 with step 4b's. Rerun 2026-09-24 over the generators as step 8 left them: no counterexample; 16 groups and 29 fields were made true by every completion, each read — a decimal line's completions stay in tenths, a junk socket's group is drawn at random, a comparison on an incomplete subtotal is careful by rule — so the column is the sampler's reach now, not the evaluator's.
 
 **The vocabulary against M2 (step 5, `31b5f09d`): 6,181 rows and 6,148 templates agree.** Over all realms the
 vocabulary is 6,181 rows keyed by (realm, template); the deriver's
