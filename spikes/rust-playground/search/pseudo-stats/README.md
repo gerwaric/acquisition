@@ -203,7 +203,7 @@ and 44 of 60 in 300 s (the one before it). No response asked a sitting to slow d
 ## Candidate claims
 
 For `docs/design/trade-ground-truth.md`, authored master-side; each is what the captures show, dated
-2026-09-26, Standard, PC.
+2026-09-26 where no date is given, Standard, PC.
 
 | Claim | Evidence |
 | --- | --- |
@@ -216,6 +216,10 @@ For `docs/design/trade-ground-truth.md`, authored master-side; each is what the 
 | A `not` on an eldritch form's id lets some items carrying it through | round four, 227 items |
 | Rate limits, searches: 3 in 5 s an account; 8 in 10 s, 15 in 60 s, 60 in 300 s, 600 in three hours an address. Fetches: 6 in 4 s an account; 12 in 4 s, 16 in 12 s, 100 in 300 s, 1,000 in three hours an address | the recordings' `X-Rate-Limit-*` headers |
 | A weighted group costs a `complexity` of 56 and 4 an id; a query is refused, status 400, "Query is too complex", somewhere between 148 and 220 | d01, d02, e039–e063; e047, e051 |
+| A line's `reduced` spelling is under the `increased` spelling's id, and a pseudo counts it below nothing: `-10% total Attack Speed` over `10% reduced Attack Speed` (2026-09-27) | 60 readings of the 61 that carry one; g007, g034, h042–h052 |
+| Four pseudos are readings of other pseudos and no sum of lines: the two counts are how many resistance totals an item shows, chaos among them; `total to all Elemental Resistances` and `total to all Attributes` are the least of their three, shown where all three are (2026-09-27) | R1, g001–g004; h001, h002, h039, h040 |
+| `# Life Regenerated per Second` is rounded where the item's line is cut to a tenth: 1.2 over `1.1` (2026-09-27) | g037, two items of ten |
+| A weighted group takes a maximum below nothing, and a minimum of a hundredth (2026-09-27) | h042–h053, 12 searches answered; g040, g042, h038, h041 |
 
 ## Left out
 

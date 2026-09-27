@@ -345,7 +345,9 @@ filed again by the step that touches it.
 
 - *9c3:* a total read by a count or a least-of is asked three or four
   at a time of every item, and a totals ask is over budget already
-  (M3, below the table).
+  (M3, below the table). The four were asked one way, what shows the
+  pseudo; whether an item showing every total a reading names ever
+  shows no pseudo was not asked, so each is explained, never closed.
 - *9d:* the two leech pseudos count the line under every id, the
   `(Local)` twin among them, so neither waits for a row that names what
   the item is; of 9c2's totals none does.
