@@ -19,8 +19,8 @@ By one recording of the sitting, which types no file name:
    keep its log across pages ("Preserve log", "Persist Logs").
 2. Open the links one at a time, at the pace of reading each result.
    Order does not matter and a link opened twice does no harm.
-3. Export the panel once as a HAR file — sanitized, where the browser
-   offers it — into `raw/`.
+3. Export the panel once as a HAR file into `raw/`. A sanitized export
+   held no response body (2026-09-26); which export does is under test.
 4. `scripts/har-split.py raw/<file>.har` says what the recording holds
    and writes nothing; with `--write` it writes each capture under the
    name of the row its query answers. Then delete the HAR file: it can
@@ -72,3 +72,12 @@ the file is empty.
 | `raw/searches/c5-search.json` | 7948 | 2026-09-26 19:11 | `36f14d1221c20a644b543e66dc53d43fdcee3bb40021bae4163c042c0bfa7d6a` |
 | `raw/searches/c6-fetch.json` | 124471 | 2026-09-26 19:11 | `4e6f2c92bd1ec7948648523f6664f6687c6b108fb2ba346316c553a6be63a3e4` |
 | `raw/searches/c6-search.json` | 7980 | 2026-09-26 19:11 | `78d27ea9fa2e8fc27e13a3444e873ff489b1024972a233acdc12e46b5faf4a0a` |
+
+Round two, 2026-09-26, 19:41–19:44 US Central (2026-09-27 00:41–00:44 UTC), by
+the owner, from the links of `data/search-sheet.csv` at `dbbdd35f`: one
+recording of 26 searches, exported sanitized. It holds no response body in any
+of its 2,260 entries and no cookie; its shape is `data/recording-shape.csv`.
+
+| File | Bytes | Captured | sha256 |
+| --- | --- | --- | --- |
+| `raw/searches/d-searches.har` | 15439357 | 2026-09-26 19:45 | `f4ab149a29aed66e85095546b1043520a136fb55aa1f878687a9c9aeb8a9baa4` |

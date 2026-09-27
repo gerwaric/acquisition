@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; round two (d01–d24, b1, b2) with the owner.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; round two (d01–d24, b1, b2) recorded without bodies — 2026-09-26, its shape read; to be captured again.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -180,6 +180,23 @@ Round two, `data/search-sheet.csv`, each search pinned to the version of the row
 
 A sitting is one recording, split by `scripts/har-split.py` (`MANIFEST.md`): no file name is typed,
 since a search response carries its query and the sheet says which row that is.
+
+**The first recording holds no body** (2026-09-26: 26 searches in 3 min 15 s, every row of round two
+opened once, in order; a sanitized export). What it holds is its shape, `data/recording-shape.csv`
+— provisional, the page's behaviour and not the site's word, until the bodies are captured:
+
+| Rows | Shape | Reads as |
+| --- | --- | --- |
+| d04, d13, d16, d19, d22 | 326–354 bytes, no fetch followed | each plain `Adds # to # <type> Damage` is complete on its own text: the `to Attacks` and `to Spells` lines do not feed it |
+| d05, d06 and the other eight scoped | near 7,000 bytes, ten items fetched | each `to Attacks` and `to Spells` pseudo counts a line beyond its own text |
+| d07–d12 | near 7,000 bytes, ten items fetched | the six aggregates are carried by many items |
+| d01 | 533 bytes, one item fetched | one listed item's rows sum to a half or more with no total life |
+| d02 | 7,180 bytes, ten items fetched | d01's mutant finds, so a `weight2` group beside a `not` is taken |
+| d03 | 1,565 bytes, ten items fetched | a few items show total attack speed by a line still missing |
+| b1, b2 | 253 bytes and no fetch; 6,932 bytes and ten items | the twin id with the total required finds nothing, alone it finds the jewels |
+
+The most the sitting used of what the site allows: 9 of 15 searches in 60 s, 28 of 60 in 300 s,
+71 of 600 in three hours; 22 of 100 fetches in 300 s. No response asked it to slow down.
 
 ## Left out
 

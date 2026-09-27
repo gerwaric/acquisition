@@ -14,6 +14,16 @@ each link).
     har-split.py <file.har>            # say what the recording holds, write nothing
     har-split.py <file.har> --write    # write the captures
     har-split.py <file.har> --write --replace   # and overwrite a capture that differs
+    har-split.py <file.har> --shape    # write ../data/recording-shape.csv
+
+**A recording may hold no bodies.** The browser can drop a response's body
+and keep its request, its size and its headers (the first recording, 2026-09-26:
+26 searches, no body in 2,260 entries). What is left is the recording's shape:
+which row each search's request asked, how many bytes answered, and whether the
+page went on to fetch items — it fetches none where a search found nothing.
+`--shape` writes that, scrubbed, as provisional evidence: a search answered
+in a few hundred bytes that no fetch followed found nothing, by the page's
+behaviour and not by the site's word.
 
 **A HAR file can hold the session's cookie.** This script reads response
 bodies and the site's rate-limit headers and nothing else, copies no request
@@ -31,11 +41,18 @@ import csv
 import gzip
 import json
 import sys
+import urllib.parse
 from pathlib import Path
 
 TRACK = Path(__file__).resolve().parents[1]
 RAW = TRACK / "raw" / "searches"
 SHEET = TRACK / "data" / "search-sheet.csv"
+SHAPE = TRACK / "data" / "recording-shape.csv"
+
+# A search response under this many bytes lists a handful of results at most
+# (an id is 64 characters; a response of a hundred is near 7,000 bytes). With
+# no fetch after it, it lists none: the page fetches whatever a search finds.
+SMALL = 1000
 
 
 def decode(search_id):
@@ -81,6 +98,63 @@ def holds_cookie(har):
     return False
 
 
+def row_of(query, sheet):
+    names = [n for n, q in sheet.items() if bare(q) == bare(query)]
+    return names[0] if names else None
+
+
+def asked(entry, sheet):
+    """The row a call's own request names: a search posts its query, a fetch
+    carries the search's id. None where the request says neither."""
+    url = urllib.parse.urlparse(entry["request"]["url"])
+    try:
+        if "/api/trade/search/" in url.path:
+            posted = (entry["request"].get("postData") or {}).get("text")
+            return row_of(json.loads(posted)["query"], sheet) if posted else None
+        ids = urllib.parse.parse_qs(url.query).get("query")
+        return row_of(decode(ids[0]), sheet) if ids else None
+    except (ValueError, KeyError, OSError):
+        return None
+
+
+def shape(har, sheet):
+    """Every trade call, body or none: what was asked and how it was answered."""
+    calls = []
+    for entry in har["log"]["entries"]:
+        url = urllib.parse.urlparse(entry["request"]["url"])
+        if "/api/trade/search/" not in url.path and "/api/trade/fetch/" not in url.path:
+            continue
+        search = "/api/trade/search/" in url.path
+        calls.append({
+            "at": entry.get("startedDateTime"),
+            "kind": "search" if search else "fetch",
+            "row": asked(entry, sheet),
+            "status": entry["response"]["status"],
+            "bytes": entry["response"].get("content", {}).get("size"),
+            "items": 0 if search else len(url.path.rsplit("/", 1)[1].split(",")),
+            "body": body(entry) is not None,
+            "limits": limits(entry),
+        })
+    return calls
+
+
+def peak(calls):
+    """Per policy and window, the most the sitting used of what the site allows."""
+    most = {}
+    for call in calls:
+        policy = call["limits"].get("x-rate-limit-policy")
+        for rule in call["limits"].get("x-rate-limit-rules", "").split(","):
+            allowed = call["limits"].get(f"x-rate-limit-{rule.lower()}", "")
+            state = call["limits"].get(f"x-rate-limit-{rule.lower()}-state", "")
+            for limit, used in zip(allowed.split(","), state.split(",")):
+                if limit.count(":") != 2 or used.count(":") != 2:
+                    continue
+                hits, window, _ = limit.split(":")
+                key = (policy, rule, int(window), int(hits))
+                most[key] = max(most.get(key, 0), int(used.split(":")[0]))
+    return most
+
+
 def read(har, sheet):
     """The recording's searches in order, each with its fetches."""
     found = []
@@ -115,13 +189,14 @@ def main():
     args = sys.argv[1:]
     flags = {a for a in args if a.startswith("--")}
     files = [a for a in args if not a.startswith("--")]
-    if len(files) != 1 or flags - {"--write", "--replace"}:
+    if len(files) != 1 or flags - {"--write", "--replace", "--shape"}:
         print(__doc__)
         return 2
     har = json.loads(Path(files[0]).read_text())
     with SHEET.open(newline="\n") as f:
         sheet = {r["search"]: json.loads(r["query"]) for r in csv.DictReader(f)}
     found, strays, problems = read(har, sheet)
+    calls = shape(har, sheet)
 
     print("the recording holds a cookie: " + (
         "YES — keep it under raw/ and delete it once the captures are written"
@@ -149,20 +224,45 @@ def main():
               + ("" if s["fetches"] or not s["total"] else "  — results and no fetch recorded"))
     for stray in strays:
         print(f"REFUSED  {stray['at']}  a fetch belonging to no search in the recording")
-    for p in problems:
-        print(f"PROBLEM  {p}")
+    bodiless = [c for c in calls if not c["body"]]
+    if len(problems) > 6 and len(bodiless) == len(calls):
+        print(f"PROBLEM  no body in any of the {len(calls)} trade calls recorded")
+    else:
+        for p in problems:
+            print(f"PROBLEM  {p}")
+    if bodiless:
+        print("the recording's shape — what each search's request asked, and what followed:")
+        for c in calls:
+            if c["kind"] == "search":
+                fetched = [f for f in calls if f["kind"] == "fetch" and f["row"] == c["row"]
+                           and f["at"] > c["at"]]
+                print(f"    {c['row'] or 'no row':<8} status {c['status']}  {c['bytes']:>6} bytes  "
+                      + (f"{sum(f['items'] for f in fetched)} items fetched" if fetched
+                         else "no fetch followed: nothing found" if (c["bytes"] or 0) < SMALL
+                         else "results, and no fetch recorded")
+                      + ("" if c["body"] else "  (no body)"))
     missing = [n for n in sheet if f"{n}-search.json" not in writes and not (RAW / f"{n}-search.json").exists()]
     print(f"{len(found)} searches in the recording; rows of the sheet with no capture anywhere: "
           + (", ".join(missing) if missing else "none"))
 
-    seen = [s["limits"] for s in found if s["limits"]] + [
-        f["limits"] for s in found for f in s["fetches"] if f["limits"]]
-    if seen:
-        print("the site's rate-limit headers, first and last response carrying them:")
-        for which in (seen[0], seen[-1]):
-            print("    " + "; ".join(f"{k}={v}" for k, v in sorted(which.items())))
-    if any("retry-after" in l for l in seen) or any("429" in p for p in problems):
-        print("THE SITE ASKED THE SITTING TO SLOW DOWN: see the problems above")
+    most = peak(calls)
+    if most:
+        print("the most the sitting used of what the site allows, per window:")
+        for (policy, rule, window, hits), used in sorted(most.items()):
+            print(f"    {policy}  {rule:<8} {used:>3} of {hits:>4} in {window} s")
+    slowed = [c for c in calls if c["status"] == 429 or "retry-after" in c["limits"]]
+    if slowed:
+        print(f"THE SITE ASKED THE SITTING TO SLOW DOWN, {len(slowed)} times, first at {slowed[0]['at']}")
+
+    if "--shape" in flags:
+        with SHAPE.open("w", newline="") as out:
+            table = csv.writer(out, lineterminator="\n")
+            table.writerow(["recording", "at", "call", "row", "status", "response_bytes",
+                            "items_asked", "body"])
+            for c in calls:
+                table.writerow([Path(files[0]).name, c["at"], c["kind"], c["row"] or "",
+                                c["status"], c["bytes"], c["items"] or "", "yes" if c["body"] else "no"])
+        print(f"{len(calls)} calls written to {SHAPE.relative_to(TRACK.parent.parent)}")
 
     if "--write" not in flags:
         print("nothing written (say --write)")
