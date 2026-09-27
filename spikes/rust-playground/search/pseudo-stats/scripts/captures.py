@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """The owner's captures as a scrubbed extract: ../data/captures.json.
 
-Reads ../raw/searches/<search>-search.json and <search>-fetch.json (local
+Reads ../raw/searches/<search>-search.json and <search>-fetch.json, with any
+further page of the same search as <search>-fetch-2.json, -3 and so on (local
 only: a fetch carries seller accounts and tokens; MANIFEST.md) and writes,
 per search: the query as the site returned it (the id, decoded), whether it
 is the sheet's query, the response's counts, and for each fetched item only
@@ -123,9 +124,12 @@ def main():
             "ids_returned": len(answer.get("result", [])),
             "fetched": [],
         }
-        fetch = RAW / f"{name}-fetch.json"
-        if fetch.exists() and fetch.stat().st_size:
-            entry["fetched"] = [item(r["item"]) for r in json.loads(fetch.read_text())["result"]]
+        pages = [RAW / f"{name}-fetch.json"] + sorted(
+            RAW.glob(f"{name}-fetch-*.json"), key=lambda p: int(p.stem.rsplit("-", 1)[1])
+        )
+        for fetch in pages:
+            if fetch.exists() and fetch.stat().st_size:
+                entry["fetched"] += [item(r["item"]) for r in json.loads(fetch.read_text())["result"]]
         out["searches"][name] = entry
         print(f"{name}: sheet query {entry['sheet_query']}; total {answer.get('total')}; "
               f"{entry['ids_returned']} ids; {len(entry['fetched'])} items fetched")

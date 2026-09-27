@@ -21,10 +21,13 @@ no tool does.
    `raw/searches/<search>-fetch.json`. If the page sent a request body,
    save it as `raw/searches/<search>-request.json`; the link already
    holds the query, so its absence loses nothing.
-3. A search with no results has no fetch: save the search response
+3. The first ten items are enough unless the sheet's row says otherwise.
+   Where more are wanted, scroll once or twice and save each further
+   fetch as `raw/searches/<search>-fetch-2.json`, `-3`.
+4. A search with no results has no fetch: save the search response
    alone. A link the site refuses is a finding: note what the page
    showed.
-4. One link at a time, at the pace of reading each result.
+5. One link at a time, at the pace of reading each result.
 
 A fetch response carries seller accounts and whisper tokens: `raw/`
 only, never `data/`. What is committed is an extract, scrubbed, its
