@@ -160,7 +160,8 @@ items of q5 (`search/trade-query/data/fetch-census.json`) agrees with
 the rows shipped unchanged. What the trial found that no total counts —
 the combined speed line, the AoE and Duration gem levels, the
 conditional resistances — is coverage the rows never claimed; whether
-any joins a recipe is the owner's (the plan's foot, T4).
+any joins a recipe is the owner's (V6: `SEARCH-SLICE.md`, "Holes
+ruled").
 
 **M3 at each later build** — the same command, the release build judged
 against 500 ms; every release ask of every build below is under it but
