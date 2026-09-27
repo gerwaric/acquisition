@@ -7,11 +7,13 @@ Read by the block named — the measurement a step repeats, the number a
 park's trigger or a review checks — and never whole: the verdicts, one
 line each, are `SEARCH-SLICE.md`, "What the measurements taught", which
 is what every reader of the record gets. A step that repeats a
-measurement adds its row or its rerun here and its verdict there. The
+measurement adds its row or its rerun here and revises its verdict
+there. The
 story behind each — what a run first said and what was withdrawn, the
 mutants tried, why the suites had passed over what an audit found — is
 the record at `aeeba6d3`; what a property means and what it cannot
-reach is its own header. Each block opens with its verdict.
+reach is its own header. Each block opens with its verdict; M3's
+moves with every build and is the record's line.
 
 **M2 — the deriver against the census (step 2, `ef720323`; rerun at
 every change of the deriver since — 0 unread, 0 unexplained each time).** `python3
@@ -164,9 +166,11 @@ any joins a recipe is the owner's (V6: `SEARCH-SLICE.md`, "Holes
 ruled").
 
 **M3 at each later build** — the same command, the release build judged
-against 500 ms; every release ask of every build below is under it but
-one — the vocabulary whole at the audited step 7 build, measured beneath
-the table, ruled at T5 and under again at `57ec6a9e`. What an ask over
+against 500 ms. The verdict moves with every build and is the record's
+line, revised in place (`SEARCH-SLICE.md`, "What the measurements
+taught"); what each rerun showed is beneath the tables. The vocabulary
+whole at the audited step 7 build, measured beneath the table, was
+ruled at T5 and is under again at `57ec6a9e`. What an ask over
 budget fires is the owner's (2026-09-24): "M3 reports asks over 500 ms,
 but only a load over budget triggers the projection experiment. An
 evaluator cost over budget lands against the batch park." The first
@@ -274,6 +278,35 @@ A run can have a slow half of unknown cause (the run before step 6's
 row: 554–621 ms release for its first thirteen asks, 277–309 for the
 last nine), so a run is claimed only when its halves agree, and a
 slowdown's cause is never named before it is measured.
+
+What each rerun showed, in the order of the builds:
+
+- M3, M4 (step 4, again at every build since): every release ask under
+  500 ms, so the projection park does not fire; the one ask over it, the
+  vocabulary whole at `4237d2f3`, was ruled at T5 and is under again;
+  `~` over all text adds 9 ms; the debug build is 1.7 to 2.8 s.
+- M3 (step 9): the price join raised every release ask 150–180 ms (the
+  empty query 276 → 445); the load under 500, so the projection park
+  does not fire; two totals asks over 500 on the higher floor, ruled at
+  the seat (V9).
+- M3 again at the seat's hash (9b, V9): the six asks the seat saw at
+  695–715 ms are 446–459 on the copy — the spikes did not recur, their
+  cause unmeasured; the totals batch stays parked. M3 at 9b's hash
+  (`0e4c91ad`): the empty query 448, every ask 441–529, the same two
+  totals asks over 500; the fixes moved no ask past the noise.
+- M3 at totals v2 (`e81cc8ca`): every ask 445–488 but the totals' two,
+  579 and 578, 50 and 55 more than at 9b: a total's cost is its rows,
+  155 where there were 104.
+- M3 at totals v3 (`9842d0c9`): the two are 588 and 587, moved with the
+  floor and not by the table, whose 128 new rows are other totals';
+  a third ask is over, a total of 10 rows at 508. An ask pays for the
+  rows of the total it names, near 6 ms each over a floor of 452.
+- M3 at totals v5 (`c28c476a`): a reading pays for the rows of every
+  total it reads — the two counts 640 and 611, near 5 ms a row over a
+  floor of 457 — but a least, which stops at the first total that is
+  nothing: 522 and 481 over 30 rows and 12. Seven asks are over, the
+  vocabulary twice narrowed among them, 499 before and 514: its
+  narrowing matches three readings.
 
 **The completion property's measured half: no counterexample, at step 4b and over step 8's generators** —
 `cargo test -p acquisition-search --test generated_completion -- --ignored --nocapture`,

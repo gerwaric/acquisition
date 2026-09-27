@@ -79,10 +79,16 @@ number there was measured, never recalled. The verdicts:
 - M2 (step 2, rerun at every change of the deriver): 0 unread and 0
   unexplained against the census; seven departures, each a rule of
   `derive.rs`, two of them candidate ground-truth claims.
-- M3, M4 (step 4, again at every build since): every release ask under
-  500 ms, so the projection park does not fire; the one ask over it, the
-  vocabulary whole at `4237d2f3`, was ruled at T5 and is under again;
-  `~` over all text adds 9 ms; the debug build is 1.7 to 2.8 s.
+- M3 (step 4, rerun at every build since; as of `c28c476a`): the load,
+  the empty query, is 457 ms release, under 500, so the projection park
+  does not fire; the price join raised it from 276 at step 9. Seven
+  asks are over 500, each by an evaluator's cost, the totals batch
+  park's (V9, revisited at step 11): an ask pays 5 to 6 ms for each row
+  of every total it reads, a least stopping at the first total that is
+  nothing. The six asks the seat saw at 695–715 ms did not recur on the
+  copy, their cause unmeasured. The debug build is 2.4 to 3.8 s. What
+  each rerun showed is the block's.
+- M4 (step 4): `~` over all text adds 9 ms.
 - The class table (step 6): 56 of 82 classes carried, 681 of 22,721
   undecided, the buckets summing to the copy (C105).
 - M6 (step 7, the park fired): every row of the totals table carried by
@@ -94,28 +100,6 @@ number there was measured, never recalled. The verdicts:
   agree.
 - Step 8: every socket bucket a value or `none`, `undecided` 0; every
   group on the copy one contiguous run.
-- M3 (step 9): the price join raised every release ask 150–180 ms (the
-  empty query 276 → 445); the load under 500, so the projection park
-  does not fire; two totals asks over 500 on the higher floor, ruled at
-  the seat (V9).
-- M3 again at the seat's hash (9b, V9): the six asks the seat saw at
-  695–715 ms are 446–459 on the copy — the spikes did not recur, their
-  cause unmeasured; the totals batch stays parked. M3 at 9b's hash
-  (`0e4c91ad`): the empty query 448, every ask 441–529, the same two
-  totals asks over 500; the fixes moved no ask past the noise.
-- M3 at totals v2 (`e81cc8ca`): every ask 445–488 but the totals' two,
-  579 and 578, 50 and 55 more than at 9b: a total's cost is its rows,
-  155 where there were 104.
-- M3 at totals v3 (`9842d0c9`): the two are 588 and 587, moved with the
-  floor and not by the table, whose 128 new rows are other totals';
-  a third ask is over, a total of 10 rows at 508. An ask pays for the
-  rows of the total it names, near 6 ms each over a floor of 452.
-- M3 at totals v5 (`c28c476a`): a reading pays for the rows of every
-  total it reads — the two counts 640 and 611, near 5 ms a row over a
-  floor of 457 — but a least, which stops at the first total that is
-  nothing: 522 and 481 over 30 rows and 12. Seven asks are over, the
-  vocabulary twice narrowed among them, 499 before and 514: its
-  narrowing matches three readings.
 
 ## Observations still open
 
