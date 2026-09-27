@@ -1633,6 +1633,49 @@ fn c93_a_reading_is_open_by_no_more_than_the_totals_it_reads() {
             .map(|r| (r["id"].as_str().unwrap().to_string(), scalar(&r["sort"])))
             .collect()
     };
+    // what a row shows of its sort begins with the reading by its own
+    // name, as a field's does, and then the totals it read (F6): the text
+    // takes the first named value for the sort's own
+    let a = view(
+        &s,
+        "id:crest",
+        json!({ "rows": { "sort": "pseudo.total_all_ele_res" } }),
+    )
+    .unwrap();
+    assert_eq!(
+        a["rows"][0]["sort"]["shows"],
+        json!([
+            { "value": { "name": "pseudo.total_all_ele_res", "value": 17 } },
+            { "value": { "name": "pseudo.total_fire_res", "value": 17 } },
+            { "value": { "name": "pseudo.total_cold_res", "value": 20 } },
+            { "value": { "name": "pseudo.total_lightning_res", "value": 17 } },
+        ])
+    );
+    let a = view(
+        &s,
+        "id:long",
+        json!({ "rows": { "sort": "pseudo.count_res" } }),
+    )
+    .unwrap();
+    assert_eq!(
+        a["rows"][0]["sort"]["shows"],
+        json!([
+            { "value": { "name": "pseudo.count_res", "value": "2..3" } },
+            { "value": { "name": "pseudo.total_fire_res", "value": 20 } },
+            { "value": { "name": "pseudo.total_cold_res", "value": 20 } },
+        ])
+    );
+    let a = view(
+        &s,
+        "id:mana",
+        json!({ "rows": { "sort": "pseudo.count_res" } }),
+    )
+    .unwrap();
+    assert!(
+        a["rows"][0]["sort"].get("shows").is_none(),
+        "{}",
+        a["rows"][0]
+    );
     let rows = sorted("pseudo.count_res");
     assert_eq!(rows[0], ("crest".to_string(), json!({ "value": 4 })));
     let of =

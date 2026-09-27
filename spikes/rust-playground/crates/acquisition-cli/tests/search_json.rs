@@ -1064,3 +1064,97 @@ fn describe_and_show_print_json_whole_and_text_from_it() {
     let rows = text(&acq(&base, &["search", "--realm", "pc", "linked(red>=2)"]));
     assert!(rows.contains("R-R-G (link group)"), "{rows}");
 }
+
+/// Step 9c3, met at the first smoke of the build: a row sorted by a
+/// reading of other totals says so by the reading's own name — it printed
+/// `sorts by pseudo.total_fire_res 17`, the first total it had read, the
+/// text taking the first named value a sort shows as the sort's own.
+#[test]
+fn step_9c3_a_row_sorted_by_a_reading_says_so_by_its_own_name() {
+    let base = base();
+    let mock = base.join("mock");
+    std::fs::create_dir_all(&mock).unwrap();
+    let mut index = Index::load(&mock).unwrap();
+    index.record_login(USER, "u-search", false, 1).unwrap();
+    let mut store = Store::open(&account_path(&mock, USER)).unwrap();
+    let mut record = |ep: Endpoint, body: Value, at: i64| {
+        store
+            .record(
+                &ep,
+                &json!({ "realm": "pc", "league": "Standard" }),
+                200,
+                &body,
+                at,
+            )
+            .unwrap();
+    };
+    record(
+        Endpoint::Profile,
+        json!({ "uuid": "u-search", "name": USER }),
+        1,
+    );
+    record(
+        Endpoint::Stashes {
+            realm: "pc".into(),
+            league: "Standard".into(),
+        },
+        json!({ "stashes": [{ "id": "t1", "name": "Read", "type": "PremiumStash" }] }),
+        10,
+    );
+    let item = |id: &str, name: &str, base: &str, mods: Value| {
+        json!({ "id": id, "name": name, "typeLine": base, "baseType": base, "rarity": "Unique",
+                "frameTypeId": "Unique", "identified": true, "ilvl": 84, "x": 0, "y": 0,
+                "explicitMods": mods })
+    };
+    record(
+        Endpoint::Stash {
+            realm: "pc".into(),
+            league: "Standard".into(),
+            id: "t1".into(),
+            sub: None,
+        },
+        json!({ "stash": { "id": "t1", "name": "Read", "type": "PremiumStash", "items": [
+            item("crest", "Geofri's Crest", "Great Crown", json!([
+                "+17% to Fire Resistance", "+20% to Cold Resistance",
+                "+17% to Lightning Resistance", "+22% to Chaos Resistance"])),
+            item("long", "Long", "Iron Ring", json!([
+                "+20% to Fire Resistance", "+20% to Cold Resistance",
+                "+10000000000% to Chaos Resistance"])),
+            item("plain", "Plain", "Iron Ring", json!(["+20 to maximum Mana"])),
+        ] } }),
+        20,
+    );
+    drop(store);
+    let sorted = |by: &str| {
+        text(&acq(
+            &base,
+            &["search", "--realm", "pc", "--sort", by, "--desc"],
+        ))
+    };
+    let shown = sorted("pseudo.total_all_ele_res");
+    assert!(
+        shown.contains(
+            "sorts by pseudo.total_all_ele_res 17 · pseudo.total_fire_res 17 · pseudo.total_cold_res 20 · pseudo.total_lightning_res 17"
+        ),
+        "{shown}"
+    );
+    let shown = sorted("pseudo.count_res");
+    assert!(
+        shown.contains(
+            "sorts by pseudo.count_res 4 · pseudo.total_fire_res 17 · pseudo.total_cold_res 20 · pseudo.total_lightning_res 17 · pseudo.total_chaos_res 22"
+        ),
+        "{shown}"
+    );
+    // a count left open sorts last, with what was established and the
+    // totals that are
+    assert!(
+        shown.contains(
+            "sorts last: incomplete at 2 (pseudo.count_res) · pseudo.total_fire_res 20 · pseudo.total_cold_res 20"
+        ),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("sorts last: no satisfying occurrence (pseudo.count_res)"),
+        "{shown}"
+    );
+}

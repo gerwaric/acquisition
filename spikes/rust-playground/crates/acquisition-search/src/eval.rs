@@ -1246,7 +1246,7 @@ pub(crate) fn sorted_by(key: &SortKey, held: &Held) -> (Vec<Evidence>, usize) {
                 .collect()
         }
         SortKey::Sum { group, .. } => satisfying(held, &group.whole).map(line_evidence).collect(),
-        SortKey::Pseudo { named, .. } => pseudo::evidence(*named, held),
+        SortKey::Pseudo { named, slot } => pseudo::sorted_by(*named, slot.as_deref(), held),
     };
     let left_out = all.len().saturating_sub(SHOWN);
     all.truncate(SHOWN);

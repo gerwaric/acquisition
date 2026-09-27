@@ -109,7 +109,9 @@
 //!   the total's rows named on the item, the totals a reading read, each
 //!   by its name with its value, or the properties the derived field
 //!   read, bounded as every term's evidence is (`eval::evidence`). A count
-//!   left open prints its interval, `2..3`, as a socket count does.
+//!   left open prints its interval, `2..3`, as a socket count does. A
+//!   row sorted by a reading shows it first by its own name
+//!   ([`sorted_by`]).
 //! - **The vocabulary lists a computed value beside the templates** whose
 //!   name or definition its narrowing matches, and none under `line`
 //!   alone, where `--describe` names them (owner, 2026-09-24, T5 in
@@ -398,6 +400,26 @@ pub(crate) fn evidence(named: Named, held: &Held) -> Vec<Evidence> {
                 .collect(),
             Err(_) => Vec::new(),
         },
+    }
+}
+
+/// What a row shows of a computed value it is sorted by (F6, the first
+/// seat): what [`evidence`] gives — and a reading first by its own name
+/// with its value, as a field is, since what it read is named values too
+/// and the first of a sort's is taken for the sort's own. One that has
+/// nothing to print shows nothing.
+pub(crate) fn sorted_by(named: Named, slot: Option<&str>, held: &Held) -> Vec<Evidence> {
+    let Named::Reading { reading, .. } = named else {
+        return evidence(named, held);
+    };
+    match printed(named, slot, held) {
+        serde_json::Value::Null => Vec::new(),
+        value => std::iter::once(Evidence::Value {
+            name: format!("pseudo.{}", reading.name),
+            value,
+        })
+        .chain(evidence(named, held))
+        .collect(),
     }
 }
 
