@@ -4,7 +4,7 @@ reviewed sum over an item's lines, defined once — regenerated from the C++
 app's pseudomod tables and from what the trade site itself answered into the
 reviewed file the search crate ships.
 
-    python3 tools/totals-table.py            # writes crates/acquisition-search/reference/totals-v2.toml
+    python3 tools/totals-table.py            # writes crates/acquisition-search/reference/totals-v3.toml
     python3 tools/totals-table.py --check    # exits 1 when the file on disk differs from what the sources give
 
 Inputs (read-only, committed):
@@ -16,8 +16,9 @@ Inputs (read-only, committed):
                                              the site answered itself: q5, total fire resistance)
   search/pseudo-stats/data/table-changes.csv what the site's own answers ask of the table, one change a
                                              row, each with the captures that ask for it (the build plan,
-                                             step 9c: 212 searches the owner ran, 2026-09-26; the track's
-                                             README). Every total counts what the site's pseudo of that
+                                             steps 9c and 9c2: the searches the owner ran, 2026-09-26
+                                             and 2026-09-27; the track's README). Every total counts
+                                             what the site's pseudo of that
                                              name counts (owner, V6), and where the owner ruled the site
                                              wrong the row says `not mimicked` and the line stays counted
 
@@ -37,13 +38,20 @@ Rules, each a reading of the source and never a judgment (C106):
      flag.
   4. A change `add row` that means any stat displaying its text becomes a
      row of its total, `slot = "arg1"`, at the weight the change names: a
-     line's two eldritch forms, `All Resistances`.
+     line's two eldritch forms, `All Resistances`, and at a weight below
+     nothing a row's `reduced` spelling (owner, 2026-09-27: "yes, we need to
+     be able to find reduced lines and totals").
   5. A change `new total` that reads a line's number becomes a total, named
      as the change names it, with the site's id and text and its own rows:
      `total_life`.
   6. A change `not mimicked` changes nothing: what the site leaves out and
      the owner ruled counted stays as the source lists it, or is counted by
-     its text as every line is. A change `rule` is `totals.rs`'s.
+     its text as every line is. A change `rule` is `totals.rs`'s, or a row
+     of every total it names (rule 4).
+  8. A change `no sum` writes nothing: a pseudo that is a reading of other
+     totals is no total, and what it is built as is not this table's. A
+     total with a change `limit` the owner has not ruled on waits, counted
+     in the header.
   7. What waits, counted in the header and not built: a change `twin`, a row
      that means one of two stats displaying one text, which a table row
      cannot say until it can name what the item is; and with it every total
@@ -67,8 +75,8 @@ ROOT = os.path.dirname(HERE)
 SOURCE = os.path.join(ROOT, "search", "cpp-search", "data", "pseudomods.toml")
 CLASSES = os.path.join(ROOT, "search", "pseudo-stats", "data", "pseudo-classes.csv")
 CHANGES = os.path.join(ROOT, "search", "pseudo-stats", "data", "table-changes.csv")
-OUT = os.path.join(ROOT, "crates", "acquisition-search", "reference", "totals-v2.toml")
-VERSION = 2
+OUT = os.path.join(ROOT, "crates", "acquisition-search", "reference", "totals-v3.toml")
+VERSION = 3
 REALMS = ["pc", "xbox", "sony"]  # the C++ app searched PoE1; poe2 has no table yet
 PIN = "master@946a4f51"
 
@@ -133,20 +141,25 @@ def read_changes():
 
 
 def weight_of(text):
-    """A weight as the table writes it: a whole number, or a half."""
+    """A weight as the table writes it: a whole number or a half, above nothing or below."""
     value = float(text)
-    if value * 2 != int(value * 2) or value <= 0:
+    if value * 2 != int(value * 2) or value == 0:
         sys.exit(f"a weight is a whole number or a half, never {text}")
     return int(value) if value == int(value) else value
 
 
 def apply(totals, changes):
-    """Rules 4 to 7. Returns the totals and what waits, by kind."""
+    """Rules 4 to 8. Returns the totals and what waits, by kind."""
     by_name = {t[0]: t for t in totals}
-    waits = {"twin": 0, "ranged": set()}
+    waits = {"twin": 0, "ranged": set(),
+             "limit": {c["total"] for c in changes
+                       if c["change"] == "limit" and c["twin_or_reads"] != "ruled"},
+             "no sum": {c["total"] for c in changes if c["change"] == "no sum"}}
     added = 0
     for c in changes:
         if c["change"] == "new total":
+            if c["total"] in waits["limit"]:
+                continue
             if c["twin_or_reads"] != "slot":
                 waits["ranged"].add(c["total"])
                 continue
@@ -158,6 +171,8 @@ def apply(totals, changes):
     for c in changes:
         if c["total"] in waits["ranged"]:
             waits["twin"] += c["change"] == "twin"
+            continue
+        if c["total"] in waits["limit"] or c["total"] in waits["no sum"]:
             continue
         if c["change"] == "twin":
             sys.exit(f"{c['total']!r}: a row that means a twin on a total that reads a line's number")
@@ -207,9 +222,10 @@ def main():
     n_rows = sum(len(t[3]) for t in totals)
     weighted = sum(1 for t in totals for r in t[3] if r[1] > 1)
     halves = sum(1 for t in totals for r in t[3] if r[1] == 0.5)
+    below = sum(1 for t in totals for r in t[3] if r[1] < 0)
 
     out = [
-        "# The totals table — v2 (C94, C68; decisions/search.md), item search steps 7 and 9c.",
+        "# The totals table — v3 (C94, C68; decisions/search.md), item search steps 7, 9c and 9c2.",
         "#",
         "# Reference data: reviewed, committed, shipped inside the binary",
         "# (`include_str!` in `src/totals.rs`), read-only, never in a store file,",
@@ -232,10 +248,12 @@ def main():
         "# `src/totals.rs` (C94), said once.",
         "#",
         f"# Measured at generation: {len(totals)} totals, {n_rows} rows — {listed} the C++ tables",
-        f"# list, {added} the site's answers add — {weighted} with a weight above 1 and {halves} at a",
-        f"# half. Not built, waiting for a row that can name what the item is:",
-        f"# {len(waits['ranged'])} totals of the ranged family, {waits['twin']} of whose rows mean one of two",
-        "# stats displaying one text.",
+        f"# list, {added} the site's answers add — {weighted} with a weight above 1, {halves} at a",
+        f"# half and {below} below nothing, a row's `reduced` spelling. Not built, waiting",
+        f"# for a row that can name what the item is: {len(waits['ranged'])} totals of the ranged",
+        f"# family, {waits['twin']} of whose rows mean one of two stats displaying one text.",
+        f"# Not written: {len(waits['no sum'])} pseudos that are a reading of other totals and no sum of",
+        f"# lines, and {len(waits['limit'])} whose limit the owner has not ruled on.",
         "",
         f"version = {VERSION}",
         f"realms = [{', '.join(toml_str(r) for r in REALMS)}]",

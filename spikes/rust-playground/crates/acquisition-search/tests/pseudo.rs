@@ -210,7 +210,7 @@ fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_lacked() {
     assert_eq!(why["unread"], "the total: no definition for the realm");
     assert_eq!(
         why["problem"],
-        "no totals table for realm poe2 (totals v2 covers pc, xbox, sony)"
+        "no totals table for realm poe2 (totals v3 covers pc, xbox, sony)"
     );
     assert_eq!(
         why["hint"],
@@ -645,16 +645,18 @@ fn c92_c95_a_computed_value_sorts_and_sums() {
 fn c97_describe_lists_every_computed_value_with_its_definition() {
     let whole = serde_json::to_value(describe(&[]).unwrap()).unwrap();
     let computed = whole["computed"].as_array().unwrap();
-    assert_eq!(computed.len(), 38);
+    assert_eq!(computed.len(), 62);
     assert_eq!(computed[0]["name"], "pseudo.total_cold_res");
     assert_eq!(computed[35]["name"], "pseudo.total_life");
-    assert_eq!(computed[36]["name"], "pseudo.dps");
-    assert_eq!(computed[37]["kind"], "derived");
+    assert_eq!(computed[36]["name"], "pseudo.total_mana");
+    assert_eq!(computed[59]["name"], "pseudo.increased_mana_regen");
+    assert_eq!(computed[60]["name"], "pseudo.dps");
+    assert_eq!(computed[61]["kind"], "derived");
     assert!(
         whole["totals"]
             .as_str()
             .unwrap()
-            .starts_with("totals v2, 36 totals over pc, xbox, sony: the trade site’s pseudo stats"),
+            .starts_with("totals v3, 60 totals over pc, xbox, sony: the trade site’s pseudo stats"),
         "{}",
         whole["totals"]
     );
@@ -676,7 +678,7 @@ fn c97_describe_lists_every_computed_value_with_its_definition() {
         ])
     );
     let block = serde_json::to_value(describe(&["pseudo".to_string()]).unwrap()).unwrap();
-    assert_eq!(block["computed"].as_array().unwrap().len(), 38);
+    assert_eq!(block["computed"].as_array().unwrap().len(), 62);
     // what the reference names and no step builds is refused by that name
     let e = describe(&["defence_pct".to_string()]).unwrap_err();
     assert!(
@@ -951,4 +953,215 @@ fn v6_a_total_counts_what_the_sites_pseudo_counts() {
             "+40 to maximum Life"
         ]
     );
+}
+
+/// Thirteen items whose totals the trade site answered at step 9c2
+/// (`search/pseudo-stats/data/table-changes.csv`, rounds five and six).
+///
+/// `Other` (o1): `anvil`, 10 reduced attack, cast and movement speed —
+/// each total -10; `devoto`, 10 reduced global physical damage and 20
+/// movement speed; `gyre`, 48 reduced rarity and a fractured 48 increased
+/// — nothing; `heart`, 25 reduced maximum energy shield and 28 to all
+/// Attributes — mana 14; `pace`, 25 Intelligence and 10 Dexterity — mana
+/// 12.5; `taken`, the unique whose 37 Strength and Intelligence the site
+/// leaves out — mana 18.5; `quiver`, 24 mana and 9 Dexterity and
+/// Intelligence — mana 28.5; `robe`, 25 and an implicit 11 energy shield;
+/// `wand`, 12 lightning, 10 elemental and 17 spell damage, and 10
+/// elemental damage with attack skills; `torch`, 20 burning and 15 fire
+/// damage; `belt`, 0.4 of each leech, 1.5% of life regenerated, 30 global
+/// critical strike chance and 25 multiplier; `crown`, 20 reduced mana
+/// regeneration; `greaves`, an eldritch implicit's 9 movement speed.
+fn other_stash() -> Store {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("o1", "Other")]), 10);
+    let rare =
+        |id: &str, base: &str, more: Value| item(id, &format!("Item {id}"), base, "Rare", more);
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "o1",
+        "Other",
+        vec![
+            rare(
+                "anvil",
+                "Amber Amulet",
+                json!({ "explicitMods": ["10% reduced Attack Speed", "10% reduced Cast Speed", "10% reduced Movement Speed"] }),
+            ),
+            rare(
+                "devoto",
+                "Nightmare Bascinet",
+                json!({ "explicitMods": ["10% reduced Global Physical Damage", "20% increased Movement Speed"] }),
+            ),
+            rare(
+                "gyre",
+                "Amethyst Ring",
+                json!({
+                    "explicitMods": ["48% reduced Rarity of Items found"],
+                    "fracturedMods": ["48% increased Rarity of Items found"],
+                }),
+            ),
+            rare(
+                "heart",
+                "Onyx Amulet",
+                json!({ "explicitMods": ["25% reduced maximum Energy Shield", "+28 to all Attributes"] }),
+            ),
+            rare(
+                "pace",
+                "Scholar Boots",
+                json!({ "explicitMods": ["+25 to Intelligence", "+10 to Dexterity"] }),
+            ),
+            item(
+                "taken",
+                "That Which Was Taken",
+                "Crimson Jewel",
+                "Unique",
+                json!({ "explicitMods": ["+37 to Strength and Intelligence"] }),
+            ),
+            rare(
+                "quiver",
+                "Fire Arrow Quiver",
+                json!({ "explicitMods": ["+24 to maximum Mana", "+9 to Dexterity and Intelligence"] }),
+            ),
+            rare(
+                "robe",
+                "Sage's Robe",
+                json!({
+                    "implicitMods": ["+11 to maximum Energy Shield"],
+                    "explicitMods": ["+25 to maximum Energy Shield"],
+                }),
+            ),
+            rare(
+                "wand",
+                "Tornado Wand",
+                json!({ "explicitMods": [
+                    "12% increased Lightning Damage",
+                    "10% increased Elemental Damage",
+                    "17% increased Spell Damage",
+                    "10% increased Elemental Damage with Attack Skills",
+                ] }),
+            ),
+            rare(
+                "torch",
+                "Ashscale Talisman",
+                json!({ "explicitMods": ["20% increased Burning Damage", "15% increased Fire Damage"] }),
+            ),
+            rare(
+                "belt",
+                "Leather Belt",
+                json!({ "explicitMods": [
+                    "0.4% of Physical Attack Damage Leeched as Life",
+                    "0.4% of Physical Attack Damage Leeched as Mana",
+                    "Regenerate 1.5% of Life per second",
+                    "30% increased Global Critical Strike Chance",
+                    "+25% to Global Critical Strike Multiplier",
+                ] }),
+            ),
+            rare(
+                "crown",
+                "Prophet Crown",
+                json!({ "explicitMods": ["20% reduced Mana Regeneration Rate"] }),
+            ),
+            rare(
+                "greaves",
+                "Crusader Boots",
+                json!({ "implicitMods": ["While a Unique Enemy is in your Presence, 9% increased Movement Speed"] }),
+            ),
+        ],
+        20,
+    );
+    s
+}
+
+/// C94, step 9c2 (owner, 2026-09-27: "yes, we need to be able to find
+/// reduced lines and totals"): a row's `reduced` spelling is the row,
+/// below nothing, as the trade site shows `-10% total Attack Speed` over
+/// `10% reduced Attack Speed` (h042–h052); a total below nothing is a
+/// total, and one whose lines cancel is lacked (g034).
+#[test]
+fn c94_a_reduced_line_counts_below_nothing() {
+    let s = other_stash();
+    let found = |query: &str| ids(&asked(&s, "pc", query));
+    // three totals the build shipped before the rule, and one line each
+    assert_eq!(found("pseudo.total_attack_speed=-10"), ["anvil"]);
+    assert_eq!(found("pseudo.total_cast_speed=-10"), ["anvil"]);
+    assert_eq!(found("pseudo.total_increased_phys=-10"), ["devoto"]);
+    // and the totals of this step
+    assert_eq!(found("pseudo.total_increased_energy_shield=-25"), ["heart"]);
+    assert_eq!(found("pseudo.increased_mana_regen=-20"), ["crown"]);
+    assert_eq!(found("pseudo.increased_movement_speed<0"), ["anvil"]);
+    // below nothing is a total: present, and under a bound above it
+    assert_eq!(
+        found("has:pseudo.increased_movement_speed"),
+        ["anvil", "devoto", "greaves"]
+    );
+    assert_eq!(
+        found("pseudo.increased_movement_speed<=9"),
+        ["anvil", "greaves"]
+    );
+    // 48 reduced beside 48 increased is a total of nothing: lacked
+    let a = asked(&s, "pc", "pseudo.increased_rarity<=0");
+    assert_eq!(a["total"]["matched"], 0);
+    assert!(follow(&s, "pc", &a["terms"][0]["lacked"]).contains(&"gyre".to_string()));
+    assert!(found("has:pseudo.increased_rarity").is_empty());
+    // the line that made the total is shown
+    let a = asked(&s, "pc", "pseudo.total_attack_speed<0");
+    let lines: Vec<&str> = shows(&a, "anvil", "0")
+        .as_array()
+        .unwrap()
+        .iter()
+        .skip(1)
+        .map(|e| e["line"]["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(lines, ["10% reduced Attack Speed"]);
+}
+
+/// C94, V6, step 9c2: the site's other totals count what the site's
+/// pseudo of that name counts, each row on the capture that asked for it
+/// (rounds five and six) — and the twin on That Which Was Taken is counted
+/// toward mana as toward life (owner, 2026-09-27: "yes, count it for
+/// mana.").
+#[test]
+fn v6_the_other_totals_count_what_the_sites_pseudo_counts() {
+    let s = other_stash();
+    let found = |query: &str| ids(&asked(&s, "pc", query));
+    // total mana: mana at 1, every Intelligence line at a half (g005)
+    assert_eq!(found("pseudo.total_mana=14"), ["heart"]);
+    assert_eq!(found("pseudo.total_mana=12.5"), ["pace"]);
+    assert_eq!(found("pseudo.total_mana=28.5"), ["quiver"]);
+    assert_eq!(found("pseudo.total_mana=18.5"), ["taken"]);
+    assert_eq!(
+        found("has:pseudo.total_mana"),
+        ["heart", "pace", "quiver", "taken"]
+    );
+    // energy shield: the line, an implicit as any other (g006)
+    assert_eq!(found("pseudo.total_energy_shield=36"), ["robe"]);
+    // a type's damage counts elemental damage; its spell damage, spell
+    // damage too; its damage with attack skills, elemental damage with
+    // attack skills too (g014–g031)
+    assert_eq!(found("pseudo.increased_lightning_damage=22"), ["wand"]);
+    assert_eq!(
+        found("pseudo.increased_lightning_spell_damage=39"),
+        ["wand"]
+    );
+    assert_eq!(
+        found("pseudo.increased_lightning_attack_damage=32"),
+        ["wand"]
+    );
+    assert_eq!(found("pseudo.increased_cold_damage=10"), ["wand"]);
+    assert_eq!(found("pseudo.increased_cold_spell_damage=27"), ["wand"]);
+    assert_eq!(found("pseudo.increased_ele_attack_damage=20"), ["wand"]);
+    assert_eq!(found("pseudo.increased_ele_damage=10"), ["wand"]);
+    assert_eq!(found("pseudo.increased_spell_damage=17"), ["wand"]);
+    // burning damage counts fire damage, and fire damage no burning (g035)
+    assert_eq!(found("pseudo.increased_burning_damage=35"), ["torch"]);
+    assert_eq!(found("pseudo.increased_fire_damage=15"), ["torch"]);
+    // what is displayed to a hundredth is read to a hundredth (g039–g042)
+    assert_eq!(found("pseudo.phys_attack_life_leech=0.4"), ["belt"]);
+    assert_eq!(found("pseudo.phys_attack_mana_leech=0.4"), ["belt"]);
+    assert_eq!(found("pseudo.life_regen_pct=1.5"), ["belt"]);
+    assert_eq!(found("pseudo.global_crit_chance=30"), ["belt"]);
+    assert_eq!(found("pseudo.global_crit_multi=25"), ["belt"]);
+    // a row's eldritch forms are the row, of these totals as of 9c's
+    assert_eq!(found("pseudo.increased_movement_speed=9"), ["greaves"]);
 }

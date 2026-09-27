@@ -16,7 +16,9 @@ the site leaves out and the search counts, by the owner's ruling, or waiting
 for it where the evidence says so), `rule` (what holds for every total),
 `no sum` (a pseudo that is a reading of other totals, which no row can say:
 the reading is in `template`, and no total is written for it), `limit` (what
-a total read from an item's text cannot match of the site's).
+a total read from an item's text cannot match of the site's: `weight` is how
+far under the site's a line may be, and `twin_or_reads` whether the owner has
+ruled on it — a total whose limit is not ruled is not written).
 
 A total's `status` is what the site said of its latest rows: `closed` — a
 complete and a sound check each found nothing; `explained` — a check found
@@ -52,7 +54,9 @@ RULES = [
     ("a row's `reduced` spelling is the row, counted below nothing",
      "g007, g034, h042, h044, h046, h048, h050, h052: the line is under the `increased` spelling's "
      "id, and the site shows the total below nothing on 60 readings of the 61 that carry one, the "
-     "other a sum of nothing (g034); left out, 59 readings of round six disagree. Not ruled"),
+     "other a sum of nothing (g034); left out, 59 readings of round six disagree. The owner, "
+     "2026-09-27: \"yes, we need to be able to find reduced lines and totals. There are "
+     "occasionally niche builds for which this is critically important.\""),
 ]
 # Rows the site leaves out and the table keeps, by the owner's ruling.
 KEPT = {
@@ -66,12 +70,16 @@ NOT_MIMICKED = (
     "the site leaves this id out; the search counts the line wherever it is displayed. "
     "The owner: \"I believe this is a bug. Let's count the mod\""
 )
-# The same id under a total of step 9c2: what the owner ruled, he ruled of
-# total life, Strength and Intelligence.
-NOT_MIMICKED_UNRULED = (
-    "the site leaves this id out, as it does of total life, Strength and Intelligence, where "
-    "the owner ruled the line counted. Of this total not ruled"
+# The same id under total mana, ruled of it apart: what the owner ruled at 9c
+# he ruled of total life, Strength and Intelligence.
+NOT_MIMICKED_MANA = (
+    "the site leaves this id out, as it does of total life, Strength and Intelligence; the "
+    "search counts the line wherever it is displayed. The owner, 2026-09-27: \"yes, count it "
+    "for mana.\""
 )
+# A limit the owner has ruled on: {total: his words, dated}. A total whose
+# limit is not here waits, and the table is written without it.
+LIMITS_RULED = {}
 
 
 def checks():
@@ -161,10 +169,13 @@ def main():
                 out.append(head + ["remove row", t, before[(t, which)], which, gone, status])
         for stat in latest["never"]:
             out.append(head + ["not mimicked", stat, "", "",
-                               NOT_MIMICKED_UNRULED if name in table.OTHER else NOT_MIMICKED, status])
+                               NOT_MIMICKED_MANA if name == "total_mana" else NOT_MIMICKED, status])
         if latest["cut"]:
             why = next(v["why"] for v in history if v["cut"])
-            out.append(head + ["limit", "", table.plain(latest["cut"]), "", why, status])
+            ruled = LIMITS_RULED.get(name)
+            out.append(head + ["limit", "", table.plain(latest["cut"]),
+                               "ruled" if ruled else "not ruled",
+                               why + (f". The owner, {ruled}" if ruled else ""), status])
     with OUT.open("w", newline="") as f:
         sheet = csv.writer(f, lineterminator="\n")
         sheet.writerow(["total", "site_id", "site_text", "change", "template", "weight",

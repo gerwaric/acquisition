@@ -1,4 +1,4 @@
-# The totals table — v2 (C94, C68; decisions/search.md), item search steps 7 and 9c.
+# The totals table — v3 (C94, C68; decisions/search.md), item search steps 7, 9c and 9c2.
 #
 # Reference data: reviewed, committed, shipped inside the binary
 # (`include_str!` in `src/totals.rs`), read-only, never in a store file,
@@ -20,13 +20,15 @@
 # slot contributes its weight per line. What the total is from there is
 # `src/totals.rs` (C94), said once.
 #
-# Measured at generation: 36 totals, 155 rows — 104 the C++ tables
-# list, 51 the site's answers add — 17 with a weight above 1 and 4 at a
-# half. Not built, waiting for a row that can name what the item is:
-# 21 totals of the ranged family, 52 of whose rows mean one of two
-# stats displaying one text.
+# Measured at generation: 60 totals, 283 rows — 104 the C++ tables
+# list, 179 the site's answers add — 17 with a weight above 1, 8 at a
+# half and 45 below nothing, a row's `reduced` spelling. Not built, waiting
+# for a row that can name what the item is: 21 totals of the ranged
+# family, 52 of whose rows mean one of two stats displaying one text.
+# Not written: 4 pseudos that are a reading of other totals and no sum of
+# lines, and 1 whose limit the owner has not ruled on.
 
-version = 2
+version = 3
 realms = ["pc", "xbox", "sony"]
 source = "the trade site’s pseudo stats, by what the site answered of each (search/pseudo-stats/data/table-changes.csv), over the C++ app’s pseudomod tables, src/pseudomods.cpp at master@946a4f51"
 generated_by = "tools/totals-table.py"
@@ -192,6 +194,7 @@ rows = [
   { template = "#% increased Attack Speed", slot = "arg1", weight = 1 },
   { template = "While a Unique Enemy is in your Presence, #% increased Attack Speed", slot = "arg1", weight = 1 },
   { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Attack Speed", slot = "arg1", weight = 1 },
+  { template = "#% reduced Attack Speed", slot = "arg1", weight = -1 },
 ]
 
 [[total]]
@@ -202,6 +205,7 @@ rows = [
   { template = "#% increased Cast Speed", slot = "arg1", weight = 1 },
   { template = "While a Unique Enemy is in your Presence, #% increased Cast Speed", slot = "arg1", weight = 1 },
   { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Cast Speed", slot = "arg1", weight = 1 },
+  { template = "#% reduced Cast Speed", slot = "arg1", weight = -1 },
 ]
 
 [[total]]
@@ -213,6 +217,8 @@ rows = [
   { template = "#% increased Global Physical Damage", slot = "arg1", weight = 1 },
   { template = "While a Unique Enemy is in your Presence, #% increased Global Physical Damage", slot = "arg1", weight = 1 },
   { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Global Physical Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Physical Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Global Physical Damage", slot = "arg1", weight = -1 },
 ]
 
 [[total]]
@@ -224,6 +230,8 @@ rows = [
   { template = "#% increased Spell Critical Strike Chance", slot = "arg1", weight = 1 },
   { template = "While a Unique Enemy is in your Presence, #% increased Spell Critical Strike Chance", slot = "arg1", weight = 1 },
   { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Spell Critical Strike Chance", slot = "arg1", weight = 1 },
+  { template = "#% reduced Global Critical Strike Chance", slot = "arg1", weight = -1 },
+  { template = "#% reduced Spell Critical Strike Chance", slot = "arg1", weight = -1 },
 ]
 
 [[total]]
@@ -436,4 +444,294 @@ rows = [
   { template = "# to Strength and Dexterity", slot = "arg1", weight = 0.5 },
   { template = "# to Strength and Intelligence", slot = "arg1", weight = 0.5 },
   { template = "# to all Attributes", slot = "arg1", weight = 0.5 },
+]
+
+[[total]]
+name = "total_mana"
+site = "pseudo_total_mana"
+text = "+# total maximum Mana"
+rows = [
+  { template = "# to maximum Mana", slot = "arg1", weight = 1 },
+  { template = "# to Intelligence", slot = "arg1", weight = 0.5 },
+  { template = "# to Strength and Intelligence", slot = "arg1", weight = 0.5 },
+  { template = "# to all Attributes", slot = "arg1", weight = 0.5 },
+  { template = "# to Dexterity and Intelligence", slot = "arg1", weight = 0.5 },
+]
+
+[[total]]
+name = "total_energy_shield"
+site = "pseudo_total_energy_shield"
+text = "+# total maximum Energy Shield"
+rows = [
+  { template = "# to maximum Energy Shield", slot = "arg1", weight = 1 },
+]
+
+[[total]]
+name = "total_increased_energy_shield"
+site = "pseudo_increased_energy_shield"
+text = "#% total increased maximum Energy Shield"
+rows = [
+  { template = "#% increased maximum Energy Shield", slot = "arg1", weight = 1 },
+  { template = "#% reduced maximum Energy Shield", slot = "arg1", weight = -1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased maximum Energy Shield", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased maximum Energy Shield", slot = "arg1", weight = 1 },
+]
+
+[[total]]
+name = "increased_movement_speed"
+site = "pseudo_increased_movement_speed"
+text = "#% increased Movement Speed"
+rows = [
+  { template = "#% increased Movement Speed", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Movement Speed", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Movement Speed", slot = "arg1", weight = 1 },
+  { template = "#% reduced Movement Speed", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "global_crit_chance"
+site = "pseudo_global_critical_strike_chance"
+text = "+#% Global Critical Strike Chance"
+rows = [
+  { template = "#% increased Global Critical Strike Chance", slot = "arg1", weight = 1 },
+  { template = "#% reduced Global Critical Strike Chance", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "global_crit_multi"
+site = "pseudo_global_critical_strike_multiplier"
+text = "+#% Global Critical Strike Multiplier"
+rows = [
+  { template = "#% to Global Critical Strike Multiplier", slot = "arg1", weight = 1 },
+]
+
+[[total]]
+name = "increased_ele_damage"
+site = "pseudo_increased_elemental_damage"
+text = "#% increased Elemental Damage"
+rows = [
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_lightning_damage"
+site = "pseudo_increased_lightning_damage"
+text = "#% increased Lightning Damage"
+rows = [
+  { template = "#% increased Lightning Damage", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Lightning Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Lightning Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Lightning Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_cold_damage"
+site = "pseudo_increased_cold_damage"
+text = "#% increased Cold Damage"
+rows = [
+  { template = "#% increased Cold Damage", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Cold Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Cold Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Cold Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_fire_damage"
+site = "pseudo_increased_fire_damage"
+text = "#% increased Fire Damage"
+rows = [
+  { template = "#% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Fire Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_spell_damage"
+site = "pseudo_increased_spell_damage"
+text = "#% increased Spell Damage"
+rows = [
+  { template = "#% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Spell Damage", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_lightning_spell_damage"
+site = "pseudo_increased_lightning_spell_damage"
+text = "#% increased Lightning Spell Damage"
+rows = [
+  { template = "#% increased Lightning Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Lightning Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Lightning Damage", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Lightning Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Spell Damage", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_cold_spell_damage"
+site = "pseudo_increased_cold_spell_damage"
+text = "#% increased Cold Spell Damage"
+rows = [
+  { template = "#% increased Cold Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Cold Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Cold Damage", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Cold Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Spell Damage", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_fire_spell_damage"
+site = "pseudo_increased_fire_spell_damage"
+text = "#% increased Fire Spell Damage"
+rows = [
+  { template = "#% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Spell Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Fire Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Spell Damage", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_lightning_attack_damage"
+site = "pseudo_increased_lightning_damage_with_attack_skills"
+text = "#% increased Lightning Damage with Attack Skills"
+rows = [
+  { template = "#% increased Lightning Damage with Attack Skills", slot = "arg1", weight = 1 },
+  { template = "#% increased Lightning Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage with Attack Skills", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Lightning Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Lightning Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Lightning Damage with Attack Skills", slot = "arg1", weight = -1 },
+  { template = "#% reduced Lightning Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage with Attack Skills", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_cold_attack_damage"
+site = "pseudo_increased_cold_damage_with_attack_skills"
+text = "#% increased Cold Damage with Attack Skills"
+rows = [
+  { template = "#% increased Cold Damage with Attack Skills", slot = "arg1", weight = 1 },
+  { template = "#% increased Cold Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage with Attack Skills", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Cold Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Cold Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Cold Damage with Attack Skills", slot = "arg1", weight = -1 },
+  { template = "#% reduced Cold Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage with Attack Skills", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_fire_attack_damage"
+site = "pseudo_increased_fire_damage_with_attack_skills"
+text = "#% increased Fire Damage with Attack Skills"
+rows = [
+  { template = "#% increased Fire Damage with Attack Skills", slot = "arg1", weight = 1 },
+  { template = "#% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage with Attack Skills", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Fire Damage with Attack Skills", slot = "arg1", weight = -1 },
+  { template = "#% reduced Fire Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage with Attack Skills", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_ele_attack_damage"
+site = "pseudo_increased_elemental_damage_with_attack_skills"
+text = "#% increased Elemental Damage with Attack Skills"
+rows = [
+  { template = "#% increased Elemental Damage with Attack Skills", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Elemental Damage with Attack Skills", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_rarity"
+site = "pseudo_increased_rarity"
+text = "#% increased Rarity of Items found"
+rows = [
+  { template = "#% increased Rarity of Items found", slot = "arg1", weight = 1 },
+  { template = "#% reduced Rarity of Items found", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "increased_burning_damage"
+site = "pseudo_increased_burning_damage"
+text = "#% increased Burning Damage"
+rows = [
+  { template = "#% increased Burning Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "#% increased Elemental Damage", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Fire Damage", slot = "arg1", weight = 1 },
+  { template = "#% reduced Burning Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Fire Damage", slot = "arg1", weight = -1 },
+  { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "life_regen_pct"
+site = "pseudo_percent_life_regen"
+text = "#% of Life Regenerated per Second"
+rows = [
+  { template = "Regenerate #% of Life per second", slot = "arg1", weight = 1 },
+]
+
+[[total]]
+name = "phys_attack_life_leech"
+site = "pseudo_physical_attack_damage_leeched_as_life"
+text = "#% of Physical Attack Damage Leeched as Life"
+rows = [
+  { template = "#% of Physical Attack Damage Leeched as Life", slot = "arg1", weight = 1 },
+]
+
+[[total]]
+name = "phys_attack_mana_leech"
+site = "pseudo_physical_attack_damage_leeched_as_mana"
+text = "#% of Physical Attack Damage Leeched as Mana"
+rows = [
+  { template = "#% of Physical Attack Damage Leeched as Mana", slot = "arg1", weight = 1 },
+]
+
+[[total]]
+name = "increased_mana_regen"
+site = "pseudo_increased_mana_regen"
+text = "#% increased Mana Regeneration Rate"
+rows = [
+  { template = "#% increased Mana Regeneration Rate", slot = "arg1", weight = 1 },
+  { template = "While a Unique Enemy is in your Presence, #% increased Mana Regeneration Rate", slot = "arg1", weight = 1 },
+  { template = "While a Pinnacle Atlas Boss is in your Presence, #% increased Mana Regeneration Rate", slot = "arg1", weight = 1 },
+  { template = "#% reduced Mana Regeneration Rate", slot = "arg1", weight = -1 },
 ]
