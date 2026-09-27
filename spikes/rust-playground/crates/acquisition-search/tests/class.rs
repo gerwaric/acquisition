@@ -1,4 +1,4 @@
-//! The class table (`SEARCH-SLICE.md`, step 6; C106, C93, C105),
+//! The class table (`search/LEDGER.md`, step 6; C106, C93, C105),
 //! through the crate's boundary: the shipped file, every reason the table
 //! gives, `undecided(class)` and its route, the count's tally, `show`, and
 //! `reqlevel` beside it. Every count is worked by hand from the fixture

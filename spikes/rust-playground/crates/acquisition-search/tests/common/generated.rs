@@ -4,7 +4,7 @@
 //! holes — something the deriver cannot read — that a completion fills.
 //!
 //! Since step 7's third look the generators reach the computed values
-//! (`SEARCH-SLICE.md`, "Findings"): `pseudo.total_res` over resistance
+//! (`search/LEDGER.md`, "7 · the third look"): `pseudo.total_res` over resistance
 //! lines of three templates and two weights, `pseudo.dps` and
 //! `pseudo.pdps` over a `properties` array — as comparisons, `has:`,
 //! probes and sorts in the one composition — and the array's own holes:

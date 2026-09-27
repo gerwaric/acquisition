@@ -56,7 +56,7 @@
 //!   version 5; the loader refuses what a reviewer would) and at the
 //!   crate's boundary by `tests/pseudo.rs`. It is *convention* under
 //!   C106: every total counts what the trade site's pseudo of that name
-//!   (`site`) counts (owner, 2026-09-26, V6 in `SEARCH-SLICE.md`), never a
+//!   (`site`) counts (owner, 2026-09-26, V6 in `search/LEDGER.md`), never a
 //!   judgment — but where the owner ruled the site wrong, and the change
 //!   says `not mimicked`. The file's header and the script's docstring
 //!   carry the rules a reviewer reads, and what waits: the ranged family,

@@ -1,4 +1,4 @@
-//! The effective price through the crate's boundary (`SEARCH-SLICE.md`,
+//! The effective price through the crate's boundary (`search/LEDGER.md`,
 //! step 9; C81, C100, C98): a request in, an answer out, as JSON. Every
 //! count is worked by hand from the fixture below, every route an answer
 //! prints is followed and compared by id, and the price an item shows is

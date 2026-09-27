@@ -1,4 +1,4 @@
-# The language corpus (C104; SEARCH-SLICE.md, step 1): every
+# The language corpus (C104; search/LEDGER.md, step 1): every
 # construct of the reference (search/DESIGN.md, "The language reference")
 # at least once, every error the grammar defines with the readings it
 # shows, and the acceptance set's queries. `tests/language.rs` runs it and

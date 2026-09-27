@@ -1,5 +1,5 @@
 //! The first seat's faults (`runs/seat-2026-09-26/`, 2026-09-26; the
-//! record's findings and "Holes ruled", the seat row), each reproduced
+//! record's findings; `search/LEDGER.md`, "Holes ruled", the seat row), each reproduced
 //! here as a failing test before it was fixed at step 9b: the class
 //! reading (V1, V2, F2), the undecided block's shape (V8, F9), a tab's
 //! type as a field (V10), the place keys under an all-realms scope (F3),

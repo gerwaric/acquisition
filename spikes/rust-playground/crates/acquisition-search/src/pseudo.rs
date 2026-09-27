@@ -32,7 +32,7 @@
 //!   outside audit 2026-09-24).
 //!   `has:` asks a computed value's presence, a derived field's or a
 //!   total's: `-has:pseudo.dps` is the lacked count's route (owner,
-//!   2026-09-24, T2 in `SEARCH-SLICE.md`: "A ring has no dps"), and
+//!   2026-09-24, T2 in `search/LEDGER.md`: "A ring has no dps"), and
 //!   `-has:pseudo.total_res` a total's, since a total of nothing is
 //!   lacked (`totals.rs`, C94 as ruled 2026-09-26, which takes back
 //!   T2's "every item has a total").
@@ -115,7 +115,7 @@
 //! - **The vocabulary lists a computed value beside the templates** whose
 //!   name or definition its narrowing matches, and none under `line`
 //!   alone, where `--describe` names them (owner, 2026-09-24, T5 in
-//!   `SEARCH-SLICE.md`; the reference, `--count line[:text]`;
+//!   `search/LEDGER.md`; the reference, `--count line[:text]`;
 //!   `counts.rs`), marked computed, with the count of the matches that
 //!   have it, as `has:` of it asks ([`present`]): one whose value is
 //!   established, and a count one of whose totals is — never one lacked,

@@ -69,12 +69,12 @@
 //!   and a part unread that could hold one — so an item with a line read
 //!   *and* an array unread is in its rows and not in `undecided`: the
 //!   language has no term for "its lines could not all be read" (C105;
-//!   E3 accepted, `SEARCH-SLICE.md`). A source or flag beneath a row is counted by
+//!   E3 accepted, `search/LEDGER.md`). A source or flag beneath a row is counted by
 //!   its legal spelling, which the evaluator matches in any case (B2), so
 //!   the kind's route returns what it counted; a spelling outside the list
 //!   is counted and has no route. The vocabulary lists beside its
 //!   templates the computed values whose name or definition its
-//!   narrowing matches — none under `line` alone (T5, `SEARCH-SLICE.md`,
+//!   narrowing matches — none under `line` alone (T5, `search/LEDGER.md`,
 //!   "Holes ruled"; the reference: "marked computed"; `pseudo::matching`),
 //!   each with the count of the
 //!   matches carrying it — its value established, as `has:` of it asks —

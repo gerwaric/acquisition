@@ -1,4 +1,4 @@
-//! The computed values (`SEARCH-SLICE.md`, step 7; C94, C101, C93,
+//! The computed values (`search/LEDGER.md`, step 7; C94, C101, C93,
 //! C95), through the crate's boundary: the shipped totals table, a total's
 //! three statuses and its routes, `dps` and `pdps`, the sort and the sum
 //! over a computed value, `--describe`, and every authoring error a
