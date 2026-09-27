@@ -450,7 +450,7 @@ pub const PRICE: [&str; 3] = ["priced", "price.amount", "price.currency"];
 /// a count and a least of the three totals those lines feed, and the two
 /// derived fields over the properties, compared within the bounds of
 /// `comparison()`; `has:` of a derived field and of a reading; and — one
-/// time in fifteen — `has:` of a total, the authoring error T2 rules.
+/// time in fifteen — `has:` of a total, which asks its presence (C94).
 pub const PSEUDO: [&str; 5] = [
     "pseudo.total_res",
     "pseudo.count_ele_res",
