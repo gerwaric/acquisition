@@ -72,6 +72,11 @@ ASKS = [
     ("pseudo.total_mana", ["pseudo.total_mana>=100"]),
     ("a total below nothing", ["pseudo.total_attack_speed<0"]),
     ("the type's damage with attack skills", ["pseudo.increased_lightning_attack_damage>=30"]),
+    # step 9c3: the four that are a reading of other totals, each costing the rows of the totals it reads
+    ("pseudo.count_res", ["pseudo.count_res>=3"]),
+    ("pseudo.count_ele_res", ["pseudo.count_ele_res=3"]),
+    ("pseudo.total_all_ele_res", ["pseudo.total_all_ele_res>=30"]),
+    ("pseudo.total_all_attributes", ["pseudo.total_all_attributes>=10"]),
 ]
 
 def main():

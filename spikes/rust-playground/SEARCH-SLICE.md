@@ -67,14 +67,15 @@ same commit.
 | 4b · the properties | `39e7667a`–`36a9738a` | `tests/common/generated.rs`; `tests/generated_equivalence.rs`, `tests/generated_completion.rs`, `tests/generated_cross_checks.rs`; `group.rs`; `tools/docs-check.sh` §7 |
 | 5 · counts and the vocabulary | `31b5f09d` | `counts.rs`, `answer::Router`; `tests/counts.rs`; E1–E5 |
 | 6 · class | `eeaec66e` | `class.rs`, `reference/classes-v1.toml`, `tools/class-table.py`; `tests/class.rs`; G1–G6 |
-| 7 · computed values | `b5d62d92` | `totals.rs`, `pseudo.rs`, the totals table (v4 since 9c2), `tools/totals-table.py`; `tests/pseudo.rs`; M6; T1, T2, T5 |
+| 7 · computed values | `b5d62d92` | `totals.rs`, `pseudo.rs`, the totals table (v5 since 9c3), `tools/totals-table.py`; `tests/pseudo.rs`; M6; T1, T2, T5 |
 | 7 · the third look | `ecb83b65` | `tests/common/generated.rs`: the generators reach the computed values; no source changed |
 | 8 · sockets | `ec024ceb`; reviewed `dca017f5`, `7010f658` | `sockets.rs`, `derive.rs`; `tests/sockets.rs`; K1 |
 | 9 · price | `57c2f78b`; reviewed `1e0d85c6`, `7ff3c947` | `price.rs`, and the store's and the planner's part in the commits; `tests/price.rs`; P1, P2 |
 | the first seat | `94a3d18c`, the release build (sha256 `9ecf385d…`; the owner's choice, so the seat feels the number the budget judges); the run is `runs/seat-2026-09-26/` — brief, 65 journaled asks, report, `replay.sh` — gitignored, so the fix commits carry each fault's story | An agent's seat with the owner in the loop (the plan, "The first seat"): a second session drove `acq search` and `acq show` on the owner's store through a journaling wrapper, one binary, no daemon, no repository edit; the orchestrating session routed the report. 65 asks; 10 faults, F1–F10, held at 9b; 10 verdicts, V1–V10 ("Holes ruled"); the six lines (the observations below); the wall times in `search/MEASUREMENTS.md`, the seat block. |
 | 9b · the seat's fixes | `0d5706d1`–`73d33419` | `tests/seat_faults.rs`, the review's `review_` tests among them; the replay of the seat's asks, each diff read: the message of `1f9c868c`; V1, V2, V8, V10; G2 revised |
 | 9c · the trade site's computed values | `6362255a`–`6b033c60` | `search/pseudo-stats/README.md` and its `data/table-changes.csv`; the totals table; `tests/pseudo.rs` (`v6_…`, the two `c94_…`); the site-sitting skill; the ranged family's totals wait for 9d |
-| 9c2 · the site's other totals | `88810610`–`77685777`, and the close | `search/pseudo-stats/data/other-totals.csv`, the track's README and `data/table-changes.csv`; `reference/totals-v4.toml`; `tests/pseudo.rs` (`c94_a_reduced_…`, `v6_the_other_…`); four pseudos are no sum and are the plan's 9c3 |
+| 9c2 · the site's other totals | `88810610`–`77685777`, and the close | `search/pseudo-stats/data/other-totals.csv`, the track's README and `data/table-changes.csv`; the totals table; `tests/pseudo.rs` (`c94_a_reduced_…`, `v6_the_other_…`); four pseudos are no sum, built at 9c3 |
+| 9c3 · the four that are no sum | `c28c476a`, `1662e8ab`, and the close | `totals.rs` (`Reading`), `pseudo.rs` (a count, a least, `compared`, `present`, `sorted_by`), `[[reading]]` in the totals table; `tests/pseudo.rs` (the two `c101_a_…`, `c93_a_reading_…`, `c97_a_reading_…`), `tests/generated_cross_checks.rs` (`a_reading_is_what_its_totals_make`), the CLI's `tests/search_json.rs` (`step_9c3_…`) |
 
 ## Findings
 
@@ -164,6 +165,12 @@ number there was measured, never recalled. The verdicts:
   floor and not by the table, whose 128 new rows are other totals';
   a third ask is over, a total of 10 rows at 508. An ask pays for the
   rows of the total it names, near 6 ms each over a floor of 452.
+- M3 at totals v5 (`c28c476a`): a reading pays for the rows of every
+  total it reads — the two counts 640 and 611, near 5 ms a row over a
+  floor of 457 — but a least, which stops at the first total that is
+  nothing: 522 and 481 over 30 rows and 12. Seven asks are over, the
+  vocabulary twice narrowed among them, 499 before and 514: its
+  narrowing matches three readings.
 
 ## Holes ruled, and where the rule went
 
@@ -343,11 +350,16 @@ filed again by the step that touches it.
 
 **Since 9c, by who uses it.**
 
-- *9c3:* a total read by a count or a least-of is asked three or four
-  at a time of every item, and a totals ask is over budget already
-  (M3, below the table). The four were asked one way, what shows the
-  pseudo; whether an item showing every total a reading names ever
-  shows no pseudo was not asked, so each is explained, never closed.
+- *The next sitting:* the four readings were asked one way, what
+  shows the pseudo; whether an item showing every total a reading
+  names ever shows no pseudo was not asked, nor the count of all four
+  of an item with no resistance, nor the elemental least of an item
+  with one or two of its totals. Each is explained, never closed.
+- *The first review of 9c3, or 9d where it touches `pseudo.rs`:* no
+  one has looked from outside. Three choices were the builder's
+  (`c28c476a`): the definitions live in the totals table; a count left
+  open is an interval, a least is not; a count that may be none is
+  undecided where `holds( … )` of its totals is false.
 - *9d:* the two leech pseudos count the line under every id, the
   `(Local)` twin among them, so neither waits for a row that names what
   the item is; of 9c2's totals none does.

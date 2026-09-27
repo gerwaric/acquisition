@@ -200,6 +200,7 @@ to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 | `0e4c91ad` | step 9b, the seat's fixes (the `-p acquisition-cli` form, sha256 `c49086ed…`) | 635 | 441–529, the same two over: AQ2 as worded 529 and the worked example whole 523; the empty query 448 | 2,294–3,206 |
 | `e81cc8ca` | step 9c, totals v2: 155 rows where v1 held 104 (the `-p acquisition-cli` form, sha256 `c2766a44…`) | 629 | 445–579, the same two over and further: AQ2 as worded 579 and the worked example whole 578, 50 and 55 ms more than at 9b; every other ask 445–488, the empty query 446 | 2,348–3,614 |
 | `9842d0c9` | step 9c2, totals v3: 60 totals and 283 rows where v2 held 36 and 155, with its three asks added to the script (the `-p acquisition-cli` form, sha256 `13fa9955…`) | 615 | 452–508 but the two totals asks of before, three over: AQ2 as worded 588 and the worked example whole 587, 9 more each than at 9c as the empty query is 7 more, and the type's damage with attack skills 508; every other ask 452–497 | 2,421–3,167 but the totals' three: 3,689, 3,347 and 2,788 |
+| `c28c476a` | step 9c3, totals v5: four readings of other totals, with their four asks added to the script (the `-p acquisition-cli` form, sha256 `ed3b02fa…`) | 458 | 450–496 but seven over: the three totals asks of before at 593, 584 and 506; three of the readings' four, 640, 611 and 522; and the vocabulary twice narrowed at 514, whose narrowing `resist` three readings' definitions match — 499 at `23991fe1` and 520 here, the two binaries asked in turn | 2,432–3,162 but the seven: 3,708, 3,356, 2,799, 3,806, 3,543, 2,886 and 2,894 |
 
 The asks each step added to the script, at the step's build, warm
 medians in ms; a step's empty query is its floor.
@@ -236,6 +237,7 @@ medians in ms; a step's empty query is its floor.
 | `0e4c91ad`, 9b | the seat's six again | 443 · 453 · 450 · 454 · 452 · 447 | 2,294 · 2,313 · 2,299 · 2,392 · 2,377 · 2,466 |
 | `e81cc8ca`, 9c | the two totals asks (AQ2 as worded · the worked example whole) · `--count class --sum pseudo.total_res` | 579 · 578 · 488 | 3,614 · 3,273 · 2,660 |
 | `9842d0c9`, 9c2 | `pseudo.total_mana>=100` (5 rows) · `pseudo.total_attack_speed<0` (4) · `pseudo.increased_lightning_attack_damage>=30` (10) | 479 · 475 · 508 | 2,610 · 2,575 · 2,788 |
+| `c28c476a`, 9c3 | `pseudo.count_res>=3` (37 rows of four totals) · `pseudo.count_ele_res=3` (30 of three) · `pseudo.total_all_ele_res>=30` (the same 30) · `pseudo.total_all_attributes>=10` (12 of three) | 640 · 611 · 522 · 481 | 3,806 · 3,543 · 2,886 · 2,611 |
 
 **The price join's cost (step 9, `57c2f78b`): the floor rose from 276
 to 445 ms release, and two totals asks crossed 500 ms with it.** The
