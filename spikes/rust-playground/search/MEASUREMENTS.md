@@ -197,6 +197,7 @@ to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 | `7ff3c947` | step 9, the second look's fixes (the extract read by a flat scanner) | — | three asks alone: the empty query 442, `has:priced` 443, the worked example whole 522 | — |
 | `94a3d18c` | the seat's hash, again with the six asks the seat saw at 695–715 ms added to the script (V9) | 587 | 427–530, the same two over: AQ2 as worded 530 and the worked example whole 528 | 2,275–3,211 |
 | `0e4c91ad` | step 9b, the seat's fixes (the `-p acquisition-cli` form, sha256 `c49086ed…`) | 635 | 441–529, the same two over: AQ2 as worded 529 and the worked example whole 523; the empty query 448 | 2,294–3,206 |
+| `e81cc8ca` | step 9c, totals v2: 155 rows where v1 held 104 (the `-p acquisition-cli` form, sha256 `c2766a44…`) | 629 | 445–579, the same two over and further: AQ2 as worded 579 and the worked example whole 578, 50 and 55 ms more than at 9b; every other ask 445–488, the empty query 446 | 2,348–3,614 |
 
 The asks each step added to the script, at the step's build, warm
 medians in ms; a step's empty query is its floor.
@@ -231,6 +232,7 @@ medians in ms; a step's empty query is its floor.
 | | `price.amount>=1` sorted by it | 487 | 2,285 |
 | `94a3d18c`, the seat's six (V9) | seat 3 the empty query · 24 `frame=quest --count base,container` · 49 `class=rings --limit 0` · 53 OQ2 `--count line:reservation,attributes` · 60 `--count line~^adds # to # cold` · 62 `"Kaom"` | 457 · 451 · 446 · 459 · 458 · 452 | 2,303 · 2,322 · 2,304 · 2,401 · 2,387 · 2,472 |
 | `0e4c91ad`, 9b | the seat's six again | 443 · 453 · 450 · 454 · 452 · 447 | 2,294 · 2,313 · 2,299 · 2,392 · 2,377 · 2,466 |
+| `e81cc8ca`, 9c | the two totals asks (AQ2 as worded · the worked example whole) · `--count class --sum pseudo.total_res` | 579 · 578 · 488 | 3,614 · 3,273 · 2,660 |
 
 **The price join's cost (step 9, `57c2f78b`): the floor rose from 276
 to 445 ms release, and two totals asks crossed 500 ms with it.** The

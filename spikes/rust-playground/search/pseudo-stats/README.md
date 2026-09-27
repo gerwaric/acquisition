@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows, those that need no twin applied (totals v2).
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -160,7 +160,7 @@ What the site counts, as the rows now stand:
 | Finding | Evidence | For the build |
 | --- | --- | --- |
 | **A row's two eldritch forms are counted as the row**: `While a Unique Enemy is in your Presence, …`, `While a Pinnacle Atlas Boss is in your Presence, …` | every complete check that found items found these and nothing else; left out, 197 readings disagree | 147 rows added, one rule; ruled, the owner: "include the eldritch mods" |
-| **A sum of nothing shows no total** | c3, d01, e043, f005: lines that cancel | ruled, the owner: "Yes, let's make it absent to match the site." |
+| **A sum of nothing shows no total** | c3, d01, e043, f005: lines that cancel | ruled, the owner: "Yes, let's make it absent to match the site."; of an item with no such line as of one whose lines cancel: "A". Built: `has:` asks a total's presence |
 | **A ranged pseudo is the average of a line's two numbers**, shown in both places | every reading of the family | a ranged total is one number |
 | **A weapon's own line** — the `(Local)` twin — feeds the attacks' pseudo alone; **the other twin** feeds the plain, the attacks' and the spells'; `to Spells and Attacks` feeds both; an aggregate is its types' rows together | rounds two to four; the scoped pseudos' sound checks found nothing | 52 rows mean a twin: the build answers by the item's class, the export spawning the `(Local)` stats on weapons alone |
 | `#% to All Resistances` counts toward each resistance total | e042, e044, e048 | 6 rows; the elemental total's 3 and the total's 4 are arithmetic, unseen |
@@ -185,6 +185,23 @@ attacks on 54 and counted by the plain pseudos on 40, the twin id counted on 20 
 
 The most any sitting used of what the site allows: 13 of 15 searches in 60 s (the last recording)
 and 44 of 60 in 300 s (the one before it). No response asked a sitting to slow down.
+
+## Candidate claims
+
+For `docs/design/trade-ground-truth.md`, authored master-side; each is what the captures show, dated
+2026-09-26, Standard, PC.
+
+| Claim | Evidence |
+| --- | --- |
+| A search's id is its query: compact JSON, deflate, a fixed ten-byte gzip header, base64url without padding. The site takes a link composed so, and returns the query less every `"disabled":false` | `search-sheet.py --self-test`, 8 ids; 212 composed links opened |
+| The site shows a pseudo's value only where the query names it; an `if` group shows every member's and filters nothing | q4, q5; p2, c5 |
+| A pseudo is the sum of the displayed numbers of the lines it counts, each at its weight; a sum of nothing is no pseudo | every reading; c3, d01 |
+| A ranged pseudo is the average of a line's two numbers, shown in both places | round two |
+| A line's two eldritch forms are counted as the line | rounds three and four |
+| Two stats displaying one text are counted apart: the `(Local)` twin toward attacks alone; one twin id of `+# to Strength and Intelligence` toward nothing | rounds two to four; c3, e053, e057 |
+| A `not` on an eldritch form's id lets some items carrying it through | round four, 227 items |
+| Rate limits, searches: 3 in 5 s an account; 8 in 10 s, 15 in 60 s, 60 in 300 s, 600 in three hours an address. Fetches: 6 in 4 s an account; 12 in 4 s, 16 in 12 s, 100 in 300 s, 1,000 in three hours an address | the recordings' `X-Rate-Limit-*` headers |
+| A weighted group costs a `complexity` of 56 and 4 an id; a query is refused, status 400, "Query is too complex", somewhere between 148 and 220 | d01, d02, e039–e063; e047, e051 |
 
 ## Left out
 
