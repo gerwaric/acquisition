@@ -585,6 +585,8 @@ def main():
                     body,
                 ]
             )
+            if method == "site":
+                print(f"{row['search']}  {link(row['query'])}")
     kinds = {"pilot": 0, "check": 0, "line": 0, "pair": 0, "percentile line": 0,
              "percentile case": 0, "open question": 0}
     for row in searches:

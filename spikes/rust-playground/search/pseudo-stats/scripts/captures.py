@@ -11,7 +11,12 @@ what the evidence reads — its names, rarity, properties, the site's computed
 No item id, icon, seller, price, stash position or token leaves raw/.
 
     captures.py             # write ../data/captures.json
+    captures.py --check     # say what is in raw/ and write nothing
     captures.py --manifest  # print the manifest's rows for what is in raw/
+
+A file saved empty is a search not yet captured and is passed over. A capture
+whose returned query is not its own row's is left out of the extract and named
+with the row it does answer: a mislabelled capture is no evidence for its name.
 
 The site rewrites an id on the way back: `"disabled":false` is dropped and
 keys are reordered. A returned query is the sheet's when the two are equal
@@ -101,7 +106,8 @@ def manifest():
 def main():
     if sys.argv[1:] == ["--manifest"]:
         return manifest()
-    if sys.argv[1:]:
+    write = sys.argv[1:] != ["--check"]
+    if sys.argv[1:] not in ([], ["--check"]):
         print(__doc__)
         return 2
     with SHEET.open(newline="\n") as f:
@@ -111,8 +117,17 @@ def main():
         "searches": {},
     }
     for name in searches():
-        answer = json.loads((RAW / f"{name}-search.json").read_text())
+        saved = (RAW / f"{name}-search.json").read_text()
+        if not saved.strip():
+            print(f"{name}: not yet captured (the file is empty)")
+            continue
+        answer = json.loads(saved)
         returned = decode(answer["id"])
+        if name in sheet and bare(returned) != bare(sheet[name]):
+            others = [n for n, q in sheet.items() if bare(q) == bare(returned)]
+            print(f"{name}: LEFT OUT — the capture answers "
+                  f"{'row ' + others[0] if others else 'no row of the sheet'}, not {name}")
+            continue
         entry = {
             "returned_query": returned,
             "sheet_query": (
@@ -137,6 +152,9 @@ def main():
     for bad in SCRUBBED:
         if bad in text:
             raise SystemExit(f"scrub guard: {bad!r} would leave raw/")
+    if not write:
+        print("--check: nothing written")
+        return 0
     OUT.write_text(text)
     print(f"wrote {OUT.relative_to(TRACK.parent.parent)}, {len(text.encode())} bytes; scrub guard passed")
     return 0
