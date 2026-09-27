@@ -97,7 +97,7 @@
 //!   the count's tally, `show`) and `tests/acceptance.rs` (OQ1 and OQ4 as
 //!   worded, OQ5 askable).
 //! - **C94, C101.** The totals table is [`totals`]'s doc and
-//!   `reference/totals-v1.toml`'s header; the computed values, their three
+//!   `reference/totals-v2.toml`'s header; the computed values, their three
 //!   statuses and the derived fields are `pseudo`'s doc; pinned by
 //!   `tests/pseudo.rs` (the shipped table through the boundary, a total's
 //!   three statuses, `dps` and `pdps`, the sort and the sum over one),

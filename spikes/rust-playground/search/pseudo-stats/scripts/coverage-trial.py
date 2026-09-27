@@ -29,7 +29,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 CENSUS = os.path.join(ROOT, "search", "item-facts", "raw", "m2", "rust.json")
-TABLE = os.path.join(ROOT, "crates", "acquisition-search", "reference", "totals-v1.toml")
+TABLE = os.path.join(ROOT, "search", "pseudo-stats", "data", "totals-v1.toml")
 WORDS = ["resist", "strength", "dexterity", "intelligence", "attack speed", "cast speed", "level of socketed"]
 
 

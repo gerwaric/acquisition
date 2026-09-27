@@ -144,7 +144,7 @@ fn c100_the_worked_example_whole_counts_as_printed_there() {
     );
     assert_eq!(
         (&a["basis"]["classes"], &a["basis"]["totals"]),
-        (&json!(1), &json!(1))
+        (&json!(1), &json!(2))
     );
 
     // each term over the seven, independently (C93)

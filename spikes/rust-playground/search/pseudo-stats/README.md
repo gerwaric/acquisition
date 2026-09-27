@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows, with the owner.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows, those that need no twin applied (totals v2).
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -159,13 +159,13 @@ What the site counts, as the rows now stand:
 
 | Finding | Evidence | For the build |
 | --- | --- | --- |
-| **A row's two eldritch forms are counted as the row**: `While a Unique Enemy is in your Presence, …`, `While a Pinnacle Atlas Boss is in your Presence, …` | every complete check that found items found these and nothing else; left out, 197 readings disagree | 147 rows added, one rule |
+| **A row's two eldritch forms are counted as the row**: `While a Unique Enemy is in your Presence, …`, `While a Pinnacle Atlas Boss is in your Presence, …` | every complete check that found items found these and nothing else; left out, 197 readings disagree | 147 rows added, one rule; ruled, the owner: "include the eldritch mods" |
 | **A sum of nothing shows no total** | c3, d01, e043, f005: lines that cancel | ruled, the owner: "Yes, let's make it absent to match the site." |
 | **A ranged pseudo is the average of a line's two numbers**, shown in both places | every reading of the family | a ranged total is one number |
 | **A weapon's own line** — the `(Local)` twin — feeds the attacks' pseudo alone; **the other twin** feeds the plain, the attacks' and the spells'; `to Spells and Attacks` feeds both; an aggregate is its types' rows together | rounds two to four; the scoped pseudos' sound checks found nothing | 52 rows mean a twin: the build answers by the item's class, the export spawning the `(Local)` stats on weapons alone |
 | `#% to All Resistances` counts toward each resistance total | e042, e044, e048 | 6 rows; the elemental total's 3 and the total's 4 are arithmetic, unseen |
 | **One text, two ids, one counted**: `+# to Strength and Intelligence` on That Which Was Taken is left out of total life, Strength and Intelligence | c3, b1, b2, e053, e057 | ruled, the owner: "I believe this is a bug. Let's count the mod"; reported by him to GGG 2026-09-26 |
-| `+# total to Level of Socketed Skill Gems` does not count `# to Level of Socketed Skill Gems` | e103: 10,000 found, the ten fetched one unique; f030, f031: without the row, complete and sound, nothing found | the owner's: mimic, or count it as the twin is counted |
+| `+# total to Level of Socketed Skill Gems` does not count `# to Level of Socketed Skill Gems` | e103: 10,000 found, the ten fetched one unique; f030, f031: without the row, complete and sound, nothing found | ruled, the owner: "yes, include the socketed skill gems": the row stays |
 
 Two things the searches could not do, each a limit of what is closed:
 
@@ -231,7 +231,7 @@ The first pass's full text is this README at `d18fa6dd`.
 | `../trade-query/data/stats-2026-09-12.json`, `stat-collisions.csv` | the entries; every id a text displays |
 | `../trade-query/data/fetch-census.json` | `site` rows (q4, q5); the 30 percentile items; the controls |
 | `../trade-query/data/grammar.json` | property fields; the percentile's tip; `extended` figures at 20% quality |
-| `../cpp-search/data/pseudomods.toml`, `crates/acquisition-search/reference/totals-v1.toml` | `sum` rows; what the C++ tables list; what no total counts |
+| `../cpp-search/data/pseudomods.toml`, `data/totals-v1.toml` (the table as shipped while the site was asked) | `sum` rows; what the C++ tables list; what no total counts |
 | `../item-facts/data/mod-templates.csv`, `properties-census.csv`, `field-census.csv` | templates and corpus counts; `field` rows |
 | `../repoe/data/base-defences.csv`, `trade-stat-map.csv`, `template-vs-translation.csv` | defence ranges; stat ids behind a line or a template |
 | `poe1` @ e2bd511a `data/stats.json`, `data/mods.json` | `is_local`; where the ranged stats spawn |

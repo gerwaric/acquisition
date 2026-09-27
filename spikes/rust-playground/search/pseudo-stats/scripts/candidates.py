@@ -60,7 +60,7 @@ FETCH = SEARCH / "trade-query/data/fetch-census.json"
 TEMPLATES = SEARCH / "item-facts/data/mod-templates.csv"
 TVT = SEARCH / "repoe/data/template-vs-translation.csv"
 TRADE_MAP = SEARCH / "repoe/data/trade-stat-map.csv"
-TOTALS = REPO / "crates/acquisition-search/reference/totals-v1.toml"
+TOTALS = REPO / "search/pseudo-stats/data/totals-v1.toml"
 PSEUDOMODS = SEARCH / "cpp-search/data/pseudomods.toml"
 PERCENTILE_CHECK = TRACK / "data/percentile-check.csv"  # scripts/percentile.py, run first
 

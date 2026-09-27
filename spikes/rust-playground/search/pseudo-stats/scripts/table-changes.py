@@ -2,7 +2,7 @@
 """The totals table's changes as rows: ../data/table-changes.csv.
 
 What the plan's step 9c closes on: every change the captures ask of
-crates/acquisition-search/reference/totals-v1.toml, one row each, with the
+the totals table as shipped at v1 (../data/totals-v1.toml), one row each, with the
 evidence that asks for it — none applied here, and none to be applied without
 its row. Reads scripts/rows.py (each pseudo's versions, every version's `why`
 naming its captures), ../data/captures.json and ../data/search-sheet.csv.
@@ -11,9 +11,9 @@ naming its captures), ../data/captures.json and ../data/search-sheet.csv.
 
 A row's `change` is one of: `new total` (a pseudo no table ships), `add row`,
 `remove row`, `twin` (a row that means one of two stats displaying its text,
-which the build answers by what the item is), `not mimicked` (an id the site
-leaves out and the search counts, by the owner's ruling), `rule` (what holds
-for every total).
+which the build answers by what the item is), `not mimicked` (an id or a row
+the site leaves out and the search counts, by the owner's ruling), `rule`
+(what holds for every total).
 
 A total's `status` is what the site said of its latest rows: `closed` — a
 complete and a sound check each found nothing; `explained` — a check found
@@ -47,6 +47,14 @@ RULES = [
     ("a ranged total is the average of a line's two numbers",
      "round two: every reading of a ranged pseudo; the low number read instead disagrees on all"),
 ]
+# Rows the site leaves out and the table keeps, by the owner's ruling.
+KEPT = {
+    ("total_skill_gem_levels", "# to Level of Socketed Skill Gems"): (
+        "e103, f030, f031: the site leaves the pseudo's own text out of it. The owner, "
+        "2026-09-26: \"yes, include the socketed skill gems\""
+    ),
+}
+ELDRITCH = " The owner, 2026-09-26: \"include the eldritch mods\""
 NOT_MIMICKED = (
     "the site leaves this id out; the search counts the line wherever it is displayed. "
     "The owner: \"I believe this is a bug. Let's count the mod\""
@@ -85,7 +93,7 @@ def main():
         print(__doc__)
         return 2
     shipped = {t["name"]: {(r["template"], "any"): str(r["weight"]) for r in t["rows"]}
-               for t in tomllib.loads((ROOT / "crates/acquisition-search/reference/totals-v1.toml")
+               for t in tomllib.loads((TRACK / "data" / "totals-v1.toml")
                                       .read_text())["total"]}
     _, texts = table.stats()
     asked = checks()
@@ -121,9 +129,14 @@ def main():
             if (t, which) in before and before[(t, which)] == table.plain(w):
                 continue
             change = "twin" if which != "any" else "add row"
-            out.append(head + [change, t, table.plain(w), which, why_of[(t, which)], status])
+            why = why_of[(t, which)] + (ELDRITCH if t.startswith("While a ") else "")
+            out.append(head + [change, t, table.plain(w), which, why, status])
         for (t, which) in before:
             if (t, which) not in latest["rows"]:
+                if (name, t) in KEPT:
+                    out.append(head + ["not mimicked", t, before[(t, which)], which,
+                                       KEPT[(name, t)], status])
+                    continue
                 gone = next(v["why"] for v in history if (t, which) not in v["rows"])
                 out.append(head + ["remove row", t, before[(t, which)], which, gone, status])
         for stat in latest["never"]:

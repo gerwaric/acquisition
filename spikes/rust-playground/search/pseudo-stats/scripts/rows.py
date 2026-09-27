@@ -4,7 +4,7 @@
 One maker for the two scripts that need it: search-sheet.py writes a
 pseudo's checks from its rows, evidence.py reads every capture against them.
 A pseudo's rows start as what the build ships
-(crates/acquisition-search/reference/totals-v1.toml) or, for a pseudo no table
+(../data/totals-v1.toml, the table as shipped then) or, for a pseudo no table
 ships, as the lines that display its own text; each later version is one
 change, with the capture that asked for it. Versions are appended, never
 edited: a search already captured was composed from the version it names, and
@@ -35,7 +35,7 @@ from pathlib import Path
 TRACK = Path(__file__).resolve().parents[1]
 ROOT = TRACK.parent.parent
 STATS = TRACK.parent / "trade-query" / "data" / "stats-2026-09-12.json"
-TOTALS = ROOT / "crates" / "acquisition-search" / "reference" / "totals-v1.toml"
+TOTALS = TRACK / "data" / "totals-v1.toml"
 
 TYPES = ["physical", "lightning", "cold", "fire", "chaos"]
 # The types the site lists a plain `… to Spells and Attacks` stat for.

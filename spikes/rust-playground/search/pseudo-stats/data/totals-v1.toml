@@ -1,3 +1,9 @@
+# The totals table as the build shipped it while the site was asked — v1, a
+# copy of crates/acquisition-search/reference/totals-v1.toml at c2fc1ba0, kept
+# so that the rows every search of this track was composed from stay what they
+# were when the shipped table moves on. Read by scripts/rows.py, candidates.py,
+# coverage-trial.py and table-changes.py; never edited.
+#
 # The totals table — v1 (C94, C68; decisions/search.md), item search step 7.
 #
 # Reference data: reviewed, committed, shipped inside the binary

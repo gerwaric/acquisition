@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """The totals table (C94, C68): every named total the search answers — a
 reviewed sum over an item's lines, defined once — regenerated from the C++
-app's pseudomod tables into the reviewed file the search crate ships.
+app's pseudomod tables and from what the trade site itself answered into the
+reviewed file the search crate ships.
 
-    python3 tools/totals-table.py            # writes crates/acquisition-search/reference/totals-v1.toml
-    python3 tools/totals-table.py --check    # exits 1 when the file on disk differs from what the source gives
+    python3 tools/totals-table.py            # writes crates/acquisition-search/reference/totals-v2.toml
+    python3 tools/totals-table.py --check    # exits 1 when the file on disk differs from what the sources give
 
 Inputs (read-only, committed):
   search/cpp-search/data/pseudomods.toml     the 35 tables of src/pseudomods.cpp at master@946a4f51
@@ -13,6 +14,12 @@ Inputs (read-only, committed):
   search/pseudo-stats/data/pseudo-classes.csv the trade site's pseudo stat each table's text names
                                              (`sum` rows whose evidence is pseudomods.toml, plus the one
                                              the site answered itself: q5, total fire resistance)
+  search/pseudo-stats/data/table-changes.csv what the site's own answers ask of the table, one change a
+                                             row, each with the captures that ask for it (the build plan,
+                                             step 9c: 212 searches the owner ran, 2026-09-26; the track's
+                                             README). Every total counts what the site's pseudo of that
+                                             name counts (owner, V6), and where the owner ruled the site
+                                             wrong the row says `not mimicked` and the line stays counted
 
 Rules, each a reading of the source and never a judgment (C106):
   1. A table becomes one total; its name is the builder's (the plan, rule 4):
@@ -28,7 +35,21 @@ Rules, each a reading of the source and never a judgment (C106):
   3. No source or flag on a row: the source's rule counts any bucket
      (pseudomods.toml's header), so a row admits every source and every
      flag.
-Nothing is added, renamed beyond rule 1, merged beyond rule 2, or dropped;
+  4. A change `add row` that means any stat displaying its text becomes a
+     row of its total, `slot = "arg1"`, at the weight the change names: a
+     line's two eldritch forms, `All Resistances`.
+  5. A change `new total` that reads a line's number becomes a total, named
+     as the change names it, with the site's id and text and its own rows:
+     `total_life`.
+  6. A change `not mimicked` changes nothing: what the site leaves out and
+     the owner ruled counted stays as the source lists it, or is counted by
+     its text as every line is. A change `rule` is `totals.rs`'s.
+  7. What waits, counted in the header and not built: a change `twin`, a row
+     that means one of two stats displaying one text, which a table row
+     cannot say until it can name what the item is; and with it every total
+     that reads the average of a ranged line — the ranged family, all of
+     whose totals hold such a row or are an aggregate of those that do.
+Nothing else is added, renamed beyond rule 1, merged beyond rule 2, or dropped;
 the counts the header prints are measured at generation. The site's own
 answer on ten fetched items (`search/trade-query/data/fetch-census.json`,
 q5) agrees with the fire-resistance table on every one, worked by hand
@@ -45,8 +66,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SOURCE = os.path.join(ROOT, "search", "cpp-search", "data", "pseudomods.toml")
 CLASSES = os.path.join(ROOT, "search", "pseudo-stats", "data", "pseudo-classes.csv")
-OUT = os.path.join(ROOT, "crates", "acquisition-search", "reference", "totals-v1.toml")
-VERSION = 1
+CHANGES = os.path.join(ROOT, "search", "pseudo-stats", "data", "table-changes.csv")
+OUT = os.path.join(ROOT, "crates", "acquisition-search", "reference", "totals-v2.toml")
+VERSION = 2
 REALMS = ["pc", "xbox", "sony"]  # the C++ app searched PoE1; poe2 has no table yet
 PIN = "master@946a4f51"
 
@@ -105,6 +127,54 @@ def read_sites():
     return sites
 
 
+def read_changes():
+    with open(CHANGES, encoding="utf-8", newline="\n") as f:
+        return list(csv.DictReader(f))
+
+
+def weight_of(text):
+    """A weight as the table writes it: a whole number, or a half."""
+    value = float(text)
+    if value * 2 != int(value * 2) or value <= 0:
+        sys.exit(f"a weight is a whole number or a half, never {text}")
+    return int(value) if value == int(value) else value
+
+
+def apply(totals, changes):
+    """Rules 4 to 7. Returns the totals and what waits, by kind."""
+    by_name = {t[0]: t for t in totals}
+    waits = {"twin": 0, "ranged": set()}
+    added = 0
+    for c in changes:
+        if c["change"] == "new total":
+            if c["twin_or_reads"] != "slot":
+                waits["ranged"].add(c["total"])
+                continue
+            if c["total"] in by_name:
+                sys.exit(f"{c['total']!r}: a new total the source already has")
+            total = (c["total"], c["site_id"].removeprefix("pseudo."), c["site_text"], [])
+            totals.append(total)
+            by_name[c["total"]] = total
+    for c in changes:
+        if c["total"] in waits["ranged"]:
+            waits["twin"] += c["change"] == "twin"
+            continue
+        if c["change"] == "twin":
+            sys.exit(f"{c['total']!r}: a row that means a twin on a total that reads a line's number")
+        if c["change"] == "remove row":
+            sys.exit(f"{c['total']!r}: a row removed — a reviewed change, and rule 6 has no case for it")
+        if c["change"] != "add row":
+            continue
+        rows = by_name[c["total"]][3]
+        if c["template"].count("#") != 1:
+            sys.exit(f"{c['total']!r}: {c['template']!r} has {c['template'].count('#')} numbers, and rule 4 names arg1")
+        if any(r[0] == c["template"] for r in rows):
+            sys.exit(f"{c['total']!r}: {c['template']!r} is a row already")
+        rows.append([c["template"], weight_of(c["weight"])])
+        added += 1
+    return added, waits
+
+
 def toml_str(s):
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
@@ -129,25 +199,31 @@ def main():
         if site is None:
             sys.exit(f"{text!r}: the site names no pseudo stat for it in {CLASSES}")
         totals.append((name_of(text), site, text, rows))
+    listed = sum(len(t[3]) for t in totals)
+    added, waits = apply(totals, read_changes())
     names = [t[0] for t in totals]
     if len(set(names)) != len(names):
         sys.exit("two tables got one name")
     n_rows = sum(len(t[3]) for t in totals)
     weighted = sum(1 for t in totals for r in t[3] if r[1] > 1)
+    halves = sum(1 for t in totals for r in t[3] if r[1] == 0.5)
 
     out = [
-        "# The totals table — v1 (C94, C68; decisions/search.md), item search step 7.",
+        "# The totals table — v2 (C94, C68; decisions/search.md), item search steps 7 and 9c.",
         "#",
         "# Reference data: reviewed, committed, shipped inside the binary",
         "# (`include_str!` in `src/totals.rs`), read-only, never in a store file,",
         "# enumerable by `acq search --describe computed`, cited by version in every",
         "# basis (C98). Generated by tools/totals-table.py from the C++ app's",
         f"# pseudomod tables ({PIN}, src/pseudomods.cpp; the extract",
-        "# search/cpp-search/data/pseudomods.toml), the app's own published",
-        "# definitions, which name the trade site's pseudo stats (search/pseudo-stats/).",
-        "# Reviewed as a diff at each change (the admission test, search/DESIGN.md,",
-        "# C106): a convention with a published definition — never a judgment. Its",
-        "# rules are the script's docstring.",
+        "# search/cpp-search/data/pseudomods.toml), which name the trade site's pseudo",
+        "# stats, and from what the site itself answered of each",
+        "# (search/pseudo-stats/data/table-changes.csv: a change a row, each with the",
+        "# captures that ask for it). Every total counts what the site's pseudo of",
+        "# that name counts, but where the owner ruled the site wrong. Reviewed as a",
+        "# diff at each change (the admission test, search/DESIGN.md, C106): a",
+        "# convention with a definition — never a judgment. Its rules are the",
+        "# script's docstring.",
         "#",
         "# What a row means: each of the item's lines showing the `template` — from",
         "# any source and under any flag unless the row names a `source` or `flag` —",
@@ -155,12 +231,15 @@ def main():
         "# slot contributes its weight per line. What the total is from there is",
         "# `src/totals.rs` (C94), said once.",
         "#",
-        f"# Measured at generation: {len(totals)} totals, {n_rows} rows, {weighted} rows with a",
-        "# weight above 1 (a template the source lists more than once).",
+        f"# Measured at generation: {len(totals)} totals, {n_rows} rows — {listed} the C++ tables",
+        f"# list, {added} the site's answers add — {weighted} with a weight above 1 and {halves} at a",
+        f"# half. Not built, waiting for a row that can name what the item is:",
+        f"# {len(waits['ranged'])} totals of the ranged family, {waits['twin']} of whose rows mean one of two",
+        "# stats displaying one text.",
         "",
         f"version = {VERSION}",
         f"realms = [{', '.join(toml_str(r) for r in REALMS)}]",
-        f"source = {toml_str(f'the C++ app’s pseudomod tables, src/pseudomods.cpp at {PIN} (35 tables, one per trade-site pseudo stat); search/cpp-search/data/pseudomods.toml')}",
+        f"source = {toml_str(f'the trade site’s pseudo stats, by what the site answered of each (search/pseudo-stats/data/table-changes.csv), over the C++ app’s pseudomod tables, src/pseudomods.cpp at {PIN}')}",
         'generated_by = "tools/totals-table.py"',
     ]
     for name, site, text, rows in totals:
@@ -178,8 +257,8 @@ def main():
     if "--check" in sys.argv:
         with open(OUT, encoding="utf-8") as f:
             if f.read() != text:
-                sys.exit(f"{OUT} differs from what {SOURCE} gives: regenerate and review the diff")
-        print(f"ok      {os.path.relpath(OUT, ROOT)} is what the source gives")
+                sys.exit(f"{OUT} differs from what the sources give: regenerate and review the diff")
+        print(f"ok      {os.path.relpath(OUT, ROOT)} is what the sources give")
         return
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
         f.write(text)

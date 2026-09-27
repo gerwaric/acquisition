@@ -193,7 +193,7 @@ fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_zero() {
     assert_eq!(why["unread"], "the total: no definition for the realm");
     assert_eq!(
         why["problem"],
-        "no totals table for realm poe2 (totals v1 covers pc, xbox, sony)"
+        "no totals table for realm poe2 (totals v2 covers pc, xbox, sony)"
     );
     assert_eq!(
         why["hint"],
@@ -630,15 +630,16 @@ fn c92_c95_a_computed_value_sorts_and_sums() {
 fn c97_describe_lists_every_computed_value_with_its_definition() {
     let whole = serde_json::to_value(describe(&[]).unwrap()).unwrap();
     let computed = whole["computed"].as_array().unwrap();
-    assert_eq!(computed.len(), 37);
+    assert_eq!(computed.len(), 38);
     assert_eq!(computed[0]["name"], "pseudo.total_cold_res");
-    assert_eq!(computed[35]["name"], "pseudo.dps");
-    assert_eq!(computed[36]["kind"], "derived");
+    assert_eq!(computed[35]["name"], "pseudo.total_life");
+    assert_eq!(computed[36]["name"], "pseudo.dps");
+    assert_eq!(computed[37]["kind"], "derived");
     assert!(
         whole["totals"]
             .as_str()
             .unwrap()
-            .starts_with("totals v1, 35 totals over pc, xbox, sony: the C++ app"),
+            .starts_with("totals v2, 36 totals over pc, xbox, sony: the trade site’s pseudo stats"),
         "{}",
         whole["totals"]
     );
@@ -656,7 +657,7 @@ fn c97_describe_lists_every_computed_value_with_its_definition() {
         json!(["pseudo.total_res>=60", "undecided(pseudo.total_res)"])
     );
     let block = serde_json::to_value(describe(&["pseudo".to_string()]).unwrap()).unwrap();
-    assert_eq!(block["computed"].as_array().unwrap().len(), 37);
+    assert_eq!(block["computed"].as_array().unwrap().len(), 38);
     // what the reference names and no step builds is refused by that name
     let e = describe(&["defence_pct".to_string()]).unwrap_err();
     assert!(
@@ -759,4 +760,130 @@ fn a_computed_value_that_cannot_be_is_an_authoring_error() {
             (Ok(_), kind) => panic!("--sort {sort} bound, and {kind} was expected"),
         }
     }
+}
+
+/// Eight items whose totals the trade site's own answers decide (the
+/// build plan, step 9c; `search/pseudo-stats/data/table-changes.csv`).
+///
+/// `Site` (s1): `boots`, 30 fire and an eldritch implicit's 13 — fire 43;
+/// `helm`, the other eldritch form's 22 chaos; `veil`, 13 to All
+/// Resistances and 24 cold — fire 13, cold 37, elemental 3 × 13 + 24 = 63,
+/// every resistance 4 × 13 + 24 = 76; `visor`, 40 life, a crafted 10 and
+/// 11 Strength and Intelligence — life 50 + 5.5; `jewel`, 6 to all
+/// Attributes and 10 Strength and Intelligence — life 8, Strength 16;
+/// `gloves`, an eldritch implicit's 13 attack speed; `taken`, the unique
+/// whose Strength and Intelligence the site leaves out — life 18.5;
+/// `blade`, 1 to the level of socketed skill gems.
+fn site_stash() -> Store {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("s1", "Site")]), 10);
+    let rare =
+        |id: &str, base: &str, more: Value| item(id, &format!("Item {id}"), base, "Rare", more);
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "s1",
+        "Site",
+        vec![
+            rare(
+                "boots",
+                "Crusader Boots",
+                json!({
+                    "implicitMods": ["While a Unique Enemy is in your Presence, +13% to Fire Resistance"],
+                    "explicitMods": ["+30% to Fire Resistance"],
+                }),
+            ),
+            rare(
+                "helm",
+                "Lion Pelt",
+                json!({ "implicitMods": ["While a Pinnacle Atlas Boss is in your Presence, +22% to Chaos Resistance"] }),
+            ),
+            rare(
+                "veil",
+                "Zodiac Leather",
+                json!({ "explicitMods": ["+24% to Cold Resistance", "+13% to All Resistances"] }),
+            ),
+            rare(
+                "visor",
+                "Vaal Mask",
+                json!({
+                    "explicitMods": ["+40 to maximum Life", "+11 to Strength and Intelligence"],
+                    "craftedMods": ["+10 to maximum Life"],
+                }),
+            ),
+            rare(
+                "jewel",
+                "Crimson Jewel",
+                json!({ "explicitMods": ["+6 to all Attributes", "+10 to Strength and Intelligence"] }),
+            ),
+            rare(
+                "gloves",
+                "Shagreen Gloves",
+                json!({ "implicitMods": ["While a Unique Enemy is in your Presence, 13% increased Attack Speed"] }),
+            ),
+            item(
+                "taken",
+                "That Which Was Taken",
+                "Crimson Jewel",
+                "Unique",
+                json!({ "explicitMods": ["+37 to Strength and Intelligence"] }),
+            ),
+            rare(
+                "blade",
+                "Etched Greatsword",
+                json!({ "explicitMods": ["+1 to Level of Socketed Skill Gems"] }),
+            ),
+        ],
+        20,
+    );
+    s
+}
+
+/// C94, V6: a total counts what the trade site's pseudo of that name
+/// counts, each row on the capture that asked for it — a row's two
+/// eldritch forms as the row, `All Resistances` under every resistance
+/// total, total life with every Strength line at a half — and where the
+/// owner ruled the site wrong, the line is counted: the twin on That
+/// Which Was Taken, and the skill gems' own text.
+#[test]
+fn v6_a_total_counts_what_the_sites_pseudo_counts() {
+    let s = site_stash();
+    let found = |query: &str| ids(&asked(&s, "pc", query));
+    // a row's eldritch forms are the row (c6, d03, round three)
+    assert_eq!(found("pseudo.total_fire_res=43"), ["boots"]);
+    assert_eq!(found("pseudo.total_chaos_res=22"), ["helm"]);
+    assert_eq!(found("pseudo.total_attack_speed=13"), ["gloves"]);
+    // All Resistances, under each total it names a part of (e042, e044, e048)
+    assert_eq!(found("pseudo.total_fire_res=13"), ["veil"]);
+    assert_eq!(found("pseudo.total_cold_res=37"), ["veil"]);
+    assert_eq!(found("pseudo.total_chaos_res=13"), ["veil"]);
+    assert_eq!(found("pseudo.total_ele_res=63"), ["veil"]);
+    assert_eq!(found("pseudo.total_res=76"), ["veil"]);
+    // total life: life at 1, a crafted line as any other, Strength at a half (q4, p1, c1)
+    assert_eq!(found("pseudo.total_life=55.5"), ["visor"]);
+    assert_eq!(found("pseudo.total_life=8"), ["jewel"]);
+    assert_eq!(found("pseudo.total_str=16"), ["jewel"]);
+    // what the site leaves out and the search counts, by the owner's rulings
+    assert_eq!(found("pseudo.total_life=18.5"), ["taken"]);
+    assert_eq!(found("pseudo.total_str=37"), ["taken"]);
+    assert_eq!(found("pseudo.total_skill_gem_levels=1"), ["blade"]);
+    // the lines a total counted are shown: these three, whatever their order
+    let a = asked(&s, "pc", "pseudo.total_life>=50");
+    let mut lines: Vec<&str> = shows(&a, "visor", "0")
+        .as_array()
+        .unwrap()
+        .iter()
+        .skip(1)
+        .map(|e| e["line"]["text"].as_str().unwrap())
+        .collect();
+    lines.sort_unstable();
+    assert_eq!(
+        lines,
+        [
+            "+10 to maximum Life",
+            "+11 to Strength and Intelligence",
+            "+40 to maximum Life"
+        ]
+    );
 }
