@@ -770,6 +770,136 @@ def round_five():
     return out
 
 
+# Round six: the pseudos whose rows round five's captures moved, each at the
+# version asked, written out. Rows read off ten fetched items are a fit; these
+# searches are its test. `increased_rarity` gained a row under an id it already
+# asked, so its searches would be g033 and g034 again and are not written.
+ROUND_SIX = {
+    "total_all_attributes": 2,
+    "total_mana": 2,
+    "total_energy_shield": 2,
+    "total_increased_energy_shield": 3,
+    "global_crit_chance": 2,
+    "global_crit_multi": 2,
+    "increased_lightning_damage": 3,
+    "increased_cold_damage": 3,
+    "increased_fire_damage": 3,
+    "increased_lightning_spell_damage": 3,
+    "increased_cold_spell_damage": 3,
+    "increased_fire_spell_damage": 3,
+    "increased_lightning_attack_damage": 3,
+    "increased_cold_attack_damage": 3,
+    "increased_fire_attack_damage": 3,
+    "increased_ele_attack_damage": 2,
+    "increased_burning_damage": 3,
+    "life_regen": 2,
+    "life_regen_pct": 2,
+}
+SMALLEST.update({"life_regen": 0.1, "life_regen_pct": 0.01})
+# The most ids a weighted group was taken with beside a `not`: d01, at a
+# complexity of 148.
+WEIGHTED_TAKEN = 23
+# A row's `reduced` spelling is under the row's id, a number below nothing
+# (g007, g034): asked of three totals the build ships and three of round
+# five's, each at the version named.
+BELOW_NOTHING = {
+    "total_attack_speed": 3,
+    "total_cast_speed": 2,
+    "total_increased_phys": 4,
+    "increased_movement_speed": 2,
+    "increased_mana_regen": 2,
+    "global_crit_chance": 2,
+}
+
+
+def round_six():
+    """h001 on: round five's fits tested, complete and sound; the three
+    readings that are no sum of lines asked where round five left them on one
+    item or none; the mutant round five's new bound owes; and a row's
+    `reduced` spelling, asked below nothing."""
+    ids, texts = table.stats()
+    versions = table.versions()
+    out = []
+
+    def name_next():
+        return f"h{len(out) + 1:03d}"
+
+    for name, number in ROUND_SIX.items():
+        version = versions[name][number - 1]
+        out.append(complete(name_next(), name, number, version, ids, texts))
+        check = sound(name_next(), name, number, version, ids, texts,
+                      at_least=SMALLEST.get(name, 0.5))
+        if len(check["query"]["stats"][0]["filters"]) > WEIGHTED_TAKEN:
+            raise SystemExit(f"{name}: more weighted ids than the site has taken; ask it in parts")
+        out.append(check)
+
+    all_ele = "pseudo.pseudo_total_all_elemental_resistances"
+    line = ids_of("+#% to all Elemental Resistances") + [
+        i for prefix in table.PRESENCE for i in ids.get(prefix + "#% to all Elemental Resistances", [])]
+    out.append({
+        "search": name_next(),
+        "decides": (f"total_all_ele_res, the least of the three elemental totals: items showing "
+                    f"`{texts[all_ele]}` while carrying no `+#% to all Elemental Resistances` — g003 "
+                    "fetched one. Each shows its least elemental total, or the reading is wrong"),
+        "control": "g003: the pseudo alone finds items; c1 and c2: a `not` group finds what it should",
+        "query": batch_query([group("and", [all_ele]), group("not", line)]),
+    })
+    count = "pseudo.pseudo_count_resistances"
+    out.append({
+        "search": name_next(),
+        "decides": (f"count_res, whether `{texts[count]}` counts chaos: items carrying "
+                    "`+#% to Chaos Resistance`, the count required and the elemental count and the "
+                    "chaos total shown beside it. No item round five fetched carries the line"),
+        "control": ("the chaos total is shown in the `if` group: an item showing it and a count "
+                    "equal to its elemental count is the site leaving chaos out"),
+        "query": batch_query([
+            group("and", [count]),
+            group("count", ids_of("+#% to Chaos Resistance"), {"min": 1}),
+            group("if", ["pseudo.pseudo_count_elemental_resistances",
+                         "pseudo.pseudo_total_chaos_resistance"]),
+        ]),
+    })
+
+    life = versions["phys_attack_life_leech"][0]
+    mana = versions["phys_attack_mana_leech"][0]
+    both = weighted(life, ids, at_least=SMALLEST["phys_attack_life_leech"])
+    both["filters"] += [{"id": i, "value": {"weight": 1.0}, "disabled": False}
+                        for i in table.ids_of(mana, ids)]
+    out.append({
+        "search": name_next(),
+        "decides": ("g040's mutant: the mana leech's ids weighted with the life leech's rows, at "
+                    "a hundredth or more. It must find items carrying "
+                    f"`{texts[mana['pseudo']]}` and no life leech, each showing no "
+                    f"`{texts[life['pseudo']]}`"),
+        "control": ("the mutant is the control: nothing found means a sum of a hundredth or more "
+                    "beside a `not` decides nothing, and g040 and g042 with it"),
+        "query": batch_query([both, group("not", [life["pseudo"]])]),
+    })
+
+    for name, number in BELOW_NOTHING.items():
+        version = versions[name][number - 1]
+        text = texts[version["pseudo"]]
+        below = dict(weighted(version, ids), value={"max": -0.5})
+        shows = name_next()
+        out.append({
+            "search": shows,
+            "decides": (f"{name} v{number}, a `reduced` line: items whose rows sum to a half below "
+                        f"nothing or less, by the site's own sum, `{text}` required. Each shows a "
+                        "total below nothing, or the site does not count the line so"),
+            "control": "g007: Carnage Heart shows -25 over `25% reduced maximum Energy Shield`",
+            "query": batch_query([group("and", [version["pseudo"]]), below]),
+        })
+        out.append({
+            "search": name_next(),
+            "decides": (f"{name} v{number}, sound below nothing: whether any listed item's rows sum "
+                        f"to a half below nothing or less while it shows no `{text}`. None found: "
+                        "a `reduced` line is counted wherever it appears"),
+            "control": f"{shows}, the same sum with the pseudo required, must find items",
+            "query": batch_query([below, group("not", [version["pseudo"]])]),
+        })
+    return out
+
+
 def report():
     """b1, b2: the two searches a report of c3's twin id rests on."""
     twin = "explicit.stat_2543977012"
@@ -850,7 +980,7 @@ def main():
         print(__doc__)
         return 2
     searches = PILOT + (checks() + round_two() + report() + round_three() + round_four()
-                        + round_five() + OPEN_QUESTION_SEARCHES
+                        + round_five() + OPEN_QUESTION_SEARCHES + round_six()
                         if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
@@ -878,7 +1008,7 @@ def main():
     for row in searches:
         s = row["search"]
         kind = ("pilot" if s.startswith("p")
-                else "check" if s.startswith(("c", "d", "b", "e", "f", "g"))
+                else "check" if s.startswith(("c", "d", "b", "e", "f", "g", "h"))
                 else "percentile case" if s.startswith("C")
                 else "open question" if s.startswith("R")
                 else "percentile line" if s.startswith("P") else "pair" if "." in s else "line")

@@ -151,6 +151,141 @@ OTHER = {
 }
 
 
+# What round five (g001–g044, R1) showed to be no sum of lines: a reading of
+# other totals, which no row can say. `count` is how many of the named totals
+# the item shows, `least` the smallest of them, shown where the item shows all.
+ELEMENTAL = ["total_fire_res", "total_cold_res", "total_lightning_res"]
+DERIVED = {
+    "count_res": ("count", ELEMENTAL + ["total_chaos_res"],
+                  "g001, R1: 2 over `#% to Fire and Lightning Resistances` and `#% to Fire "
+                  "Resistance`, 3 over two `#% to all Elemental Resistances` lines — the "
+                  "resistances, never the lines"),
+    "count_ele_res": ("count", ELEMENTAL,
+                      "g002, R1: 3 over `#% to Lightning Resistance` and `#% to all Elemental "
+                      "Resistances` — the resistances, never the lines"),
+    "total_all_ele_res": ("least", ELEMENTAL,
+                          "g003: 12 on an item of fire 45, cold 39 and lightning 12 that carries "
+                          "no `#% to all Elemental Resistances`"),
+}
+
+# Round five's changes to the pseudos of OTHER, applied after the eldritch
+# forms so that the versions round five pinned stand; a row they add gains
+# its own eldritch forms in a version after. A row at a negative weight is a
+# line's `reduced` spelling, which the site lists under the `increased` one's
+# id and shows as a number below nothing.
+_E = "#% increased Elemental Damage"
+_S = "#% increased Spell Damage"
+_A = "#% increased Elemental Damage with Attack Skills"
+OTHER_CHANGES = {
+    "total_mana": {
+        "add": [("# to maximum Mana", "1"), ("# to Intelligence", "0.5"),
+                ("# to Strength and Intelligence", "0.5"), ("# to all Attributes", "0.5"),
+                ("# to Dexterity and Intelligence", "0.5")],
+        "why": "g005: ten items of ten show what these give — the mana line on five, Intelligence "
+               "on three, `# to Strength and Intelligence` and `# to all Attributes` on one each, "
+               "each of those at a half; `# to Dexterity and Intelligence` by the same "
+               "arithmetic, unseen",
+    },
+    "total_energy_shield": {
+        "add": [("# to maximum Energy Shield", "1")],
+        "why": "g006: ten items of ten, the line under its `(Local)` id and under the other",
+    },
+    "total_increased_energy_shield": {
+        "add": [("#% increased maximum Energy Shield", "1"),
+                ("#% reduced maximum Energy Shield", "-1")],
+        "why": "g007: nine items show the line's number, and Carnage Heart -25 over `25% reduced "
+               "maximum Energy Shield`, a line under the same id",
+    },
+    "global_crit_chance": {
+        "add": [("#% increased Global Critical Strike Chance", "1")],
+        "why": "g010: ten items of ten",
+    },
+    "global_crit_multi": {
+        "add": [("#% to Global Critical Strike Multiplier", "1")],
+        "why": "g011: ten items of ten",
+    },
+    "increased_lightning_damage": {
+        "add": [(_E, "1")],
+        "why": "g014: 10,000 found, the ten fetched each showing its `#% increased Elemental Damage`",
+    },
+    "increased_cold_damage": {
+        "add": [(_E, "1")],
+        "why": "g016: 10,000 found, the ten fetched each showing its `#% increased Elemental Damage`",
+    },
+    "increased_fire_damage": {
+        "add": [(_E, "1")],
+        "why": "g018: 10,000 found, the ten fetched each showing its `#% increased Elemental Damage`",
+    },
+    "increased_lightning_spell_damage": {
+        "add": [("#% increased Lightning Damage", "1"), (_E, "1"), (_S, "1")],
+        "why": "g022: ten items of ten — spell damage on nine, lightning damage on three, "
+               "elemental damage on one",
+    },
+    "increased_cold_spell_damage": {
+        "add": [("#% increased Cold Damage", "1"), (_E, "1"), (_S, "1")],
+        "why": "g023: ten items of ten — spell damage on nine, elemental damage on two; "
+               "`#% increased Cold Damage` as g022 and g024 show of lightning and fire, unseen",
+    },
+    "increased_fire_spell_damage": {
+        "add": [("#% increased Fire Damage", "1"), (_E, "1"), (_S, "1")],
+        "why": "g024: ten items of ten — spell damage on seven, fire damage on two, elemental "
+               "damage on two",
+    },
+    "increased_lightning_attack_damage": {
+        "add": [("#% increased Lightning Damage", "1"), (_E, "1"), (_A, "1")],
+        "why": "g025: 10,000 found, the ten fetched showing elemental damage on six, lightning "
+               "damage on two, elemental damage with attack skills on two",
+    },
+    "increased_cold_attack_damage": {
+        "add": [("#% increased Cold Damage", "1"), (_E, "1"), (_A, "1")],
+        "why": "g027: 10,000 found, the ten fetched showing elemental damage on five, elemental "
+               "damage with attack skills on four, cold damage on one",
+    },
+    "increased_fire_attack_damage": {
+        "add": [("#% increased Fire Damage", "1"), (_E, "1"), (_A, "1")],
+        "why": "g029: 10,000 found, the ten fetched showing elemental damage with attack skills "
+               "on six, fire damage on three, elemental damage on one",
+    },
+    "increased_ele_attack_damage": {
+        "add": [(_E, "1")],
+        "why": "g031: 10,000 found, the ten fetched each showing its `#% increased Elemental Damage`",
+    },
+    "increased_burning_damage": {
+        "add": [("#% increased Fire Damage", "1"), (_E, "1")],
+        "why": "g035: 10,000 found, the ten fetched showing fire damage on five and elemental "
+               "damage on five",
+    },
+    "increased_rarity": {
+        "add": [("#% reduced Rarity of Items found", "-1")],
+        "why": "g034: the one item found carries `48% reduced` and `48% increased Rarity of Items "
+               "found` and shows no total — a sum of nothing, the reduced line counted below it",
+    },
+    "life_regen": {
+        "add": [("Regenerate # Life per second", "1")],
+        "cut": "0.1",
+        "why": "g037: ten items of ten carry the line and nothing else; eight show its number and "
+               "two a tenth more (1.2 over `1.1`, 39.1 over `39`): the site rounds what the "
+               "line's text cuts, so a total read from the text is under the site's by less "
+               "than a tenth a line",
+    },
+    "life_regen_pct": {
+        "add": [("Regenerate #% of Life per second", "1")],
+        "why": "g038: ten items of ten",
+    },
+    "total_all_attributes": {
+        "add": [("# to all Attributes", "1")],
+        "why": "g004: ten items of ten carry the line and show its number. The least of the "
+               "three attribute totals gives the same on all ten; an item showing the pseudo "
+               "without the line tells the two apart",
+    },
+}
+
+
+def positive(template):
+    """The spelling the site lists a `reduced` line's stat under."""
+    return template.replace(" reduced ", " increased ", 1)
+
+
 def ranged_changes():
     """The ranged family's second versions, from round two (d04–d24).
 
@@ -311,9 +446,12 @@ def versions():
             changes = changes[1:]
         reads = "avg" if name.startswith("adds_") else "slot"
         history.append({"pseudo": first["pseudo"], "reads": reads, "rows": dict(rows), "never": [],
-                        "why": first["why"]})
+                        "cut": None, "why": first["why"]})
+        cut = None
+
         def apply(change):
-            nonlocal never
+            nonlocal never, cut
+            cut = Fraction(change["cut"]) if "cut" in change else cut
             for r in change.get("remove", []):
                 del rows[row(r)[0]]
             for r in change.get("add", []):
@@ -322,7 +460,7 @@ def versions():
             never = [i for i in never + change.get("never", [])
                      if i not in change.get("restore", [])]
             history.append({"pseudo": first["pseudo"], "reads": reads, "rows": dict(rows),
-                            "never": list(never), "why": change["why"]})
+                            "never": list(never), "cut": cut, "why": change["why"]})
 
         for change in changes:
             apply(change)
@@ -330,6 +468,10 @@ def versions():
             apply(change)
         for change in LATER.get(name, []):
             apply(change)
+        if name in OTHER_CHANGES:
+            apply(OTHER_CHANGES[name])
+            for change in round_three_changes(name, dict(rows), ids):
+                apply(change)
         out[name] = history
     return out
 
@@ -350,10 +492,18 @@ def latest():
     return {h[-1]["pseudo"]: h[-1] for h in versions().values()}
 
 
+def derived():
+    """{pseudo id: (kind, [pseudo id, …])} for the pseudos that are no sum of lines."""
+    site = {name: h[-1]["pseudo"] for name, h in versions().items()}
+    return {site[name]: (kind, [site[n] for n in of]) for name, (kind, of, _) in DERIVED.items()}
+
+
 def ids_of(version, ids):
     """Every counted id behind a version's rows, in every category."""
     out = []
-    for (t, which) in version["rows"]:
+    for (t, which), weight in version["rows"].items():
+        if weight < 0 and (positive(t), which) in version["rows"]:
+            continue  # the `reduced` spelling of a row: that row's ids
         if not ids.get(t):
             raise SystemExit(f"no stat displays {t!r}")
         out += [i for i in ids[t]
@@ -374,6 +524,10 @@ def main():
         v = history[-1]
         if v["pseudo"] not in pseudo:
             raise SystemExit(f"{name}: the site has no {v['pseudo']}")
+        if name in DERIVED:
+            kind, of, _ = DERIVED[name]
+            print(f"{name} · {pseudo[v['pseudo']]} · no sum of lines: the {kind} of {', '.join(of)}")
+            continue
         print(f"{name} v{len(history)} · {pseudo[v['pseudo']]} · {len(v['rows'])} rows, "
               f"{len(ids_of(v, ids))} ids" + (f", never {', '.join(v['never'])}" if v["never"] else ""))
         for (t, which), w in v["rows"].items():

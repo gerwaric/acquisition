@@ -59,7 +59,8 @@ def numbers(description):
 
 def shown(text, description):
     """The numbers a pseudo's line shows, or None where the line is another's."""
-    pattern = re.escape(text).replace(r"\#", f"({NUMBER})")
+    # a `+#` is a number with its sign: the site shows `-17% total to Fire Resistance`
+    pattern = re.escape(text).replace(r"\+\#", r"\#").replace(r"\#", f"({NUMBER})")
     found = re.fullmatch(pattern, description)
     return [Fraction(n) for n in found.groups()] if found else None
 
@@ -78,26 +79,50 @@ def stat_of(entry):
     return (entry.get("hash") or "").removeprefix("stat.")
 
 
-def given(version, slots, item):
-    """What the rows give an item, as the site would show it, or None."""
-    total = Fraction(0)
-    counted = False
+def displayed(item):
+    """Every line an item displays, with the entry it is part of: a modifier of
+    several lines is one entry whose description holds them all."""
     for array, entries in item["lines"].items():
         if array == "pseudoMods":
             continue
         for e in entries:
-            weight = table.weight_of(version, template(e["description"]), stat_of(e))
-            read = numbers(e["description"])
-            if weight is None or not read:
+            for line in e["description"].split("\n"):
+                yield line, e
+
+
+def given(version, slots, item):
+    """What the rows give an item, as the site would show it, or None."""
+    total = Fraction(0)
+    counted = 0
+    for line, e in displayed(item):
+        weight = table.weight_of(version, template(line), stat_of(e))
+        read = numbers(line)
+        if weight is None or not read:
+            continue
+        if version["reads"] == "avg":
+            if len(read) < 2:
                 continue
-            if version["reads"] == "avg":
-                if len(read) < 2:
-                    continue
-                total += (read[0] + read[1]) / 2 * weight
-            else:
-                total += read[0] * weight
-            counted = True
+            total += (read[0] + read[1]) / 2 * weight
+        else:
+            total += read[0] * weight
+        counted += 1
     return [total] * slots if counted and total else None
+
+
+def lines_counted(version, item):
+    return sum(1 for line, e in displayed(item)
+               if numbers(line) and table.weight_of(version, template(line), stat_of(e)) is not None)
+
+
+def read_of(kind, of, versions, item):
+    """What a pseudo that is no sum of lines gives: a reading of other totals."""
+    totals = [given(versions[p], 1, item) for p in of]
+    if kind == "count":
+        n = sum(1 for t in totals if t is not None)
+        return [Fraction(n)] if n else None
+    if any(t is None for t in totals):
+        return None
+    return [min(t[0] for t in totals)]
 
 
 def key(version, entry):
@@ -116,6 +141,7 @@ def main():
         return 2
     captures = json.loads(CAPTURES.read_text())["searches"]
     versions = table.latest()
+    derived = table.derived()
     _, texts = table.stats()
     with CANDIDATES.open(newline="\n") as f:
         candidates = defaultdict(set)
@@ -141,14 +167,17 @@ def main():
                 ]
                 if site_says_not and values:
                     raise SystemExit(f"{name}[{index}] shows a pseudo its search excluded")
-                rows_give = given(version, slots, item)
+                if pseudo in derived:
+                    rows_give = read_of(*derived[pseudo], versions, item)
+                else:
+                    rows_give = given(version, slots, item)
                 agrees = values == ([] if rows_give is None else [rows_give])
-                lines = [
-                    e
-                    for array, entries in item["lines"].items()
-                    if array != "pseudoMods"
-                    for e in entries
-                ]
+                if not agrees and version["cut"] and values and rows_give:
+                    # the line's text cuts what the site rounds: under it by less
+                    # than the cut a line
+                    over = values[0][0] - rows_give[0]
+                    agrees = 0 <= over <= version["cut"] * lines_counted(version, item)
+                lines = [dict(e, description=line) for line, e in displayed(item)]
                 if not agrees:
                     disagreeing += 1
                     site = "none" if not values else " to ".join(table.plain(v) for v in values[0])

@@ -89,3 +89,14 @@ e001–e015, the fourth f001–f025, the fifth f026–f050 with f050 asked twice
 | `raw/searches/www.pathofexile.com-4.har` | 113918168 | 2026-09-26 21:32 | `51dbf7af58c9ced57292fe1d28bd510935719e02ee804d6e02921467e70a1305` |
 | `raw/searches/www.pathofexile.com-5.har` | 116803803 | 2026-09-26 21:35 | `7a5cb7bd0150f2385389bd5a95090d0962fd2e809cdd5e7c0df74e696fb74789` |
 | `raw/searches/www.pathofexile.com-6.har` | 104354088 | 2026-09-26 21:42 | `69969e36e4ed9aa7d0fda5243c3d5808fcef668e25046adff05b71d6242b6e40` |
+
+Round five (the plan's step 9c2), 2026-09-27, 09:48–09:55 US Central
+(14:48–14:55 UTC), by the owner, from the links of `data/search-sheet.csv` at
+`01eb4b7a`: two recordings, each exported with its content, every body held,
+no cookie. The seventh holds g001–g025, the eighth g026–g044 and R1.
+`tools/trade-split.py --write` wrote their 72 captures.
+
+| File | Bytes | Captured | sha256 |
+| --- | --- | --- | --- |
+| `raw/searches/www.pathofexile.com-7.har` | 112588130 | 2026-09-27 09:51 | `595cf19c879fcf6a131ce13038c44f599ac4d27d9d72240ae3993073f432030e` |
+| `raw/searches/www.pathofexile.com-8.har` | 87933411 | 2026-09-27 09:55 | `cf39b195ede7a2a8fc40e210457d75cc15b515c018631ba951556162530cd551` |
