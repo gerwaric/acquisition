@@ -88,12 +88,13 @@ rulings they revisit — C48 (raw SQL is not a surface), C34
 `SURFACES.md`) — and the store's parks they cite are named from there.
 
 How the rulings were reached — the synthesis's six stages, their notes,
-the blind proposals and the audit — is `SEARCH-SLICE.md`, "How the
-design was reached". `search-forms/` is the design dialogue that chose
+the blind proposals and the audit — is `LEDGER.md`, "How the design
+was reached". `search-forms/` is the design dialogue that chose
 the surface, history: files 10 and 11 are what was harvested, and the
 owner's words are whole in file 11. The build runs under
 `BUILD-PLAN.md`, the brief, deleted at the close; what it met is the
-record, and its measurements — the tables, commands and numbers on the
+record, its rows — the step ledger, the holes ruled — `LEDGER.md`,
+looked up by the row, and its measurements — the tables, commands and numbers on the
 owner's copy — are `MEASUREMENTS.md`, read by the block named.
 
 Two topics the design session rules without a track, since no read
