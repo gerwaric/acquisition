@@ -75,7 +75,7 @@ same commit.
 | 9b · the seat's fixes | `0d5706d1`–`73d33419` | `tests/seat_faults.rs`, the review's `review_` tests among them; the replay of the seat's asks, each diff read: the message of `1f9c868c`; V1, V2, V8, V10; G2 revised |
 | 9c · the trade site's computed values | `6362255a`–`6b033c60` | `search/pseudo-stats/README.md` and its `data/table-changes.csv`; the totals table; `tests/pseudo.rs` (`v6_…`, the two `c94_…`); the site-sitting skill; the ranged family's totals wait for 9d |
 | 9c2 · the site's other totals | `88810610`–`77685777`, and the close | `search/pseudo-stats/data/other-totals.csv`, the track's README and `data/table-changes.csv`; the totals table; `tests/pseudo.rs` (`c94_a_reduced_…`, `v6_the_other_…`); four pseudos are no sum, built at 9c3 |
-| 9c3 · the four that are no sum | `c28c476a`, `1662e8ab`, and the close | `totals.rs` (`Reading`), `pseudo.rs` (a count, a least, `compared`, `present`, `sorted_by`), `[[reading]]` in the totals table; `tests/pseudo.rs` (the two `c101_a_…`, `c93_a_reading_…`, `c97_a_reading_…`), `tests/generated_cross_checks.rs` (`a_reading_is_what_its_totals_make`), the CLI's `tests/search_json.rs` (`step_9c3_…`) |
+| 9c3 · the four that are no sum | `c28c476a`, `1662e8ab`, and the close | `totals.rs` (`Reading`), `pseudo.rs` (a count, a least, `compared`, `present`, `sorted_by`), `[[reading]]` in the totals table; `tests/pseudo.rs` (the two `c101_a_…`, `c93_a_reading_…`, `c97_a_reading_…`), `tests/generated_cross_checks.rs` (`a_reading_is_what_its_totals_make`), the CLI's `tests/search_json.rs` (`step_9c3_…`); kept open by the outside review's first finding, which is 9c4's |
 
 ## Findings
 
@@ -112,6 +112,7 @@ step 7 (Astra), 6, 4, 0 — the third look the generators' (the ledger,
 "7 · the third look"): one harness fault of the look's own, none of the
 product's. Step 8: 5, 2, 0 — a socket whose group is unread read as possibly none, then counted twice.
 Step 9: 5, 2 — every one reproduced and held (`tests/price.rs`, the `review_` tests; `listing.rs`, `snapshot.rs`): the checklist's join row, and a decoder's depth limit turning a deep field's sibling absent.
+Step 9c3: 2 — a row inside a mod of several rows fed no total, step 7's fault, which the step's fixture hid by writing the mod's rows apart: 9c4's to hold; and a sentence of `pseudo.rs`, corrected (`b909524c`).
 Five blind seats at step 5 (`f357de39`; Sonnet, one question each over
 the owner's real store, `--help` and `--describe` their only sources)
 answered every question in three to six invocations and found two
@@ -355,11 +356,16 @@ filed again by the step that touches it.
   names ever shows no pseudo was not asked, nor the count of all four
   of an item with no resistance, nor the elemental least of an item
   with one or two of its totals. Each is explained, never closed.
-- *The first review of 9c3, or 9d where it touches `pseudo.rs`:* no
-  one has looked from outside. Three choices were the builder's
-  (`c28c476a`): the definitions live in the totals table; a count left
-  open is an interval, a least is not; a count that may be none is
-  undecided where `holds( … )` of its totals is false.
+- *9c4, and the review's next look:* three choices of 9c3 were the
+  builder's (`c28c476a`). The first look weighed two, a count and a
+  least where a total is open, and found no contradiction; the third,
+  the definitions' home in the totals table, is unruled. What the
+  builder doubted and no look has asked: what `--sum` and the undecided
+  block print of a reading; `tests/generated_routes.rs` reaches no
+  computed value; a narrowing lists every reading whose definition it
+  matches, `resist` three; `has:` of a ranged total asks its `avg`,
+  untested until 9d; `pseudo::evidence` of a reading that is lacked
+  gives its totals still, reached by nothing.
 - *9d:* the two leech pseudos count the line under every id, the
   `(Local)` twin among them, so neither waits for a row that names what
   the item is; of 9c2's totals none does.
