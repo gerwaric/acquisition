@@ -173,8 +173,8 @@ def main():
                     rows_give = given(version, slots, item)
                 agrees = values == ([] if rows_give is None else [rows_give])
                 if not agrees and version["cut"] and values and rows_give:
-                    # the line's text cuts what the site rounds: under it by less
-                    # than the cut a line
+                    # the line's text cuts what the site rounds: under it by the
+                    # cut a line at most
                     over = values[0][0] - rows_give[0]
                     agrees = 0 <= over <= version["cut"] * lines_counted(version, item)
                 lines = [dict(e, description=line) for line, e in displayed(item)]

@@ -1,4 +1,4 @@
-# The totals table — v3 (C94, C68; decisions/search.md), item search steps 7, 9c and 9c2.
+# The totals table — v4 (C94, C68; decisions/search.md), item search steps 7, 9c and 9c2.
 #
 # Reference data: reviewed, committed, shipped inside the binary
 # (`include_str!` in `src/totals.rs`), read-only, never in a store file,
@@ -20,15 +20,16 @@
 # slot contributes its weight per line. What the total is from there is
 # `src/totals.rs` (C94), said once.
 #
-# Measured at generation: 60 totals, 283 rows — 104 the C++ tables
-# list, 179 the site's answers add — 17 with a weight above 1, 8 at a
+# Measured at generation: 61 totals, 284 rows — 104 the C++ tables
+# list, 180 the site's answers add — 17 with a weight above 1, 8 at a
 # half and 45 below nothing, a row's `reduced` spelling. Not built, waiting
 # for a row that can name what the item is: 21 totals of the ranged
 # family, 52 of whose rows mean one of two stats displaying one text.
 # Not written: 4 pseudos that are a reading of other totals and no sum of
-# lines, and 1 whose limit the owner has not ruled on.
+# lines, and 0 whose limit the owner has not ruled on. Written with a
+# limit its definition prints: 1.
 
-version = 3
+version = 4
 realms = ["pc", "xbox", "sony"]
 source = "the trade site’s pseudo stats, by what the site answered of each (search/pseudo-stats/data/table-changes.csv), over the C++ app’s pseudomod tables, src/pseudomods.cpp at master@946a4f51"
 generated_by = "tools/totals-table.py"
@@ -699,6 +700,15 @@ rows = [
   { template = "#% reduced Burning Damage", slot = "arg1", weight = -1 },
   { template = "#% reduced Fire Damage", slot = "arg1", weight = -1 },
   { template = "#% reduced Elemental Damage", slot = "arg1", weight = -1 },
+]
+
+[[total]]
+name = "life_regen"
+site = "pseudo_total_life_regen"
+text = "# Life Regenerated per Second"
+limit = "read from the item's text, which cuts what the trade site rounds: under the site's by 0.1 a line at most"
+rows = [
+  { template = "Regenerate # Life per second", slot = "arg1", weight = 1 },
 ]
 
 [[total]]

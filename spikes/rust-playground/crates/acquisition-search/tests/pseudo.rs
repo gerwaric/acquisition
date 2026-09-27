@@ -210,7 +210,7 @@ fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_lacked() {
     assert_eq!(why["unread"], "the total: no definition for the realm");
     assert_eq!(
         why["problem"],
-        "no totals table for realm poe2 (totals v3 covers pc, xbox, sony)"
+        "no totals table for realm poe2 (totals v4 covers pc, xbox, sony)"
     );
     assert_eq!(
         why["hint"],
@@ -645,18 +645,18 @@ fn c92_c95_a_computed_value_sorts_and_sums() {
 fn c97_describe_lists_every_computed_value_with_its_definition() {
     let whole = serde_json::to_value(describe(&[]).unwrap()).unwrap();
     let computed = whole["computed"].as_array().unwrap();
-    assert_eq!(computed.len(), 62);
+    assert_eq!(computed.len(), 63);
     assert_eq!(computed[0]["name"], "pseudo.total_cold_res");
     assert_eq!(computed[35]["name"], "pseudo.total_life");
     assert_eq!(computed[36]["name"], "pseudo.total_mana");
-    assert_eq!(computed[59]["name"], "pseudo.increased_mana_regen");
-    assert_eq!(computed[60]["name"], "pseudo.dps");
-    assert_eq!(computed[61]["kind"], "derived");
+    assert_eq!(computed[60]["name"], "pseudo.increased_mana_regen");
+    assert_eq!(computed[61]["name"], "pseudo.dps");
+    assert_eq!(computed[62]["kind"], "derived");
     assert!(
         whole["totals"]
             .as_str()
             .unwrap()
-            .starts_with("totals v3, 60 totals over pc, xbox, sony: the trade site’s pseudo stats"),
+            .starts_with("totals v4, 61 totals over pc, xbox, sony: the trade site’s pseudo stats"),
         "{}",
         whole["totals"]
     );
@@ -678,7 +678,7 @@ fn c97_describe_lists_every_computed_value_with_its_definition() {
         ])
     );
     let block = serde_json::to_value(describe(&["pseudo".to_string()]).unwrap()).unwrap();
-    assert_eq!(block["computed"].as_array().unwrap().len(), 62);
+    assert_eq!(block["computed"].as_array().unwrap().len(), 63);
     // what the reference names and no step builds is refused by that name
     let e = describe(&["defence_pct".to_string()]).unwrap_err();
     assert!(
@@ -955,7 +955,7 @@ fn v6_a_total_counts_what_the_sites_pseudo_counts() {
     );
 }
 
-/// Thirteen items whose totals the trade site answered at step 9c2
+/// Fourteen items whose totals the trade site answered at step 9c2
 /// (`search/pseudo-stats/data/table-changes.csv`, rounds five and six).
 ///
 /// `Other` (o1): `anvil`, 10 reduced attack, cast and movement speed —
@@ -970,7 +970,8 @@ fn v6_a_total_counts_what_the_sites_pseudo_counts() {
 /// elemental damage with attack skills; `torch`, 20 burning and 15 fire
 /// damage; `belt`, 0.4 of each leech, 1.5% of life regenerated, 30 global
 /// critical strike chance and 25 multiplier; `crown`, 20 reduced mana
-/// regeneration; `greaves`, an eldritch implicit's 9 movement speed.
+/// regeneration; `greaves`, an eldritch implicit's 9 movement speed;
+/// `plate`, 19.2 life regenerated a second and an implicit 3.4 — 22.6.
 fn other_stash() -> Store {
     let mut s = store();
     list_tabs(&mut s, "pc", "Standard", json!([tab("o1", "Other")]), 10);
@@ -1066,6 +1067,14 @@ fn other_stash() -> Store {
                 "greaves",
                 "Crusader Boots",
                 json!({ "implicitMods": ["While a Unique Enemy is in your Presence, 9% increased Movement Speed"] }),
+            ),
+            rare(
+                "plate",
+                "Astral Plate",
+                json!({
+                    "implicitMods": ["Regenerate 3.4 Life per second"],
+                    "explicitMods": ["Regenerate 19.2 Life per second"],
+                }),
             ),
         ],
         20,
@@ -1164,4 +1173,10 @@ fn v6_the_other_totals_count_what_the_sites_pseudo_counts() {
     assert_eq!(found("pseudo.global_crit_multi=25"), ["belt"]);
     // a row's eldritch forms are the row, of these totals as of 9c's
     assert_eq!(found("pseudo.increased_movement_speed=9"), ["greaves"]);
+    // life regenerated is what the lines' text says, and no more: the site
+    // rounds what the text cuts (g037; owner, 2026-09-27: "yes, let's go
+    // with what we can observe directly from the text we have.")
+    assert_eq!(found("pseudo.life_regen=22.6"), ["plate"]);
+    assert_eq!(found("has:pseudo.life_regen"), ["plate"]);
+    assert_eq!(found("has:pseudo.life_regen_pct"), ["belt"]);
 }

@@ -79,7 +79,10 @@ NOT_MIMICKED_MANA = (
 )
 # A limit the owner has ruled on: {total: his words, dated}. A total whose
 # limit is not here waits, and the table is written without it.
-LIMITS_RULED = {}
+LIMITS_RULED = {
+    "life_regen": "2026-09-27: \"yes, let's go with what we can observe directly from the text "
+                  "we have.\"",
+}
 
 
 def checks():

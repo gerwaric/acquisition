@@ -275,8 +275,8 @@ OTHER_CHANGES = {
         "cut": "0.1",
         "why": "g037: ten items of ten carry the line and nothing else; eight show its number and "
                "two a tenth more (1.2 over `1.1`, 39.1 over `39`): the site rounds what the "
-               "line's text cuts, so a total read from the text is under the site's by less "
-               "than a tenth a line",
+               "line's text cuts, so a total read from the text is under the site's by a "
+               "tenth a line at most",
     },
     "life_regen_pct": {
         "add": [("Regenerate #% of Life per second", "1")],

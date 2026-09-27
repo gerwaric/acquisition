@@ -4,7 +4,7 @@ reviewed sum over an item's lines, defined once — regenerated from the C++
 app's pseudomod tables and from what the trade site itself answered into the
 reviewed file the search crate ships.
 
-    python3 tools/totals-table.py            # writes crates/acquisition-search/reference/totals-v3.toml
+    python3 tools/totals-table.py            # writes crates/acquisition-search/reference/totals-v4.toml
     python3 tools/totals-table.py --check    # exits 1 when the file on disk differs from what the sources give
 
 Inputs (read-only, committed):
@@ -51,7 +51,10 @@ Rules, each a reading of the source and never a judgment (C106):
   8. A change `no sum` writes nothing: a pseudo that is a reading of other
      totals is no total, and what it is built as is not this table's. A
      total with a change `limit` the owner has not ruled on waits, counted
-     in the header.
+     in the header; one he has ruled on is written with its `limit`, which
+     its definition prints: how far under the site's a line's text may be
+     (owner, 2026-09-27: "yes, let's go with what we can observe directly
+     from the text we have.").
   7. What waits, counted in the header and not built: a change `twin`, a row
      that means one of two stats displaying one text, which a table row
      cannot say until it can name what the item is; and with it every total
@@ -75,8 +78,8 @@ ROOT = os.path.dirname(HERE)
 SOURCE = os.path.join(ROOT, "search", "cpp-search", "data", "pseudomods.toml")
 CLASSES = os.path.join(ROOT, "search", "pseudo-stats", "data", "pseudo-classes.csv")
 CHANGES = os.path.join(ROOT, "search", "pseudo-stats", "data", "table-changes.csv")
-OUT = os.path.join(ROOT, "crates", "acquisition-search", "reference", "totals-v3.toml")
-VERSION = 3
+OUT = os.path.join(ROOT, "crates", "acquisition-search", "reference", "totals-v4.toml")
+VERSION = 4
 REALMS = ["pc", "xbox", "sony"]  # the C++ app searched PoE1; poe2 has no table yet
 PIN = "master@946a4f51"
 
@@ -168,6 +171,11 @@ def apply(totals, changes):
             total = (c["total"], c["site_id"].removeprefix("pseudo."), c["site_text"], [])
             totals.append(total)
             by_name[c["total"]] = total
+    limits = {c["total"]: c["weight"] for c in changes
+              if c["change"] == "limit" and c["twin_or_reads"] == "ruled"}
+    for name in limits:
+        if name not in by_name:
+            sys.exit(f"{name!r}: a limit on a total the table does not write")
     for c in changes:
         if c["total"] in waits["ranged"]:
             waits["twin"] += c["change"] == "twin"
@@ -187,7 +195,7 @@ def apply(totals, changes):
             sys.exit(f"{c['total']!r}: {c['template']!r} is a row already")
         rows.append([c["template"], weight_of(c["weight"])])
         added += 1
-    return added, waits
+    return added, waits, limits
 
 
 def toml_str(s):
@@ -215,7 +223,7 @@ def main():
             sys.exit(f"{text!r}: the site names no pseudo stat for it in {CLASSES}")
         totals.append((name_of(text), site, text, rows))
     listed = sum(len(t[3]) for t in totals)
-    added, waits = apply(totals, read_changes())
+    added, waits, limits = apply(totals, read_changes())
     names = [t[0] for t in totals]
     if len(set(names)) != len(names):
         sys.exit("two tables got one name")
@@ -225,7 +233,7 @@ def main():
     below = sum(1 for t in totals for r in t[3] if r[1] < 0)
 
     out = [
-        "# The totals table — v3 (C94, C68; decisions/search.md), item search steps 7, 9c and 9c2.",
+        "# The totals table — v4 (C94, C68; decisions/search.md), item search steps 7, 9c and 9c2.",
         "#",
         "# Reference data: reviewed, committed, shipped inside the binary",
         "# (`include_str!` in `src/totals.rs`), read-only, never in a store file,",
@@ -253,7 +261,8 @@ def main():
         f"# for a row that can name what the item is: {len(waits['ranged'])} totals of the ranged",
         f"# family, {waits['twin']} of whose rows mean one of two stats displaying one text.",
         f"# Not written: {len(waits['no sum'])} pseudos that are a reading of other totals and no sum of",
-        f"# lines, and {len(waits['limit'])} whose limit the owner has not ruled on.",
+        f"# lines, and {len(waits['limit'])} whose limit the owner has not ruled on. Written with a",
+        f"# limit its definition prints: {len(limits)}.",
         "",
         f"version = {VERSION}",
         f"realms = [{', '.join(toml_str(r) for r in REALMS)}]",
@@ -266,6 +275,10 @@ def main():
         out.append(f"name = {toml_str(name)}")
         out.append(f"site = {toml_str(site)}")
         out.append(f"text = {toml_str(text)}")
+        if name in limits:
+            out.append("limit = " + toml_str(
+                "read from the item's text, which cuts what the trade site rounds: under the "
+                f"site's by {limits[name]} a line at most"))
         out.append("rows = [")
         for template, weight in rows:
             out.append(f'  {{ template = {toml_str(template)}, slot = "arg1", weight = {weight} }},')

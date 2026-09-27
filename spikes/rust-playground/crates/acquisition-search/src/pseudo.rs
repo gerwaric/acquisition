@@ -615,7 +615,7 @@ mod tests {
 
     fn table(totals: &str) -> &'static TotalsTable {
         let text = format!(
-            "version = 3\nrealms = [\"pc\"]\nsource = \"s\"\ngenerated_by = \"t\"\n{totals}"
+            "version = 4\nrealms = [\"pc\"]\nsource = \"s\"\ngenerated_by = \"t\"\n{totals}"
         );
         Box::leak(Box::new(TotalsTable::parse(&text).unwrap()))
     }
@@ -669,7 +669,7 @@ mod tests {
         );
         assert_eq!(
             super::unread_of(named(t, "total_life"), &poe2)[0].problem,
-            "no totals table for realm poe2 (totals v3 covers pc)"
+            "no totals table for realm poe2 (totals v4 covers pc)"
         );
         // a contributor unread: a subtotal, marked incomplete
         let open = held(
