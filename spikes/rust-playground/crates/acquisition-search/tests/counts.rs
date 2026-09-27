@@ -1,4 +1,4 @@
-//! The counts view and the vocabulary (`search/BUILD-PLAN.md`, step 5;
+//! The counts view and the vocabulary (`SEARCH-SLICE.md`, step 5;
 //! C95, C97, C105), through the crate's boundary: a request in, an answer
 //! out, as JSON. Every count is worked by hand from the fixture below, and
 //! every route an answer prints is followed and compared, by id, with the

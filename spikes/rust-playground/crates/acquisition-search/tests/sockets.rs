@@ -1,4 +1,4 @@
-//! The sockets (`search/BUILD-PLAN.md`, step 8; C101, C93, C105), through
+//! The sockets (`SEARCH-SLICE.md`, step 8; C101, C93, C105), through
 //! the crate's boundary: the counts over the whole item and within one
 //! link group (S59), what an item lacks and what is left open at the
 //! socket's grain, every route followed by id, the counts view's buckets,

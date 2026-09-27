@@ -5,7 +5,8 @@ step met — the audits and their fixes, the measurements, the holes ruled
 and the builder's observations — is `SEARCH-SLICE.md`, the record; the
 measurements' tables are `search/MEASUREMENTS.md`, read by the block a
 step repeats; which steps are built is the record's ledger, never this
-file. What this file held
+file. A built step's row leaves this file at the step's close: what
+each was to close on is this file at `880d9387`. What this file held
 before the record was opened — every audit round, the step 4b brief, the
 first showing of the store's read — is this file at `2d25cb03`.
 
@@ -106,111 +107,30 @@ rule is for the moment before the code is written.
     first before writing one. *Held by:* §7; the CLI test that runs
     every command printed; the cross-checks.
 
-## Steps to the first seat
-
-| Step | Builds | Closes on |
-| --- | --- | --- |
-| 1 · the language | the `acquisition-search` crate (C89's edges in `tools/docs-check.sh` §5, each with a breaker; C47's lints); the tree and its JSON form; the parser over the whole query language; lowering; the canonical printer; every error the grammar defines, with its readings | the round-trip test; the corpus table; the holes table |
-| 2 · the derivation | a pure function, body and ingest columns in, the item out (C103): fields, displayed strings, lines as (kind, template, numbers) with slots and the ranged rule, and what could not be read, by collection | fixture tests; M2 against the census |
-| 3 · the store's read | C103's read, the revision, the coverage rows — **shown to the owner first** (the showing: this file at `2d25cb03`; the read as built: `corpus.rs`'s doc, C108) | store tests, `REFRESH-SLICE.md`'s findings table as the checklist; the one-snapshot test; M1; C103's second decision given its own entry (C108) |
-| 4 · the first surface | the binder (names, near names, closed sets); three-valued evaluation with witnesses (C93); occurrence binding, the sort scalar, the together count (C92); the answer (C100): query, scope, basis, terms, total, rows, the zero-total block, a route per term count; `--describe`; `--json`; the verbs `acq search` and `acq show <id>` (the item as the deriver sees it: fields, place, every line with its kind, template and numbers, what was unread; `--json` the same, structured; the stored body on request by a flag, which still works when deriving fails — the reference's `acq show`), their README tour lines, `CLI-REFERENCE.md` regenerated | the worked example reduced to what is built, hand-counted; the acceptance rows marked 4; the refusal walk; the route property; M3, M4 |
-| 4b · the properties | what four audits of step 4 found by generating, put in the gate as properties; then a group's meaning computed once, so that no second reading of it can disagree (its brief: this file at `2d25cb03`) — no new surface and no rule changed | the three properties green in the gate, each shown able to fail; the structural rule with its breaker; step 4's regression tests untouched and green; M3 again; one more outside audit, its yield reported beside 6, 5, 2, 3 |
-| 5 · counts and the vocabulary | `--count`, `--cross`, `--sum` (C95); `none` and `undecided` buckets with routes (C105); `--count line[:text,…]` (C97) | AQ1; C105's two invariants pinned on a one-value key; C95's sum over a fixture of three kinds — an item with the value, one lacking it (adds nothing, counted as lacking), one whose value is unread (the subtotal marked incomplete, never a total); the vocabulary's pasted term selects its row; M3 again; then the seat |
-
-**The reference was brought level with what was ruled here before step
-1** (2026-09-19, the owner approving the wording), since step 1's corpus
-is complete against that page and this file is deleted at the close. A
-hole ruled keeps its rule in `search/DESIGN.md` and one line in
-`SEARCH-SLICE.md`.
-
 ## The first seat — after step 9, an agent's with the owner in the loop
-
-After 5, not 4 (owner, 2026-09-19: "I'm ok delaying the seat for a good
-reason, especially if it's related to discovering the design and
-implementation"): the vocabulary is how a template is found without
-knowing it, it is the route to everything a `:` or `~` selector resolved
-to, and with `--sum` the seat exercises all six of the lines it revisits
-first. Then after 9, not 5 (owner, 2026-09-25, approving the builder's
-wording): steps 6 to 8 were built before the seat; 9 neither depends on
-the answer's shape nor changes it; 10 and 11 are shaped by what the
-seat shows, so they wait for it.
 
 The seat is an agent's, the owner in the loop (owner, 2026-09-25; P2):
 the owner will not type queries himself. He talks to an agent that
 drives `acq search` from a terminal on his real store, reacts to what
 comes back, and collects the agent's own feedback on the contract. The
-owner's own seat is the GUI's, on its own stream. The five blind seats
-at step 5 (the record, "Findings") are the prototype: an agent's
-feedback is cheap and repeatable, the owner's reaction needs him once
-per surface. `cargo build --workspace`, then `acq search`; it reads
-the store directly, as `acq tabs` does — no daemon is started or
-spoken to. If the store holds more than one realm every search names
+owner's own seat is the GUI's, on its own stream. An agent's feedback
+is cheap and repeatable, the owner's reaction needs him once per
+surface. If the store holds more than one realm every search names
 `--realm` (C96); an agent states it each time, so the default realm's
 trigger is the GUI's (`decisions/frontends.md`, "Parked").
-
-What the seat can ask:
-
-```
-acq search --realm pc '"# to maximum Life">=90' --sort 'line("# to maximum Life").arg1' --desc --limit 10
-acq search --realm pc 'rarity=rare class:ring line(template:resistance is:fractured)'
-acq search --realm pc 'name="Ashes of the Stars"'
-acq search --realm pc 'rarity=rare class:ring "+#% to Cold Resistance" -"+#% to Chaos Resistance"'
-acq search --realm pc 'line(template:explode) -is:corrupted tab:dump'
-acq search --realm pc 'line("Adds # to # Cold Damage" low>=15 high<=45)'
-acq search --realm pc '(rarity=rare class:ring) sum("# to maximum Life")>=90'
-acq search --realm pc 'undecided("# to maximum Life">=90)'
-acq search --realm all 'id:<a handle an answer printed>'
-acq show <an id an answer printed>
-acq search --realm pc 'rarity=rare class:ring' --count line:resist,life
-acq search --realm pc --count tab,league,rarity
-acq search --realm pc 'rarity=unique' --cross league,tab
-acq search --realm pc 'frame=currency' --count base --sum stack
-acq search --describe
-```
-
-Composition whole (`and or not - ( ) holds undecided`); phrases and
-`text:`; `name` and `base` with `:` `=` `~`; `rarity`, `frame`, `class`
-(step 6: the game's names, `--describe class`), `ilvl`, `reqlevel`,
-`is:`, `has:`; place (`league: tab: character: container:`); `id:`;
-the price (step 9: `has:priced`, `price.amount`, `price.currency`,
-`price.lot`); `line(…)` whole, the shorthand, `sum(…)`; `--sort --desc
---limit --json`; `--count`, `--cross`, `--sum`, and the vocabulary.
-
-A row shows the lines the query touched (C100), so an item's other
-lines are read through `acq show <id>`, or by naming them in the query;
-`--fields` comes later. What is bounded with no route yet, each printed
-as a count and the unbuilt construct's name (rule 5): rows
-past `--limit` (a larger `--limit` serves; `--next` is step 10); the
-coverage list (`acq tabs` and `acq store characters` exist today;
-`--view locations` is step 10).
-
-What it refuses by name: `pseudo.defence_pct` and a ranged total,
-`pseudo.<name>.<slot>` (no step: the plan's foot), `--fields`, `--next`,
-`--explain`, `--context`, `--view locations`, `--print-request`
-`--request` `--rebind`, `show --against` (10).
-
-It exercises all six of the lines the seat revisits first
-(`decisions/search.md`, "Standing"): C91's ambiguity error, C92's binder
-and sort scalar, C93's undecided route, C95's sum rule, C98's basis as
-printed, C104's text.
 
 Sat 2026-09-26 on the release build at `94a3d18c` (the record, the
 ledger row "the first seat"): ten faults, F1–F10, and ten verdicts,
 V1–V10, the record's "Holes ruled". The owner's order for what follows
 (2026-09-26, V10 and after): a fix session against the seat's hash,
 then the trade site's computed values as a research track, then
-percentile, category and step 10.
+percentile, category and step 10. Why the seat came after step 9, what
+it could ask and what it refused by name: this file at `880d9387`.
 
-## After step 5 — provisional, his to reorder; 10 and 11 wait for the seat
+## The steps left — provisional, his to reorder
 
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
-| 6 · class | the class table as reference data, its source chosen under C106's admission test (`item-facts/data/class-evidence.csv` is where the read starts); `class:`; the reason *base not in the class table* | 4 | built | OQ1's slot, OQ5; C105's test as worded (ten rare items by class) |
-| 7 · computed values | the totals table (C94) after the coverage trial; `pseudo.total_res`; a weight may be a fraction (the site's own `+94.5 total maximum Life` over `+90` life and `+9` Strength, `pseudo-stats/README.md`), and whether a total is ever rounded is shown to the owner first (gap 6); the sum-status table; then `pseudo.dps`, `pseudo.pdps` (C101) | 6 for the worked example | C94, C95; the contract detail, C94 and C101; the reference, *Values* and *A sum's status*; `counts.rs`, `eval.rs`, `exact.rs`; `search/pseudo-stats/README.md`, `cpp-search/data/pseudomods.toml`; gap 6 and E2 (the record, "Holes ruled"); the coverage-trial park | AQ2; the reference's worked example whole, every count as printed there |
-| 8 · sockets | `sockets`, `links`, `sockets.<colour>`, `linked(…)` (C101); undecoded shapes counted unread (S16) | 4 | C101; the contract detail, C101; `derive.rs`; S16, S58, S59; `item-facts/README.md`, the socket shapes | OQ3's socket reading |
-| 9 · price | the effective price joined read-only (C81, C100); the crate links `acquisition-plan`; the basis gains the intent revision; the reason *price unresolved* | 4 | C81 (`decisions/pricing.md`), C98, C100; `corpus.rs`, `answer.rs`; the planner's effective-price read | OQ6: the item found with the owner's own price; a valuation asked for is a stated limit (C102) |
-| 9b · the seat's fixes | F1–F10 as tests named for the fault, against the seat's hash, the 65 asks replayed (`runs/seat-2026-09-26/replay.sh`) and every diff read and explained in the commit; the class reading (V1 blighted maps past the API's prefix, V2 invitations by frame, F2 a term false under every candidate); the undecided display (V8); the tab type as a field (V10, the park fired); the examples teaching `class:ring` where they taught `base:ring` | 9 | the report (`runs/seat-2026-09-26/REPORT.md`, gitignored); `class.rs`, `eval.rs`, `answer.rs`, `bind.rs`; the contract detail, C93 and C106 | every F held by a test; the replay's diffs each explained; M3 at the fix's hash, the six spiking asks in the script (V9) |
-| 9c · the trade site's computed values | a research track (`.claude/skills/research-track/SKILL.md`): what each pseudo of the site counts — the ranged `adds # to # <type> damage [to attacks|spells]` family, `total_life`, T4's lines, Base Percentile's formula (V5) — settled by human-run trade searches under `SURFACES.md`; what cannot be mimicked (affix counts, the owner's caveat on V6) listed as out of reach. A second pass of `search/pseudo-stats/`: the candidates and the percentile from what is committed, the owner's sittings on composed links, the captures read | 9b | C94, C99, C102; `search/pseudo-stats/README.md`, `MANIFEST.md`; the trade-site rows in `SURFACES.md` | a committed brief; a row per pseudo with its evidence; the totals table's changes as rows, none applied without one; C106's admission test reworded for a definition observed; the record's rows (drafted: note 34 at `880d9387`) |
 | 9c2 · the site's other totals | the sum-like pseudos 9c left `unresolved` (mana, energy shield, movement speed, …), by its method: rows, the owner's sittings, each complete and sound (owner, 2026-09-26: "They should be present at launch.") | 9c | the track's `README.md`, `MANIFEST.md`; `tools/trade_rows.py` | a change a row in `data/table-changes.csv`; the table regenerated |
 | 9d · percentile and category | `pseudo.defence_pct` as the site's Base Percentile (V5), by the site's own rule, pinned at 9c; the ranged family's 21 totals, whose rows mean one of two stats a category tells apart — a weapon's own line or not (owner, 2026-09-26: "agree with 9d"); category as a grouping above class (V1: the beasts are its first case), from the trade site's categories and/or RePoE under C106's admission test (owner, 2026-09-26), computed from class and reviewed base rules in one place (rule 10), never a second classifier | 9c | C101, C106; `class.rs`, `totals.rs`; the grouping park's entry | OQ5 by category; a beast found by its category; `Adds # to # Fire Damage` on a weapon counted toward attacks alone |
 | 10 · continuing and exchanging | in the order the seat wanted them (the sitter, 2026-09-26): `--explain` and `show --against` first — a zero answer was where they were missed; `--next` and `--request` for the MCP, an agent pages and replays; `--view locations`, `--fields`, `--rebind` and `show --basis` had no consumer at the seat and wait for one. `--next` refused across a changed basis; `--membership all` (the reference, *Membership*): the read hands removed items over with `removed_at`, every such row marked, the scope block counting each, an `id:` term that matches nothing live naming the removed id and its route, `acq show` on a removed item; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | C98, C100, C104, C108; the reference, *Membership*, *Explain*, *Outside the first surface*; `answer.rs`, `corpus.rs`; gap 3 (the record) | AQ3 whole; AQ4 across a refresh that removed the item; M5 |
