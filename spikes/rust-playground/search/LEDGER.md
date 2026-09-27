@@ -67,7 +67,8 @@ ruled; none is unruled today. The rule is in the reference or the
 registry and the mechanism in a module doc; the evidence each was
 decided on — the census numbers, the builder's recommendation, the
 owner's words verbatim — is the record at `aeeba6d3` and the ruling
-commit's message. One line each.
+commit's message. One line each, with the owner's words where they
+state the rule or its reason, and never a bare assent.
 
 | Step | Hole, as ruled | The rule is in | Ruled at |
 | --- | --- | --- | --- |
