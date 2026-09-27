@@ -465,7 +465,7 @@ fn oq7_one_line_across_every_tab_and_character() {
 
 /// AQ2 as worded: the old query parenthesised and one new term,
 /// `pseudo.total_res>=60`. The fixture holds OQ1 matches under 60 —
-/// `ring_frac` at 35, `ring_str` at an honest zero — and the test fails
+/// `ring_frac` at 35, `ring_str` lacking the total — and the test fails
 /// unless they leave. `ring_res` is 12 on a two-resistance line, which the
 /// total counts twice (C94's weight), 40 and 30.
 #[test]
@@ -485,12 +485,17 @@ fn aq2_a_refinement_is_the_old_query_parenthesised_and_a_new_term() {
     );
     // the lines the total counted are what the row shows of it (C100)
     assert_eq!(total["shows"].as_array().unwrap().len(), 4);
-    // a total of nothing is zero: matched or failed, never lacked (C94, C95)
-    // — every other pc item fails at zero, or at ring_frac's 35
+    // a total of nothing is lacked (C94 as ruled 2026-09-26): ring_frac
+    // fails at 35 and ring_magic at 30, and the nine other pc items carry
+    // no resistance line
     let term = a["terms"].as_array().unwrap().last().unwrap().clone();
     assert_eq!(
         (&term["failed"]["count"], &term["lacked"]["count"]),
-        (&json!(11), &json!(0))
+        (&json!(2), &json!(9))
+    );
+    assert_eq!(
+        ids(&asked(&s, "has:pseudo.total_res pseudo.total_res<60")),
+        ["ring_frac", "ring_magic"]
     );
     // the mechanism, as step 4 built it: the same refinement as a `sum`
     let by_sum = asked(

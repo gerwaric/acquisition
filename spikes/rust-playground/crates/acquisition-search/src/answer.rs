@@ -1002,15 +1002,9 @@ fn routes(term: &Term) -> Routes {
                 None,
             )
         }
-        // a derived field lacked is `-has:` of it (T2), a total never lacks
-        (
-            Atom::Pseudo {
-                named: crate::pseudo::Named::Derived(_),
-                name,
-                ..
-            },
-            _,
-        ) => {
+        // a computed value lacked is `-has:` of it: a derived field (T2),
+        // a total of nothing (C94)
+        (Atom::Pseudo { name, .. }, _) => {
             let has = Node::Has(name.clone());
             (
                 Some(Node::All(vec![has.clone(), not(node.clone())])),

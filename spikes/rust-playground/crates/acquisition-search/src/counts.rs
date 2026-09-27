@@ -77,8 +77,8 @@
 //!   narrowing matches — none under `line` alone (T5, `SEARCH-SLICE.md`,
 //!   "Holes ruled"; the reference: "marked computed"; `pseudo::matching`),
 //!   each with the count of the
-//!   matches carrying it — established and not zero, which the help says
-//!   — its route, and the sum beside it; ranked by that count, then by
+//!   matches carrying it — its value established, as `has:` of it asks —
+//!   its route, and the sum beside it; ranked by that count, then by
 //!   name, and cut by the same limit, the rest counted apart from the
 //!   templates (`computed`, `computed_left_out`), since a computed value
 //!   is no value the items carry (outside audit, 2026-09-24, twice).

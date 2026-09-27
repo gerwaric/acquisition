@@ -291,9 +291,9 @@ VALUES
   pseudo.cold_damage.avg>=30     a ranged computed value takes a slot word last
                                  Names are words of letters, digits and underscores; a hyphen is
                                  never part of a name, so `-` only ever means not, or a minus sign.
-                                 has: applies to a derived field (-has:pseudo.dps: a ring has no
-                                 dps), never to a total — an error offering pseudo.total_res>0
-                                 and undecided(pseudo.total_res) (T2).
+                                 has: asks a computed value's presence: -has:pseudo.dps, a ring
+                                 has no dps (T2); -has:pseudo.total_res, an item whose lines sum
+                                 to nothing has no total, as the trade site shows none (C94).
   sockets  links  sockets.red    counts over the socket collection:  sockets>=5  links=6  sockets.red>=2
                                  the colours are the four words; an abyssal socket (GGG's A) or a
                                  resonator's (DV) counts in sockets, under no colour, and is asked for
@@ -309,16 +309,20 @@ VALUES
   what was readable is shown, marked incomplete, as an incomplete sum is.
 ```
 
-**A sum's status.** One rule for computed totals and item sums:
+**A sum's status.** One rule for computed totals and item sums, but
+what nothing sums to:
 
 | Situation | Value | A comparison | `undecided(…)` |
 | --- | --- | --- | --- |
-| contributors complete, including none | the number; zero when none | ordinary — matched or failed | false |
+| contributors complete, and something | the number | ordinary — matched or failed | false |
+| contributors complete, and nothing — none, or lines that cancel | an item's `sum( … )`: zero. A total: lacked | a sum: ordinary. A total: lacked, false | false |
 | a required contribution cannot be established | incomplete subtotal | undecided | true |
 | the total has no definition for this realm | unavailable, with the reason | undecided | true |
 
-Absent is still false and never zero for a *line or property* the item
-lacks (C93); a *sum* of nothing is an honest zero.
+Absent is false and never zero for a *line or property* the item lacks
+(C93), and for a *total* of nothing, which the trade site shows no
+pseudo for (owner, 2026-09-26: "Yes, let's make it absent to match the
+site"); an item's own `sum( … )` of nothing is an honest zero.
 
 **The owner's words on the query** (2026-09-19, verbatim but for
 spelling; whole, with the
@@ -336,9 +340,10 @@ reasoning, in `search/search-forms/11-owner-amendments.md`):
   have meaning elsewhere." With it, the language is shown to be formally
   constructible: a parser and printer with a round-trip test (C104) is
   the first thing built.
-- No `has:` on a total, which had read as its opposite on an item with
-  no resistances at all: "agree, no has:pseudo"; a derived field takes
-  it (T2, 2026-09-24).
+- `has:` on a derived field (T2, 2026-09-24: "A ring has no dps"), and
+  on a total since a total of nothing is lacked (2026-09-26, above). It
+  was refused on a total while every item had one: "agree, no
+  has:pseudo".
 - `~`: "Using ~ for regex makes sense". Two notes for the help: patterns
   are for words and comparisons for numbers; a `sum` over
   pattern-selected lines is the user's arithmetic, never a reviewed

@@ -34,8 +34,8 @@
 //!   size). A flag or a source GGG adds is derived and shown the day it
 //!   appears and cannot be asked for until its list gains it. A name the
 //!   language knows is known in any case, a computed value's too (F10),
-//!   and a computed value is near a misspelt one — behind `has:` only a
-//!   derived field, since `has:` on a total is refused (T2).
+//!   and a computed value is near a misspelt one, behind `has:` as
+//!   anywhere.
 //! - **`reqlevel` is a number** the deriver reads from the `Level`
 //!   requirement (the build plan, step 6): `reqlevel=..30`, `-has:reqlevel`.
 //! - **Atomic terms are numbered by path** — `0`, `1`, `3.1` — as the
@@ -585,7 +585,8 @@ pub(crate) enum Atom {
     },
     Id(String),
     Has(Thing),
-    /// `has:` on a derived field (T2); the term's node carries the name.
+    /// `has:` on a computed value, a derived field's presence (T2) or a
+    /// total's (C94); the term's node carries the name.
     HasComputed(crate::pseudo::Named),
     Is(&'static str),
     Lines(Group),
@@ -988,38 +989,26 @@ impl Binder {
                 test(def, *op, value)
             }
             Node::Has(name) if tree::is_computed(name) => {
-                // a derived field's absence is a property's, which `has:`
-                // asks; a total's is never absence (owner, 2026-09-24, T2:
-                // "has: applies to a derived field, never to a total. A
-                // ring has no dps; every item has a total.")
+                // a computed value's absence is known absence, which
+                // `has:` asks: a derived field's is a property's (T2: "A
+                // ring has no dps"), a total's a sum of nothing (C94)
                 let short = name.get("pseudo.".len()..).unwrap_or_default();
                 let (named, _) = bind_pseudo(short, None).map_err(|e| {
-                    // a near name is offered as it is asked here (the review
-                    // of 9b): `has:` on a derived field, a comparison on a
-                    // total, which `has:` never takes (T2)
+                    // a near name is offered as it is asked here (the
+                    // review of 9b)
                     if e.kind != ErrorKind::UnknownName {
                         return e;
                     }
-                    let derived: Vec<&str> = crate::pseudo::derived_names().collect();
                     let readings: Vec<String> = near(short, crate::pseudo::names())
                         .into_iter()
-                        .map(|n| {
-                            if derived.contains(&n) {
-                                format!("has:pseudo.{n}")
-                            } else {
-                                format!("pseudo.{n}>0")
-                            }
-                        })
+                        .map(|n| format!("has:pseudo.{n}"))
                         .collect();
                     e.with_readings(readings)
                 })?;
-                match named {
-                    crate::pseudo::Named::Derived(_) => Ok(Atom::HasComputed(named)),
-                    crate::pseudo::Named::Total { .. } => Err(tree::has_on_computed(name)),
-                }
+                Ok(Atom::HasComputed(named))
             }
             Node::Has(name) => {
-                let def = known_field_among(name, Computed::Derived, |near| format!("has:{near}"))?;
+                let def = known_field(name, |near| format!("has:{near}"))?;
                 match def.thing {
                     Thing::Text | Thing::Id => Err(LanguageError::new(
                         ErrorKind::OperatorMismatch,
@@ -1090,25 +1079,8 @@ impl Binder {
     }
 }
 
-/// Which computed values a near-name suggestion may offer beside the
-/// fields: every one, or the derived fields alone — `has:` on a total is
-/// an error the same build prints (T2), never a reading (rule 5).
-#[derive(Clone, Copy)]
-enum Computed {
-    All,
-    Derived,
-}
-
 fn known_field(
     name: &str,
-    reading: impl Fn(&str) -> String,
-) -> Result<&'static FieldDef, LanguageError> {
-    known_field_among(name, Computed::All, reading)
-}
-
-fn known_field_among(
-    name: &str,
-    computed: Computed,
     reading: impl Fn(&str) -> String,
 ) -> Result<&'static FieldDef, LanguageError> {
     if let Some(field) = field(name) {
@@ -1131,13 +1103,10 @@ fn known_field_among(
     let names: Vec<&'static str> = FIELDS.iter().map(|f| f.name).collect();
     // a computed value is a name the language knows too (F10): near it,
     // offered as `pseudo.<name>`, and never listed among the fields
-    let computed: Vec<String> = match computed {
-        Computed::All => crate::pseudo::names().to_vec(),
-        Computed::Derived => crate::pseudo::derived_names().collect(),
-    }
-    .into_iter()
-    .map(|n| format!("pseudo.{n}"))
-    .collect();
+    let computed: Vec<String> = crate::pseudo::names()
+        .iter()
+        .map(|n| format!("pseudo.{n}"))
+        .collect();
     let among: Vec<&str> = names
         .iter()
         .copied()

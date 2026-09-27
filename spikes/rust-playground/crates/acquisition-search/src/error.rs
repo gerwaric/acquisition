@@ -27,8 +27,6 @@ pub enum ErrorKind {
     SlotUnknown,
     /// A slot word outside a line's group: `"T" low>=15 high<=45`.
     SlotOutsideGroup,
-    /// `has:` on a computed value.
-    HasOnComputed,
     /// `realm:` — the realm is the scope, never a term (C96).
     RealmIsScope,
     /// `word(` that is no call of the language: `mod(`, `stat(`.

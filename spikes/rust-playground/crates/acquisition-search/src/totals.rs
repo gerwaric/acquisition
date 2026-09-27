@@ -19,8 +19,15 @@
 //!   20 and weight 3 contributes 60 to `pseudo.total_res`; a row without a
 //!   slot contributes its weight per occurrence, so weight 1 counts them.
 //!   A readable line absent from every row is not an unknown contributor:
-//!   the total answers its declared definition. A total of nothing is an
-//!   honest zero (a sum, never a lacked line). A total whose rows are
+//!   the total answers its declared definition. A total of nothing is
+//!   lacked — no line a row names on the item, or lines that cancel, `+21
+//!   to Strength` beside `-21` — as the trade site shows no pseudo for
+//!   either: known absence, false under a comparison and never zero
+//!   (C93), asked by `has:` (owner, 2026-09-26: "Yes, let's make it absent
+//!   to match the site"; of both cases alike: "A". It takes back "a total
+//!   of nothing is an honest zero", as this entry read until then). A
+//!   `sum( … )` of the same lines is the user's arithmetic and stays a
+//!   number, zero of nothing (C95). A total whose rows are
 //!   ranged lines sums low with low and high with high and is a ranged
 //!   value taking `low`, `high` and `avg`. A contributor the search could
 //!   not read — a source a row admits unread, an occurrence a row names

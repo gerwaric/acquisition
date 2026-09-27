@@ -136,15 +136,19 @@ fn shows<'a>(a: &'a Value, id: &str, path: &str) -> &'a Value {
 
 /// C94: a total is its declared definition, exact; complete, an incomplete
 /// subtotal, or unavailable in a realm the table does not cover — each
-/// with its route and its reason — and a total of nothing is an honest
-/// zero, never lacked.
+/// with its route and its reason — and a total of nothing is lacked, as
+/// the trade site shows no pseudo where an item's lines sum to nothing
+/// (owner, 2026-09-26: "Yes, let's make it absent to match the site"; of
+/// an item with no such line at all as of one whose lines cancel: "A").
+/// `has:` asks a total's presence as it asks a derived field's.
 #[test]
-fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_zero() {
+fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_lacked() {
     let s = stash();
     let a = asked(&s, "pc", "pseudo.total_res>=60");
     let term = &a["terms"][0];
-    // ring_a 124; ring_c, sword, wand and odd 0; ring_b a subtotal of 30
-    assert_eq!(counts(term), [1, 4, 0, 1]);
+    // ring_a 124; ring_c, sword, wand and odd carry no resistance line and
+    // lack it; ring_b a subtotal of 30
+    assert_eq!(counts(term), [1, 0, 4, 1]);
     assert_eq!(ids(&a), ["ring_a"]);
     assert_eq!(
         shows(&a, "ring_a", "0")[0],
@@ -167,10 +171,18 @@ fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_zero() {
         ]
     );
     assert_eq!(
-        follow(&s, "pc", &term["failed"]),
-        ["odd", "ring_c", "sword", "wand"]
+        follow(&s, "pc", &term["lacked"]),
+        ["odd", "ring_c", "sword", "wand"],
+        "a total lacked is routed by `-has:` of it"
     );
     assert_eq!(follow(&s, "pc", &term["undecided"]), ["ring_b"]);
+    assert_eq!(
+        ids(&asked(&s, "pc", "-has:pseudo.total_res")),
+        ["odd", "ring_c", "sword", "wand"]
+    );
+    let has = asked(&s, "pc", "has:pseudo.total_res");
+    assert_eq!(counts(&has["terms"][0]), [1, 0, 4, 1]);
+    assert_eq!(ids(&has), ["ring_a"]);
     let why = &a["total"]["undecided_reasons"][0];
     assert_eq!(why["example"]["id"], "ring_b");
     assert_eq!(why["unread"], "implicit lines");
@@ -179,10 +191,15 @@ fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_zero() {
         ids(&asked(&s, "pc", "undecided(pseudo.total_res)")),
         ["ring_b"]
     );
-    assert_eq!(asked(&s, "pc", "pseudo.total_res=0")["total"]["matched"], 4);
+    // no item has a total of 0: a comparison on a total it lacks is false
+    assert_eq!(asked(&s, "pc", "pseudo.total_res=0")["total"]["matched"], 0);
+    assert_eq!(
+        asked(&s, "pc", "pseudo.total_res<60")["total"]["matched"],
+        0
+    );
     assert_eq!(
         counts(&asked(&s, "pc", "pseudo.total_fire_res=72")["terms"][0]),
-        [1, 4, 0, 1]
+        [1, 0, 4, 1]
     );
 
     // no definition for the realm: never zero, undecided with that reason
@@ -353,7 +370,7 @@ fn audit_the_vocabulary_lists_the_computed_values_a_narrowing_matches() {
         .map(|b| (b["value"].as_str().unwrap(), b["count"].as_u64().unwrap()))
         .collect();
     // the totals whose definition names a fire-resistance line — ring_a
-    // carries each, ring_b's subtotal is incomplete, the rest are zero —
+    // carries each, ring_b's subtotal is incomplete, the rest lack it —
     // ranked by count, then by name
     assert_eq!(
         computed,
@@ -369,7 +386,7 @@ fn audit_the_vocabulary_lists_the_computed_values_a_narrowing_matches() {
         .iter()
         .find(|b| b["value"] == "pseudo.total_res")
         .unwrap();
-    assert_eq!(row["term"], "pseudo.total_res>0 or pseudo.total_res<0");
+    assert_eq!(row["term"], "has:pseudo.total_res");
     // the count is flattened into the row, as every bucket's is
     assert_eq!(follow(&s, "pc", row), ["ring_a"]);
     // a template row is still a template row, and the values counted are
@@ -543,18 +560,16 @@ fn c92_c95_a_computed_value_sorts_and_sums() {
         .map(|r| (r["id"].as_str().unwrap().to_string(), scalar(&r["sort"])))
         .collect();
     assert_eq!(rows[0], ("ring_a".to_string(), json!({ "value": 124 })));
-    assert_eq!(
-        rows[5],
-        (
-            "ring_b".to_string(),
-            json!({ "value": 30, "status": "incomplete" })
-        )
-    );
-    assert!(
-        rows[1..5]
-            .iter()
-            .all(|(_, sort)| *sort == json!({ "value": 0 }))
-    );
+    // then what is not a value, as a derived field's: ring_b with what
+    // was readable, and the four that lack the total
+    assert_eq!(rows.len(), 6);
+    for (id, sort) in &rows[1..] {
+        if id == "ring_b" {
+            assert_eq!(*sort, json!({ "value": 30, "status": "incomplete" }));
+        } else {
+            assert_eq!(sort["status"], "no satisfying occurrence", "{id}");
+        }
+    }
 
     let a = view(
         &s,
@@ -585,10 +600,10 @@ fn c92_c95_a_computed_value_sorts_and_sums() {
         json!({ "counts": { "keys": ["rarity"], "sum": "pseudo.total_res" } }),
     )
     .unwrap();
-    // 124 and ring_b's readable 30; the rest zero
+    // 124 and ring_b's readable 30; the four others lack it
     assert_eq!(
         a["view"]["counts"]["sum"],
-        json!({ "name": "pseudo.total_res", "value": 154, "lacking": 0, "incomplete": true, "unread": 1 })
+        json!({ "name": "pseudo.total_res", "value": 154, "lacking": 4, "incomplete": true, "unread": 1 })
     );
     let a = view(
         &s,
@@ -654,7 +669,11 @@ fn c97_describe_lists_every_computed_value_with_its_definition() {
     assert!(what.contains("3 × arg1 of line(\"#% to all Elemental Resistances\")"));
     assert_eq!(
         one["computed"][0]["examples"],
-        json!(["pseudo.total_res>=60", "undecided(pseudo.total_res)"])
+        json!([
+            "pseudo.total_res>=60",
+            "-has:pseudo.total_res",
+            "undecided(pseudo.total_res)"
+        ])
     );
     let block = serde_json::to_value(describe(&["pseudo".to_string()]).unwrap()).unwrap();
     assert_eq!(block["computed"].as_array().unwrap().len(), 38);
@@ -666,11 +685,11 @@ fn c97_describe_lists_every_computed_value_with_its_definition() {
     );
 }
 
-/// T2 (owner, 2026-09-24: "has: applies to a derived field, never to a
-/// total. A ring has no dps; every item has a total."): `has:pseudo.dps`
-/// matches the items whose properties establish it, lacks on those with
-/// none, is undecided where one could not be read, and every count is
-/// routed; `-has:` returns the lackers.
+/// T2 (owner, 2026-09-24: "A ring has no dps"): `has:pseudo.dps` matches
+/// the items whose properties establish it, lacks on those with none, is
+/// undecided where one could not be read, and every count is routed;
+/// `-has:` returns the lackers. A total takes `has:` the same way since
+/// it can be lacked (C94 as ruled 2026-09-26; the test above).
 #[test]
 fn t2_has_on_a_derived_field_is_a_property_s_presence() {
     let s = stash();
@@ -699,11 +718,10 @@ fn a_computed_value_that_cannot_be_is_an_authoring_error() {
     let corpus = load(&s, Some("pc"));
     for (text, kind, says) in [
         ("pseudo.total_rse>=60", "unknown_name", "pseudo.total_res"),
-        // T2: every item has a total; the readings ask what was meant
         (
+            "has:pseudo.total_rse",
+            "unknown_name",
             "has:pseudo.total_res",
-            "has_on_computed",
-            "undecided(pseudo.total_res)",
         ),
         (
             "has:pseudo.nothing_here",
@@ -762,7 +780,7 @@ fn a_computed_value_that_cannot_be_is_an_authoring_error() {
     }
 }
 
-/// Eight items whose totals the trade site's own answers decide (the
+/// Nine items whose totals the trade site's own answers decide (the
 /// build plan, step 9c; `search/pseudo-stats/data/table-changes.csv`).
 ///
 /// `Site` (s1): `boots`, 30 fire and an eldritch implicit's 13 — fire 43;
@@ -773,7 +791,8 @@ fn a_computed_value_that_cannot_be_is_an_authoring_error() {
 /// Attributes and 10 Strength and Intelligence — life 8, Strength 16;
 /// `gloves`, an eldritch implicit's 13 attack speed; `taken`, the unique
 /// whose Strength and Intelligence the site leaves out — life 18.5;
-/// `blade`, 1 to the level of socketed skill gems.
+/// `blade`, 1 to the level of socketed skill gems; `cancel`, 21 Strength
+/// and -21.
 fn site_stash() -> Store {
     let mut s = store();
     list_tabs(&mut s, "pc", "Standard", json!([tab("s1", "Site")]), 10);
@@ -834,10 +853,56 @@ fn site_stash() -> Store {
                 "Etched Greatsword",
                 json!({ "explicitMods": ["+1 to Level of Socketed Skill Gems"] }),
             ),
+            rare(
+                "cancel",
+                "Amber Amulet",
+                json!({
+                    "implicitMods": ["+21 to Strength"],
+                    "explicitMods": ["-21 to Strength"],
+                }),
+            ),
         ],
         20,
     );
     s
+}
+
+/// C94, as the owner ruled it 2026-09-26: a total whose lines cancel is
+/// lacked as one with no line is — the trade site shows no pseudo for
+/// either (c3, d01: `+21 to Strength` beside `-21 to Strength`).
+#[test]
+fn c94_a_total_whose_lines_cancel_is_lacked() {
+    let s = site_stash();
+    // `cancel` carries two Strength lines, 21 and -21: every Strength
+    // total's rows name them, and each sums to nothing
+    for total in ["pseudo.total_str", "pseudo.total_life"] {
+        let a = asked(&s, "pc", &format!("{total}<=0"));
+        assert_eq!(a["total"]["matched"], 0, "{total}");
+        let lackers = follow(&s, "pc", &a["terms"][0]["lacked"]);
+        assert!(
+            lackers.contains(&"cancel".to_string()),
+            "{total}: {lackers:?}"
+        );
+        assert!(
+            !ids(&asked(&s, "pc", &format!("has:{total}"))).contains(&"cancel".to_string()),
+            "{total}"
+        );
+    }
+    // visor's 11, jewel's 16 and taken's 37 are the Strength totals there are
+    assert_eq!(
+        ids(&asked(&s, "pc", "has:pseudo.total_str")),
+        ["jewel", "taken", "visor"]
+    );
+    // the lines are on the item all the same, and a sum of them is the
+    // user's arithmetic: zero
+    assert_eq!(
+        ids(&asked(
+            &s,
+            "pc",
+            "sum(\"# to Strength\")=0 \"# to Strength\""
+        )),
+        ["cancel"]
+    );
 }
 
 /// C94, V6: a total counts what the trade site's pseudo of that name

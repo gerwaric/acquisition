@@ -356,17 +356,6 @@ fn check_node(node: &Node) -> Result<(), LanguageError> {
     }
 }
 
-/// `has:` on a total (T2, `SEARCH-SLICE.md`, "Holes ruled"): every item
-/// has one, so the binder refuses it with the readings that ask what was
-/// meant. A derived field takes `has:` (`bind.rs`).
-pub(crate) fn has_on_computed(name: &str) -> LanguageError {
-    invalid(
-        ErrorKind::HasOnComputed,
-        format!("`has:` does not apply to a total: `{name}` always has a status, never a presence"),
-    )
-    .with_readings(vec![format!("{name}>0"), format!("undecided({name})")])
-}
-
 fn check_plain_name(name: &str) -> Result<(), LanguageError> {
     if is_name(name) {
         Ok(())

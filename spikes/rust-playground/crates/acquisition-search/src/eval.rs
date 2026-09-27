@@ -711,8 +711,9 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
             false,
             !unread_for(held, *thing).is_empty(),
         ),
-        // present exactly when the field is established (T2): its inputs
-        // read and displayed as numbers; unread inputs leave it open
+        // present exactly when the value is established: a derived
+        // field's inputs read and displayed as numbers (T2), a total's
+        // lines summing to something (C94); what is unread leaves it open
         Atom::HasComputed(named) => match pseudo::value(*named, None, held) {
             Valued::Value(_) => decided(true, false, false),
             Valued::Incomplete(_) => Outcome::Undecided,

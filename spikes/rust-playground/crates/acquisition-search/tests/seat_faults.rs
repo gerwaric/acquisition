@@ -789,17 +789,15 @@ fn f10_a_computed_value_is_named_in_any_case_and_a_near_one_is_offered() {
     assert_eq!(e["readings"], json!(["has:pseudo.dps"]));
     let e = ask(&corpus, "psuedo.dps>=1").unwrap_err().to_json();
     assert_eq!(e["readings"], json!(["pseudo.dps>=1"]));
-    // a total is never offered behind `has:` (T2)
+    // a total is offered behind `has:` as a derived field is, since it
+    // can be lacked (C94 as ruled 2026-09-26), and what is offered binds
     let e = ask(&corpus, "has:psuedo.total_res").unwrap_err().to_json();
     assert_eq!(e["kind"], "unknown_name");
+    assert_eq!(e["readings"], json!(["has:pseudo.total_res"]));
     for reading in e["readings"].as_array().into_iter().flatten() {
         let reading = reading.as_str().unwrap();
         ask(&corpus, reading).unwrap_or_else(|e| panic!("`{reading}` offered, refused: {e}"));
     }
-    assert_eq!(
-        ask(&corpus, "has:pseudo.total_res").unwrap_err().to_json()["kind"],
-        "has_on_computed"
-    );
 }
 
 /// F7: a partial id got the never-fetched sentence as its zero
@@ -1084,9 +1082,9 @@ fn review_a_tabs_route_selects_its_leagues_spelling_where_two_differ_by_case() {
 }
 
 /// Review, a query gap: `has:Pseudo.dpx` offered the bare `pseudo.dps`,
-/// which is no query, and `has:pseudo.total_re` bare totals, which
-/// `has:` never takes (T2). What is offered is asked as it was asked —
-/// `has:` on a derived field, a comparison on a total — and binds.
+/// which is no query, and `has:pseudo.total_re` bare totals. What is
+/// offered is asked as it was asked — `has:` of the near name, a derived
+/// field's or a total's (C94 as ruled 2026-09-26) — and binds.
 #[test]
 fn review_has_on_a_misspelt_computed_value_offers_what_binds() {
     let (corpus, _) = generated::fixture(vec![json!({})]);
@@ -1097,7 +1095,7 @@ fn review_has_on_a_misspelt_computed_value_offers_what_binds() {
     assert_eq!(e["kind"], "unknown_name");
     let readings = e["readings"].as_array().unwrap();
     assert!(
-        readings.contains(&json!("pseudo.total_res>0")),
+        readings.contains(&json!("has:pseudo.total_res")),
         "{readings:?}"
     );
     for reading in readings {

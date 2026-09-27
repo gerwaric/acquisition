@@ -30,11 +30,12 @@
 //!   only when it may be one the field reads: its name unread, or one of
 //!   the field's (`derive::Unread::name`; rule 8 at the element's grain,
 //!   outside audit 2026-09-24).
-//!   `has:` applies to a derived field and never to a total (owner,
-//!   2026-09-24, T2 in `SEARCH-SLICE.md`: "A ring has no dps; every item
-//!   has a total"): `-has:pseudo.dps` is the lacked count's route, and
-//!   `has:pseudo.total_res` an error offering the comparison and
-//!   `undecided( … )` (`bind.rs`, `tree::has_on_computed`).
+//!   `has:` asks a computed value's presence, a derived field's or a
+//!   total's: `-has:pseudo.dps` is the lacked count's route (owner,
+//!   2026-09-24, T2 in `SEARCH-SLICE.md`: "A ring has no dps"), and
+//!   `-has:pseudo.total_res` a total's, since a total of nothing is
+//!   lacked (`totals.rs`, C94 as ruled 2026-09-26, which takes back
+//!   T2's "every item has a total").
 //!   The base defence percentile the same paragraph names is not built
 //!   (`bind::NOT_BUILT`, its formula unpinned: `search/pseudo-stats/README.md`,
 //!   open question 3).
@@ -49,8 +50,9 @@
 //!   authoring error; a ranged total asked for with none is one that
 //!   offers `low`, `high` and `avg`.
 //! - **A value has the sum's three statuses** ([`Valued`]; the reference,
-//!   *A sum's status*): complete, an incomplete subtotal, or — a derived
-//!   field alone — lacked. Unavailable, a total with no definition for the
+//!   *A sum's status*): complete, an incomplete subtotal, or lacked — a
+//!   derived field whose input the item lacks, a total whose lines sum
+//!   to nothing. Unavailable, a total with no definition for the
 //!   item's realm, is incomplete with nothing readable, as a field that
 //!   could not be read is; its reason is the table's, made once. A value
 //!   is open exactly when it would sort as incomplete, so `undecided( … )`,
@@ -67,11 +69,10 @@
 //!   name or definition its narrowing matches, and none under `line`
 //!   alone, where `--describe` names them (owner, 2026-09-24, T5 in
 //!   `SEARCH-SLICE.md`; the reference, `--count line[:text]`;
-//!   `counts.rs`), marked computed, with the count of the matches on which the value is
-//!   established and not zero — a counting rule of this build's, said in
-//!   the help, and not presence: a valid zero is not counted — routed by
-//!   `pseudo.<name>>0 or pseudo.<name><0`, exactly those (a lacked
-//!   derived field and an incomplete total are neither).
+//!   `counts.rs`), marked computed, with the count of the matches that
+//!   carry it — its value established, which a lacked one's and an
+//!   incomplete one's is not — routed by `has:pseudo.<name>`, exactly
+//!   those.
 //!   Why it is open is the open contributors' own reasons (rule 8): a
 //!   source a row admits unread, an occurrence whose number or flag is,
 //!   the property that could not be read.
@@ -86,7 +87,7 @@ use crate::error::{ErrorKind, LanguageError};
 use crate::eval::{self, Evidence};
 use crate::exact::{self, Exact};
 use crate::totals::{self, Total, TotalsTable};
-use crate::tree::{Node, Number, Op, Value, ValueRef};
+use crate::tree::{Node, Op, Value};
 
 /// A computed value, bound by name.
 #[derive(Debug, Clone, Copy)]
@@ -175,11 +176,6 @@ pub(crate) fn names() -> &'static [&'static str] {
     &NAMES
 }
 
-/// The derived fields' names alone: what `has:` may be offered (T2).
-pub(crate) fn derived_names() -> impl Iterator<Item = &'static str> {
-    Derived::ALL.into_iter().map(Derived::name)
-}
-
 /// The value of a computed value on one item (the module doc).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Valued {
@@ -187,7 +183,9 @@ pub(crate) enum Valued {
     /// A subtotal, never a total; none readable where the total is
     /// unavailable or a derived field's input could not be read.
     Incomplete(Option<Exact>),
-    /// A derived field whose input the item lacks: known absence.
+    /// Known absence: a derived field whose input the item lacks, or a
+    /// total whose lines sum to nothing — no line a row names, or lines
+    /// that cancel (C94).
     Lacked,
 }
 
@@ -276,26 +274,32 @@ fn total_of(table: &TotalsTable, total: &Total, slot: Option<&str>, held: &Held)
         complete &= whole;
         value.halved(row.halves)
     };
-    let value = if total.ranged {
+    let nothing = Exact::default();
+    let (value, is_nothing) = if total.ranged {
         let low = Exact::sum(total.rows.iter().map(|row| row_sum(Some("low"), row)));
         let high = Exact::sum(total.rows.iter().map(|row| row_sum(Some("high"), row)));
-        match slot {
+        let value = match slot {
             Some("low") => low,
             Some("high") => high,
             _ => low.mid(high),
-        }
+        };
+        (value, low == nothing && high == nothing)
     } else {
-        Exact::sum(
+        let value = Exact::sum(
             total
                 .rows
                 .iter()
                 .map(|row| row_sum(row.slot.as_deref(), row)),
-        )
+        );
+        (value, value == nothing)
     };
-    if complete {
-        Valued::Value(value)
-    } else {
+    if !complete {
+        // what could not be read may be what makes it something
         Valued::Incomplete(Some(value))
+    } else if is_nothing {
+        Valued::Lacked
+    } else {
+        Valued::Value(value)
     }
 }
 
@@ -467,29 +471,17 @@ pub(crate) fn matching(
         let Some(named) = lookup(name)? else {
             continue;
         };
-        let value = ValueRef::Pseudo {
-            name: name.to_string(),
-            slot: named.ranged().then(|| "avg".to_string()),
-        };
-        let compare = |op: Op| Node::Compare {
-            value: value.clone(),
-            op,
-            rhs: Value::Number(Number::Int(0)),
-        };
-        out.push((
-            entry.name.clone(),
-            named,
-            Node::Any(vec![compare(Op::Gt), compare(Op::Lt)]),
-        ));
+        out.push((entry.name.clone(), named, Node::Has(entry.name.clone())));
     }
     Ok(out)
 }
 
-/// Whether the item carries the computed value: established, and not zero.
+/// Whether the item carries the computed value: established, as `has:`
+/// of it asks.
 pub(crate) fn carried(named: Named, held: &Held) -> bool {
     matches!(
         value(named, named.ranged().then_some("avg"), held),
-        Valued::Value(n) if n != Exact::default()
+        Valued::Value(_)
     )
 }
 
@@ -524,11 +516,13 @@ static DESCRIBED: LazyLock<Vec<Entry>> = LazyLock::new(|| {
             let examples = if total.ranged {
                 vec![
                     leak(format!("{name}.avg>=30")),
+                    leak(format!("-has:{name}")),
                     leak(format!("undecided({name})")),
                 ]
             } else {
                 vec![
                     leak(format!("{name}>=60")),
+                    leak(format!("-has:{name}")),
                     leak(format!("undecided({name})")),
                 ]
             };
@@ -656,12 +650,17 @@ mod tests {
             value(named(t, "total_life"), None, &plate),
             Valued::Value(crate::exact::Exact::of(94.5))
         );
-        // nothing sums to an honest zero; a realm the table does not cover
-        // has no total, never zero
+        // a total of nothing is lacked, no line a row names or lines that
+        // cancel; a realm the table does not cover has no total, never zero
         let bare = held("pc", r#"{"explicitMods": ["+20 to maximum Mana"]}"#);
+        assert_eq!(value(named(t, "total_life"), None, &bare), Valued::Lacked);
+        let cancels = held(
+            "pc",
+            r#"{"implicitMods": ["+30 to maximum Life"], "explicitMods": ["-30 to maximum Life"]}"#,
+        );
         assert_eq!(
-            f64_of(value(named(t, "total_life"), None, &bare)),
-            Some(0.0)
+            value(named(t, "total_life"), None, &cancels),
+            Valued::Lacked
         );
         let poe2 = held("poe2", r#"{"explicitMods": ["+90 to maximum Life"]}"#);
         assert_eq!(
