@@ -193,7 +193,7 @@ fn a_mod_over_several_rows_is_one_occurrence() {
     );
     assert_eq!(l.numbers, [Some(30.0)]);
     assert_eq!(
-        l.rows().collect::<Vec<_>>(),
+        l.shown_rows().collect::<Vec<_>>(),
         ["Monsters have 30% more Life", "Monsters cannot be Stunned"]
     );
     let rows: Vec<&str> = it.displayed().map(|(_, row)| row).collect();
@@ -205,6 +205,122 @@ fn a_mod_over_several_rows_is_one_occurrence() {
             "Monsters cannot be Stunned"
         ]
     );
+}
+
+/// C90, the build plan's 9c4: a mod displayed over several rows keeps each
+/// row as a name of it, read on its own — Thread of Hope's, as the trade
+/// site's capture R1 gives it, its resistance the second of three rows.
+#[test]
+fn c90_a_mod_of_several_rows_keeps_each_row_as_a_name() {
+    let it = item(json!({"typeLine": "Crimson Jewel", "explicitMods": [
+        {"description": "Only affects Passives in Small Ring"},
+        {"description": "Passive Skills in Radius can be Allocated without being connected to your tree\n-17% to all Elemental Resistances\nPassage"}
+    ]}));
+    assert_eq!(it.lines.len(), 2);
+    let (one, thread) = (&it.lines[0], &it.lines[1]);
+    // a mod of one row has one name, its template
+    assert!(one.rows.is_empty());
+    assert_eq!(
+        one.names().collect::<Vec<_>>(),
+        ["Only affects Passives in Small Ring"]
+    );
+    assert_eq!(
+        thread.names().collect::<Vec<_>>(),
+        [
+            "Passive Skills in Radius can be Allocated without being connected to your tree\n#% to all Elemental Resistances\nPassage",
+            "Passive Skills in Radius can be Allocated without being connected to your tree",
+            "#% to all Elemental Resistances",
+            "Passage",
+        ]
+    );
+    assert_eq!(thread.numbers, [Some(-17.0)]);
+    let numbers: Vec<&[Option<f64>]> = thread.rows.iter().map(|r| &r.numbers[..]).collect();
+    assert_eq!(numbers, [&[][..], &[Some(-17.0)][..], &[][..]]);
+    assert_eq!(thread.rows[1].read().slot("arg1"), Slot::Is(-17.0));
+    assert_eq!(thread.rows[0].read().slot("arg1"), Slot::Absent);
+    // the rows are on the item as `show` prints it, and on no mod of one
+    let shown = serde_json::to_value(&it).unwrap();
+    assert_eq!(shown["lines"][0].get("rows"), None);
+    assert_eq!(
+        shown["lines"][1]["rows"][1],
+        json!({"template": "#% to all Elemental Resistances", "numbers": [-17]})
+    );
+}
+
+/// Rule 8 of the plan, at the row's grain: a row's number is its own —
+/// the second row's first number is `arg1` of that row and `arg2` of the
+/// mod — and a number unread in one row is unread of that row alone. A
+/// row that displays nothing is no name.
+#[test]
+fn a_row_is_read_on_its_own() {
+    let it = item(json!({"explicitMods": [
+        "Adds 3 to 9 Cold Damage\n+40 to maximum Life",
+        "+1.12345 to maximum Life\r\n\r\n+5% to Cold Resistance"
+    ]}));
+    let two = &it.lines[0];
+    assert_eq!(two.slot("arg3"), Slot::Is(40.0));
+    assert_eq!(two.slot("low"), Slot::Is(3.0));
+    let life = two.rows[1].read();
+    assert_eq!(
+        (life.slot("arg1"), life.slot("arg2"), life.slot("low")),
+        (Slot::Is(40.0), Slot::Absent, Slot::Absent)
+    );
+    assert_eq!(
+        two.rows[0].read().slots(),
+        [
+            ("low".to_string(), Some(3.0)),
+            ("high".to_string(), Some(9.0)),
+            ("avg".to_string(), Some(6.0)),
+            ("arg1".to_string(), Some(3.0)),
+            ("arg2".to_string(), Some(9.0)),
+        ]
+    );
+    let long = &it.lines[1];
+    assert_eq!(long.template, "# to maximum Life\n\n#% to Cold Resistance");
+    assert_eq!(long.numbers, [None, Some(5.0)]);
+    assert_eq!(
+        long.names().collect::<Vec<_>>(),
+        [
+            "# to maximum Life\n\n#% to Cold Resistance",
+            "# to maximum Life",
+            "#% to Cold Resistance"
+        ]
+    );
+    assert_eq!(long.rows[0].read().slot("arg1"), Slot::Unread);
+    assert_eq!(long.rows[1].read().slot("arg1"), Slot::Is(5.0));
+    // said once, of the occurrence
+    let unread: Vec<(&Part, Option<usize>)> = it.unread.iter().map(|u| (&u.part, u.line)).collect();
+    assert_eq!(unread, [(&Part::Numbers("explicit".into()), Some(1))]);
+}
+
+/// Two rows of one mod displaying one template, in any case as `=`
+/// compares one: a number named by that row would be either's, so it is
+/// unread, said where it is read; the mod's own numbers stand, and so
+/// does a row no other shares.
+#[test]
+fn two_rows_of_one_template_leave_that_rows_numbers_unread() {
+    let it = item(json!({"explicitMods": [
+        "+3 to maximum Life\n+7 to Maximum life\n+5% to Cold Resistance\nPassage\nPassage"
+    ]}));
+    let l = &it.lines[0];
+    assert_eq!(l.numbers, [Some(3.0), Some(7.0), Some(5.0)]);
+    let numbers: Vec<&[Option<f64>]> = l.rows.iter().map(|r| &r.numbers[..]).collect();
+    assert_eq!(
+        numbers,
+        [&[None][..], &[None][..], &[Some(5.0)][..], &[][..], &[][..]]
+    );
+    assert_eq!(l.rows[1].read().slot("arg1"), Slot::Unread);
+    assert_eq!(it.unread.len(), 1, "{:#?}", it.unread);
+    assert_eq!(it.unread[0].part, Part::Numbers("explicit".into()));
+    assert_eq!(it.unread[0].line, Some(0));
+    assert_eq!(
+        it.unread[0].problem,
+        "`explicitMods[0]`: two rows of this mod display one template, `# to maximum Life`: a number named by that row is either's"
+    );
+    // a veiled line carries no number, and its rows none
+    let veiled = item(json!({"veiledMods": ["Prefix01\nSuffix02"]}));
+    assert!(veiled.lines[0].rows.iter().all(|r| r.numbers.is_empty()));
+    assert!(veiled.unread.is_empty());
 }
 
 /// C90: markup reduced to what the player sees — S4's brackets, and the
@@ -701,6 +817,38 @@ fn any_json() -> impl Strategy<Value = Value> {
 }
 
 proptest! {
+    /// A mod's rows read apart are the mod read whole (C90): the rows'
+    /// templates are the whole's between its row breaks, and their numbers
+    /// the whole's in order — but a row whose template another shares,
+    /// whose numbers are unread.
+    #[test]
+    fn the_rows_of_a_mod_are_the_mod_read_apart(
+        text in "([+\\-]?[0-9]{1,3}([,.][0-9]{1,3})?|[#%a-c ]|\r?\n){0,14}"
+    ) {
+        let it = item(json!({"explicitMods": [text]}));
+        for l in &it.lines {
+            if !l.text.contains('\n') {
+                prop_assert!(l.rows.is_empty());
+                continue;
+            }
+            let apart: Vec<&str> = l.template.split('\n').filter(|r| !r.is_empty()).collect();
+            let rows: Vec<&str> = l.rows.iter().map(|r| r.template.as_str()).collect();
+            prop_assert_eq!(&rows, &apart);
+            let mut rest = &l.numbers[..];
+            for row in &l.rows {
+                let (own, after) = rest.split_at(row.numbers.len());
+                rest = after;
+                let shared = l.rows.iter().filter(|r| r.template.eq_ignore_ascii_case(&row.template)).count() > 1;
+                if shared {
+                    prop_assert!(row.numbers.iter().all(Option::is_none));
+                } else {
+                    prop_assert_eq!(&row.numbers[..], own);
+                }
+            }
+            prop_assert!(rest.is_empty());
+        }
+    }
+
     /// C47: the deriver is total — any text and any JSON is an item — and
     /// a line's numbers are its template's `#`s wherever it names a slot.
     #[test]
@@ -708,9 +856,14 @@ proptest! {
         let _ = derive(facts(), &text);
         let it = derive(facts(), &body.to_string());
         for l in &it.lines {
-            let _ = l.rows().count();
+            let _ = l.shown_rows().count();
             for (word, n) in l.slots() {
                 prop_assert_eq!(l.slot(&word), n.map_or(Slot::Unread, Slot::Is));
+            }
+            for row in &l.rows {
+                for (word, n) in row.read().slots() {
+                    prop_assert_eq!(row.read().slot(&word), n.map_or(Slot::Unread, Slot::Is));
+                }
             }
         }
         prop_assert!(serde_json::to_value(&it).is_ok());

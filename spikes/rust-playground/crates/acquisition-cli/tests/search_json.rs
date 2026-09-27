@@ -1158,3 +1158,106 @@ fn step_9c3_a_row_sorted_by_a_reading_says_so_by_its_own_name() {
         "{shown}"
     );
 }
+
+/// Step 9c4 (C90): a mod displayed over several rows is found by a row of
+/// it at a terminal, shown whole, and `show` prints each row as a name
+/// with its own numbers — Thread of Hope's resistance, the second of
+/// three rows, and its counts as the trade site shows them.
+#[test]
+fn step_9c4_a_mod_is_found_by_a_row_and_show_prints_its_rows() {
+    let base = base();
+    let mock = base.join("mock");
+    std::fs::create_dir_all(&mock).unwrap();
+    let mut index = Index::load(&mock).unwrap();
+    index.record_login(USER, "u-search", false, 1).unwrap();
+    let mut store = Store::open(&account_path(&mock, USER)).unwrap();
+    let mut record = |ep: Endpoint, body: Value, at: i64| {
+        store
+            .record(
+                &ep,
+                &json!({ "realm": "pc", "league": "Standard" }),
+                200,
+                &body,
+                at,
+            )
+            .unwrap();
+    };
+    record(
+        Endpoint::Profile,
+        json!({ "uuid": "u-search", "name": USER }),
+        1,
+    );
+    record(
+        Endpoint::Stashes {
+            realm: "pc".into(),
+            league: "Standard".into(),
+        },
+        json!({ "stashes": [{ "id": "t1", "name": "Rows", "type": "PremiumStash" }] }),
+        10,
+    );
+    record(
+        Endpoint::Stash {
+            realm: "pc".into(),
+            league: "Standard".into(),
+            id: "t1".into(),
+            sub: None,
+        },
+        json!({ "stash": { "id": "t1", "name": "Rows", "type": "PremiumStash", "items": [
+            { "id": "thread", "name": "Thread of Hope", "typeLine": "Crimson Jewel",
+              "baseType": "Crimson Jewel", "rarity": "Unique", "frameTypeId": "Unique",
+              "identified": true, "ilvl": 84, "x": 0, "y": 0,
+              "explicitMods": [
+                "Only affects Passives in Small Ring",
+                "Passive Skills in Radius can be Allocated without being connected to your tree\n-17% to all Elemental Resistances\nPassage" ] },
+            { "id": "ring", "name": "Ring", "typeLine": "Iron Ring", "baseType": "Iron Ring",
+              "rarity": "Rare", "frameTypeId": "Rare", "identified": true, "ilvl": 84,
+              "x": 1, "y": 0, "explicitMods": ["+12% to all Elemental Resistances"] },
+        ] } }),
+        20,
+    );
+    drop(store);
+    let found = sole_json(&acq(
+        &base,
+        &[
+            "--json",
+            "search",
+            "--realm",
+            "pc",
+            r##""#% to all Elemental Resistances"<0 pseudo.count_res=3 pseudo.count_ele_res=3"##,
+        ],
+    ));
+    assert_eq!(found["total"]["matched"], 1);
+    assert_eq!(found["rows"][0]["id"], "thread");
+    let said = text(&acq(
+        &base,
+        &[
+            "search",
+            "--realm",
+            "pc",
+            r##""#% to all Elemental Resistances"<0"##,
+        ],
+    ));
+    // the row shows the mod whole, its rows on one line
+    assert!(
+        said.contains(
+            "Passive Skills in Radius can be Allocated without being connected to your tree / -17% to all Elemental Resistances / Passage"
+        ),
+        "{said}"
+    );
+    let shown = text(&acq(&base, &["show", "thread"]));
+    for line in [
+        r##""Passive Skills in Radius can be Allocated without being connected to your tree\n#% to all Elemental Resistances\nPassage"   arg1 -17"##,
+        r##"row "Passive Skills in Radius can be Allocated without being connected to your tree""##,
+        r##"row "#% to all Elemental Resistances"   arg1 -17"##,
+        r##"row "Passage""##,
+    ] {
+        assert!(shown.contains(line), "{line}\n{shown}");
+    }
+    // a mod of one row prints no row
+    assert_eq!(shown.matches("row \"").count(), 3, "{shown}");
+    let described = text(&acq(&base, &["search", "--describe", "template"]));
+    assert!(
+        described.contains("or by any one of its rows"),
+        "{described}"
+    );
+}

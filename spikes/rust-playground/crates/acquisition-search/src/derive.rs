@@ -40,6 +40,18 @@
 //!   line is a placeholder re-rolled per response (S12), so it keeps its
 //!   template (`Suffix#`) and carries no number — a value query never
 //!   matches it.
+//! - **A mod displayed over several rows** is one occurrence (C90; the
+//!   build plan, 9c4): one source, one set of flags, its whole text one
+//!   template with `\n` at each row break, its numbers in order. Each row
+//!   is kept beside that as a name of the mod ([`Line::rows`],
+//!   [`Line::names`]), read on its own as a line is — its template, its
+//!   numbers — so that a number of one row is named without the rows
+//!   before it, and what is unread of one row is unread of that row
+//!   (rule 8 of the plan). A row that displays nothing is no name. Two
+//!   rows of one mod displaying one template leave that row's numbers
+//!   unread, said here: a number named by that row would be either's. None
+//!   is on the census's copy, and none among the trade site's 1,984 texts
+//!   of several rows.
 //! - **A number the search does not read** — more whole digits or decimals
 //!   than any game displays (`exact.rs`, the rule and its measurement) —
 //!   is an unread slot of its line, said here, once, so that no arithmetic
@@ -241,6 +253,30 @@ pub struct Line {
     pub numbers: Vec<Option<f64>>,
     /// As shown, with its numbers; a mod over several rows holds `\n`.
     pub text: String,
+    /// The rows of a mod displayed over several, in order, each a name of
+    /// it; empty on a mod of one row, whose one name is its template.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rows: Vec<Row>,
+}
+
+/// One row of a mod displayed over several (the module doc): read as a
+/// line is, on its own.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Row {
+    pub template: String,
+    /// The row's numbers, in order; `None` where the search does not read
+    /// the number as written, or where another row of the mod displays
+    /// the same template.
+    #[serde(serialize_with = "whole_numbers")]
+    pub numbers: Vec<Option<f64>>,
+}
+
+/// The numbers a slot word names (the reference, *Slots*): a mod's, in
+/// order, or those of one row of it.
+#[derive(Debug, Clone, Copy)]
+pub struct Numbers<'a> {
+    template: &'a str,
+    numbers: &'a [Option<f64>],
 }
 
 /// Something the deriver met and could not read.
@@ -499,7 +535,7 @@ impl Item {
         let lines = self
             .lines
             .iter()
-            .flat_map(|l| l.rows().map(move |row| (Shown::Line(l), row)));
+            .flat_map(|l| l.shown_rows().map(move |row| (Shown::Line(l), row)));
         header
             .chain(properties)
             .chain(item_level)
@@ -845,6 +881,26 @@ impl Item {
                 );
                 self.unread_of_this_line(Part::Numbers(source.to_string()), problem);
             }
+            let mut rows: Vec<Row> = Vec::new();
+            if text.contains('\n') {
+                for row in text.split('\n').filter(|row| !row.is_empty()) {
+                    let (template, read) = template::read(row);
+                    let numbers = match source {
+                        "veiled" => Vec::new(),
+                        _ => read
+                            .into_iter()
+                            .map(|(n, reads)| reads.then_some(n))
+                            .collect(),
+                    };
+                    rows.push(Row { template, numbers });
+                }
+            }
+            if let Some(twice) = displayed_twice(&mut rows) {
+                let problem = format!(
+                    "{at}: two rows of this mod display one template, `{twice}`: a number named by that row is either's"
+                );
+                self.unread_of_this_line(Part::Numbers(source.to_string()), problem);
+            }
             self.lines.push(Line {
                 source: source.to_string(),
                 flags,
@@ -853,22 +909,88 @@ impl Item {
                 template,
                 numbers,
                 text,
+                rows,
             });
+        }
+    }
+}
+
+/// The template two rows or more display, in any case as `=` compares
+/// one, where they carry a number: those rows' numbers are made unread
+/// (the module doc). The first such template, in the rows' order.
+fn displayed_twice(rows: &mut [Row]) -> Option<String> {
+    let folds: Vec<String> = rows
+        .iter()
+        .map(|row| crate::bind::folded(&row.template))
+        .collect();
+    let mut twice = None;
+    for (i, row) in rows.iter_mut().enumerate() {
+        let shared = folds
+            .iter()
+            .enumerate()
+            .any(|(j, fold)| j != i && *fold == folds[i]);
+        if shared && !row.numbers.is_empty() {
+            row.numbers.iter_mut().for_each(|n| *n = None);
+            twice.get_or_insert_with(|| row.template.clone());
+        }
+    }
+    twice
+}
+
+impl Row {
+    /// The row's numbers, as a slot word names them.
+    pub fn read(&self) -> Numbers<'_> {
+        Numbers {
+            template: &self.template,
+            numbers: &self.numbers,
         }
     }
 }
 
 impl Line {
     /// The displayed rows: a phrase tests each on its own.
-    pub fn rows(&self) -> impl Iterator<Item = &str> {
+    pub fn shown_rows(&self) -> impl Iterator<Item = &str> {
         self.text.split('\n')
     }
 
-    /// The number a slot word names on this occurrence (the reference,
-    /// *Slots*); None when the template has no such slot, or when the
-    /// numbers are not the template's `#`s.
+    /// Every template that names this occurrence exactly (C90): its whole
+    /// text's, and each row's of a mod displayed over several.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        std::iter::once(self.template.as_str())
+            .chain(self.rows.iter().map(|row| row.template.as_str()))
+    }
+
+    /// The mod's numbers, in order, as a slot word names them where the
+    /// mod is named whole.
+    pub fn whole(&self) -> Numbers<'_> {
+        Numbers {
+            template: &self.template,
+            numbers: &self.numbers,
+        }
+    }
+
+    /// The number a slot word names of the mod whole ([`Numbers::slot`]).
     pub fn slot(&self, word: &str) -> Slot {
-        let slots = template::slots(&self.template);
+        self.whole().slot(word)
+    }
+
+    /// Every slot the mod whole names ([`Numbers::slots`]).
+    pub fn slots(&self) -> Vec<(String, Option<f64>)> {
+        self.whole().slots()
+    }
+}
+
+impl<'a> Numbers<'a> {
+    /// The numbers themselves, in order; `None` where one is unread.
+    pub fn read(&self) -> &'a [Option<f64>] {
+        self.numbers
+    }
+
+    /// The number a slot word names (the reference, *Slots*); absent when
+    /// the template has no such slot, or when the numbers are not the
+    /// template's `#`s.
+    pub fn slot(&self, word: &str) -> Slot {
+        let slots = template::slots(self.template);
         if slots.count != self.numbers.len() {
             return Slot::Absent;
         }
@@ -890,11 +1012,11 @@ impl Line {
         }
     }
 
-    /// Every slot this occurrence names, with its number — `None` where it
-    /// could not be read: `low`, `high` and `avg` first on a ranged line,
-    /// then `arg1`, `arg2`, …
+    /// Every slot named, with its number — `None` where it could not be
+    /// read: `low`, `high` and `avg` first on a ranged line, then `arg1`,
+    /// `arg2`, …
     pub fn slots(&self) -> Vec<(String, Option<f64>)> {
-        template::slot_words(&self.template)
+        template::slot_words(self.template)
             .into_iter()
             .filter_map(|word| match self.slot(&word) {
                 Slot::Absent => None,

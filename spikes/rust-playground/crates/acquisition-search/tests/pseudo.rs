@@ -1190,7 +1190,8 @@ fn v6_the_other_totals_count_what_the_sites_pseudo_counts() {
 /// plan, step 9c3; `tools/trade_rows.py`, `DERIVED`), and one in poe2.
 ///
 /// `Read` (r1), each with its fire, cold, lightning and chaos totals:
-/// `thread` (R1, Thread of Hope), -17 to all elemental — -17, -17, -17;
+/// `thread` (R1, Thread of Hope), -17 to all elemental, the second of its
+/// mod's three rows as the capture gives it — -17, -17, -17;
 /// `entropy` (R1), 24 lightning and 8 all elemental — 8, 8, 32; `twostone`
 /// (g001), 13 fire and lightning — 13, none, 13; `grasp` (h040), 23 chaos;
 /// `turn` (h040), 23 fire, 21 chaos and 12 Dexterity; `crest` (h040,
@@ -1222,7 +1223,10 @@ fn reading_stash() -> Store {
                 "Thread of Hope",
                 "Crimson Jewel",
                 "Unique",
-                json!({ "explicitMods": ["Only affects Passives in Small Ring", "-17% to all Elemental Resistances"] }),
+                json!({ "explicitMods": [
+                    "Only affects Passives in Small Ring",
+                    "Passive Skills in Radius can be Allocated without being connected to your tree\n-17% to all Elemental Resistances\nPassage",
+                ] }),
             ),
             rare(
                 "entropy",
@@ -1465,6 +1469,121 @@ fn c101_a_count_is_how_many_of_its_totals_the_item_shows() {
     assert_eq!(
         found("-has:pseudo.count_ele_res"),
         ["bite", "grasp", "lone", "mana"]
+    );
+}
+
+/// C94, C101, step 9c4: a row inside a mod of several rows feeds its
+/// totals. The 110 readings the trade site's captures hold of the four
+/// that are no sum, the sixteen that show none among them, each answered
+/// as the site shows it with the capture's mods entered unchanged — a
+/// mod's rows in one description, as the site gives them. Thread of Hope
+/// (R1) is the one whose total is read from a row, the second of three:
+/// written apart, the fixture above it hid that no total read it (the
+/// outside review of step 9c3, finding 1).
+#[test]
+fn c94_a_row_inside_a_mod_of_several_rows_feeds_its_totals() {
+    let captures: Value = serde_json::from_str(include_str!(
+        "../../../search/pseudo-stats/data/captures.json"
+    ))
+    .unwrap();
+    let names = [
+        ("pseudo_count_resistances", "count_res"),
+        ("pseudo_count_elemental_resistances", "count_ele_res"),
+        (
+            "pseudo_total_all_elemental_resistances",
+            "total_all_ele_res",
+        ),
+        ("pseudo_total_all_attributes", "total_all_attributes"),
+    ];
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("t", "Capture")]), 10);
+    let mut bodies = Vec::new();
+    let mut expected: Vec<(String, &str, Option<f64>)> = Vec::new();
+    let mut of_several_rows = 0;
+    for key in [
+        "R1", "g001", "g002", "g003", "g004", "h001", "h002", "h039", "h040",
+    ] {
+        for (i, capture) in captures["searches"][key]["fetched"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .enumerate()
+        {
+            let id = format!("{key}_{i}");
+            let mut more = json!({});
+            for (array, lines) in capture["lines"].as_object().unwrap() {
+                if array != "pseudoMods" {
+                    of_several_rows += lines
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .filter(|l| l["description"].as_str().unwrap().contains('\n'))
+                        .count();
+                    more[array] = lines.clone();
+                }
+            }
+            bodies.push(item(
+                &id,
+                capture["name"].as_str().unwrap_or(""),
+                capture["baseType"].as_str().unwrap_or("Iron Ring"),
+                capture["rarity"].as_str().unwrap_or("Rare"),
+                more,
+            ));
+            for (site, name) in names {
+                let hash = format!("stat.pseudo.{site}");
+                let shown = capture["lines"]["pseudoMods"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .find(|line| line["hash"] == hash);
+                if let Some(line) = shown {
+                    let text = line["description"].as_str().unwrap();
+                    let number = text
+                        .split_whitespace()
+                        .next()
+                        .unwrap()
+                        .trim_end_matches('%')
+                        .parse::<f64>()
+                        .unwrap();
+                    expected.push((id.clone(), name, Some(number)));
+                // the two searches that asked for items showing none
+                } else if (key == "h002" && name == "total_all_attributes")
+                    || (key == "h040" && name == "count_ele_res")
+                {
+                    expected.push((id.clone(), name, None));
+                }
+            }
+        }
+    }
+    assert_eq!(expected.len(), 110);
+    assert_eq!(expected.iter().filter(|(_, _, n)| n.is_none()).count(), 16);
+    // the input holds what the test is of: a mod of several rows
+    assert!(of_several_rows > 0);
+    fetch_tab(&mut s, "pc", "Standard", "t", "Capture", bodies, 20);
+    let corpus = load(&s, Some("pc"));
+    let matched = |query: &str| as_json(&ask(&corpus, query).unwrap())["total"]["matched"].clone();
+    let mut misses = Vec::new();
+    for (id, name, n) in &expected {
+        let query = match n {
+            Some(n) => format!("id:{id} pseudo.{name}={n}"),
+            None => format!("id:{id} -has:pseudo.{name}"),
+        };
+        if matched(&query) != 1 {
+            misses.push(query);
+        }
+    }
+    assert!(misses.is_empty(), "{misses:#?}");
+    // Thread of Hope's, by hand: -17 under each of the three, so both
+    // counts are 3 and the least is -17
+    assert_eq!(
+        captures["searches"]["R1"]["fetched"][0]["name"],
+        "Thread of Hope"
+    );
+    assert_eq!(
+        matched(
+            "id:R1_0 pseudo.count_res=3 pseudo.count_ele_res=3 pseudo.total_all_ele_res=-17 pseudo.total_fire_res=-17 pseudo.total_res=-51"
+        ),
+        1
     );
 }
 

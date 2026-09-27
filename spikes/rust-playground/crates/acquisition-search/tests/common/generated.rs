@@ -34,6 +34,15 @@
 //! every occurrence is written twice, and a least doubles as a total
 //! does.
 //!
+//! Since step 9c4 they reach a mod displayed over several rows (C90):
+//! Thread of Hope's three, its resistance the second, and a mod of two
+//! rows, life and cold resistance, each with a number — so that a row's
+//! first number is not its mod's — named by a row and by the whole text,
+//! and the first row's number may be one the search does not read.
+//! [`Body::rows_apart`] writes every such mod as its rows, each a line:
+//! what a term that names a row, a sum of one and a total are to answer
+//! alike.
+//!
 //! Nothing here reads the crate's tree, binder or evaluator: a query is
 //! rendered to text and asked, and a body enters through `Store::record`;
 //! a row enters through the pricing area's one write.
@@ -61,6 +70,11 @@ pub const LEECH: &str = "#% of Damage Leeched as Life";
 /// one at weight 3, so the total sums several templates by weight.
 pub const FIRE: &str = "#% to Fire Resistance";
 pub const ALL_RES: &str = "#% to all Elemental Resistances";
+/// A mod of two rows by its whole text, as a query writes it: the row
+/// break `\n` inside the quotes.
+pub const LIFE_COLD: &str = "# to maximum Life\\n#% to Cold Resistance";
+/// A row of Thread of Hope's mod that carries no number.
+pub const PASSAGE: &str = "Passage";
 
 /// Values and bounds share one small range, so that a bound lands
 /// immediately below, at and above a value, zero and negatives included
@@ -84,8 +98,13 @@ fn quoted(template: &str) -> String {
 
 fn template_leaf() -> BoxedStrategy<String> {
     prop_oneof![
-        2 => proptest::sample::select(vec![LIFE, COLD, ADDS, FROZEN, SPIRIT, FIRE, ALL_RES])
-            .prop_map(quoted),
+        2 => proptest::sample::select(vec![
+            LIFE, COLD, ADDS, FROZEN, SPIRIT, FIRE, ALL_RES, LIFE_COLD,
+        ])
+        .prop_map(quoted),
+        // a quoted string with no `#` is a phrase: a row that carries no
+        // number is named by `template=`
+        1 => Just(format!("template=\"{PASSAGE}\"")),
         3 => proptest::sample::select(vec![
             "template:life",
             "template:resistance",
@@ -179,6 +198,8 @@ fn template_and_comparison() -> BoxedStrategy<(String, String)> {
         (LEECH, "arg1"),
         (FIRE, "arg1"),
         (ALL_RES, "arg1"),
+        (LIFE_COLD, "arg1"),
+        (LIFE_COLD, "arg2"),
     ])
     .prop_map(|(template, slot)| (quoted(template), slot));
     let worded = (
@@ -903,13 +924,87 @@ pub enum Flags {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LineM {
+    /// Which line; [`KINDS`] of them, the last two a mod of several rows.
     pub kind: u8,
     pub n: i32,
     /// The number is written with more decimals than the search reads: an
     /// unread slot, which a completion fills with a number. Never on the
     /// ranged line, whose second number is read and must stay as it is.
+    /// On a mod of several rows it is the first number, its other row's
+    /// read.
     pub unread_number: bool,
     pub flags: Flags,
+    /// One row of the mod, written as a line of its own
+    /// ([`Body::rows_apart`]); `None` for the mod as GGG gives it.
+    pub row: Option<u8>,
+    /// The second row's number of a mod of two, where a completion gave
+    /// the first another: what was read stays as it was. `None` is two
+    /// more than the first.
+    pub second: Option<i32>,
+}
+
+/// How many kinds of line there are.
+pub const KINDS: u8 = 11;
+
+impl LineM {
+    /// The rows the line displays, each with its numbers: one, but for a
+    /// mod of several rows.
+    fn rows(&self) -> Vec<String> {
+        // five decimals: one more than the search reads
+        let n = |n: i32, unread: bool| {
+            if unread {
+                format!("{n:+}.12345")
+            } else {
+                format!("{n:+}")
+            }
+        };
+        let first = n(self.n, self.unread_number);
+        match self.kind {
+            0 => vec![format!("{first} to maximum Life")],
+            1 => vec![format!("{first}% to Cold Resistance")],
+            2 => vec![format!(
+                "Adds {} to {} Cold Damage",
+                self.n.abs(),
+                self.n.abs() + 7
+            )],
+            3 => vec![FROZEN.to_string()],
+            4 => vec![format!("{first} to Spirit")],
+            5 if self.unread_number => {
+                vec![format!("{}2345% of Damage Leeched as Life", tenths(self.n))]
+            }
+            5 => vec![format!("{}% of Damage Leeched as Life", tenths(self.n))],
+            // GGG has spelled some lines two ways
+            6 => vec![format!("{first} to maximum life")],
+            7 => vec![format!("{first}% to Fire Resistance")],
+            8 => vec![format!("{first}% to all Elemental Resistances")],
+            // Thread of Hope's, its resistance the second of three rows
+            9 => vec![
+                "Passive Skills in Radius can be Allocated without being connected to your tree"
+                    .to_string(),
+                format!("{first}% to all Elemental Resistances"),
+                PASSAGE.to_string(),
+            ],
+            // two rows, each with a number: the second row's first number
+            // is the mod's second
+            _ => vec![
+                format!("{first} to maximum Life"),
+                format!(
+                    "{}% to Cold Resistance",
+                    n(self.second.unwrap_or(self.n + 2), false)
+                ),
+            ],
+        }
+    }
+
+    /// The description as GGG gives it: the rows of a mod in one string,
+    /// or the one row a line written apart is.
+    fn description(&self) -> String {
+        let rows = self.rows();
+        match self.row {
+            Some(row) => rows[usize::from(row) % rows.len()].clone(),
+            None => rows.join("\n"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1077,7 +1172,7 @@ pub fn line(holes: bool) -> BoxedStrategy<LineM> {
         hole => Just(Flags::Hole),
     ];
     (
-        0u8..9,
+        0u8..KINDS,
         LOW..=HIGH,
         proptest::bool::weighted(if holes { 0.15 } else { 0.0 }),
         flags,
@@ -1087,6 +1182,8 @@ pub fn line(holes: bool) -> BoxedStrategy<LineM> {
             n,
             unread_number: unread && kind != 2 && kind != 3,
             flags,
+            row: None,
+            second: None,
         })
         .boxed()
 }
@@ -1386,7 +1483,7 @@ impl Body {
 
     /// One line of every kind at each of four values, its flags as given.
     pub fn every_line(flag: Tri) -> Vec<LineM> {
-        (0u8..9)
+        (0u8..KINDS)
             .flat_map(|kind| {
                 [LOW, 0, 1, HIGH].map(|n| LineM {
                     kind,
@@ -1396,9 +1493,42 @@ impl Body {
                         crafted: flag,
                         fractured: flag,
                     },
+                    row: None,
+                    second: None,
                 })
             })
             .collect()
+    }
+
+    /// The body with every mod of several rows written as its rows, each
+    /// a line of its own with the mod's flags, in the mod's place: what
+    /// the trade site's evidence was read by (`tools/trade-evidence.py`).
+    pub fn rows_apart(&self) -> Body {
+        let apart = |lines: &Lines| match lines {
+            Lines::Of(elems) => Lines::Of(
+                elems
+                    .iter()
+                    .flat_map(|e| match e {
+                        Elem::Line(l) if l.row.is_none() => (0..l.rows().len())
+                            .map(|row| {
+                                Elem::Line(LineM {
+                                    row: Some(row as u8),
+                                    ..l.clone()
+                                })
+                            })
+                            .collect(),
+                        other => vec![other.clone()],
+                    })
+                    .collect(),
+            ),
+            other => other.clone(),
+        };
+        Body {
+            explicit: apart(&self.explicit),
+            implicit: apart(&self.implicit),
+            hybrid: apart(&self.hybrid),
+            ..self.clone()
+        }
     }
 
     /// The body with the elements of every array in the opposite order
@@ -1552,6 +1682,8 @@ impl Body {
                                 n,
                                 unread_number: false,
                                 flags: Flags::Each { crafted, fractured },
+                                // a number that was read stays as it was
+                                second: Some(l.second.unwrap_or(l.n + 2)),
                                 ..l.clone()
                             }));
                         }
@@ -1677,35 +1809,7 @@ impl Body {
             Tri::Hole => json!(UNREAD),
         };
         let line = |l: &LineM| {
-            // five decimals: one more than the search reads
-            let description = match l.kind {
-                0 | 1 | 4 | 6 | 7 | 8 if l.unread_number => {
-                    let of = [
-                        "to maximum Life",
-                        "% to Cold Resistance",
-                        "",
-                        "",
-                        "to Spirit",
-                        "",
-                        "to maximum life",
-                        "% to Fire Resistance",
-                        "% to all Elemental Resistances",
-                    ][usize::from(l.kind)];
-                    let gap = if of.starts_with('%') { "" } else { " " };
-                    format!("{:+}.12345{gap}{of}", l.n)
-                }
-                5 if l.unread_number => format!("{}2345% of Damage Leeched as Life", tenths(l.n)),
-                0 => format!("{:+} to maximum Life", l.n),
-                1 => format!("{:+}% to Cold Resistance", l.n),
-                2 => format!("Adds {} to {} Cold Damage", l.n.abs(), l.n.abs() + 7),
-                3 => FROZEN.to_string(),
-                4 => format!("{:+} to Spirit", l.n),
-                5 => format!("{}% of Damage Leeched as Life", tenths(l.n)),
-                // GGG has spelled some lines two ways
-                6 => format!("{:+} to maximum life", l.n),
-                7 => format!("{:+}% to Fire Resistance", l.n),
-                _ => format!("{:+}% to all Elemental Resistances", l.n),
-            };
+            let description = l.description();
             let flags = match &l.flags {
                 Flags::Hole => json!(UNREAD),
                 Flags::Each { crafted, fractured } => {

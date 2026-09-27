@@ -33,7 +33,8 @@
 //!   picks over the scope, whatever its comparisons then make of them; the
 //!   ten most carried listed and the rest counted. A quoted template
 //!   resolves to itself and lists nothing, unless it found two spellings
-//!   of one line, which any-case `=` can, and then both are listed. The
+//!   of one line, which any-case `=` can, and then both are listed — the
+//!   spelling of the row, where it named a mod by a row (C90). The
 //!   route to the rest is a count: the term alone over the scope — never
 //!   the query, whose other terms would drop values the selector resolved
 //!   to — counted by the field, or the vocabulary narrowed by the group's
@@ -1107,11 +1108,14 @@ fn rest_of(term: &Term) -> Option<(Node, String)> {
 /// What the term's selector resolved to on this item. A group's is what
 /// its selector picks, whatever its comparisons then make of it: `20%
 /// to Fire Resistance` is a line `template:resistance arg1>=60` resolved
-/// to, and its value failed. A field's is the value that matched.
+/// to, and its value failed — by its whole text, or by the name a quoted
+/// template found it by, a row's among them (`Group::resolved`). A
+/// field's is the value that matched.
 fn resolved_values(term: &Term, held: &Held, outcome: Outcome) -> Vec<String> {
     let mut values: Vec<String> = match &term.atom {
         Atom::Lines(group) | Atom::Sum { group, .. } => eval::selected(held, group)
-            .map(|l| l.template.clone())
+            .flat_map(|l| group.resolved(l))
+            .map(str::to_string)
             .collect(),
         Atom::Text { thing, test } if outcome == Outcome::Matched => eval::texts(held, *thing)
             .into_iter()
@@ -1250,14 +1254,19 @@ fn nothing(corpus: &Corpus, term: &Term, picked: bool, matched: usize) -> Option
             let Ok(test) = bind::text_test(&of, Op::Eq, &exact) else {
                 continue;
             };
+            // a template's term names a mod by a row too (C90)
+            let carries = |held: &Held| match thing {
+                Some(_) => values_of(held).iter().any(|v| test.holds(v)),
+                None => held
+                    .item
+                    .lines
+                    .iter()
+                    .any(|l| l.names().any(|name| test.holds(name))),
+            };
             suggestions.push(Suggestion {
                 term: print::print(&exactly(&of, &candidate.value)),
                 value: candidate.value,
-                items: corpus
-                    .items
-                    .iter()
-                    .filter(|held| values_of(held).iter().any(|v| test.holds(v)))
-                    .count(),
+                items: corpus.items.iter().filter(|held| carries(held)).count(),
             });
             offered.push(test);
         }

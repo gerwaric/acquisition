@@ -384,6 +384,16 @@ fn number(value: &serde_json::Value) -> String {
     value.to_string()
 }
 
+/// A slot's number as `show` prints one: whole where it is, `null` where
+/// it could not be read.
+fn slot_number(n: Option<f64>) -> String {
+    match n.map(acquisition_search::Number::from_f64) {
+        None => "null".to_string(),
+        Some(acquisition_search::Number::Int(n)) => n.to_string(),
+        Some(acquisition_search::Number::Float(n)) => n.to_string(),
+    }
+}
+
 /// A name and a type line as the game shows them together; a rendering,
 /// never a field (the reference, *Item-level*).
 fn title(name: Option<&str>, typeline: Option<&str>) -> String {
@@ -1218,6 +1228,26 @@ fn shown_text(s: &Shown) -> String {
                 format!("   {}", slots.join(" · "))
             }
         ));
+        // a mod of several rows: each row is a name of it, and names its
+        // own numbers
+        for row in &l.line.rows {
+            let slots: Vec<String> = row
+                .read()
+                .slots()
+                .into_iter()
+                .map(|(word, n)| format!("{word} {}", slot_number(n)))
+                .collect();
+            out.push_str(&format!(
+                "        {:<22}row \"{}\"{}\n",
+                "",
+                row.template,
+                if slots.is_empty() {
+                    String::new()
+                } else {
+                    format!("   {}", slots.join(" · "))
+                }
+            ));
+        }
         if let Some(limit) = l.limit {
             out.push_str(&format!("        {:<22}{limit}\n", ""));
         }

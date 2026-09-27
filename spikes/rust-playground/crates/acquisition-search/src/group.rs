@@ -46,6 +46,21 @@
 //!   conjuncts (`template::conjuncts`, the slot check's own reading), when
 //!   it is a lower bound and the selector's sum of that slot is a value
 //!   this build runs; anything else is not applicable.
+//! - **A quoted template names an occurrence by its whole text or by a
+//!   row of it** (C90, C92; the build plan, 9c4): `"T"` holds on a mod
+//!   whose template is `T` and on a mod displayed over several rows one of
+//!   which is — a property of the occurrence, so that a not of it is a no
+//!   on both. `template:` and `template~` test the whole text, across its
+//!   rows. **The numbers a slot word names** are the named part's: where
+//!   the quoted templates of the selector name one row of the occurrence
+//!   and not its whole text, that row's numbers, so `arg1` is the row's
+//!   first number whatever the rows before it display; otherwise the mod's
+//!   numbers in order. The selector's templates, and never the syntax's:
+//!   a template the folding took out decides no occurrence, and the
+//!   together route, which is the selector bound again, reads the numbers
+//!   the count read. Two rows named by two templates name no one row.
+//!   Both of a group's askings, and every sum, largest and together count
+//!   read through [`Asked::slot`].
 //! - **Its template tests**, wherever they sit: whether it makes any, so
 //!   that it resolves to templates; whether each is a quoted `"T"`, which
 //!   resolves to itself; and the words a suggestion is scored against.
@@ -62,7 +77,7 @@
 //!   routes it (`answer.rs`).
 
 use crate::bind::{self, LINE_FLAGS, NumTest, SOURCES, TextTest};
-use crate::derive::{ITEM_FLAGS, Line, Slot};
+use crate::derive::{ITEM_FLAGS, Line, Numbers, Slot};
 use crate::error::{ErrorKind, LanguageError};
 use crate::sockets::{self, GroupCounts};
 use crate::tree::{self, Collection, Member, Node, Number, Op, Probe, Value, ValueRef};
@@ -115,38 +130,79 @@ enum BMember {
     Any(Vec<BMember>),
     Not(Box<BMember>),
     Const(bool),
+    /// `template:` or `template~`: of the whole text.
     Template(TextTest),
+    /// A quoted template: of the whole text, or of a row.
+    Named(TextTest),
     Source(Vec<&'static str>),
-    Slot { word: String, test: NumTest },
+    Slot {
+        word: String,
+        test: NumTest,
+    },
     Is(&'static str),
 }
 
 /// Something a group asks of one occurrence: the whole, or the selector.
 #[derive(Debug, Clone)]
-pub(crate) struct Asked(BMember);
+pub(crate) struct Asked {
+    member: BMember,
+    /// The selector's quoted templates: what names a row (the module doc).
+    quoted: Vec<TextTest>,
+}
 
 impl Asked {
     /// Three-valued (the module doc, "The whole").
     pub fn of(&self, line: &Line) -> Truth {
-        truth(&self.0, line)
+        truth(&self.member, line, self.numbers(line))
     }
 
     pub fn holds(&self, line: &Line) -> bool {
         self.of(line) == Truth::True
     }
+
+    /// The number a slot word names on this occurrence, as the group
+    /// named it.
+    pub fn slot(&self, line: &Line, word: &str) -> Slot {
+        self.numbers(line).slot(word)
+    }
+
+    /// The numbers the slot words name on this occurrence (the module
+    /// doc): one row's, where the quoted templates name that row alone.
+    fn numbers<'a>(&self, line: &'a Line) -> Numbers<'a> {
+        if line.rows.is_empty() || self.quoted.is_empty() {
+            return line.whole();
+        }
+        let names = |template: &str| self.quoted.iter().any(|test| test.holds(template));
+        if names(&line.template) {
+            return line.whole();
+        }
+        let mut named = line.rows.iter().filter(|row| names(&row.template));
+        match named.next() {
+            // rows displaying one template are one name, whose numbers the
+            // deriver left unread
+            Some(row)
+                if named
+                    .all(|other| bind::folded(&other.template) == bind::folded(&row.template)) =>
+            {
+                row.read()
+            }
+            _ => line.whole(),
+        }
+    }
 }
 
-fn truth(member: &BMember, line: &Line) -> Truth {
+fn truth(member: &BMember, line: &Line, numbers: Numbers<'_>) -> Truth {
     match member {
-        BMember::All(children) => all_of(children.iter().map(|c| truth(c, line))),
-        BMember::Any(children) => any_of(children.iter().map(|c| truth(c, line))),
-        BMember::Not(inner) => negated(truth(inner, line)),
+        BMember::All(children) => all_of(children.iter().map(|c| truth(c, line, numbers))),
+        BMember::Any(children) => any_of(children.iter().map(|c| truth(c, line, numbers))),
+        BMember::Not(inner) => negated(truth(inner, line, numbers)),
         BMember::Const(value) => sure(*value),
         BMember::Template(test) => sure(test.holds(&line.template)),
+        BMember::Named(test) => sure(line.names().any(|name| test.holds(name))),
         BMember::Source(sources) => sure(sources.contains(&line.source.as_str())),
         // a number that could not be read is unknown, as a flag is: never
         // a no, which a not would turn into a witness
-        BMember::Slot { word, test } => match line.slot(word) {
+        BMember::Slot { word, test } => match numbers.slot(word) {
             Slot::Is(n) => sure(test.holds(n)),
             Slot::Absent => Truth::False,
             Slot::Unread => Truth::Undecided,
@@ -236,8 +292,18 @@ impl Group {
         });
         let mut templates = Vec::new();
         template_tests(whole, &mut templates);
+        let mut selecting = Vec::new();
+        template_tests(&selector_tree, &mut selecting);
+        let quoted: Vec<TextTest> = selecting
+            .iter()
+            .filter(|(op, _)| *op == Op::Eq)
+            .map(|(op, text)| bind::text_test("template", *op, &Value::Text(text.clone())))
+            .collect::<Result<_, _>>()?;
         Ok(Group {
-            selector: Asked(member(&selector_tree)?),
+            selector: Asked {
+                member: member(&selector_tree)?,
+                quoted: quoted.clone(),
+            },
             selects_only: !has_slot(whole),
             selector_asks_a_flag: asks_a_flag(&selector_tree),
             asks_a_flag: asks_a_flag(whole),
@@ -247,7 +313,10 @@ impl Group {
                 .filter(|source| admits(&bound, source))
                 .collect(),
             admits_another: admits(&bound, ""),
-            whole: Asked(bound),
+            whole: Asked {
+                member: bound,
+                quoted,
+            },
             selector_tree,
             together,
             templates,
@@ -275,6 +344,24 @@ impl Group {
     /// itself — unless it found two spellings, which any-case `=` can.
     pub fn quoted_only(&self) -> bool {
         self.templates.iter().all(|(op, _)| *op == Op::Eq)
+    }
+
+    /// What the selector resolved to on an occurrence it picked: the
+    /// names its quoted templates found — the whole text's spelling, or a
+    /// row's — where every template test is quoted; otherwise the whole
+    /// text, which `template:` and `template~` test.
+    pub fn resolved<'a>(&self, line: &'a Line) -> Vec<&'a str> {
+        if self.quoted_only() {
+            let quoted = &self.selector.quoted;
+            let found: Vec<&str> = line
+                .names()
+                .filter(|name| quoted.iter().any(|test| test.holds(name)))
+                .collect();
+            if !found.is_empty() {
+                return found;
+            }
+        }
+        vec![line.template.as_str()]
     }
 
     /// The one template test the selector is, when it is nothing else:
@@ -412,7 +499,9 @@ fn admits(member: &BMember, source: &str) -> bool {
             BMember::Not(inner) => negated(asked(inner, source)),
             BMember::Const(value) => sure(*value),
             BMember::Source(sources) => sure(sources.contains(&source)),
-            BMember::Template(_) | BMember::Slot { .. } | BMember::Is(_) => Truth::Undecided,
+            BMember::Template(_) | BMember::Named(_) | BMember::Slot { .. } | BMember::Is(_) => {
+                Truth::Undecided
+            }
         }
     }
     asked(member, source) != Truth::False
@@ -531,6 +620,7 @@ fn member(m: &Member) -> Result<BMember, LanguageError> {
             }
         },
         Member::Test { attr, op, value } => match attr.as_str() {
+            "template" if *op == Op::Eq => BMember::Named(bind::text_test("template", *op, value)?),
             "template" => BMember::Template(bind::text_test("template", *op, value)?),
             "source" => BMember::Source(bind::closed("source", SOURCES, *op, value)?),
             slot if tree::is_slot_word(slot) => BMember::Slot {

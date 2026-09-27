@@ -64,7 +64,15 @@
 //!   under each flag, each with its own term. `line:text` and
 //!   `line~pattern` narrow it as `template:` and `template~` would. A
 //!   row's count is its term's matched count: an item counted under a
-//!   template it could be read to carry. Its `undecided` bucket is
+//!   template it could be read to carry. A mod displayed over several
+//!   rows is listed by its whole text, and counted beside that under each
+//!   listed template that names it by a row (C90; the build plan, 9c4), as
+//!   that template's term matches it — with the row's numbers, and the
+//!   mod's source and flags — whatever the narrowing makes of its whole
+//!   text; a row no mod displays alone, a wrapped sentence's, is no row of
+//!   the vocabulary. A template spelled two ways is routed by a pattern,
+//!   which tests whole texts, and counts none by a row. Its `undecided`
+//!   bucket is
 //!   `undecided(line( … ))` of the narrowing — no line read that it selects
 //!   and a part unread that could hold one — so an item with a line read
 //!   *and* an array unread is in its rows and not in `undecided`: the
@@ -399,16 +407,28 @@ fn tallied(tally: BTreeMap<String, usize>) -> Vec<Tallied> {
 /// The folds more than one spelling shares, of the values `of` reads over
 /// the whole held corpus (the module doc).
 fn twins<'a>(corpus: &'a Corpus, of: impl Fn(&'a Held) -> Vec<&'a str>) -> HashSet<String> {
-    let spellings: HashSet<&str> = corpus.items.iter().flat_map(of).collect();
-    let mut folds: HashMap<String, usize> = HashMap::new();
-    for spelling in spellings {
-        *folds.entry(bind::folded(spelling)).or_default() += 1;
-    }
-    folds
+    spellings(corpus, of)
         .into_iter()
-        .filter(|(_, spellings)| *spellings > 1)
+        .filter(|(_, spelled)| spelled.len() > 1)
         .map(|(fold, _)| fold)
         .collect()
+}
+
+/// Every spelling of each fold, of the values `of` reads over the whole
+/// held corpus.
+fn spellings<'a>(
+    corpus: &'a Corpus,
+    of: impl Fn(&'a Held) -> Vec<&'a str>,
+) -> HashMap<String, Vec<&'a str>> {
+    let spelled: HashSet<&str> = corpus.items.iter().flat_map(of).collect();
+    let mut folds: HashMap<String, Vec<&str>> = HashMap::new();
+    for spelling in spelled {
+        folds
+            .entry(bind::folded(spelling))
+            .or_default()
+            .push(spelling);
+    }
+    folds
 }
 
 // ---- a field's buckets ---------------------------------------------------------------------------
@@ -965,7 +985,24 @@ fn vocabulary(
     scalars: &Option<Vec<Scalar>>,
 ) -> Table {
     let atom = &Atom::Lines(group.clone());
+    // every spelling of a whole text the corpus holds: a template spelled
+    // once is routed by `=`, which names a mod by a row too, and one
+    // spelled twice by a pattern, which does not
+    let spelled = spellings(matches.corpus, |held| {
+        held.item
+            .lines
+            .iter()
+            .map(|l| l.template.as_str())
+            .collect()
+    });
+    let twins: HashSet<&String> = spelled
+        .iter()
+        .filter(|(_, spelled)| spelled.len() > 1)
+        .map(|(fold, _)| fold)
+        .collect();
     let mut rows: HashMap<(String, String), Row> = HashMap::new();
+    // the templates listed: the whole texts the narrowing selects
+    let mut listed: HashSet<(String, String)> = HashSet::new();
     let (mut none, mut undecided) = (Pile::default(), Pile::default());
     let mut tally: BTreeMap<String, usize> = BTreeMap::new();
     for (m, held) in matches.held().enumerate() {
@@ -978,57 +1015,68 @@ fn vocabulary(
                 undecided.add(scalar);
             }
             Outcome::Failed | Outcome::Lacked => none.add(scalar),
-            Outcome::Matched => {
-                // an item is counted once under a template however many
-                // occurrences of it it carries
-                let mut seen: HashSet<(&str, Option<(bool, String)>)> = HashSet::new();
-                for line in eval::selected(held, group) {
-                    let row = rows
-                        .entry((held.place.realm.clone(), line.template.clone()))
-                        .or_default();
-                    if seen.insert((&line.template, None)) {
-                        row.pile.add(scalar);
+            Outcome::Matched => {}
+        }
+        // an item is counted once under a template however many
+        // occurrences of it it carries
+        let mut seen: HashSet<(&str, Option<(bool, String)>)> = HashSet::new();
+        for line in &held.item.lines {
+            // under its whole text where the narrowing selects it, and
+            // under each template spelled once that names it by a row
+            let whole = group
+                .selector
+                .holds(line)
+                .then_some((line.template.as_str(), line.whole()));
+            if let Some((template, _)) = whole {
+                listed.insert((held.place.realm.clone(), template.to_string()));
+            }
+            let by_a_row = line.rows.iter().filter_map(|row| {
+                match spelled.get(&bind::folded(&row.template))?.as_slice() {
+                    [once] => Some((*once, row.read())),
+                    _ => None,
+                }
+            });
+            for (template, numbers) in whole.into_iter().chain(by_a_row) {
+                let row = rows
+                    .entry((held.place.realm.clone(), template.to_string()))
+                    .or_default();
+                if seen.insert((template, None)) {
+                    row.pile.add(scalar);
+                }
+                // by the legal spelling, which `=` and `is:` match in any
+                // case; a spelling outside the list stands as it is
+                let spelled = |list: &'static [&'static str], word: &str| {
+                    bind::legal(list, word).map_or_else(|| word.to_string(), str::to_string)
+                };
+                let source = spelled(SOURCES, &line.source);
+                if seen.insert((template, Some((true, source.clone())))) {
+                    *row.sources.entry(source).or_default() += 1;
+                }
+                for flag in &line.flags {
+                    let flag = spelled(LINE_FLAGS, flag);
+                    if seen.insert((template, Some((false, flag.clone())))) {
+                        *row.flags.entry(flag).or_default() += 1;
                     }
-                    // by the legal spelling, which `=` and `is:` match in any
-                    // case; a spelling outside the list stands as it is
-                    let spelled = |list: &'static [&'static str], word: &str| {
-                        bind::legal(list, word).map_or_else(|| word.to_string(), str::to_string)
-                    };
-                    let source = spelled(SOURCES, &line.source);
-                    if seen.insert((&line.template, Some((true, source.clone())))) {
-                        *row.sources.entry(source).or_default() += 1;
-                    }
-                    for flag in &line.flags {
-                        let flag = spelled(LINE_FLAGS, flag);
-                        if seen.insert((&line.template, Some((false, flag.clone())))) {
-                            *row.flags.entry(flag).or_default() += 1;
-                        }
-                    }
-                    // a line names its numbers only while they are its
-                    // template's `#`s (`Line::slot`)
-                    if line.numbers.len() == crate::template::slots(&line.template).count {
-                        row.slots.resize(line.numbers.len(), (None, None, false));
-                        for (range, number) in row.slots.iter_mut().zip(&line.numbers) {
-                            match number {
-                                Some(n) => {
-                                    range.0 = Some(range.0.map_or(*n, |min| min.min(*n)));
-                                    range.1 = Some(range.1.map_or(*n, |max| max.max(*n)));
-                                }
-                                None => range.2 = true,
+                }
+                // what is named names its numbers only while they are its
+                // template's `#`s (`Numbers::slot`)
+                let numbers = numbers.read();
+                if numbers.len() == crate::template::slots(template).count {
+                    row.slots.resize(numbers.len(), (None, None, false));
+                    for (range, number) in row.slots.iter_mut().zip(numbers) {
+                        match number {
+                            Some(n) => {
+                                range.0 = Some(range.0.map_or(*n, |min| min.min(*n)));
+                                range.1 = Some(range.1.map_or(*n, |max| max.max(*n)));
                             }
+                            None => range.2 = true,
                         }
                     }
                 }
             }
         }
     }
-    let twins = twins(matches.corpus, |held| {
-        held.item
-            .lines
-            .iter()
-            .map(|l| l.template.as_str())
-            .collect()
-    });
+    rows.retain(|key, _| listed.contains(key));
     // by realm under an all-realms scope: a template is another line in
     // another game (C90), and its row's route is scoped to its realm (C97)
     let by_realm = matches.corpus.realm == Realm::All;

@@ -71,7 +71,16 @@
 //!   is parsed, so what a row admits, selects and says of one occurrence
 //!   is read as every other group's is (the build plan, step 4b), and a
 //!   row's sum is the evaluator's own sum (`eval::sum`): one maker of a
-//!   sum (rule 10 of the plan). The table's realms are the file's: PoE1's
+//!   sum (rule 10 of the plan). So a row names a mod displayed over
+//!   several rows by a row of it, as a line's term does (C90; the build
+//!   plan, 9c4; owner, 2026-09-19: "the two-line mods should contribute to
+//!   relevant pseudo-lines"), and reads that row's number: Thread of
+//!   Hope's resistance, the second of its mod's three rows, is under every
+//!   elemental total (`tests/pseudo.rs`, on the trade site's capture R1).
+//!   The trade site's unit is the stat, and a stat whose rows another's
+//!   sit between — Thread of Hope's mod is two — is named here by either
+//!   of its rows or by the mod, never by the stat's own text: the
+//!   translation's to say (C99). The table's realms are the file's: PoE1's
 //!   three share one game and one recipe, and `poe2` has none.
 //! - **A weight is a whole number or a half, above nothing or below**: a
 //!   row's `reduced` spelling is the row at -1, as the trade site shows

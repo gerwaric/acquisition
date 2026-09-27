@@ -210,7 +210,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
                 "template",
                 "text",
                 &format!(
-                    "the displayed line with each number a #, the sign in the number; a bare \"T\" means template=\"T\". {}",
+                    "the displayed line with each number a #, the sign in the number; a bare \"T\" means template=\"T\". A mod displayed over several rows is one line: `=` names it by its whole text, a row break written \\n, or by any one of its rows, and named by a row its numbers are that row's; `:` and `~` test the whole text. {}",
                     limit("S52")
                 ),
             )

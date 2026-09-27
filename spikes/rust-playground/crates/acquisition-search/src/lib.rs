@@ -76,7 +76,13 @@
 //!   `tests/derive.rs`, and set against the census over a real corpus by
 //!   `search/item-facts/scripts/m2-differential.py` (never in the gate).
 //!   The read that hands the deriver its facts is the store's, C108
-//!   (`acquisition-store/src/corpus.rs`).
+//!   (`acquisition-store/src/corpus.rs`). A mod displayed over several
+//!   rows, named by its whole text or by a row, is the deriver's doc and
+//!   `group`'s; pinned by `tests/rows.rs` (a line's term, its slots, what
+//!   is unread of one row, the vocabulary, what a quoted template resolved
+//!   to), `tests/generated_rows.rs` (a row named answers as the row
+//!   alone) and `tests/pseudo.rs` (a total's row, on the trade site's
+//!   captures).
 //! - **C91, C92, C93, C96, C98, C100, C102.** The binder, evaluation, the
 //!   held corpus and the answer are their modules' docs; pinned at the
 //!   crate's boundary — a request in, an answer out, as JSON — by
@@ -143,7 +149,9 @@ pub use answer::{Answer, Request, answer};
 pub use bind::{NOT_BUILT, NotBuilt, Query, bind, not_built, parse_query};
 pub use class::{CLASS_TABLE_VERSION, ClassGap, ClassTable, ClassTableError, Classed};
 pub use corpus::{Basis, Corpus, Realm};
-pub use derive::{Facts, Item, Line, Part, Property, Shown, Slot, Socket, Unread, derive};
+pub use derive::{
+    Facts, Item, Line, Numbers, Part, Property, Row, Shown, Slot, Socket, Unread, derive,
+};
 pub use describe::{Describe, describe};
 pub use error::{ErrorKind, LanguageError, SearchError};
 pub use json::{from_json, to_json};
