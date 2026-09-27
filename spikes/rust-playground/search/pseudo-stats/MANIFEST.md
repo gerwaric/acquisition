@@ -22,6 +22,8 @@ By one recording of the sitting, which types no file name:
 3. Export the panel once as a HAR file, with its content, into `raw/`.
    A sanitized export held no response body (2026-09-26); the export
    that held them is the second row of round two below.
+   The browser keeps only so much: of 107 searches in one recording the
+   first fifteen had lost their bodies. Export every forty or so.
 4. `scripts/har-split.py raw/<file>.har` says what the recording holds
    and writes nothing; with `--write` it writes each capture under the
    name of the row its query answers. Then delete the HAR file: it can
@@ -89,3 +91,14 @@ The second is the same sitting exported again with its content: the same
 no cookie. `scripts/har-split.py --write` wrote its 46 captures,
 `raw/searches/d01-search.json` to `b2-fetch.json`, each named by the row its
 query answers; they are the recording's bytes and are not listed apart.
+
+Round three, 2026-09-26, 20:32–20:58 US Central (2026-09-27 01:32–01:58 UTC),
+by the owner, from the links of `data/search-sheet.csv` at `ecd682e2`: one
+recording of 107 searches, exported with its content, no cookie. The bodies of
+its first fifteen searches (e001–e015) were gone from the browser by the
+export; two searches were refused, status 400, "Query is too complex" (e047,
+e051). `scripts/har-split.py --write` wrote the 90 others' captures.
+
+| File | Bytes | Captured | sha256 |
+| --- | --- | --- | --- |
+| `raw/searches/www.pathofexile.com-2.har` | 397205793 | 2026-09-26 20:58 | `96965cf10fef27380b7142852133fbe7def44e4159ef49e8b80bb28b099e660b` |

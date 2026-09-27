@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; round two (d01–d24, b1, b2) captured and read — 2026-09-26; round three (e001–e107) with the owner.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; rounds two and three captured and read — 2026-09-26, 124 searches; e001–e015 to capture again and round four (f001–f073) with the owner.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -10,13 +10,15 @@ Headline:
   defence rolls, averaged". Rolls recovered as integers from the display reproduce **30 of 30**
   captured values, each a single value; APT's formula gives 20 exactly and 29 within rounding;
   every negative control fails. A private item displays everything the rule reads.
-- **The site is the checker** (34 searches captured; 281 readings, none disagreeing): total life
-  is complete and sound on five rows; attack speed counts two conditional implicits the shipped
-  total lacks; a sum of nothing shows no total; one text under two ids may be counted under one.
+- **The site is the checker** (124 searches captured; 542 readings, none disagreeing): total life,
+  total Dexterity and 21 gem totals are complete and sound; every other total lacks the two
+  eldritch forms of its rows; a sum of nothing shows no total; one text under two ids may be
+  counted under one.
 - **The ranged family is one reading**: the site shows the average of a line's two numbers; a
-  weapon's own line feeds the attacks' pseudo and never the spells', the other twin feeds both.
-- `+#% to All Resistances` is named by APT under five resistance totals and left out by the C++
-  tables (`sources-differ`, sheet row L001); the owner's corpus holds none.
+  weapon's own line feeds the attacks' pseudo alone, the other twin the plain, the attacks' and
+  the spells'.
+- `+#% to All Resistances`, which APT names and the C++ tables leave out, is counted: one item
+  shows it under the fire, lightning and chaos totals (e042, e044, e048).
 
 Per-row detail: `data/candidates.csv` (`scripts/candidates.py`), `data/percentile-check.csv`
 (`scripts/percentile.py`), `data/search-sheet.csv` (`scripts/search-sheet.py`), `data/captures.json`
@@ -201,10 +203,37 @@ left out on 37; lightning left out of the aggregates on 25; the Pinnacle implici
 The most the sitting used of what the site allows: 9 of 15 searches in 60 s, 28 of 60 in 300 s, 71
 of 600 in three hours; 22 of 100 fetches in 300 s. No response asked it to slow down.
 
-Round three, e001–e107, each search pinned to its version: every pseudo in scope complete and sound,
-less what is closed — the ranged family first (e001–e037), attack speed (e038, e039), then the 34
-other shipped totals. A sound check of a total is by the site's own sum; of a ranged pseudo, by a
-count. The largest group holds 71 ids, where 29 is the most the site has been seen to take.
+Round three (e001–e107), one sitting of 107 searches in 26 min, recorded once. The browser had
+dropped the first fifteen searches' bodies by the export (e001–e015: their shape alone is
+`data/recording-shape.csv`), and the site refused two as too complex (e047, e051).
+
+| Pseudos | Complete | Sound | Says |
+| --- | --- | --- | --- |
+| total Dexterity and 21 of the 22 gem totals | 0 found | 0 found | closed on the shipped rows |
+| the resistances, cast speed, increased physical damage, spell critical strike chance, attack speed | 17–645 found | 0 found, or refused | each lacks its rows' eldritch forms |
+| the ten scoped ranged pseudos and four scoped aggregates, of those captured | 85–681 found | 0 found | the same; every row of round two's reading is counted wherever it appears |
+| the plain ranged pseudos and the two plain aggregates | 0 found | 10,000 found | a weapon's own line is not counted: the plain pseudo is the other twin alone |
+| total Strength, total Intelligence | 0 found | 3,296 found | the twin id of That Which Was Taken is left out of these two as of total life |
+| total level of socketed skill gems | 0 found | 10,000 found | the pseudo's own text is not counted; the ten fetched are one unique, Edge of Madness |
+
+What round three changes in the rows (`scripts/rows.py`), each a version the captures asked for:
+
+| Change | Evidence |
+| --- | --- |
+| **A row's two eldritch forms are counted as the row**: `While a Unique Enemy is in your Presence, …` and `While a Pinnacle Atlas Boss is in your Presence, …`, for every row the site lists a form of | every complete check that found items found these and nothing else in the ten fetched; left out, 197 readings disagree in 20 searches |
+| The plain ranged pseudo counts the other twin alone | e016, e021, e027, e033; a weapon's line counted disagrees on 40 |
+| `#% to All Resistances` counts toward each resistance total | e042, e044, e048, one item; by the same arithmetic 3 toward the elemental total and 4 toward the total, unseen |
+| The twin id is never counted toward total Strength or Intelligence | e053, e057, ten of ten each |
+| `# to Level of Socketed Skill Gems` is not counted toward its own total | e103 |
+| The enchant `No Physical Damage` carries the id of `#% increased Physical Damage` and is no row | e061: asked by id, 217 found; its text is another, so the search leaves the id out |
+
+What the site takes: a weighted group costs 56 and 4 an id (`complexity` 96 at 10 ids, 128 at 18,
+148 at 23) and was refused at 41 and 45; a count or a `not` of 71 ids was taken. The most the
+sitting used of the allowance: 10 of 15 searches in 60 s, 32 of 60 in 300 s, 180 of 600 in three
+hours.
+
+Round four, f001–f073: the 33 pseudos whose rows moved, complete and sound at the versions written
+in `ROUND_FOUR`, a weighted group of more than 20 ids asked in parts. With e001–e015 again, 88.
 
 ## Left out
 

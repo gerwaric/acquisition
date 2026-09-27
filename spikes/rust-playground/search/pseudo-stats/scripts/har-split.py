@@ -237,7 +237,8 @@ def main():
                 fetched = [f for f in calls if f["kind"] == "fetch" and f["row"] == c["row"]
                            and f["at"] > c["at"]]
                 print(f"    {c['row'] or 'no row':<8} status {c['status']}  {c['bytes']:>6} bytes  "
-                      + (f"{sum(f['items'] for f in fetched)} items fetched" if fetched
+                      + (f"refused" if c["status"] != 200
+                         else f"{sum(f['items'] for f in fetched)} items fetched" if fetched
                          else "no fetch followed: nothing found" if (c["bytes"] or 0) < SMALL
                          else "results, and no fetch recorded")
                       + ("" if c["body"] else "  (no body)"))

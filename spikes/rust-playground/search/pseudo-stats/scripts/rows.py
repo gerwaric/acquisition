@@ -75,6 +75,35 @@ CHANGES = {
 }
 
 
+TWIN = {
+    "never": ["explicit.stat_2543977012"],
+    "why": "e053, e057: `+# to Strength and Intelligence` under this id, on That Which Was "
+           "Taken, shows no total on ten items of ten — as c3 found of total life",
+}
+ALL_RESISTANCES = "e042, e044, e048: one item's `+13% to All Resistances` shows as 13 under "
+for _name, _weight, _seen in (("total_fire_res", "1", "fire"), ("total_lightning_res", "1", "lightning"),
+                              ("total_chaos_res", "1", "chaos"), ("total_cold_res", "1", None),
+                              ("total_ele_res", "3", None), ("total_res", "4", None)):
+    CHANGES[_name] = [{
+        "add": [("#% to All Resistances", _weight)],
+        "why": ALL_RESISTANCES + ("the fire, lightning and chaos totals" if _seen else
+                                  "the fire, lightning and chaos totals; this total by the "
+                                  "same arithmetic, unseen"),
+    }]
+CHANGES["total_increased_phys"] = [{
+    "never": ["enchant.stat_1509134228"],
+    "why": "e061: 217 found, the ten fetched each carrying this id as the enchant `No Physical "
+           "Damage`, a text that is no row's; the id is left out of what the searches ask",
+}]
+CHANGES["total_str"] = [TWIN]
+CHANGES["total_int"] = [TWIN]
+CHANGES["total_skill_gem_levels"] = [{
+    "remove": [("# to Level of Socketed Skill Gems", "1")],
+    "why": "e103: 10,000 found carrying the pseudo's own text and no total, the ten fetched one "
+           "unique, Edge of Madness; e102 found none showing the total without a row",
+}]
+
+
 def ranged_changes():
     """The ranged family's second versions, from round two (d04–d24).
 
@@ -170,6 +199,36 @@ def first_versions():
     return out
 
 
+# Round three (e016–e107): the site counts a line's two eldritch forms as the
+# line. Every complete check that found items found these, for resistances,
+# speeds, damage and the ranged family alike, and nothing else in the ten
+# fetched; so the rule is one, applied to every row whose form the site lists.
+PRESENCE = ["While a Unique Enemy is in your Presence, ",
+            "While a Pinnacle Atlas Boss is in your Presence, "]
+PLAIN = [f"adds_{kind}" for kind in TYPES] + ["adds_elemental", "adds_damage"]
+
+
+def round_three_changes(name, rows, ids):
+    """The versions round three's captures ask for, after a pseudo's others."""
+    out = []
+    if name in PLAIN and any(which == "any" for (_, which) in rows):
+        out.append({
+            "remove": [(t, "1", "any") for (t, which) in rows if which == "any"],
+            "add": [(t, "1", "global") for (t, which) in rows if which == "any"],
+            "why": "e016, e021, e027, e033: items carrying a weapon's own line show no plain "
+                   "pseudo; the plain pseudo counts the other twin alone",
+        })
+        rows = {(t, "global" if which == "any" else which): w for (t, which), w in rows.items()}
+    add = [(prefix + t, str(w), "any") for (t, _), w in rows.items() for prefix in PRESENCE
+           if not t.startswith("While a ") and ids.get(prefix + t)
+           and (prefix + t, "any") not in rows]
+    seen = []
+    add = [r for r in add if not (r[0] in seen or seen.append(r[0]))]
+    if add:
+        out.append({"add": add, "why": "round three: the site counts a row's eldritch forms as the row"})
+    return out
+
+
 def row(entry):
     """(template, which twin) and the weight of a row written (template, weight[, which])."""
     return (entry[0], entry[2] if len(entry) > 2 else "any"), Fraction(entry[1])
@@ -181,6 +240,7 @@ def versions():
     out = {}
     every = dict(CHANGES)
     every.update(ranged_changes())
+    ids, _ = stats()
     for name, first in first_versions().items():
         rows = dict(row(r) for r in first["rows"])
         never = []
@@ -193,15 +253,21 @@ def versions():
         reads = "avg" if name.startswith("adds_") else "slot"
         history.append({"pseudo": first["pseudo"], "reads": reads, "rows": dict(rows), "never": [],
                         "why": first["why"]})
-        for change in changes:
+        def apply(change):
+            nonlocal never
+            for r in change.get("remove", []):
+                del rows[row(r)[0]]
             for r in change.get("add", []):
                 key, weight = row(r)
                 rows[key] = weight
-            for r in change.get("remove", []):
-                del rows[row(r)[0]]
             never = never + change.get("never", [])
             history.append({"pseudo": first["pseudo"], "reads": reads, "rows": dict(rows),
                             "never": list(never), "why": change["why"]})
+
+        for change in changes:
+            apply(change)
+        for change in round_three_changes(name, dict(rows), ids):
+            apply(change)
         out[name] = history
     return out
 

@@ -616,8 +616,7 @@ def round_three():
     ids, texts = table.stats()
     versions = table.versions()
     pinned = {name: 2 for name in versions if name.startswith("adds_")}
-    pinned.update({name: 1 for name in versions
-                   if name.startswith("adds_") and len(versions[name]) == 1})
+    pinned.update({f"adds_{kind}": 1 for kind in table.TYPES})
     pinned["total_attack_speed"] = 3
     order = [f"adds_{k}{scope}" for k in ("fire", "cold", "lightning", "physical", "chaos",
                                           "elemental", "damage")
@@ -632,6 +631,81 @@ def round_three():
         if not closed:
             out.append(complete(f"e{len(out) + 1:03d}", name, number, version, ids, texts))
         out.append(sound(f"e{len(out) + 1:03d}", name, number, version, ids, texts))
+    return out
+
+
+# The most ids a `weight2` group has been seen taken with: the site answers a
+# query's cost as `complexity`, 56 and 4 an id for a weighted group beside a
+# `not` (96 at 10 ids, 128 at 18, 148 at 23), and refused 41 and 45 ids as too
+# complex (e047, e051). A count or a `not` of 71 ids was taken.
+WEIGHTED_AT_MOST = 20
+
+# The pseudos whose rows moved after round three was written, each at the
+# version round four asks of: written out, so that a later version changes no
+# search here.
+ROUND_FOUR = {
+    "total_cold_res": 3,
+    "total_fire_res": 3,
+    "total_lightning_res": 3,
+    "total_ele_res": 3,
+    "total_chaos_res": 3,
+    "total_res": 3,
+    "total_str": 2,
+    "total_int": 2,
+    "total_cast_speed": 2,
+    "total_increased_phys": 3,
+    "total_spell_crit": 2,
+    "total_skill_gem_levels": 2,
+    "adds_physical": 2,
+    "adds_lightning": 2,
+    "adds_cold": 2,
+    "adds_fire": 2,
+    "adds_chaos": 2,
+    "adds_elemental": 3,
+    "adds_damage": 3,
+    "adds_physical_to_attacks": 3,
+    "adds_lightning_to_attacks": 3,
+    "adds_cold_to_attacks": 3,
+    "adds_fire_to_attacks": 3,
+    "adds_chaos_to_attacks": 3,
+    "adds_elemental_to_attacks": 3,
+    "adds_damage_to_attacks": 3,
+    "adds_physical_to_spells": 3,
+    "adds_lightning_to_spells": 3,
+    "adds_cold_to_spells": 3,
+    "adds_fire_to_spells": 3,
+    "adds_chaos_to_spells": 3,
+    "adds_elemental_to_spells": 3,
+    "adds_damage_to_spells": 3,
+}
+
+
+def round_four():
+    """f001 on: the pseudos of ROUND_FOUR complete and sound at their pinned
+    versions; a total whose weighted rows are more than the site takes in one
+    search is asked in parts, each part sound alone."""
+    ids, texts = table.stats()
+    versions = table.versions()
+    out = []
+    for name, number in ROUND_FOUR.items():
+        version = versions[name][number - 1]
+        out.append(complete(f"f{len(out) + 1:03d}", name, number, version, ids, texts))
+        whole = sound("", name, number, version, ids, texts)
+        group_ = whole["query"]["stats"][0]
+        if group_["type"] != "weight2" or len(group_["filters"]) <= WEIGHTED_AT_MOST:
+            whole["search"] = f"f{len(out) + 1:03d}"
+            out.append(whole)
+            continue
+        parts = [group_["filters"][i:i + WEIGHTED_AT_MOST]
+                 for i in range(0, len(group_["filters"]), WEIGHTED_AT_MOST)]
+        for index, part in enumerate(parts, start=1):
+            out.append({
+                "search": f"f{len(out) + 1:03d}",
+                "decides": whole["decides"].replace(
+                    ", sound:", f", sound, part {index} of {len(parts)} of its ids:"),
+                "control": whole["control"],
+                "query": batch_query([dict(group_, filters=part), group("not", [version["pseudo"]])]),
+            })
     return out
 
 
@@ -714,7 +788,7 @@ def main():
     else:
         print(__doc__)
         return 2
-    searches = PILOT + (checks() + round_two() + report() + round_three()
+    searches = PILOT + (checks() + round_two() + report() + round_three() + round_four()
                         if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
@@ -742,7 +816,7 @@ def main():
     for row in searches:
         s = row["search"]
         kind = ("pilot" if s.startswith("p")
-                else "check" if s.startswith(("c", "d", "b", "e"))
+                else "check" if s.startswith(("c", "d", "b", "e", "f"))
                 else "percentile case" if s.startswith("C")
                 else "open question" if s.startswith("R")
                 else "percentile line" if s.startswith("P") else "pair" if "." in s else "line")
