@@ -13,8 +13,9 @@ every trap below, so it is a skill (P6). What it found is
 `search/pseudo-stats/README.md`; the rounds' story is the commits'.
 
 The boundary is `SURFACES.md`, the trade site's rows (C79): the access
-method is `browser`. A script composes a link; the owner opens it. No
-tool opens a link, sends a request, or holds a session.
+method is `browser`. A script composes a link and lays links out on a
+page; the owner opens each by a click. No tool opens a link, on a timer
+or otherwise, sends a request, or holds a session.
 
 ## The question a search asks
 
@@ -49,33 +50,45 @@ is not this: part 1 of 9c counted 264 of them and none was run.
    `--verify` (every link decodes to its query, every search names a
    control), `--self-test` (the composer reproduces the site's own ids),
    and `cmp` of the sheet's earlier rows against what they were.
-4. Tell the owner how many searches, which are the core, and the pace.
+4. `tools/trade-pages.py <round>` writes the round's pages, 25 links
+   each, under `search/pseudo-stats/raw/sitting/`: the rows with no
+   capture yet, so the same command after a sitting writes what is
+   still missing. It checks each page against the sheet as it writes;
+   `--check` does so again.
+5. Tell the owner how many searches, which are the core, the pace, and
+   the first page's path.
 
 ## The sitting (the owner's)
 
-Signed in, the browser's network panel open before the first link and
-keeping its log across pages. One link at a time, at the pace of
-reading a result. Export the panel as a HAR file **with its content**,
-into `search/pseudo-stats/raw/searches/`, **every forty links or so**.
-Order does not matter; a link opened twice does no harm.
+Signed in. Open the round's first page, `raw/sitting/<round>-1.html`.
+Its first link opens the sitting tab, blank: drag that tab to a window
+of its own, open its network panel there, keeping its log across pages.
+Then one search at a time, a plain click each, at the pace the page
+counts. When a page's links are opened, export the panel as a HAR file
+**with its content** into `search/pseudo-stats/raw/searches/`, clear the
+log, and follow the page's link to the next; the sitting tab stays as it
+is. Order does not matter; a link opened twice does no harm.
+
+Without the pages, the sheet's links go into the tab's address bar one
+at a time, and the export is every twenty-five links.
 
 ## After the sitting
 
-5. `tools/trade-split.py <file.har>` says what the recording holds and
+6. `tools/trade-split.py <file.har>` says what the recording holds and
    writes nothing; `--write` writes each capture under the name of the
    row its query answers. The recording stays under `raw/`, never
    committed; its row goes in the track's `MANIFEST.md`.
-6. `tools/trade-captures.py --check`, then without the flag:
+7. `tools/trade-captures.py --check`, then without the flag:
    `data/captures.json`, scrubbed, its guard refusing seller data.
-7. `tools/trade-evidence.py`: every capture against each pseudo's
+8. `tools/trade-evidence.py`: every capture against each pseudo's
    latest rows. **An item that disagrees is the finding**: read its
    lines, append the version the capture asks for, read again.
-8. When it agrees, break it: a mutant for each rule the rows gained,
+9. When it agrees, break it: a mutant for each rule the rows gained,
    each seen to disagree. Agreement after the rows were fitted to the
    items is a fit; the next round's searches are the test.
-9. `tools/trade-changes.py`: `data/table-changes.csv`, the totals
-   table's changes as rows, none applied. They go to the owner.
-   `tools/totals-table.py` applies what he rules.
+10. `tools/trade-changes.py`: `data/table-changes.csv`, the totals
+    table's changes as rows, none applied. They go to the owner.
+    `tools/totals-table.py` applies what he rules.
 
 ## Traps
 
@@ -86,6 +99,16 @@ Order does not matter; a link opened twice does no harm.
   the first fifteen had lost their bodies. What is left is the
   recording's shape (`--shape`): a small answer no fetch followed found
   nothing, by the page's behaviour and not the site's word.
+- **A recording's size is the page's, never the search's**: 4 to 5 MB
+  a search, most of it the site's four data files, stored again at
+  every page; the search and its fetch are under a hundredth. A page of
+  25 is 105 to 113 MB however its links are opened.
+- **A page reaches only a tab it opened.** A tab opened by hand cannot
+  be a link's target, so the page opens the tab and the panel is set up
+  after. A link that opens a new tab has lost the first: a click with a
+  key held, or a page on the way that cut the tab from its opener — the
+  search page sends no such header. Then the link goes into the sitting
+  tab's address bar.
 - **The owner creates empty files before filling them.** Mid-sitting,
   `--check` only; a capture saved under another row's name is named and
   left out.
