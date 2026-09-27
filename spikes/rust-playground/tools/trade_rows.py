@@ -167,6 +167,16 @@ DERIVED = {
                           "g003: 12 on an item of fire 45, cold 39 and lightning 12 that carries "
                           "no `#% to all Elemental Resistances`"),
 }
+# Round six (h001–h053). The count counts chaos: h040's ten items each carry
+# `#% to Chaos Resistance`, and the count is one more than the elemental count
+# on every one. The least-of reading holds on h039's ten items, none carrying
+# the line. And the attributes' pseudo is the same reading: its rows of round
+# five stay as the version h001 and h002 asked, and are not what it counts.
+DERIVED["total_all_attributes"] = (
+    "least", ["total_str", "total_dex", "total_int"],
+    "h001: 10,000 found without `# to all Attributes`, the ten fetched each showing the least of "
+    "its three attribute totals; h002: 18 found carrying the line and no pseudo, each with one "
+    "attribute's lines summing to nothing")
 
 # Round five's changes to the pseudos of OTHER, applied after the eldritch
 # forms so that the versions round five pinned stand; a row they add gains
@@ -284,6 +294,47 @@ OTHER_CHANGES = {
 def positive(template):
     """The spelling the site lists a `reduced` line's stat under."""
     return template.replace(" reduced ", " increased ", 1)
+
+
+# Round six's changes to the pseudos of OTHER, after round five's.
+ROUND_SIX_CHANGES = {
+    "total_mana": [{
+        "never": ["explicit.stat_2543977012"],
+        "why": "h004: 3,295 found, the ten fetched each That Which Was Taken, carrying "
+               "`# to Strength and Intelligence` under this id and showing no total — as c3 "
+               "found of total life; b2 found 3,297 carrying the id at all",
+    }],
+}
+
+# Round six: a row's `reduced` spelling is the row, below nothing. Asked of
+# six pseudos with the pseudo required, each of ten items shows its total below
+# nothing (but Oro's Sacrifice, whose line under the id is `No Physical
+# Damage`, no row's); asked sound, five found nothing and the sixth only `No
+# Physical Damage`. So the rule is one, applied to every row that says
+# `increased`, as the eldritch forms' is.
+REDUCED_SEEN = {
+    "total_attack_speed": "h042",
+    "total_cast_speed": "h044",
+    "total_increased_phys": "h046",
+    "increased_movement_speed": "h048",
+    "increased_mana_regen": "h050",
+    "global_crit_chance": "h052",
+}
+
+
+def reduced_changes(name, rows):
+    """The version round six's captures ask for, after a pseudo's others."""
+    add = []
+    for (t, which), w in rows.items():
+        spelling = t.replace(" increased ", " reduced ", 1)
+        if w > 0 and spelling != t and not t.startswith("While a ") and (spelling, which) not in rows:
+            add.append((spelling, plain(-w), which))
+    if not add:
+        return []
+    seen = REDUCED_SEEN.get(name)
+    why = "round six: a row's `reduced` spelling is under the row's id and counted below nothing"
+    why += f"; {seen}: ten items of ten" if seen else "; of this pseudo unseen"
+    return [{"add": add, "why": why}]
 
 
 def ranged_changes():
@@ -472,6 +523,10 @@ def versions():
             apply(OTHER_CHANGES[name])
             for change in round_three_changes(name, dict(rows), ids):
                 apply(change)
+        for change in ROUND_SIX_CHANGES.get(name, []):
+            apply(change)
+        for change in reduced_changes(name, dict(rows)):
+            apply(change)
         out[name] = history
     return out
 

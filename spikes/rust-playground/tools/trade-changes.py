@@ -12,8 +12,11 @@ naming its captures), search/pseudo-stats/data/captures.json and search/pseudo-s
 A row's `change` is one of: `new total` (a pseudo no table ships), `add row`,
 `remove row`, `twin` (a row that means one of two stats displaying its text,
 which the build answers by what the item is), `not mimicked` (an id or a row
-the site leaves out and the search counts, by the owner's ruling), `rule`
-(what holds for every total).
+the site leaves out and the search counts, by the owner's ruling, or waiting
+for it where the evidence says so), `rule` (what holds for every total),
+`no sum` (a pseudo that is a reading of other totals, which no row can say:
+the reading is in `template`, and no total is written for it), `limit` (what
+a total read from an item's text cannot match of the site's).
 
 A total's `status` is what the site said of its latest rows: `closed` — a
 complete and a sound check each found nothing; `explained` — a check found
@@ -46,6 +49,10 @@ RULES = [
      "\"Yes, let's make it absent to match the site.\""),
     ("a ranged total is the average of a line's two numbers",
      "round two: every reading of a ranged pseudo; the low number read instead disagrees on all"),
+    ("a row's `reduced` spelling is the row, counted below nothing",
+     "g007, g034, h042, h044, h046, h048, h050, h052: the line is under the `increased` spelling's "
+     "id, and the site shows the total below nothing on 60 readings of the 61 that carry one, the "
+     "other a sum of nothing (g034); left out, 59 readings of round six disagree. Not ruled"),
 ]
 # Rows the site leaves out and the table keeps, by the owner's ruling.
 KEPT = {
@@ -58,6 +65,12 @@ ELDRITCH = " The owner, 2026-09-26: \"include the eldritch mods\""
 NOT_MIMICKED = (
     "the site leaves this id out; the search counts the line wherever it is displayed. "
     "The owner: \"I believe this is a bug. Let's count the mod\""
+)
+# The same id under a total of step 9c2: what the owner ruled, he ruled of
+# total life, Strength and Intelligence.
+NOT_MIMICKED_UNRULED = (
+    "the site leaves this id out, as it does of total life, Strength and Intelligence, where "
+    "the owner ruled the line counted. Of this total not ruled"
 )
 
 
@@ -104,6 +117,13 @@ def main():
         out.append(["every total", "", "", "rule", rule, "", "", why, ""])
     for name, history in table.versions().items():
         latest = history[-1]
+        if name in table.DERIVED:
+            kind, of, why = table.DERIVED[name]
+            status = "open" if latest["pseudo"] in wrong else "explained"
+            counts[status] += 1
+            out.append([name, latest["pseudo"], texts[latest["pseudo"]], "no sum",
+                        f"the {kind} of {', '.join(of)}", "", "", why, status])
+            continue
         kinds = asked.get(name, {})
         found = {k: sum(t for _, t in v[1]) for k, v in kinds.items()}
         if latest["pseudo"] in wrong:
@@ -140,7 +160,11 @@ def main():
                 gone = next(v["why"] for v in history if (t, which) not in v["rows"])
                 out.append(head + ["remove row", t, before[(t, which)], which, gone, status])
         for stat in latest["never"]:
-            out.append(head + ["not mimicked", stat, "", "", NOT_MIMICKED, status])
+            out.append(head + ["not mimicked", stat, "", "",
+                               NOT_MIMICKED_UNRULED if name in table.OTHER else NOT_MIMICKED, status])
+        if latest["cut"]:
+            why = next(v["why"] for v in history if v["cut"])
+            out.append(head + ["limit", "", table.plain(latest["cut"]), "", why, status])
     with OUT.open("w", newline="") as f:
         sheet = csv.writer(f, lineterminator="\n")
         sheet.writerow(["total", "site_id", "site_text", "change", "template", "weight",

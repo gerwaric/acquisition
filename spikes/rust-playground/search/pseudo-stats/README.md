@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows, none applied.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -10,10 +10,10 @@ Headline:
   defence rolls, averaged". Rolls recovered as integers from the display reproduce **30 of 30**
   captured values, each a single value; APT's formula gives 20 exactly and 29 within rounding;
   every negative control fails. A private item displays everything the rule reads.
-- **The site is the checker** (212 searches captured; 912 readings, none disagreeing): of 57
-  pseudos 33 are closed — a complete and a sound check each found nothing — and 24 explained:
+- **The site is the checker** (310 searches captured; 1,453 readings, none disagreeing): of 86
+  pseudos 42 are closed — a complete and a sound check each found nothing — and 44 explained:
   what a check found shows, item for item, what the rows give. `data/table-changes.csv` is the
-  totals table's changes as rows, 227, none applied.
+  totals table's changes as rows, 388; the 161 of step 9c2 are not applied.
 - **The ranged family is one reading**: the site shows the average of a line's two numbers; a
   weapon's own line feeds the attacks' pseudo alone, the other twin the plain, the attacks' and
   the spells'.
@@ -150,6 +150,8 @@ every capture is read against each pseudo's latest (`tools/trade-evidence.py`, `
 | two | d01–d24, b1, b2 | total life sound; the ranged family on its own text; the owner's report | one recording |
 | three | e001–e107 | every pseudo in scope, complete and sound | two recordings; e047, e051 refused as too complex |
 | four | f001–f073 | the 33 pseudos whose rows round three moved | three recordings |
+| five | g001–g044, R1 | the 29 other totals (`data/other-totals.csv`) at their own text, or what carries them | two recordings |
+| six | h001–h053 | the 19 whose rows round five moved; the readings that are no sum; a `reduced` line | three recordings |
 
 A sitting is one recording of the browser's network panel, exported with its content and split by
 `tools/trade-split.py` (`MANIFEST.md`): no file name is typed, since a search response carries its
@@ -166,6 +168,18 @@ What the site counts, as the rows now stand:
 | `#% to All Resistances` counts toward each resistance total | e042, e044, e048 | 6 rows; the elemental total's 3 and the total's 4 are arithmetic, unseen |
 | **One text, two ids, one counted**: `+# to Strength and Intelligence` on That Which Was Taken is left out of total life, Strength and Intelligence | c3, b1, b2, e053, e057 | ruled, the owner: "I believe this is a bug. Let's count the mod"; reported by him to GGG 2026-09-26 |
 | `+# total to Level of Socketed Skill Gems` does not count `# to Level of Socketed Skill Gems` | e103: 10,000 found, the ten fetched one unique; f030, f031: without the row, complete and sound, nothing found | ruled, the owner: "yes, include the socketed skill gems": the row stays |
+
+What rounds five and six added, of the 29 other totals and of every total (each version's `why`
+in `tools/trade_rows.py` names its captures and counts):
+
+| Finding | Evidence | For the build |
+| --- | --- | --- |
+| **Four pseudos are no sum of lines**: the two counts count the resistance totals an item shows, chaos among them, never lines; `total to all Elemental Resistances` and `total to all Attributes` are the least of their three totals, shown where all three are | R1, g001, g002, h040; g003, h039; h001, h002 | 4 rows `no sum`: no table row can say one, a derived field can (C101); not ruled |
+| **A row's `reduced` spelling is the row, below nothing**: the line is under the `increased` spelling's id | 60 readings of the 61 that carry one, the other a sum of nothing; left out, 59 disagree | a rule, and a row at a weight of -1 for every row that says `increased`, six of them on totals the build ships; not ruled |
+| Total mana is total life's rows with Intelligence for Strength, the twin id left out of it too | g005, h003, h004 (3,295 found, b2's 3,297) | 5 rows; the twin `not mimicked`, of this total not ruled |
+| A type's `increased` damage counts elemental damage; its spell damage, spell damage too; its damage with attack skills, elemental damage with attack skills too; burning damage counts fire and elemental damage | g014–g035, each tested complete and sound at round six | rows |
+| The two leech pseudos count the line under all ten ids, the `(Local)` twin among them | g039–g042 found nothing; h041, the bound's mutant, found 10,000 | no twin: nothing waits for 9d |
+| Life regenerated is shown a tenth over the line's text on two items of ten: the site rounds what the text cuts | g037 | a `limit`: a total read from the text is under the site's by less than a tenth a line |
 
 Two things the searches could not do, each a limit of what is closed:
 
@@ -232,11 +246,11 @@ The first pass's full text is this README at `d18fa6dd`.
 
 | # | Question | The one read that closes it |
 | --- | --- | --- |
-| 1 | Do the 13 `unresolved` entries whose text matches a template exactly (movement speed, rarity, leech, mana regeneration) sum those lines? | a `WORDS` row each, then their sheet rows: this pass's method, not yet its scope |
+| 1 | Do the 13 `unresolved` entries whose text matches a template exactly (movement speed, rarity, leech, mana regeneration) sum those lines? | **Closed 2026-09-27** (rounds five and six): each sums its own text, and eight of the fifteen whose text a line displays other lines too |
 | 2 | Which lines does each `Adds # to #` pseudo sum? | sheet rows L002–L009, L012, L013, L016, L021, L032, L045, L067, and the families they represent |
 | 3 | Is `#% Base Defence Percentile` computable from the export? | **Closed 2026-09-26** on the captures: the site's stated rule, rolls recovered from `../repoe/data/base-defences.csv`, reproduces 30 of 30; what no capture reaches is C1–C8 |
 | 4 | What do a logbook and a lake tablet look like in the private API? | capture one of each |
-| 5 | Does `# total Resistances` count lines or resistance types? | sheet row R1: one all-elemental line, 1 or 3 |
+| 5 | Does `# total Resistances` count lines or resistance types? | **Closed 2026-09-27**: resistances — R1's ten items each carry an all-elemental line and show 3 |
 | 6 | Are the 63 family rows right per entry? | a trade fetch of one unattested room and one unattested quality |
 | 7 | How many of the owner's unsuffixed `Adds # to #` lines are on weapons? | a census of those templates by item class over the owner's copy |
 | 8 | Are APT's percentile lines the site's, and the flat hybrids PoB models? | P001–P034, each scored as `percentile.py` does |

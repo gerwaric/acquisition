@@ -100,3 +100,15 @@ no cookie. The seventh holds g001–g025, the eighth g026–g044 and R1.
 | --- | --- | --- | --- |
 | `raw/searches/www.pathofexile.com-7.har` | 112588130 | 2026-09-27 09:51 | `595cf19c879fcf6a131ce13038c44f599ac4d27d9d72240ae3993073f432030e` |
 | `raw/searches/www.pathofexile.com-8.har` | 87933411 | 2026-09-27 09:55 | `cf39b195ede7a2a8fc40e210457d75cc15b515c018631ba951556162530cd551` |
+
+Round six (step 9c2), 2026-09-27, 10:39–10:50 US Central (15:39–15:50 UTC), by
+the owner, from the links of `data/search-sheet.csv` at `b22dccbe`: three
+recordings, each exported with its content, every body held, no cookie. The
+ninth holds h001–h025, the tenth h026–h050, the eleventh h051–h053.
+`tools/trade-split.py --write` wrote their 77 captures.
+
+| File | Bytes | Captured | sha256 |
+| --- | --- | --- | --- |
+| `raw/searches/www.pathofexile.com-9.har` | 105630881 | 2026-09-27 10:44 | `3d833ead046947d4bdf50e27aa4e3f1b9cf07f4f5bf4d948dc6bcf17bdec5881` |
+| `raw/searches/www.pathofexile.com-10.har` | 105049007 | 2026-09-27 10:49 | `993205fe9a03e09a5f0efaaad56e0e0a5089e2ee9bc107a49142bc4ee5c8d56f` |
+| `raw/searches/www.pathofexile.com-11.har` | 14815306 | 2026-09-27 10:51 | `5f88ec3362c8be8493558ada4d4f5369a5721851702a9b355feba43d5e3cf3ef` |
