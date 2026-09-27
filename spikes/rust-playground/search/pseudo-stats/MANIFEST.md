@@ -102,3 +102,16 @@ e051). `scripts/har-split.py --write` wrote the 90 others' captures.
 | File | Bytes | Captured | sha256 |
 | --- | --- | --- | --- |
 | `raw/searches/www.pathofexile.com-2.har` | 397205793 | 2026-09-26 20:58 | `96965cf10fef27380b7142852133fbe7def44e4159ef49e8b80bb28b099e660b` |
+
+Round three's first fifteen again, and round four, 2026-09-26, by the owner,
+from the links of `data/search-sheet.csv` at `41ed6467`: four recordings, each
+exported with its content, every body held, no cookie. The third holds
+e001–e015, the fourth f001–f025, the fifth f026–f050 with f050 asked twice
+(other results the second time; the first is kept), the sixth f051–f073.
+
+| File | Bytes | Captured | sha256 |
+| --- | --- | --- | --- |
+| `raw/searches/www.pathofexile.com-3.har` | 66052352 | 2026-09-26 21:21 | `5bdb57e760557d17282b944556d6e1db4642a1835ac2d712cf3e77bffeb5774e` |
+| `raw/searches/www.pathofexile.com-4.har` | 113918168 | 2026-09-26 21:32 | `51dbf7af58c9ced57292fe1d28bd510935719e02ee804d6e02921467e70a1305` |
+| `raw/searches/www.pathofexile.com-5.har` | 116803803 | 2026-09-26 21:35 | `7a5cb7bd0150f2385389bd5a95090d0962fd2e809cdd5e7c0df74e696fb74789` |
+| `raw/searches/www.pathofexile.com-6.har` | 104354088 | 2026-09-26 21:42 | `69969e36e4ed9aa7d0fda5243c3d5808fcef668e25046adff05b71d6242b6e40` |

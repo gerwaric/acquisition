@@ -95,6 +95,15 @@ CHANGES["total_increased_phys"] = [{
     "why": "e061: 217 found, the ten fetched each carrying this id as the enchant `No Physical "
            "Damage`, a text that is no row's; the id is left out of what the searches ask",
 }]
+# Applied after the eldritch forms, so that the version round four pinned stands.
+LATER = {
+    "total_increased_phys": [{
+        "restore": ["enchant.stat_1509134228"],
+        "why": "f026: the same id displays `15% increased Physical Damage` on two items and is "
+               "counted. The id carries two texts; the text decides, and `No Physical Damage` "
+               "is no row's. Leaving the id out was wrong",
+    }],
+}
 CHANGES["total_str"] = [TWIN]
 CHANGES["total_int"] = [TWIN]
 CHANGES["total_skill_gem_levels"] = [{
@@ -260,13 +269,16 @@ def versions():
             for r in change.get("add", []):
                 key, weight = row(r)
                 rows[key] = weight
-            never = never + change.get("never", [])
+            never = [i for i in never + change.get("never", [])
+                     if i not in change.get("restore", [])]
             history.append({"pseudo": first["pseudo"], "reads": reads, "rows": dict(rows),
                             "never": list(never), "why": change["why"]})
 
         for change in changes:
             apply(change)
         for change in round_three_changes(name, dict(rows), ids):
+            apply(change)
+        for change in LATER.get(name, []):
             apply(change)
         out[name] = history
     return out
