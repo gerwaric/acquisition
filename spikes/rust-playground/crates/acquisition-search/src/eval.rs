@@ -91,7 +91,9 @@
 //! - **A computed value** (`pseudo.rs`; C94, C101) is asked as a sum is:
 //!   complete, its comparison is decided; an incomplete subtotal, or a
 //!   total with no definition for the realm, is undecided; a derived
-//!   field whose input the item lacks is lacked. Its sort scalar and its
+//!   field whose input the item lacks is lacked. What a comparison and
+//!   `has:` make of one is `pseudo.rs`'s, a count of totals left open
+//!   among it. Its sort scalar and its
 //!   reasons are the same functions', and a total's arithmetic is this
 //!   module's own sum over each row's group.
 //! - **The price** (`price.rs`; C81, C100) is read as the listing state
@@ -711,14 +713,7 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
             false,
             !unread_for(held, *thing).is_empty(),
         ),
-        // present exactly when the value is established: a derived
-        // field's inputs read and displayed as numbers (T2), a total's
-        // lines summing to something (C94); what is unread leaves it open
-        Atom::HasComputed(named) => match pseudo::value(*named, None, held) {
-            Valued::Value(_) => decided(true, false, false),
-            Valued::Incomplete(_) => Outcome::Undecided,
-            Valued::Lacked => Outcome::Lacked,
-        },
+        Atom::HasComputed(named) => pseudo::present(*named, held),
         Atom::Is(flag) => decided(
             // GGG's spelling in any case, as the word was bound (B2)
             held.item.flags.iter().any(|f| f.eq_ignore_ascii_case(flag)),
@@ -742,11 +737,7 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
         },
         Atom::Pseudo {
             named, slot, test, ..
-        } => match pseudo::value(*named, slot.as_deref(), held) {
-            Valued::Value(n) => decided(test.holds(n.as_f64()), true, false),
-            Valued::Incomplete(_) => Outcome::Undecided,
-            Valued::Lacked => Outcome::Lacked,
-        },
+        } => pseudo::compared(*named, slot.as_deref(), test, held),
         Atom::Undecided(probe) => {
             let open = match probe {
                 BProbe::Field(thing) => open(held, *thing),
@@ -1118,18 +1109,12 @@ fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
         }
         Atom::Pseudo {
             named, name, slot, ..
-        } => {
-            let value = match pseudo::value(*named, slot.as_deref(), held) {
-                Valued::Value(n) | Valued::Incomplete(Some(n)) => number_json(n.as_f64()),
-                Valued::Incomplete(None) | Valued::Lacked => serde_json::Value::Null,
-            };
-            std::iter::once(Evidence::Value {
-                name: name.clone(),
-                value,
-            })
-            .chain(pseudo::evidence(*named, held))
-            .collect()
-        }
+        } => std::iter::once(Evidence::Value {
+            name: name.clone(),
+            value: pseudo::printed(*named, slot.as_deref(), held),
+        })
+        .chain(pseudo::evidence(*named, held))
+        .collect(),
         // what the field read, as its comparison shows it
         Atom::HasComputed(named) => pseudo::evidence(*named, held),
         _ => Vec::new(),

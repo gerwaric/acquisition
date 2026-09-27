@@ -15,7 +15,8 @@ which the build answers by what the item is), `not mimicked` (an id or a row
 the site leaves out and the search counts, by the owner's ruling, or waiting
 for it where the evidence says so), `rule` (what holds for every total),
 `no sum` (a pseudo that is a reading of other totals, which no row can say:
-the reading is in `template`, and no total is written for it), `limit` (what
+the reading is in `template`, and it is written as a reading, never as a
+total), `limit` (what
 a total read from an item's text cannot match of the site's: `weight` is how
 far under the site's a line may be, and `twin_or_reads` whether the owner has
 ruled on it — a total whose limit is not ruled is not written).

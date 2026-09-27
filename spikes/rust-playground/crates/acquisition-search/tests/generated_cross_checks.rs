@@ -24,6 +24,13 @@
 //! - **Every occurrence twice** (C92): a term on a line binds one
 //!   occurrence, so no term on a line's group moves; a largest stays; a sum
 //!   doubles.
+//! - **A reading is what its totals make** (C101, C93; step 9c3): a count
+//!   of totals matches what `holds( … )` over `has:` of each matches, and
+//!   a least what its totals' own comparisons match together — the
+//!   language saying each a second way, which is the oracle the readings
+//!   have. What the second way leaves open a reading's comparison
+//!   leaves open, and may leave more, never less; its presence leaves
+//!   open exactly that.
 
 mod common;
 
@@ -106,6 +113,91 @@ fn probe_is_sort_status(corpus: &Corpus, scope: &Ids, value: &str) -> Result<(),
         return Err(format!(
             "`undecided({value})` matches {open:?} and `--sort {value}` marks {incomplete:?} incomplete"
         ));
+    }
+    Ok(())
+}
+
+/// The totals the generated readings read, as the shipped table names
+/// them.
+const ELEMENTAL: [&str; 3] = [
+    "pseudo.total_fire_res",
+    "pseudo.total_cold_res",
+    "pseudo.total_lightning_res",
+];
+
+fn a_reading_is_what_its_totals_make(corpus: &Corpus, scope: &Ids) -> Result<(), String> {
+    let has = ELEMENTAL.map(|total| format!("has:{total}"));
+    let each = |cmp: &str| ELEMENTAL.map(|total| format!("{total}{cmp}"));
+    // a reading, its second way, and whether the two leave the same open
+    let mut pairs: Vec<(String, String, bool)> = Vec::new();
+    // from one up: a count of none is no count, and `holds` of none is 0
+    let of = has.join(", ");
+    for n in 1..=3 {
+        pairs.push((
+            format!("pseudo.count_ele_res>={n}"),
+            format!("holds({of})>={n}"),
+            false,
+        ));
+        pairs.push((
+            format!("pseudo.count_ele_res={n}"),
+            format!("holds({of})={n}"),
+            false,
+        ));
+        pairs.push((
+            format!("pseudo.count_ele_res<={n}"),
+            format!("holds({of})=1..{n}"),
+            false,
+        ));
+    }
+    // the least reaches a bound where every total does, and is at most one
+    // where the item has every total and one of them is
+    for n in [-3, 0, 1, 5, 12, 24] {
+        pairs.push((
+            format!("pseudo.total_all_ele_res>={n}"),
+            each(&format!(">={n}")).join(" "),
+            false,
+        ));
+        pairs.push((
+            format!("pseudo.total_all_ele_res<={n}"),
+            format!(
+                "{} ({})",
+                has.join(" "),
+                each(&format!("<={n}")).join(" or ")
+            ),
+            false,
+        ));
+    }
+    pairs.push((
+        "has:pseudo.count_ele_res".to_string(),
+        format!("holds({of})>=1"),
+        true,
+    ));
+    pairs.push((
+        "has:pseudo.total_all_ele_res".to_string(),
+        has.join(" "),
+        true,
+    ));
+    let mut cache = HashMap::new();
+    for (reading, other, same_open) in pairs {
+        let ask = |text: &str| {
+            run(corpus, &request(text, None, false, scope.len().max(1)))
+                .map_err(|e| format!("`{text}`: {e}"))
+        };
+        let (a, b) = (ask(&reading)?, ask(&other)?);
+        if common::ids(&a) != common::ids(&b) {
+            return Err(format!(
+                "`{reading}` matches {:?} and `{other}` {:?}",
+                common::ids(&a),
+                common::ids(&b)
+            ));
+        }
+        let open = members(corpus, &a["total"]["undecided"], scope, &mut cache)?;
+        let open_other = members(corpus, &b["total"]["undecided"], scope, &mut cache)?;
+        if !open_other.is_subset(&open) || (same_open && open != open_other) {
+            return Err(format!(
+                "`{other}` is undecided on {open_other:?} and `{reading}` on {open:?}"
+            ));
+        }
     }
     Ok(())
 }
@@ -416,7 +508,7 @@ proptest! {
         all.extend(bodies.iter().map(Body::json));
         let (store, corpus, scope) = fixture_with_store(all.clone());
         let text = q_text(&q, Spelling::Authored);
-        for value in [projection.as_str(), sum.as_str(), "ilvl", "pseudo.total_res", "pseudo.dps", "pseudo.pdps", "links", "sockets.red"] {
+        for value in [projection.as_str(), sum.as_str(), "ilvl", "pseudo.total_res", "pseudo.count_ele_res", "pseudo.total_all_ele_res", "pseudo.dps", "pseudo.pdps", "links", "sockets.red"] {
             probe_is_sort_status(&corpus, &scope, value).map_err(TestCaseError::fail)?;
         }
         for sort in [None, Some(projection.as_str()), Some(sum.as_str())] {
@@ -433,6 +525,7 @@ proptest! {
             let answer = run(&corpus, &request(misspelt, None, false, 50)).map_err(|e| TestCaseError::fail(e.to_string()))?;
             zero_block_is_terms_block(&corpus, &answer).map_err(TestCaseError::fail)?;
         }
+        a_reading_is_what_its_totals_make(&corpus, &scope).map_err(TestCaseError::fail)?;
         every_item_twice(&all, &text, Some(&sum)).map_err(TestCaseError::fail)?;
         every_occurrence_twice(&bodies, &q, &projection, &sum).map_err(TestCaseError::fail)?;
         every_occurrence_in_another_order(&bodies, &q, &projection, &sum)
@@ -442,6 +535,12 @@ proptest! {
         // (C101); neither moves when the occurrences are reordered
         every_occurrence_twice(&bodies, &q, "pseudo.dps", "pseudo.total_res").map_err(TestCaseError::fail)?;
         every_occurrence_in_another_order(&bodies, &q, "pseudo.pdps", "pseudo.total_res")
+            .map_err(TestCaseError::fail)?;
+        // a count of totals is no sum and stays as they double; the least
+        // of them doubles with them (C101, step 9c3)
+        every_occurrence_twice(&bodies, &q, "pseudo.count_ele_res", "pseudo.total_all_ele_res")
+            .map_err(TestCaseError::fail)?;
+        every_occurrence_in_another_order(&bodies, &q, "pseudo.count_ele_res", "pseudo.total_all_ele_res")
             .map_err(TestCaseError::fail)?;
         // a socket count is over the collection, which no line is: it
         // stays when the lines are written twice and when the sockets are

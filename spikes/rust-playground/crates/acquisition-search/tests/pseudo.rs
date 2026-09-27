@@ -210,7 +210,7 @@ fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_lacked() {
     assert_eq!(why["unread"], "the total: no definition for the realm");
     assert_eq!(
         why["problem"],
-        "no totals table for realm poe2 (totals v4 covers pc, xbox, sony)"
+        "no totals table for realm poe2 (totals v5 covers pc, xbox, sony)"
     );
     assert_eq!(
         why["hint"],
@@ -645,18 +645,22 @@ fn c92_c95_a_computed_value_sorts_and_sums() {
 fn c97_describe_lists_every_computed_value_with_its_definition() {
     let whole = serde_json::to_value(describe(&[]).unwrap()).unwrap();
     let computed = whole["computed"].as_array().unwrap();
-    assert_eq!(computed.len(), 63);
+    assert_eq!(computed.len(), 67);
     assert_eq!(computed[0]["name"], "pseudo.total_cold_res");
     assert_eq!(computed[35]["name"], "pseudo.total_life");
     assert_eq!(computed[36]["name"], "pseudo.total_mana");
     assert_eq!(computed[60]["name"], "pseudo.increased_mana_regen");
-    assert_eq!(computed[61]["name"], "pseudo.dps");
-    assert_eq!(computed[62]["kind"], "derived");
+    // the readings of other totals after the totals they read (step 9c3)
+    assert_eq!(computed[60]["kind"], "total");
+    assert_eq!(computed[61]["name"], "pseudo.count_res");
+    assert_eq!(computed[61]["kind"], "derived");
+    assert_eq!(computed[64]["name"], "pseudo.total_all_attributes");
+    assert_eq!(computed[65]["name"], "pseudo.dps");
+    assert_eq!(computed[66]["kind"], "derived");
     assert!(
-        whole["totals"]
-            .as_str()
-            .unwrap()
-            .starts_with("totals v4, 61 totals over pc, xbox, sony: the trade site’s pseudo stats"),
+        whole["totals"].as_str().unwrap().starts_with(
+            "totals v5, 61 totals and 4 readings of them over pc, xbox, sony: the trade site’s pseudo stats"
+        ),
         "{}",
         whole["totals"]
     );
@@ -678,7 +682,7 @@ fn c97_describe_lists_every_computed_value_with_its_definition() {
         ])
     );
     let block = serde_json::to_value(describe(&["pseudo".to_string()]).unwrap()).unwrap();
-    assert_eq!(block["computed"].as_array().unwrap().len(), 63);
+    assert_eq!(block["computed"].as_array().unwrap().len(), 67);
     // what the reference names and no step builds is refused by that name
     let e = describe(&["defence_pct".to_string()]).unwrap_err();
     assert!(
@@ -1179,4 +1183,582 @@ fn v6_the_other_totals_count_what_the_sites_pseudo_counts() {
     assert_eq!(found("pseudo.life_regen=22.6"), ["plate"]);
     assert_eq!(found("has:pseudo.life_regen"), ["plate"]);
     assert_eq!(found("has:pseudo.life_regen_pct"), ["belt"]);
+}
+
+/// Sixteen items, eleven of them as the trade site's captures hold them,
+/// for the four pseudos that are a reading of other totals (the build
+/// plan, step 9c3; `tools/trade_rows.py`, `DERIVED`), and one in poe2.
+///
+/// `Read` (r1), each with its fire, cold, lightning and chaos totals:
+/// `thread` (R1, Thread of Hope), -17 to all elemental — -17, -17, -17;
+/// `entropy` (R1), 24 lightning and 8 all elemental — 8, 8, 32; `twostone`
+/// (g001), 13 fire and lightning — 13, none, 13; `grasp` (h040), 23 chaos;
+/// `turn` (h040), 23 fire, 21 chaos and 12 Dexterity; `crest` (h040,
+/// Geofri's Crest) — 17, 20, 17, 22; `spiral` (g003), 16 all elemental, 7
+/// cold, 22 lightning — 16, 23, 38; `gamble` (h039, Ventor's Gamble) — 15,
+/// 14, 36 and no all-elemental line; `clasp` (g004), 34 cold, 15 to all
+/// Attributes and 9 Strength — Strength 24, Dexterity 15, Intelligence
+/// 15; `bite` (h001, Hyrri's Bite) — 21, 45, 18 and no all-attributes
+/// line; `knot` (h002), 12 fire and cold, 18 to all Attributes and -18
+/// Dexterity — 18, nothing, 18; `mana`, mana alone; `long`, 20 fire, 20
+/// cold and a chaos line whose number has eleven digits; `wide`, 20 fire,
+/// 20 cold and such a lightning line; `lone`, such a chaos line alone;
+/// `first`, such a fire line and 20 cold. `Vault` (v1) in poe2: `p2ring`.
+fn reading_stash() -> Store {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("r1", "Read")]), 10);
+    list_tabs(&mut s, "poe2", "Standard", json!([tab("v1", "Vault")]), 11);
+    let rare =
+        |id: &str, base: &str, more: Value| item(id, &format!("Item {id}"), base, "Rare", more);
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "r1",
+        "Read",
+        vec![
+            item(
+                "thread",
+                "Thread of Hope",
+                "Crimson Jewel",
+                "Unique",
+                json!({ "explicitMods": ["Only affects Passives in Small Ring", "-17% to all Elemental Resistances"] }),
+            ),
+            rare(
+                "entropy",
+                "Topaz Ring",
+                json!({
+                    "implicitMods": ["+24% to Lightning Resistance"],
+                    "explicitMods": ["+52 to maximum Life", "+8% to all Elemental Resistances"],
+                }),
+            ),
+            rare(
+                "twostone",
+                "Two-Stone Ring",
+                json!({ "implicitMods": ["+13% to Fire and Lightning Resistances"] }),
+            ),
+            rare(
+                "grasp",
+                "Spiked Gloves",
+                json!({ "explicitMods": ["11% increased Attack Speed", "+23% to Chaos Resistance"] }),
+            ),
+            rare(
+                "turn",
+                "Amethyst Ring",
+                json!({
+                    "implicitMods": ["+21% to Chaos Resistance"],
+                    "explicitMods": ["+12 to Dexterity", "+23% to Fire Resistance"],
+                }),
+            ),
+            item(
+                "crest",
+                "Geofri's Crest",
+                "Great Crown",
+                "Unique",
+                json!({ "explicitMods": [
+                    "+17% to Fire Resistance",
+                    "+20% to Cold Resistance",
+                    "+17% to Lightning Resistance",
+                    "+22% to Chaos Resistance",
+                ] }),
+            ),
+            rare(
+                "spiral",
+                "Moonstone Ring",
+                json!({ "explicitMods": [
+                    "+16% to all Elemental Resistances",
+                    "+7% to Cold Resistance",
+                    "+22% to Lightning Resistance",
+                ] }),
+            ),
+            item(
+                "gamble",
+                "Ventor's Gamble",
+                "Gold Ring",
+                "Unique",
+                json!({ "explicitMods": [
+                    "+15% to Fire Resistance",
+                    "+14% to Cold Resistance",
+                    "+36% to Lightning Resistance",
+                ] }),
+            ),
+            rare(
+                "clasp",
+                "Onyx Amulet",
+                json!({
+                    "implicitMods": ["+15 to all Attributes"],
+                    "explicitMods": ["+9 to Strength", "+34% to Cold Resistance"],
+                }),
+            ),
+            item(
+                "bite",
+                "Hyrri's Bite",
+                "Sharktooth Arrow Quiver",
+                "Unique",
+                json!({ "explicitMods": ["+21 to Strength", "+45 to Dexterity", "+18 to Intelligence"] }),
+            ),
+            rare(
+                "knot",
+                "Two-Stone Ring",
+                json!({
+                    "implicitMods": ["+12% to Fire and Cold Resistances"],
+                    "explicitMods": ["+18 to all Attributes", "-18 to Dexterity"],
+                }),
+            ),
+            rare(
+                "mana",
+                "Iron Ring",
+                json!({ "explicitMods": ["+20 to maximum Mana"] }),
+            ),
+            rare(
+                "long",
+                "Iron Ring",
+                json!({ "explicitMods": [
+                    "+20% to Fire Resistance",
+                    "+20% to Cold Resistance",
+                    "+10000000000% to Chaos Resistance",
+                ] }),
+            ),
+            rare(
+                "wide",
+                "Iron Ring",
+                json!({ "explicitMods": [
+                    "+20% to Fire Resistance",
+                    "+20% to Cold Resistance",
+                    "+10000000000% to Lightning Resistance",
+                ] }),
+            ),
+            rare(
+                "lone",
+                "Iron Ring",
+                json!({ "explicitMods": ["+10000000000% to Chaos Resistance"] }),
+            ),
+            rare(
+                "first",
+                "Iron Ring",
+                json!({ "explicitMods": [
+                    "+10000000000% to Fire Resistance",
+                    "+20% to Cold Resistance",
+                ] }),
+            ),
+        ],
+        20,
+    );
+    fetch_tab(
+        &mut s,
+        "poe2",
+        "Standard",
+        "v1",
+        "Vault",
+        vec![rare(
+            "p2ring",
+            "Iron Ring",
+            json!({ "explicitMods": ["+40% to Fire Resistance"] }),
+        )],
+        21,
+    );
+    s
+}
+
+/// The items a count routes to; a count of none carries no route.
+fn members(s: &Store, count: &Value) -> Vec<String> {
+    if count["count"] == 0 {
+        return Vec::new();
+    }
+    follow(s, "pc", count)
+}
+
+/// What a row shows of a reading: its value, then each total it read.
+fn read_by(a: &Value, id: &str) -> Vec<(String, Value)> {
+    shows(a, id, "0")
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| {
+            (
+                e["value"]["name"].as_str().unwrap().to_string(),
+                e["value"]["value"].clone(),
+            )
+        })
+        .collect()
+}
+
+/// C101, step 9c3 (owner, 2026-09-26: "They should be present at
+/// launch."): the trade site's two counts are how many of the resistance
+/// totals an item shows, chaos among the four and not among the three —
+/// the resistances, never the lines (R1, g001, g002, h040) — and a count
+/// of nothing is no count, as the site shows none (h040, six items).
+#[test]
+fn c101_a_count_is_how_many_of_its_totals_the_item_shows() {
+    let s = reading_stash();
+    let found = |query: &str| ids(&asked(&s, "pc", query));
+    // one line of all three, and below nothing, is three (R1)
+    assert_eq!(
+        found("pseudo.count_res=3 pseudo.count_ele_res=3"),
+        ["entropy", "gamble", "spiral", "thread"]
+    );
+    // one line of two resistances is two (g001)
+    assert_eq!(
+        found("pseudo.count_res=2 pseudo.count_ele_res=2"),
+        ["knot", "twostone"]
+    );
+    // chaos is counted by the one and not by the other (h040)
+    assert_eq!(
+        found("pseudo.count_res=4 pseudo.count_ele_res=3"),
+        ["crest"]
+    );
+    assert_eq!(found("pseudo.count_res=2 pseudo.count_ele_res=1"), ["turn"]);
+    assert_eq!(
+        found("pseudo.count_res=1 -has:pseudo.count_ele_res"),
+        ["grasp"]
+    );
+    assert_eq!(
+        found("pseudo.count_res=1 pseudo.count_ele_res=1"),
+        ["clasp"]
+    );
+
+    let a = asked(&s, "pc", "pseudo.count_res>=3");
+    let term = &a["terms"][0];
+    // crest 4; entropy, gamble, spiral and thread 3; clasp and grasp 1,
+    // knot, turn and twostone 2, and first one or two; bite and mana show
+    // no resistance; long and wide show two and may show a third, lone
+    // none and may show one
+    assert_eq!(counts(term), [5, 6, 2, 3]);
+    assert_eq!(
+        follow(&s, "pc", &term["failed"]),
+        ["clasp", "first", "grasp", "knot", "turn", "twostone"]
+    );
+    assert_eq!(follow(&s, "pc", &term["lacked"]), ["bite", "mana"]);
+    assert_eq!(
+        follow(&s, "pc", &term["undecided"]),
+        ["lone", "long", "wide"]
+    );
+    // a row shows the count, then the totals it counted
+    assert_eq!(
+        read_by(&a, "crest"),
+        [
+            ("pseudo.count_res".to_string(), json!(4)),
+            ("pseudo.total_fire_res".to_string(), json!(17)),
+            ("pseudo.total_cold_res".to_string(), json!(20)),
+            ("pseudo.total_lightning_res".to_string(), json!(17)),
+            ("pseudo.total_chaos_res".to_string(), json!(22)),
+        ]
+    );
+    assert_eq!(
+        read_by(&a, "thread"),
+        [
+            ("pseudo.count_res".to_string(), json!(3)),
+            ("pseudo.total_fire_res".to_string(), json!(-17)),
+            ("pseudo.total_cold_res".to_string(), json!(-17)),
+            ("pseudo.total_lightning_res".to_string(), json!(-17)),
+        ]
+    );
+    // no item has a count of 0: a comparison on a count it lacks is false,
+    // and at most four holds of the thirteen that have one — long, wide
+    // and first among them, whatever their open total is
+    assert_eq!(asked(&s, "pc", "pseudo.count_res=0")["total"]["matched"], 0);
+    assert_eq!(
+        asked(&s, "pc", "pseudo.count_res<=4")["total"]["matched"],
+        13
+    );
+    assert_eq!(found("-has:pseudo.count_res"), ["bite", "mana"]);
+    assert_eq!(
+        found("-has:pseudo.count_ele_res"),
+        ["bite", "grasp", "lone", "mana"]
+    );
+}
+
+/// C101, step 9c3: the site's `total to all Elemental Resistances` and
+/// `total to all Attributes` are the least of their three totals, shown
+/// where the item shows all three — with the line that names them or
+/// without it (g003, h039; g004, h001) — and an item one of whose totals
+/// is nothing shows none (h002: 18 to all Attributes beside -18
+/// Dexterity).
+#[test]
+fn c101_a_least_is_the_smallest_of_its_totals_where_the_item_shows_all() {
+    let s = reading_stash();
+    let found = |query: &str| ids(&asked(&s, "pc", query));
+    assert_eq!(found("pseudo.total_all_ele_res=16"), ["spiral"]);
+    assert_eq!(found("pseudo.total_all_ele_res=14"), ["gamble"]);
+    assert_eq!(found("pseudo.total_all_ele_res=17"), ["crest"]);
+    assert_eq!(found("pseudo.total_all_ele_res=8"), ["entropy"]);
+    // a least below nothing is a least
+    assert_eq!(found("pseudo.total_all_ele_res<0"), ["thread"]);
+    assert_eq!(found("pseudo.total_all_attributes=15"), ["clasp"]);
+    assert_eq!(found("pseudo.total_all_attributes=18"), ["bite"]);
+    assert_eq!(found("has:pseudo.total_all_attributes"), ["bite", "clasp"]);
+
+    let a = asked(&s, "pc", "pseudo.total_all_ele_res>=14");
+    let term = &a["terms"][0];
+    // crest 17, gamble 14, spiral 16; entropy 8, thread -17; wide's
+    // lightning is open; the ten others lack a total of the three
+    assert_eq!(counts(term), [3, 2, 10, 1]);
+    assert_eq!(follow(&s, "pc", &term["failed"]), ["entropy", "thread"]);
+    assert_eq!(
+        follow(&s, "pc", &term["lacked"]),
+        [
+            "bite", "clasp", "first", "grasp", "knot", "lone", "long", "mana", "turn", "twostone"
+        ]
+    );
+    assert_eq!(follow(&s, "pc", &term["undecided"]), ["wide"]);
+    assert_eq!(
+        read_by(&a, "spiral"),
+        [
+            ("pseudo.total_all_ele_res".to_string(), json!(16)),
+            ("pseudo.total_fire_res".to_string(), json!(16)),
+            ("pseudo.total_cold_res".to_string(), json!(23)),
+            ("pseudo.total_lightning_res".to_string(), json!(38)),
+        ]
+    );
+    // knot carries the line and one attribute's lines sum to nothing
+    let a = asked(&s, "pc", "pseudo.total_all_attributes>=1");
+    assert_eq!(counts(&a["terms"][0]), [2, 0, 14, 0]);
+    assert!(
+        follow(&s, "pc", &a["terms"][0]["lacked"]).contains(&"knot".to_string()),
+        "a total of nothing among the three"
+    );
+}
+
+/// C93, C94, rule 8 of the plan: what a reading says where a total it
+/// reads is open. A count is an interval, as a count of three-valued
+/// terms is (C93's at-least-N-of): a comparison is decided where the
+/// whole interval agrees, the count is had where one total is, and its
+/// value is open while the interval is more than one number. A least is
+/// lacked where one total is known to be nothing, whatever is open
+/// beside it, and open otherwise. In a realm the table does not cover
+/// each is unavailable, with the table's reason.
+#[test]
+fn c93_a_reading_is_open_by_no_more_than_the_totals_it_reads() {
+    let s = reading_stash();
+    let found = |query: &str| ids(&asked(&s, "pc", query));
+    // long shows fire and cold, and its chaos total is open: two or three
+    let said_of = |id: &str, query: &str| -> &str {
+        let a = asked(&s, "pc", query);
+        ["matched", "failed", "lacked", "undecided"]
+            .into_iter()
+            .find(|outcome| members(&s, &a["terms"][0][*outcome]).contains(&id.to_string()))
+            .unwrap()
+    };
+    assert_eq!(said_of("long", "pseudo.count_res>=2"), "matched");
+    assert_eq!(said_of("long", "pseudo.count_res>=3"), "undecided");
+    assert_eq!(said_of("long", "pseudo.count_res>=4"), "failed");
+    assert_eq!(said_of("long", "pseudo.count_res<=3"), "matched");
+    assert_eq!(said_of("long", "pseudo.count_res=2"), "undecided");
+    assert_eq!(said_of("long", "has:pseudo.count_res"), "matched");
+    // lone shows none, and its chaos total is open: none, or one — no
+    // count is known to be there, so nothing on it is decided
+    for query in [
+        "has:pseudo.count_res",
+        "pseudo.count_res>=1",
+        "pseudo.count_res<=1",
+        "pseudo.count_res>=2",
+    ] {
+        assert_eq!(said_of("lone", query), "undecided", "{query}");
+    }
+    // first shows cold, and its fire total is open, read before the
+    // lightning total that is nothing: one or two, and no least
+    assert_eq!(said_of("first", "pseudo.count_res>=1"), "matched");
+    assert_eq!(said_of("first", "pseudo.count_ele_res>=2"), "undecided");
+    assert_eq!(said_of("first", "pseudo.count_res>=3"), "failed");
+    assert_eq!(said_of("first", "pseudo.total_all_ele_res>=1"), "lacked");
+    assert_eq!(said_of("first", "has:pseudo.total_all_ele_res"), "lacked");
+    // a row shows the interval, then the totals established
+    let a = asked(&s, "pc", "pseudo.count_res>=2");
+    assert_eq!(
+        read_by(&a, "long"),
+        [
+            ("pseudo.count_res".to_string(), json!("2..3")),
+            ("pseudo.total_fire_res".to_string(), json!(20)),
+            ("pseudo.total_cold_res".to_string(), json!(20)),
+        ]
+    );
+    assert_eq!(found("id:long pseudo.count_res=2..3"), ["long"]);
+    assert_eq!(found("id:long has:pseudo.count_res"), ["long"]);
+    assert_eq!(
+        found("undecided(pseudo.count_res)"),
+        ["first", "lone", "long", "wide"]
+    );
+    // its chaos line is none of the three: the other count is closed
+    assert_eq!(found("id:long pseudo.count_ele_res=2"), ["long"]);
+    assert_eq!(found("undecided(pseudo.count_ele_res)"), ["first", "wide"]);
+    // and its lightning total is nothing, known: no least, whatever chaos is
+    assert_eq!(found("id:long -has:pseudo.total_all_ele_res"), ["long"]);
+    assert_eq!(found("undecided(pseudo.total_all_ele_res)"), ["wide"]);
+    let a = asked(&s, "pc", "pseudo.total_all_ele_res>=1");
+    let why = &a["total"]["undecided_reasons"][0];
+    assert_eq!(why["example"]["id"], "wide");
+    assert_eq!(why["unread"], "the numbers of explicit lines");
+
+    // the count is the term its totals' `has:` make under `holds`, from
+    // one up — but on lone, where the count may be none: `holds` is false
+    // of a bound it cannot reach, and the count's term, which is failed of
+    // a count and lacked of none, is open as a link group's is
+    for n in 1..=4 {
+        let of = "has:pseudo.total_fire_res, has:pseudo.total_cold_res, has:pseudo.total_lightning_res, has:pseudo.total_chaos_res";
+        for (count, held) in [
+            (
+                format!("pseudo.count_res>={n}"),
+                format!("holds({of})>={n}"),
+            ),
+            (format!("pseudo.count_res={n}"), format!("holds({of})={n}")),
+            (
+                format!("pseudo.count_res<={n}"),
+                format!("holds({of})=1..{n}"),
+            ),
+        ] {
+            let (count, held) = (asked(&s, "pc", &count), asked(&s, "pc", &held));
+            assert_eq!(ids(&count), ids(&held), "{}", count["query"]["text"]);
+            let open = |a: &Value| -> Vec<String> {
+                members(&s, &a["total"]["undecided"])
+                    .into_iter()
+                    .filter(|id| id != "lone")
+                    .collect()
+            };
+            assert_eq!(open(&count), open(&held), "{}", count["query"]["text"]);
+            assert!(
+                members(&s, &count["total"]["undecided"]).contains(&"lone".to_string()),
+                "{}",
+                count["query"]["text"]
+            );
+        }
+    }
+
+    // the sort: a value first, then what is no value — an open count with
+    // what was established, an open least with the least established
+    let sorted = |by: &str| -> Vec<(String, Value)> {
+        view(&s, "", json!({ "rows": { "sort": by, "desc": true } })).unwrap()["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| (r["id"].as_str().unwrap().to_string(), scalar(&r["sort"])))
+            .collect()
+    };
+    let rows = sorted("pseudo.count_res");
+    assert_eq!(rows[0], ("crest".to_string(), json!({ "value": 4 })));
+    let of =
+        |rows: &[(String, Value)], id: &str| rows.iter().find(|(i, _)| i == id).unwrap().1.clone();
+    assert_eq!(
+        of(&rows, "long"),
+        json!({ "value": 2, "status": "incomplete" })
+    );
+    assert_eq!(of(&rows, "mana")["status"], "no satisfying occurrence");
+    let rows = sorted("pseudo.total_all_ele_res");
+    assert_eq!(rows[0], ("crest".to_string(), json!({ "value": 17 })));
+    assert_eq!(
+        of(&rows, "wide"),
+        json!({ "value": 20, "status": "incomplete" })
+    );
+    assert_eq!(of(&rows, "long")["status"], "no satisfying occurrence");
+
+    // a sum beside a count: 4 + 3 × 4 + 2 × 3 + 1 × 2, and what was
+    // established of the four left open — long's and wide's two each,
+    // first's one, lone's none — marked
+    let a = view(
+        &s,
+        "",
+        json!({ "counts": { "keys": ["rarity"], "sum": "pseudo.count_res" } }),
+    )
+    .unwrap();
+    assert_eq!(
+        a["view"]["counts"]["sum"],
+        json!({ "name": "pseudo.count_res", "value": 29, "lacking": 2, "incomplete": true, "unread": 4 })
+    );
+
+    // no definition for the realm: never a count, never a least
+    for reading in [
+        "pseudo.count_res",
+        "pseudo.count_ele_res",
+        "pseudo.total_all_ele_res",
+        "pseudo.total_all_attributes",
+    ] {
+        let p2 = asked(&s, "poe2", &format!("{reading}>=1"));
+        assert_eq!(counts(&p2["terms"][0]), [0, 0, 0, 1], "{reading}");
+        let why = &p2["total"]["undecided_reasons"];
+        assert_eq!(why.as_array().unwrap().len(), 1, "{reading}");
+        assert_eq!(
+            why[0]["unread"], "the total: no definition for the realm",
+            "{reading}"
+        );
+        assert_eq!(
+            counts(&asked(&s, "poe2", &format!("has:{reading}"))["terms"][0]),
+            [0, 0, 0, 1],
+            "{reading}"
+        );
+    }
+}
+
+/// C97, C101: a reading is listed with its definition, the site's name
+/// for it and the totals it reads; it takes no slot word, and the
+/// vocabulary lists it where its name or definition is asked for.
+#[test]
+fn c97_a_reading_is_described_by_the_totals_it_reads() {
+    let one = serde_json::to_value(describe(&["count_res".to_string()]).unwrap()).unwrap();
+    assert_eq!(one["computed"].as_array().unwrap().len(), 1);
+    assert_eq!(one["computed"][0]["name"], "pseudo.count_res");
+    assert_eq!(one["computed"][0]["kind"], "derived");
+    assert_eq!(
+        one["computed"][0]["what"],
+        "the trade site's pseudo_count_resistances (`# total Resistances`): how many of pseudo.total_fire_res, pseudo.total_cold_res, pseudo.total_lightning_res and pseudo.total_chaos_res the item has, each as its own definition counts it; an item with none of them lacks it"
+    );
+    assert_eq!(
+        one["computed"][0]["examples"],
+        json!([
+            "pseudo.count_res>=3",
+            "-has:pseudo.count_res",
+            "undecided(pseudo.count_res)"
+        ])
+    );
+    let one =
+        serde_json::to_value(describe(&["total_all_attributes".to_string()]).unwrap()).unwrap();
+    assert_eq!(
+        one["computed"][0]["what"],
+        "the trade site's pseudo_total_all_attributes (`+# total to all Attributes`): the least of pseudo.total_str, pseudo.total_dex and pseudo.total_int on an item that has every one of them, each as its own definition counts it; an item lacking any of them lacks it"
+    );
+    assert_eq!(
+        one["computed"][0]["examples"],
+        json!([
+            "pseudo.total_all_attributes>=10",
+            "-has:pseudo.total_all_attributes",
+            "undecided(pseudo.total_all_attributes)"
+        ])
+    );
+    let s = reading_stash();
+    let corpus = load(&s, Some("pc"));
+    for text in ["pseudo.count_res.avg>=1", "pseudo.total_all_ele_res.low>=1"] {
+        let e = ask(&corpus, text).unwrap_err().to_json();
+        assert_eq!(e["kind"], "slot_unknown", "`{text}`: {e}");
+    }
+    // the vocabulary: the two counts by their name, each with the matches
+    // that have it and a route that returns exactly them
+    let a = view(&s, "", json!({ "counts": { "keys": ["line:count_"] } })).unwrap();
+    let computed: Vec<(&str, u64)> = a["view"]["counts"]["tables"][0]["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|b| b["bucket"] == "computed")
+        .map(|b| (b["value"].as_str().unwrap(), b["count"].as_u64().unwrap()))
+        .collect();
+    // thirteen have the one — every item but bite and mana, which show no
+    // resistance, and lone, which may show none — and twelve the other,
+    // grasp's resistance being chaos: long, wide and first have theirs
+    // whatever their open total is
+    assert_eq!(
+        computed,
+        [("pseudo.count_res", 13), ("pseudo.count_ele_res", 12)]
+    );
+    for bucket in a["view"]["counts"]["tables"][0]["buckets"]
+        .as_array()
+        .unwrap()
+    {
+        if bucket["value"] == "pseudo.count_ele_res" {
+            assert_eq!(bucket["term"], "has:pseudo.count_ele_res");
+            assert_eq!(
+                follow(&s, "pc", bucket),
+                [
+                    "clasp", "crest", "entropy", "first", "gamble", "knot", "long", "spiral",
+                    "thread", "turn", "twostone", "wide"
+                ]
+            );
+        }
+    }
 }

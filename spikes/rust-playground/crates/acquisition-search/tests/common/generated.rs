@@ -26,6 +26,14 @@
 //! `price.lot` join the composition as comparisons, `has:`, probes and
 //! sorts.
 //!
+//! Since step 9c3 they reach the readings of other totals (C101):
+//! `pseudo.count_ele_res` and `pseudo.total_all_ele_res` over the same
+//! resistance lines, three templates feeding the three totals each reads
+//! — the cold and the fire line one apiece, the all-elemental line every
+//! one — as comparisons, `has:`, probes and sorts. A count stays when
+//! every occurrence is written twice, and a least doubles as a total
+//! does.
+//!
 //! Nothing here reads the crate's tree, binder or evaluator: a query is
 //! rendered to text and asked, and a body enters through `Store::record`;
 //! a row enters through the pricing area's one write.
@@ -438,18 +446,30 @@ fn plain() -> BoxedStrategy<Q> {
 /// The price's names (`price.rs`), as `undecided( … )` asks them.
 pub const PRICE: [&str; 3] = ["priced", "price.amount", "price.currency"];
 
-/// The computed values (`pseudo.rs`): a total over the resistance lines
-/// and the two derived fields over the properties, compared within the
-/// bounds of `comparison()`; `has:` of a derived field; and — one time in
-/// nine — `has:` of a total, the authoring error T2 rules.
-pub const PSEUDO: [&str; 3] = ["pseudo.total_res", "pseudo.dps", "pseudo.pdps"];
+/// The computed values (`pseudo.rs`): a total over the resistance lines,
+/// a count and a least of the three totals those lines feed, and the two
+/// derived fields over the properties, compared within the bounds of
+/// `comparison()`; `has:` of a derived field and of a reading; and — one
+/// time in fifteen — `has:` of a total, the authoring error T2 rules.
+pub const PSEUDO: [&str; 5] = [
+    "pseudo.total_res",
+    "pseudo.count_ele_res",
+    "pseudo.total_all_ele_res",
+    "pseudo.dps",
+    "pseudo.pdps",
+];
 
 fn pseudo_leaf() -> BoxedStrategy<Q> {
     prop_oneof![
         2 => comparison().prop_map(|cmp| Q::Total(format!("pseudo.total_res{cmp}"))),
+        // a least moves as the totals it reads do, a count as no sum does
+        2 => comparison().prop_map(|cmp| Q::Total(format!("pseudo.total_all_ele_res{cmp}"))),
+        2 => comparison().prop_map(|cmp| Q::Plain(format!("pseudo.count_ele_res{cmp}"))),
         4 => (proptest::sample::select(vec!["pseudo.dps", "pseudo.pdps"]), comparison())
             .prop_map(|(value, cmp)| Q::Plain(format!("{value}{cmp}"))),
         2 => proptest::sample::select(vec!["has:pseudo.dps", "has:pseudo.pdps"])
+            .prop_map(|text| Q::Plain(text.to_string())),
+        2 => proptest::sample::select(vec!["has:pseudo.count_ele_res", "has:pseudo.total_all_ele_res"])
             .prop_map(|text| Q::Plain(text.to_string())),
         1 => Just(Q::Plain("has:pseudo.total_res".to_string())),
     ]

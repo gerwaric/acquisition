@@ -375,6 +375,8 @@ fn checked(case: &Case, tally: &mut Tally) -> Result<(), String> {
         Sort::Sum(sum.0.clone(), sum.1.clone()),
         Sort::Field("ilvl"),
         Sort::Field("pseudo.total_res"),
+        Sort::Field("pseudo.count_ele_res"),
+        Sort::Field("pseudo.total_all_ele_res"),
         Sort::Field("pseudo.dps"),
         Sort::Field("pseudo.pdps"),
         Sort::Field("links"),

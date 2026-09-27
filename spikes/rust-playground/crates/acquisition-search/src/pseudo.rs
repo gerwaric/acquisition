@@ -1,8 +1,8 @@
 //! Computed values (the reference, *Values*; C94, C101; the build plan,
-//! step 7): `pseudo.<name>`, one namespace for the named totals of the
-//! table (`totals.rs`) and the derived fields — what a comparison, a sort,
-//! a sum or `undecided( … )` consumes when it names one, and what a row
-//! shows of it.
+//! steps 7 and 9c3): `pseudo.<name>`, one namespace for the named totals
+//! of the table (`totals.rs`), the readings of them and the derived fields
+//! — what a comparison, a sort, a sum or `undecided( … )` consumes when it
+//! names one, and what a row shows of it.
 //!
 //! The words are `search/DESIGN.md`'s reference (*Values*, *A sum's
 //! status*); the rules that decide a computed value are this doc's and
@@ -39,16 +39,52 @@
 //!   The base defence percentile the same paragraph names is not built
 //!   (`bind::NOT_BUILT`, its formula unpinned: `search/pseudo-stats/README.md`,
 //!   open question 3).
+//! - **C101 — the readings of other totals** (the build plan, step 9c3;
+//!   owner, 2026-09-26: "They should be present at launch."). Four of the
+//!   trade site's pseudos are no sum of lines and so no total: each reads
+//!   totals, as the table names them (`totals::Reading`), and what it
+//!   reads is each total as this search counts it — the rows the owner
+//!   ruled counted where the site leaves them out among them. A *count*
+//!   (`pseudo.count_res`, `pseudo.count_ele_res`) is how many of its
+//!   totals the item shows: a total below nothing is shown and counts, a
+//!   total of nothing is not, and a count of none is lacked, as the site
+//!   shows no count there. A *least* (`pseudo.total_all_ele_res`,
+//!   `pseudo.total_all_attributes`) is the smallest of its totals on an
+//!   item that shows every one, with the line that names them all or
+//!   without it, and lacked where one of them is nothing. What the
+//!   captures hold of each is `search/pseudo-stats/README.md`.
+//! - **C93, C94 — a reading where a total it reads is open** (rule 8 of
+//!   the plan: unknown of no more than was lost). A count of totals is a
+//!   count of three-valued things, which C93 rules for at-least-N-of: the
+//!   totals established are its floor and each open one widens its
+//!   ceiling by one, a comparison is decided where the whole interval
+//!   agrees, and `pseudo.count_res>=2` answers as `holds( … )>=2` over
+//!   `has:` of its totals does. The count is had where one total is
+//!   established, so `has:` of it is decided there; its value is
+//!   established when the interval is one number, which is when it sorts
+//!   and sums as a value and `undecided( … )` of it is false — a socket
+//!   count's rule (`sockets.rs`). With no total established and one open
+//!   the count may be none, and every term on it is undecided — where
+//!   `holds` is false of a bound it cannot reach, the count's term is
+//!   failed of a count and lacked of none, which is open as a link
+//!   group's is (`eval.rs`). A least is
+//!   a number read from sums: lacked where one of its totals is known to
+//!   be nothing, whatever is open beside it; otherwise open while one is,
+//!   with the least of those established as what was readable, and a
+//!   comparison on it undecided whatever that already reaches, as a
+//!   sum's is. In a realm the table does not cover a reading is
+//!   unavailable as a total is, with the table's one reason.
 //!
 //! # As built
 //!
-//! - **A name is the table's or a derived field's**, matched in any case
+//! - **A name is the table's — a total's or a reading's — or a derived
+//!   field's**, matched in any case
 //!   (B1); an unknown one is an authoring error with the near names
 //!   offered, as a field's is — unless it carries a slot word, which asks
 //!   for a ranged total, and this build ships none (`bind::NOT_BUILT`).
-//!   A slot word on a total that is no range, or on a derived field, is an
-//!   authoring error; a ranged total asked for with none is one that
-//!   offers `low`, `high` and `avg`.
+//!   A slot word on a total that is no range, on a reading or on a
+//!   derived field, is an authoring error; a ranged total asked for with
+//!   none is one that offers `low`, `high` and `avg`.
 //! - **A value has the sum's three statuses** ([`Valued`]; the reference,
 //!   *A sum's status*): complete, an incomplete subtotal, or lacked — a
 //!   derived field whose input the item lacks, a total whose lines sum
@@ -57,36 +93,48 @@
 //!   could not be read is; its reason is the table's, made once. A value
 //!   is open exactly when it would sort as incomplete, so `undecided( … )`,
 //!   the sort scalar and a count's sum ask one function (`eval::scalar`).
+//!   What a comparison and `has:` make of a value is said here once
+//!   ([`compared`], [`present`]), a count left open among it.
+//! - **A reading's totals are the table's own** ([`total_of`]): one maker
+//!   of a total (rule 10 of the plan), so a reading and the totals it
+//!   reads cannot disagree. It costs the rows of every total it reads —
+//!   a least stops at the first that is nothing — which is the totals
+//!   batch park's to lower (`decisions/search.md`).
 //! - **A total's arithmetic is the evaluator's sum** (`eval::sum`, and
 //!   `eval::count` for a row without a slot), weighted in halves
 //!   (`exact::Exact::halved`), so a total and a `sum( … )` over the same
 //!   lines cannot disagree (rule 10 of the plan); a ranged total's `avg` is
 //!   the mean of its two totals, exact.
 //! - **What a row shows** of a computed value: its value, then the lines
-//!   the total's rows named on the item, or the properties the derived
-//!   field read, bounded as every term's evidence is (`eval::evidence`).
+//!   the total's rows named on the item, the totals a reading read, each
+//!   by its name with its value, or the properties the derived field
+//!   read, bounded as every term's evidence is (`eval::evidence`). A count
+//!   left open prints its interval, `2..3`, as a socket count does.
 //! - **The vocabulary lists a computed value beside the templates** whose
 //!   name or definition its narrowing matches, and none under `line`
 //!   alone, where `--describe` names them (owner, 2026-09-24, T5 in
 //!   `SEARCH-SLICE.md`; the reference, `--count line[:text]`;
 //!   `counts.rs`), marked computed, with the count of the matches that
-//!   carry it — its value established, which a lacked one's and an
-//!   incomplete one's is not — routed by `has:pseudo.<name>`, exactly
+//!   carry it — as `has:` of it asks ([`present`]), which a lacked one and
+//!   an incomplete one do not — routed by `has:pseudo.<name>`, exactly
 //!   those.
 //!   Why it is open is the open contributors' own reasons (rule 8): a
 //!   source a row admits unread, an occurrence whose number or flag is,
-//!   the property that could not be read.
+//!   the property that could not be read; a reading's are those of the
+//!   totals that leave it open.
 
 use std::borrow::Cow;
 use std::sync::LazyLock;
 
+use crate::bind::NumTest;
 use crate::corpus::Held;
 use crate::derive::{Part, Property, Unread};
 use crate::describe::Named as Entry;
 use crate::error::{ErrorKind, LanguageError};
-use crate::eval::{self, Evidence};
+use crate::eval::{self, Evidence, Outcome, Truth};
 use crate::exact::{self, Exact};
-use crate::totals::{self, Total, TotalsTable};
+use crate::sockets::Counted;
+use crate::totals::{self, Reading, ReadingKind, Total, TotalsTable};
 use crate::tree::{Node, Op, Value};
 
 /// A computed value, bound by name.
@@ -95,6 +143,11 @@ pub(crate) enum Named {
     Total {
         table: &'static TotalsTable,
         total: &'static Total,
+    },
+    /// A reading of other totals (`totals::Reading`).
+    Reading {
+        table: &'static TotalsTable,
+        reading: &'static Reading,
     },
     Derived(Derived),
 }
@@ -144,7 +197,12 @@ pub(crate) fn lookup(name: &str) -> Result<Option<Named>, LanguageError> {
         return Ok(Some(Named::Derived(derived)));
     }
     let table = table()?;
-    Ok(table.get(name).map(|total| Named::Total { table, total }))
+    if let Some(total) = table.get(name) {
+        return Ok(Some(Named::Total { table, total }));
+    }
+    Ok(table
+        .reading(name)
+        .map(|reading| Named::Reading { table, reading }))
 }
 
 fn table() -> Result<&'static TotalsTable, LanguageError> {
@@ -156,15 +214,17 @@ fn table() -> Result<&'static TotalsTable, LanguageError> {
     })
 }
 
-/// Every name, the totals in the table's order then the derived fields:
-/// what a near-name suggestion is scored against. Leaked once from the
-/// shipped table, as the class names are (`class::names`).
+/// Every name, the totals in the table's order, its readings, then the
+/// derived fields: what a near-name suggestion is scored against. Leaked
+/// once from the shipped table, as the class names are (`class::names`).
 static NAMES: LazyLock<&'static [&'static str]> = LazyLock::new(|| {
     let mut names: Vec<&'static str> = totals::table()
         .map(|t| {
             t.totals()
                 .iter()
-                .map(|t| &*Box::leak(t.name.clone().into_boxed_str()))
+                .map(|t| &t.name)
+                .chain(t.readings().iter().map(|r| &r.name))
+                .map(|name| &*Box::leak(name.clone().into_boxed_str()))
                 .collect()
         })
         .unwrap_or_default();
@@ -183,16 +243,68 @@ pub(crate) enum Valued {
     /// A subtotal, never a total; none readable where the total is
     /// unavailable or a derived field's input could not be read.
     Incomplete(Option<Exact>),
-    /// Known absence: a derived field whose input the item lacks, or a
+    /// Known absence: a derived field whose input the item lacks, a
     /// total whose lines sum to nothing — no line a row names, or lines
-    /// that cancel (C94).
+    /// that cancel (C94) — a count of no total, a least one of whose
+    /// totals is nothing.
     Lacked,
 }
 
 pub(crate) fn value(named: Named, slot: Option<&str>, held: &Held) -> Valued {
+    read(named, slot, held).0
+}
+
+/// A computed value on one item, and the interval a count lies in where
+/// it is had and not established: at least one total shown, and more
+/// that may be.
+fn read(named: Named, slot: Option<&str>, held: &Held) -> (Valued, Option<(usize, usize)>) {
     match named {
-        Named::Total { table, total } => total_of(table, total, slot, held),
-        Named::Derived(derived) => derived_of(derived, held),
+        Named::Total { table, total } => (total_of(table, total, slot, held), None),
+        Named::Reading { table, reading } => match reading.kind {
+            ReadingKind::Count => count_of(table, reading, held),
+            ReadingKind::Least => (least_of(table, reading, held), None),
+        },
+        Named::Derived(derived) => (derived_of(derived, held), None),
+    }
+}
+
+/// A comparison on a computed value (the module doc): decided on a value,
+/// undecided on one left open — but a count, decided where the whole of
+/// its interval agrees — and lacked where the item lacks it.
+pub(crate) fn compared(named: Named, slot: Option<&str>, test: &NumTest, held: &Held) -> Outcome {
+    match read(named, slot, held) {
+        (_, Some((low, high))) => match (Counted::Range { low, high }).truth(test) {
+            Truth::True => Outcome::Matched,
+            Truth::False => Outcome::Failed,
+            Truth::Undecided => Outcome::Undecided,
+        },
+        (Valued::Value(n), _) if test.holds(n.as_f64()) => Outcome::Matched,
+        (Valued::Value(_), _) => Outcome::Failed,
+        (Valued::Incomplete(_), _) => Outcome::Undecided,
+        (Valued::Lacked, _) => Outcome::Lacked,
+    }
+}
+
+/// Whether the item has the computed value, as `has:` of it asks: its
+/// value established — a derived field's inputs read and displayed as
+/// numbers (T2), a total's lines summing to something (C94) — or a count
+/// one of whose totals is; what is unread leaves it open.
+pub(crate) fn present(named: Named, held: &Held) -> Outcome {
+    match read(named, named.ranged().then_some("avg"), held) {
+        (Valued::Value(_), _) | (_, Some(_)) => Outcome::Matched,
+        (Valued::Incomplete(_), _) => Outcome::Undecided,
+        (Valued::Lacked, _) => Outcome::Lacked,
+    }
+}
+
+/// A computed value as a row prints it beside its name: the number, what
+/// was readable of one left open — a count's interval, `2..3` — or
+/// nothing.
+pub(crate) fn printed(named: Named, slot: Option<&str>, held: &Held) -> serde_json::Value {
+    match read(named, slot, held) {
+        (_, Some((low, high))) => serde_json::Value::from(format!("{low}..{high}")),
+        (Valued::Value(n) | Valued::Incomplete(Some(n)), _) => eval::number_json(n.as_f64()),
+        (Valued::Incomplete(None) | Valued::Lacked, _) => serde_json::Value::Null,
     }
 }
 
@@ -205,19 +317,21 @@ pub(crate) fn unread_of(named: Named, held: &Held) -> Vec<Cow<'_, Unread>> {
                 return vec![Cow::Borrowed(reason)];
             }
             let mut unread: Vec<&Unread> = Vec::new();
-            for row in &total.rows {
-                let slots: &[Option<&str>] = if total.ranged {
-                    &[Some("low"), Some("high")]
-                } else {
-                    &[row.slot.as_deref()]
-                };
-                for slot in slots {
-                    for u in eval::unread_of_sum(held, &row.group, *slot) {
-                        if !unread.iter().any(|seen| std::ptr::eq(*seen, u)) {
-                            unread.push(u);
-                        }
-                    }
-                }
+            unread_of_total(total, held, &mut unread);
+            unread.into_iter().map(Cow::Borrowed).collect()
+        }
+        // what leaves its totals open, and nothing where it is decided
+        // all the same: a least one of whose totals is nothing
+        Named::Reading { table, reading } => {
+            if let Some(reason) = table.unavailable(&held.item.facts.realm) {
+                return vec![Cow::Borrowed(reason)];
+            }
+            if !matches!(value(named, None, held), Valued::Incomplete(_)) {
+                return Vec::new();
+            }
+            let mut unread: Vec<&Unread> = Vec::new();
+            for total in table.read_by(reading) {
+                unread_of_total(total, held, &mut unread);
             }
             unread.into_iter().map(Cow::Borrowed).collect()
         }
@@ -228,9 +342,27 @@ pub(crate) fn unread_of(named: Named, held: &Held) -> Vec<Cow<'_, Unread>> {
     }
 }
 
+/// What leaves a total open on this item, each part once.
+fn unread_of_total<'a>(total: &Total, held: &'a Held, unread: &mut Vec<&'a Unread>) {
+    for row in &total.rows {
+        let slots: &[Option<&str>] = if total.ranged {
+            &[Some("low"), Some("high")]
+        } else {
+            &[row.slot.as_deref()]
+        };
+        for slot in slots {
+            for u in eval::unread_of_sum(held, &row.group, *slot) {
+                if !unread.iter().any(|seen| std::ptr::eq(*seen, u)) {
+                    unread.push(u);
+                }
+            }
+        }
+    }
+}
+
 /// What a row shows of a computed value that matched: the lines the
-/// total's rows named on the item, or the properties the derived field
-/// read.
+/// total's rows named on the item, the totals a reading read that the
+/// item shows, or the properties the derived field read.
 pub(crate) fn evidence(named: Named, held: &Held) -> Vec<Evidence> {
     match named {
         Named::Total { total, .. } => {
@@ -245,6 +377,16 @@ pub(crate) fn evidence(named: Named, held: &Held) -> Vec<Evidence> {
             lines.sort_by_key(|line| held.item.lines.iter().position(|l| std::ptr::eq(l, *line)));
             lines.into_iter().map(eval::line_evidence).collect()
         }
+        Named::Reading { table, reading } => table
+            .read_by(reading)
+            .filter_map(|total| match total_of(table, total, None, held) {
+                Valued::Value(n) => Some(Evidence::Value {
+                    name: format!("pseudo.{}", total.name),
+                    value: eval::number_json(n.as_f64()),
+                }),
+                Valued::Incomplete(_) | Valued::Lacked => None,
+            })
+            .collect(),
         Named::Derived(derived) => match inputs(derived, held) {
             Ok(read) => read
                 .shown
@@ -300,6 +442,63 @@ fn total_of(table: &TotalsTable, total: &Total, slot: Option<&str>, held: &Held)
         Valued::Lacked
     } else {
         Valued::Value(value)
+    }
+}
+
+// ---- readings of other totals -------------------------------------------------------------------------
+
+/// A count (the module doc): how many of its totals the item shows, and
+/// the interval it lies in where one is shown and another is open.
+fn count_of(
+    table: &TotalsTable,
+    reading: &Reading,
+    held: &Held,
+) -> (Valued, Option<(usize, usize)>) {
+    if table.unavailable(&held.item.facts.realm).is_some() {
+        return (Valued::Incomplete(None), None);
+    }
+    let (mut low, mut high) = (0, 0);
+    for total in table.read_by(reading) {
+        match total_of(table, total, None, held) {
+            Valued::Value(_) => {
+                low += 1;
+                high += 1;
+            }
+            // what could not be read may be what makes it something
+            Valued::Incomplete(_) => high += 1,
+            Valued::Lacked => {}
+        }
+    }
+    let shown = Exact::of(low as f64);
+    match (low, high) {
+        (_, 0) => (Valued::Lacked, None),
+        (low, high) if low == high => (Valued::Value(shown), None),
+        // none established: the count may be none
+        (0, _) => (Valued::Incomplete(None), None),
+        (low, high) => (Valued::Incomplete(Some(shown)), Some((low, high))),
+    }
+}
+
+/// A least (the module doc): the smallest of its totals where the item
+/// shows every one. A total of nothing decides it, so the reading stops
+/// there.
+fn least_of(table: &TotalsTable, reading: &Reading, held: &Held) -> Valued {
+    if table.unavailable(&held.item.facts.realm).is_some() {
+        return Valued::Incomplete(None);
+    }
+    let mut least: Option<Exact> = None;
+    let mut complete = true;
+    for total in table.read_by(reading) {
+        match total_of(table, total, None, held) {
+            Valued::Value(n) => least = Some(least.map_or(n, |least| least.min(n))),
+            Valued::Incomplete(_) => complete = false,
+            Valued::Lacked => return Valued::Lacked,
+        }
+    }
+    match (complete, least) {
+        (true, Some(least)) => Valued::Value(least),
+        (true, None) => Valued::Lacked,
+        (false, least) => Valued::Incomplete(least),
     }
 }
 
@@ -476,13 +675,9 @@ pub(crate) fn matching(
     Ok(out)
 }
 
-/// Whether the item carries the computed value: established, as `has:`
-/// of it asks.
+/// Whether the item carries the computed value, as `has:` of it asks.
 pub(crate) fn carried(named: Named, held: &Held) -> bool {
-    matches!(
-        value(named, named.ranged().then_some("avg"), held),
-        Valued::Value(_)
-    )
+    present(named, held) == Outcome::Matched
 }
 
 /// A displayed number the search reads, or none.
@@ -538,6 +733,25 @@ static DESCRIBED: LazyLock<Vec<Entry>> = LazyLock::new(|| {
                 examples,
             });
         }
+        // a reading is a derived field (C101), defined by the table
+        for reading in table.readings() {
+            let name = format!("pseudo.{}", reading.name);
+            let bound = match reading.kind {
+                ReadingKind::Count => 3,
+                ReadingKind::Least => 10,
+            };
+            out.push(Entry {
+                examples: vec![
+                    leak(format!("{name}>={bound}")),
+                    leak(format!("-has:{name}")),
+                    leak(format!("undecided({name})")),
+                ],
+                name,
+                kind: "derived",
+                what: reading.definition(),
+                values: Vec::new(),
+            });
+        }
     }
     for derived in Derived::ALL {
         let name = format!("pseudo.{}", derived.name());
@@ -557,7 +771,7 @@ static DESCRIBED: LazyLock<Vec<Entry>> = LazyLock::new(|| {
 });
 
 /// The computed values as `--describe` lists them (C97): every total with
-/// its definition, then the derived fields.
+/// its definition, the readings of them, then the derived fields.
 pub(crate) fn described() -> Vec<Entry> {
     DESCRIBED.clone()
 }
@@ -615,7 +829,7 @@ mod tests {
 
     fn table(totals: &str) -> &'static TotalsTable {
         let text = format!(
-            "version = 4\nrealms = [\"pc\"]\nsource = \"s\"\ngenerated_by = \"t\"\n{totals}"
+            "version = 5\nrealms = [\"pc\"]\nsource = \"s\"\ngenerated_by = \"t\"\n{totals}"
         );
         Box::leak(Box::new(TotalsTable::parse(&text).unwrap()))
     }
@@ -669,7 +883,7 @@ mod tests {
         );
         assert_eq!(
             super::unread_of(named(t, "total_life"), &poe2)[0].problem,
-            "no totals table for realm poe2 (totals v4 covers pc)"
+            "no totals table for realm poe2 (totals v5 covers pc)"
         );
         // a contributor unread: a subtotal, marked incomplete
         let open = held(
@@ -684,6 +898,50 @@ mod tests {
             super::unread_of(named(t, "total_life"), &open)[0].problem,
             "`implicitMods` is a string, not an array"
         );
+    }
+
+    /// A reading's reasons are those of the totals that leave it open,
+    /// each part once, and none where it is decided with a total open
+    /// beside it — which no answer asks for, a reason being given of an
+    /// undecided term alone.
+    #[test]
+    fn a_reading_gives_reasons_only_where_it_is_open() {
+        let t = table(
+            "[[total]]\nname = \"fire\"\nrows = [\n  { template = \"#% to Fire Resistance\", slot = \"arg1\", weight = 1 },\n]\n[[total]]\nname = \"cold\"\nrows = [\n  { template = \"#% to Cold Resistance\", slot = \"arg1\", weight = 1 },\n]\n[[reading]]\nname = \"both\"\nkind = \"least\"\nof = [\"fire\", \"cold\"]\n[[reading]]\nname = \"either\"\nkind = \"count\"\nof = [\"fire\", \"cold\"]\n",
+        );
+        let reading = |name: &str| Named::Reading {
+            table: t,
+            reading: t.reading(name).unwrap(),
+        };
+        // fire open, cold nothing: no least, and one resistance or none
+        let open = held(
+            "pc",
+            r#"{"explicitMods": ["+10000000000% to Fire Resistance"]}"#,
+        );
+        assert_eq!(value(reading("both"), None, &open), Valued::Lacked);
+        assert!(super::unread_of(reading("both"), &open).is_empty());
+        assert_eq!(
+            value(reading("either"), None, &open),
+            Valued::Incomplete(None)
+        );
+        let why = super::unread_of(reading("either"), &open);
+        assert_eq!(why.len(), 1);
+        assert!(why[0].problem.contains("a number with more digits"));
+        // both open by one unread array: one reason, not one a total
+        let unread = held("pc", r#"{"explicitMods": "no"}"#);
+        assert_eq!(
+            value(reading("both"), None, &unread),
+            Valued::Incomplete(None)
+        );
+        assert_eq!(super::unread_of(reading("both"), &unread).len(), 1);
+        let poe2 = held("poe2", r#"{"explicitMods": ["+9% to Fire Resistance"]}"#);
+        for name in ["both", "either"] {
+            assert_eq!(value(reading(name), None, &poe2), Valued::Incomplete(None));
+            assert_eq!(
+                super::unread_of(reading(name), &poe2)[0].problem,
+                "no totals table for realm poe2 (totals v5 covers pc)"
+            );
+        }
     }
 
     /// A ranged total sums low with low and high with high, and takes
