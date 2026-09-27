@@ -1,6 +1,7826 @@
 {
  "_generated": "by scripts/captures.py from raw/searches (MANIFEST.md) — do not edit",
  "searches": {
+  "c1": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "stats": [
+     {
+      "type": "and",
+      "filters": [
+       {
+        "id": "pseudo.pseudo_total_life"
+       }
+      ]
+     },
+     {
+      "type": "not",
+      "filters": [
+       {
+        "id": "explicit.stat_3299347043"
+       },
+       {
+        "id": "implicit.stat_3299347043"
+       },
+       {
+        "id": "fractured.stat_3299347043"
+       },
+       {
+        "id": "scourge.stat_3299347043"
+       },
+       {
+        "id": "crafted.stat_3299347043"
+       },
+       {
+        "id": "explicit.stat_4080418644"
+       },
+       {
+        "id": "implicit.stat_4080418644"
+       },
+       {
+        "id": "fractured.stat_4080418644"
+       },
+       {
+        "id": "scourge.stat_4080418644"
+       },
+       {
+        "id": "crafted.stat_4080418644"
+       },
+       {
+        "id": "explicit.stat_538848803"
+       },
+       {
+        "id": "implicit.stat_538848803"
+       },
+       {
+        "id": "fractured.stat_538848803"
+       },
+       {
+        "id": "crafted.stat_538848803"
+       },
+       {
+        "id": "explicit.stat_1535626285"
+       },
+       {
+        "id": "explicit.stat_2543977012"
+       },
+       {
+        "id": "implicit.stat_1535626285"
+       },
+       {
+        "id": "fractured.stat_1535626285"
+       },
+       {
+        "id": "crafted.stat_1535626285"
+       },
+       {
+        "id": "explicit.stat_1379411836"
+       },
+       {
+        "id": "implicit.stat_1379411836"
+       },
+       {
+        "id": "fractured.stat_1379411836"
+       },
+       {
+        "id": "crafted.stat_1379411836"
+       }
+      ]
+     }
+    ],
+    "filters": {
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 30,
+    "total": 0
+   },
+   "ids_returned": 0,
+   "fetched": []
+  },
+  "c2": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "stats": [
+     {
+      "type": "and",
+      "filters": [
+       {
+        "id": "pseudo.pseudo_total_life"
+       }
+      ]
+     },
+     {
+      "type": "not",
+      "filters": [
+       {
+        "id": "explicit.stat_3299347043"
+       },
+       {
+        "id": "implicit.stat_3299347043"
+       },
+       {
+        "id": "fractured.stat_3299347043"
+       },
+       {
+        "id": "scourge.stat_3299347043"
+       },
+       {
+        "id": "crafted.stat_3299347043"
+       },
+       {
+        "id": "explicit.stat_4080418644"
+       },
+       {
+        "id": "implicit.stat_4080418644"
+       },
+       {
+        "id": "fractured.stat_4080418644"
+       },
+       {
+        "id": "scourge.stat_4080418644"
+       },
+       {
+        "id": "crafted.stat_4080418644"
+       },
+       {
+        "id": "explicit.stat_538848803"
+       },
+       {
+        "id": "implicit.stat_538848803"
+       },
+       {
+        "id": "fractured.stat_538848803"
+       },
+       {
+        "id": "crafted.stat_538848803"
+       },
+       {
+        "id": "explicit.stat_1535626285"
+       },
+       {
+        "id": "explicit.stat_2543977012"
+       },
+       {
+        "id": "implicit.stat_1535626285"
+       },
+       {
+        "id": "fractured.stat_1535626285"
+       },
+       {
+        "id": "crafted.stat_1535626285"
+       }
+      ]
+     }
+    ],
+    "filters": {
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 26,
+    "total": 10000,
+    "inexact": true
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "Eagle Medallion",
+     "typeLine": "Onyx Amulet",
+     "baseType": "Onyx Amulet",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+14 to all Attributes",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 25,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "16"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "24% increased Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3962278098",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Immolation",
+          "tier": "S1",
+          "level": 64,
+          "magnitudes": [
+           {
+            "min": "23",
+            "max": "26"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+12% to Global Critical Strike Multiplier",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3556824919",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Ire",
+          "tier": "S6",
+          "level": 8,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+70 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Zaffre",
+          "tier": "P2",
+          "level": 81,
+          "magnitudes": [
+           {
+            "min": "69",
+            "max": "73"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+26% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Kiln",
+          "tier": "S5",
+          "level": 36,
+          "magnitudes": [
+           {
+            "min": "24",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+7 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Cobalt Jewel of Adaption",
+     "baseType": "Cobalt Jewel",
+     "rarity": "Magic",
+     "frameType": 1,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+8 to all Attributes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Adaption",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "8"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+4 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Earendel's Embrace",
+     "typeLine": "Grinning Fetish",
+     "baseType": "Grinning Fetish",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Sceptre",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "24-36"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.00%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.50"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 54,
+      "pdps": 54,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "18% increased Elemental Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "18",
+            "max": "18"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+22 to all Attributes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Minions deal 39% increased Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1589917703",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Summoned Skeletons Cover Enemies in Ash on Hit",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3074608753",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "100",
+            "max": "100"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Summoned Skeletons take 20% of their Maximum Life per second as Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2912438397",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "15",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Summoned Skeletons have Avatar of Fire",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1958210928",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+11 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "The Broken Crown",
+     "typeLine": "Prophet Crown",
+     "baseType": "Prophet Crown",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       16,
+       "Armour",
+       [
+        "381"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "162"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ar": 457,
+      "ar_aug": true,
+      "es": 194,
+      "es_aug": true
+     },
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Socketed Gems are supported by Level 20 Cast on Death",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3878987051",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+10 to all Attributes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "20% increased Damage when on Low Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1513447578",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "70% increased Armour and Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3321629045",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "60",
+            "max": "100"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+63 to maximum Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4052037485",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "50",
+            "max": "70"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "20% reduced Mana Regeneration Rate",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_789117908",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "-20",
+            "max": "-20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+44% to Chaos Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2923486259",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "43",
+            "max": "61"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+5 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Quecholli",
+     "typeLine": "Jagged Maul",
+     "baseType": "Jagged Maul",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Two Handed Mace",
+       []
+      ],
+      [
+       6,
+       "Quality",
+       [
+        "+5%"
+       ]
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "60-140"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "5.00%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 148.85,
+      "pdps": 148.85,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "30% increased Stun Duration on Enemies",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_2517001139",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+36 to all Attributes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "80% increased Physical Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1509134228",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "80",
+            "max": "100"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 5 to 25 Physical Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1940865751",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           },
+           {
+            "min": "25",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Gain 10 Life per Enemy Killed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3695891184",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Enemies Killed with Attack or Spell Hits Explode, dealing 10% of their Life as Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3457687358",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+18 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Spirit Twirl",
+     "typeLine": "Breach Ring",
+     "baseType": "Breach Ring",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "Properties are doubled while in a Breach",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_202275580",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+9 to all Attributes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Meteor",
+          "tier": "S2",
+          "level": 22,
+          "magnitudes": [
+           {
+            "min": "9",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+3 to Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2144192055",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Agile",
+          "tier": "P7",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+16% to Lightning Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1671376347",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Squall",
+          "tier": "S7",
+          "level": 13,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "17"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Gain 9 Life per Enemy Killed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3695891184",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Victory",
+          "tier": "S5",
+          "level": 23,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "18"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+4.5 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Perandus Blazon",
+     "typeLine": "Cloth Belt",
+     "baseType": "Cloth Belt",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "24% increased Stun and Block Recovery",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_2511217560",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "15",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+21 to all Attributes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "7% increased Quantity of Items found",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_884586851",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "8"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+20% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "20% increased Flask Effect Duration",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3741323227",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "-2 Physical Damage taken from Attack Hits",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3441651621",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "-2",
+            "max": "-2"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+10.5 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Onyx Amulet",
+     "baseType": "Onyx Amulet",
+     "rarity": "Normal",
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+12 to all Attributes",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 25,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "16"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+6 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Plague Finger",
+     "typeLine": "Moonstone Ring",
+     "baseType": "Moonstone Ring",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+19 to maximum Energy Shield",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3489782002",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 25,
+          "magnitudes": [
+           {
+            "min": "15",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+12 to all Attributes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Meteor",
+          "tier": "S2",
+          "level": 22,
+          "magnitudes": [
+           {
+            "min": "9",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 3 to 5 Physical Damage to Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3032590688",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Burnished",
+          "tier": "P5",
+          "level": 13,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "3"
+           },
+           {
+            "min": "4",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+89 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_803737631",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Steadiness",
+          "tier": "S5",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "50",
+            "max": "100"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+8% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Whelpling",
+          "tier": "S8",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+6 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "The Broken Crown",
+     "typeLine": "Prophet Crown",
+     "baseType": "Prophet Crown",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       16,
+       "Armour",
+       [
+        "361"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "151"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ar": 433,
+      "ar_aug": true,
+      "es": 182,
+      "es_aug": true
+     },
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Socketed Gems are supported by Level 20 Cast on Death",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3878987051",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+10 to all Attributes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "20% increased Damage when on Low Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1513447578",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "61% increased Armour and Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3321629045",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "60",
+            "max": "100"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+62 to maximum Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4052037485",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "50",
+            "max": "70"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "20% reduced Mana Regeneration Rate",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_789117908",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "-20",
+            "max": "-20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+49% to Chaos Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2923486259",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "43",
+            "max": "61"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+5 total maximum Life",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_life",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "c3": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "stats": [
+     {
+      "type": "count",
+      "filters": [
+       {
+        "id": "explicit.stat_3299347043"
+       },
+       {
+        "id": "implicit.stat_3299347043"
+       },
+       {
+        "id": "fractured.stat_3299347043"
+       },
+       {
+        "id": "scourge.stat_3299347043"
+       },
+       {
+        "id": "crafted.stat_3299347043"
+       },
+       {
+        "id": "explicit.stat_4080418644"
+       },
+       {
+        "id": "implicit.stat_4080418644"
+       },
+       {
+        "id": "fractured.stat_4080418644"
+       },
+       {
+        "id": "scourge.stat_4080418644"
+       },
+       {
+        "id": "crafted.stat_4080418644"
+       },
+       {
+        "id": "explicit.stat_538848803"
+       },
+       {
+        "id": "implicit.stat_538848803"
+       },
+       {
+        "id": "fractured.stat_538848803"
+       },
+       {
+        "id": "crafted.stat_538848803"
+       },
+       {
+        "id": "explicit.stat_1535626285"
+       },
+       {
+        "id": "explicit.stat_2543977012"
+       },
+       {
+        "id": "implicit.stat_1535626285"
+       },
+       {
+        "id": "fractured.stat_1535626285"
+       },
+       {
+        "id": "crafted.stat_1535626285"
+       },
+       {
+        "id": "explicit.stat_1379411836"
+       },
+       {
+        "id": "implicit.stat_1379411836"
+       },
+       {
+        "id": "fractured.stat_1379411836"
+       },
+       {
+        "id": "crafted.stat_1379411836"
+       }
+      ],
+      "value": {
+       "min": 1
+      }
+     },
+     {
+      "type": "not",
+      "filters": [
+       {
+        "id": "pseudo.pseudo_total_life"
+       }
+      ]
+     }
+    ],
+    "filters": {
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 39,
+    "total": 3338
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "That Which Was Taken",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Limited to",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+37 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2543977012",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Inquisitor",
+          "tier": "S0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "31",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+13% chance to Suppress Spell Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3680664274",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Raider",
+          "tier": "S0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "69% increased Mirage Archer Duration",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3663580344",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Deadeye",
+          "tier": "S0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "51",
+            "max": "100"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Hits have 7% chance to deal 50% more Area Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2289189129",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Saboteur's",
+          "tier": "P0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "7",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "That Which Was Taken",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Limited to",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+32 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2543977012",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Inquisitor",
+          "tier": "S0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "31",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "30% increased Effect of Onslaught on you",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3151397056",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Raider's",
+          "tier": "P0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "26",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Hits ignore Enemy Physical Damage Reduction if you've Blocked in the past 20 seconds",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3035931505",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Gladiator's",
+          "tier": "P0",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Cannot be Stunned while you have at least 25 Rage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2971900104",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Berserker",
+          "tier": "S0",
+          "level": 45,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Oblivion Gorget",
+     "typeLine": "Amber Amulet",
+     "baseType": "Amber Amulet",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+21 to Strength",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_4080418644",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 7,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "-21 to Strength",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4080418644",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Brute",
+          "tier": "S9",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "-326 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_803737631",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Precision",
+          "tier": "S4",
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "100",
+            "max": "165"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+91% to Global Critical Strike Multiplier",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3556824919",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Ferocity",
+          "tier": "S2",
+          "level": 59,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "34"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "89% increased Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2106365538",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Vaporous",
+          "tier": "P1",
+          "level": 77,
+          "magnitudes": [
+           {
+            "min": "33",
+            "max": "36"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Glyph Vise",
+     "typeLine": "Fishscale Gauntlets",
+     "baseType": "Fishscale Gauntlets",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       16,
+       "Armour",
+       [
+        "12"
+       ]
+      ],
+      [
+       17,
+       "Evasion Rating",
+       [
+        "12"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 67,
+      "ev": 14,
+      "ev_aug": true,
+      "ar": 14,
+      "ar_aug": true
+     },
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "7% increased Attack Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_681332047",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Skill",
+          "tier": "S4",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "7"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "9% increased Armour and Evasion",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2451402625",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Beetle's",
+          "tier": "P6",
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "13"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+24 to maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Sanguine",
+          "tier": "P7",
+          "level": 11,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "39"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Regenerate 1 Life per second",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3325883026",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Newt",
+          "tier": "S8",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "6% increased Stun and Block Recovery",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2511217560",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Beetle's",
+          "tier": "P6",
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "7"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "scourgeMods": [
+       {
+        "description": "-24 to maximum Life",
+        "domain": "scourge",
+        "hash": "stat.scourge.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": "R2",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "-25",
+            "max": "-21"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Regenerate 11 Life per second",
+        "domain": "scourge",
+        "hash": "stat.scourge.stat_3325883026",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": "R1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10.8",
+            "max": "11.7"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "That Which Was Taken",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Limited to",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+35 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2543977012",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Inquisitor",
+          "tier": "S0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "31",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Gain 9% of Physical Damage as Extra Damage of a random Element",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3753703249",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Pathfinder's",
+          "tier": "P0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "9",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "17% increased Elusive Effect",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_240857668",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Assassin",
+          "tier": "S0",
+          "level": 72,
+          "magnitudes": [
+           {
+            "min": "16",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "24% chance to Hinder Enemies on Hit with Spells",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3002506763",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Occultist",
+          "tier": "S0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "That Which Was Taken",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Limited to",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+33 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2543977012",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Inquisitor",
+          "tier": "S0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "31",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Enemies you Kill that are affected by Elemental Ailments\ngrant 36% increased Flask Charges",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_589437732",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Pathfinder",
+          "tier": "S0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "26",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "5% increased Area of Effect per Endurance Charge",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2448279015",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Juggernaut's",
+          "tier": "P0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "6"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 8 to 19 Physical Damage if you've dealt a Critical Strike Recently",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2723101291",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Berserker's",
+          "tier": "P0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "12"
+           },
+           {
+            "min": "18",
+            "max": "22"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Grim Pendant",
+     "typeLine": "Agate Amulet",
+     "baseType": "Agate Amulet",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+21 to Strength and Intelligence",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1535626285",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "16",
+            "max": "24"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "-21 to all Attributes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1379411836",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Meteor",
+          "tier": "S7",
+          "level": 22,
+          "magnitudes": [
+           {
+            "min": "9",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 4 to 46 Lightning Damage to Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1754445556",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Snapping",
+          "tier": "P7",
+          "level": 22,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "2"
+           },
+           {
+            "min": "22",
+            "max": "23"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "25% increased Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2106365538",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Dancer's",
+          "tier": "P6",
+          "level": 19,
+          "magnitudes": [
+           {
+            "min": "9",
+            "max": "13"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "-77% to Lightning Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1671376347",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Maelstrom",
+          "tier": "S3",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "36",
+            "max": "41"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "That Which Was Taken",
+     "typeLine": "Crimson Jewel",
+     "baseType": "Crimson Jewel",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Limited to",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+39 to Strength and Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2543977012",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Inquisitor",
+          "tier": "S0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "31",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "21% chance to gain an Endurance Charge when you Stun an Enemy",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1582887649",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Juggernaut's",
+          "tier": "P0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "9% chance to take 50% less Area Damage from Hits",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4253777805",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Saboteur",
+          "tier": "S0",
+          "level": 72,
+          "magnitudes": [
+           {
+            "min": "7",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Minions gain Added Physical Damage equal to 10% of Maximum Energy Shield on your Equipped Helmet",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2268802111",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Necromancer's",
+          "tier": "P0",
+          "level": 72,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Vengeance Eye",
+     "typeLine": "Coral Ring",
+     "baseType": "Coral Ring",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+30 to maximum Life",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Adds 2 to 44 Lightning Damage to Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1754445556",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Snapping",
+          "tier": "P7",
+          "level": 22,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "2"
+           },
+           {
+            "min": "22",
+            "max": "23"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "-30 to maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Healthy",
+          "tier": "P7",
+          "level": 5,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "24"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+20% to all Elemental Resistances",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2901986750",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Kaleidoscope",
+          "tier": "S3",
+          "level": 36,
+          "magnitudes": [
+           {
+            "min": "9",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "-78% to Lightning Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1671376347",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Maelstrom",
+          "tier": "S3",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "36",
+            "max": "41"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Sorrow Twirl",
+     "typeLine": "Coral Ring",
+     "baseType": "Coral Ring",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+24 to maximum Life",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "-48 to Strength",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4080418644",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Bear",
+          "tier": "S7",
+          "level": 22,
+          "magnitudes": [
+           {
+            "min": "18",
+            "max": "22"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "-66 to Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_328541901",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Philosopher",
+          "tier": "S5",
+          "level": 44,
+          "magnitudes": [
+           {
+            "min": "28",
+            "max": "32"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+1078 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_803737631",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Ranger",
+          "tier": "S1",
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "351",
+            "max": "480"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+156 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Blue",
+          "tier": "P3",
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "65",
+            "max": "68"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "c4": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "stats": [
+     {
+      "type": "count",
+      "filters": [
+       {
+        "id": "explicit.stat_3299347043"
+       },
+       {
+        "id": "implicit.stat_3299347043"
+       },
+       {
+        "id": "fractured.stat_3299347043"
+       },
+       {
+        "id": "scourge.stat_3299347043"
+       },
+       {
+        "id": "crafted.stat_3299347043"
+       },
+       {
+        "id": "explicit.stat_4080418644"
+       },
+       {
+        "id": "implicit.stat_4080418644"
+       },
+       {
+        "id": "fractured.stat_4080418644"
+       },
+       {
+        "id": "scourge.stat_4080418644"
+       },
+       {
+        "id": "crafted.stat_4080418644"
+       },
+       {
+        "id": "explicit.stat_538848803"
+       },
+       {
+        "id": "implicit.stat_538848803"
+       },
+       {
+        "id": "fractured.stat_538848803"
+       },
+       {
+        "id": "crafted.stat_538848803"
+       },
+       {
+        "id": "explicit.stat_1535626285"
+       },
+       {
+        "id": "explicit.stat_2543977012"
+       },
+       {
+        "id": "implicit.stat_1535626285"
+       },
+       {
+        "id": "fractured.stat_1535626285"
+       },
+       {
+        "id": "crafted.stat_1535626285"
+       },
+       {
+        "id": "explicit.stat_1379411836"
+       },
+       {
+        "id": "implicit.stat_1379411836"
+       },
+       {
+        "id": "fractured.stat_1379411836"
+       },
+       {
+        "id": "crafted.stat_1379411836"
+       },
+       {
+        "id": "explicit.stat_983749596"
+       },
+       {
+        "id": "implicit.stat_983749596"
+       },
+       {
+        "id": "fractured.stat_983749596"
+       },
+       {
+        "id": "enchant.stat_983749596"
+       },
+       {
+        "id": "scourge.stat_983749596"
+       },
+       {
+        "id": "crafted.stat_983749596"
+       }
+      ],
+      "value": {
+       "min": 1
+      }
+     },
+     {
+      "type": "not",
+      "filters": [
+       {
+        "id": "pseudo.pseudo_total_life"
+       }
+      ]
+     }
+    ],
+    "filters": {
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 45,
+    "total": 10000,
+    "inexact": true
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "Fencoil",
+     "typeLine": "Gnarled Branch",
+     "baseType": "Gnarled Branch",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Staff",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "9-19"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 22.1,
+      "pdps": 22.1,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+18% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Socketed Gems are Supported by Level 8 Trap",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1122134690",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "8"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "45% increased Global Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_819529588",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "14% increased maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_983749596",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "19% increased maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2748665614",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Maligaro's Lens",
+     "typeLine": "Compound Spiked Shield",
+     "baseType": "Compound Spiked Shield",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       15,
+       "Chance to Block",
+       [
+        "25%"
+       ]
+      ],
+      [
+       17,
+       "Evasion Rating",
+       [
+        "122"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "25"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ev": 146,
+      "ev_aug": true,
+      "es": 30,
+      "es_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+2% chance to Suppress Spell Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3680664274",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "15% increased Attack Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_681332047",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "19% increased maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_983749596",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "-50% to all Elemental Resistances",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2901986750",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "-50",
+            "max": "-50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Area of Effect",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_280731498",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Nearby allies Recover 2% of your Maximum Life when you Die",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3484267929",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "The Covenant",
+     "typeLine": "Spidersilk Robe",
+     "baseType": "Spidersilk Robe",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       18,
+       "Energy Shield",
+       [
+        "335"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "es": 402,
+      "es_aug": true
+     },
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Socketed Gems are Supported by Level 15 Added Chaos Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_411460446",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "15",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Socketed Gems Cost and Reserve Life instead of Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1104246401",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+28 to Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_328541901",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "232% increased Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4015621042",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "210",
+            "max": "250"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_983749596",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Ming's Heart",
+     "typeLine": "Amethyst Ring",
+     "baseType": "Amethyst Ring",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+13% to Chaos Resistance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_2923486259",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 38,
+          "magnitudes": [
+           {
+            "min": "17",
+            "max": "23"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "10% reduced maximum Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2482852589",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "-25",
+            "max": "-25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "5% reduced maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_983749596",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "-25",
+            "max": "-25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+41% to Chaos Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2923486259",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Gain 20% of Physical Damage as Extra Chaos Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3319896421",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 87,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "60"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Maligaro's Lens",
+     "typeLine": "Compound Spiked Shield",
+     "baseType": "Compound Spiked Shield",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       15,
+       "Chance to Block",
+       [
+        "25%"
+       ]
+      ],
+      [
+       17,
+       "Evasion Rating",
+       [
+        "122"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "25"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ev": 146,
+      "ev_aug": true,
+      "es": 30,
+      "es_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+2% chance to Suppress Spell Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3680664274",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "12% increased Attack Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_681332047",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "18% increased maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_983749596",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "-50% to all Elemental Resistances",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2901986750",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "-50",
+            "max": "-50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Area of Effect",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_280731498",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Nearby allies Recover 2% of your Maximum Life when you Die",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3484267929",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Ephemeral Edge",
+     "typeLine": "Dusk Blade",
+     "baseType": "Dusk Blade",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "One Handed Sword",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "48-135"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "5.00%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 142.35,
+      "pdps": 142.35,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "40% increased Global Accuracy Rating",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_624954515",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+10 to Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_328541901",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "150% increased Physical Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1509134228",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "150",
+            "max": "150"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "50% increased Global Critical Strike Chance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_587431675",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "50",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "46% increased maximum Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2482852589",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% reduced maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_983749596",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "-25",
+            "max": "-25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "1% of Physical Attack Damage Leeched as Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_669069897",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "0.6",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Maligaro's Lens",
+     "typeLine": "Compound Spiked Shield",
+     "baseType": "Compound Spiked Shield",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       15,
+       "Chance to Block",
+       [
+        "25%"
+       ]
+      ],
+      [
+       17,
+       "Evasion Rating",
+       [
+        "122"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "25"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ev": 146,
+      "ev_aug": true,
+      "es": 30,
+      "es_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+2% chance to Suppress Spell Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3680664274",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "13% increased Attack Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_681332047",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "14% increased maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_983749596",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "-50% to all Elemental Resistances",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2901986750",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "-50",
+            "max": "-50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Area of Effect",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_280731498",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Nearby allies Recover 2% of your Maximum Life when you Die",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3484267929",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Fencoil",
+     "typeLine": "Gnarled Branch",
+     "baseType": "Gnarled Branch",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Staff",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "9-19"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 22.1,
+      "pdps": 22.1,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+12% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Socketed Gems are Supported by Level 8 Trap",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1122134690",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "8"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "45% increased Global Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_819529588",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "18% increased maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_983749596",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2748665614",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Fencoil",
+     "typeLine": "Gnarled Branch",
+     "baseType": "Gnarled Branch",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Staff",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "9-19"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 22.1,
+      "pdps": 22.1,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+18% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Socketed Gems are Supported by Level 8 Trap",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1122134690",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "8"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "47% increased Global Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_819529588",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "12% increased maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_983749596",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "12% increased maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2748665614",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Vivid Sliver",
+     "typeLine": "Viridian Jewel",
+     "baseType": "Viridian Jewel",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "8% increased Attack Speed with Daggers",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2538566497",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Slicing",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "8"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "5% increased maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_983749596",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Vivid",
+          "tier": "P1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "7"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "13% increased Stun Duration on Enemies",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2517001139",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Stunning",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "14"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "17% increased Burning Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1175385867",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Combusting",
+          "tier": "S1",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "16",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "c5": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "stats": [
+     {
+      "type": "and",
+      "filters": [
+       {
+        "id": "explicit.stat_4220027924"
+       },
+       {
+        "id": "explicit.stat_3372524247"
+       }
+      ]
+     },
+     {
+      "type": "if",
+      "filters": [
+       {
+        "id": "pseudo.pseudo_total_cold_resistance"
+       },
+       {
+        "id": "pseudo.pseudo_total_fire_resistance"
+       }
+      ]
+     }
+    ],
+    "filters": {
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 17,
+    "total": 10000,
+    "inexact": true
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "Golem Barb",
+     "typeLine": "Broadhead Arrow Quiver",
+     "baseType": "Broadhead Arrow Quiver",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "6 to 12 Added Physical Damage with Bow Attacks",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1760576992",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 35,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "6"
+           },
+           {
+            "min": "12",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+11 to maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Healthy",
+          "tier": "P9",
+          "level": 5,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "24"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+33% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Furnace",
+          "tier": "S4",
+          "level": 48,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+7% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Inuit",
+          "tier": "S8",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "27% increased Projectile Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3759663284",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Propulsion",
+          "tier": "S3",
+          "level": 41,
+          "magnitudes": [
+           {
+            "min": "26",
+            "max": "33"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+7% total to Cold Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_cold_resistance",
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "+33% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Plague Spur",
+     "typeLine": "Slink Boots",
+     "baseType": "Slink Boots",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       6,
+       "Quality",
+       [
+        "+14%"
+       ]
+      ],
+      [
+       17,
+       "Evasion Rating",
+       [
+        "379"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ev": 399,
+      "ev_aug": true
+     },
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "35% increased Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_124859000",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Ghost's",
+          "tier": "P6",
+          "level": 19,
+          "magnitudes": [
+           {
+            "min": "27",
+            "max": "42"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+42% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Magma",
+          "tier": "S2",
+          "level": 72,
+          "magnitudes": [
+           {
+            "min": "42",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+14% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Seal",
+          "tier": "S7",
+          "level": 14,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "17"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+22% to Chaos Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2923486259",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Expulsion",
+          "tier": "S3",
+          "level": 56,
+          "magnitudes": [
+           {
+            "min": "21",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+42% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "+14% total to Cold Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_cold_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Vortex Dart",
+     "typeLine": "Penetrating Arrow Quiver",
+     "baseType": "Penetrating Arrow Quiver",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "Arrows Pierce an additional Target",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3423006863",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 45,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Adds 1 to 2 Cold Damage to Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4067062424",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Frosted",
+          "tier": "P0",
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           },
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+37% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Volcano",
+          "tier": "S3",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "36",
+            "max": "41"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+41% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Polar Bear",
+          "tier": "S3",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "36",
+            "max": "41"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Gain 3 Mana per Enemy Killed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1368271171",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Osmosis",
+          "tier": "S5",
+          "level": 24,
+          "magnitudes": [
+           {
+            "min": "7",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+41% total to Cold Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_cold_resistance",
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "+37% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Thousand Ribbons",
+     "typeLine": "Simple Robe",
+     "baseType": "Simple Robe",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       17,
+       "Evasion Rating",
+       [
+        "20"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "28"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ev": 24,
+      "ev_aug": true,
+      "es": 34,
+      "es_aug": true
+     },
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Socketed Gems are Supported by Level 5 Elemental Proliferation",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2929101122",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 2 to 3 Fire Damage to Spells and Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3964634628",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "4"
+           },
+           {
+            "min": "5",
+            "max": "9"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 2 to 3 Cold Damage to Spells and Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1662717006",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "4"
+           },
+           {
+            "min": "5",
+            "max": "9"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 1 to 4 Lightning Damage to Spells and Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2885144362",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           },
+           {
+            "min": "4",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+20 to Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_53045048",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "60"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+14 to maximum Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4052037485",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "60"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+6 to maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+6 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+5% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "15",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+7% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "15",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+9% to Lightning Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1671376347",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "15",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+7% total to Cold Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_cold_resistance",
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "+5% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Kraken Glance",
+     "typeLine": "Lion Pelt",
+     "baseType": "Lion Pelt",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       17,
+       "Evasion Rating",
+       [
+        "628"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ev": 754,
+      "ev_aug": true
+     },
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+15 to Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_53045048",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Flea's",
+          "tier": "P3",
+          "level": 30,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "59% increased Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_124859000",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Wraith's",
+          "tier": "P4",
+          "level": 44,
+          "magnitudes": [
+           {
+            "min": "56",
+            "max": "67"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+69 to maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Robust",
+          "tier": "P5",
+          "level": 30,
+          "magnitudes": [
+           {
+            "min": "70",
+            "max": "84"
+           }
+          ]
+         },
+         {
+          "name": "Flea's",
+          "tier": "P3",
+          "level": 30,
+          "magnitudes": [
+           {
+            "min": "18",
+            "max": "23"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+7% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Whelpling",
+          "tier": "S8",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+31% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Walrus",
+          "tier": "S4",
+          "level": 50,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+13% to Chaos Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2923486259",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Banishment",
+          "tier": "S5",
+          "level": 30,
+          "magnitudes": [
+           {
+            "min": "11",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+7% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "+31% total to Cold Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_cold_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Beast Turn",
+     "typeLine": "Unset Ring",
+     "baseType": "Unset Ring",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [],
+     "extended": {},
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "Has 1 Socket",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_4077843608",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 7,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "12% increased Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3962278098",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Coals",
+          "tier": "S3",
+          "level": 22,
+          "magnitudes": [
+           {
+            "min": "13",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+25 to maximum Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3489782002",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Seething",
+          "tier": "P5",
+          "level": 42,
+          "magnitudes": [
+           {
+            "min": "23",
+            "max": "26"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+23% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Drake",
+          "tier": "S6",
+          "level": 24,
+          "magnitudes": [
+           {
+            "min": "18",
+            "max": "23"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+29% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Yeti",
+          "tier": "S5",
+          "level": 38,
+          "magnitudes": [
+           {
+            "min": "24",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+29% total to Cold Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_cold_resistance",
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "+23% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Heatshiver",
+     "typeLine": "Leather Hood",
+     "baseType": "Leather Hood",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       17,
+       "Evasion Rating",
+       [
+        "189"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ev": 227,
+      "ev_aug": true
+     },
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "87% increased Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_124859000",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "80",
+            "max": "100"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "60% increased Mana Regeneration Rate",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_789117908",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "60",
+            "max": "60"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+30% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+29% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "21% increased Cold Damage if you have used a Fire Skill Recently",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3612256591",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "22% increased Fire Damage if you have used a Cold Skill Recently",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4167600809",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+30% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "+29% total to Cold Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_cold_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Dusk Trail",
+     "typeLine": "Legion Boots",
+     "baseType": "Legion Boots",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       16,
+       "Armour",
+       [
+        "138"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "26"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ar": 165,
+      "ar_aug": true,
+      "es": 32,
+      "es_aug": true
+     },
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "+6 to Armour",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3484657501",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Lacquered",
+          "tier": "P0",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "25% increased Armour and Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3321629045",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Boggart's",
+          "tier": "P4",
+          "level": 30,
+          "magnitudes": [
+           {
+            "min": "21",
+            "max": "26"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+10% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Whelpling",
+          "tier": "S8",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+14% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Seal",
+          "tier": "S7",
+          "level": 14,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "17"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+31% to Lightning Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1671376347",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Tempest",
+          "tier": "S4",
+          "level": 49,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Stun and Block Recovery",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2511217560",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Boggart's",
+          "tier": "P4",
+          "level": 30,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+14% total to Cold Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_cold_resistance",
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "+10% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Damnation Bulwark",
+     "typeLine": "Teak Round Shield",
+     "baseType": "Teak Round Shield",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       15,
+       "Chance to Block",
+       [
+        "24%"
+       ]
+      ],
+      [
+       16,
+       "Armour",
+       [
+        "190"
+       ]
+      ],
+      [
+       17,
+       "Evasion Rating",
+       [
+        "196"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ev": 235,
+      "ev_aug": true,
+      "ar": 228,
+      "ar_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "180% increased Block Recovery",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_369183568",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "180",
+            "max": "180"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+4 to Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_53045048",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Agile",
+          "tier": "P0",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "45% increased Armour and Evasion",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2451402625",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Elephant's",
+          "tier": "P2",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "33",
+            "max": "38"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+15% to all Elemental Resistances",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2901986750",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Rainbow",
+          "tier": "S2",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "15",
+            "max": "16"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+34% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Furnace",
+          "tier": "S4",
+          "level": 48,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+10% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Inuit",
+          "tier": "S8",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "14% increased Stun and Block Recovery",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2511217560",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Elephant's",
+          "tier": "P2",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+25% total to Cold Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_cold_resistance",
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "+49% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Bramble Rook",
+     "typeLine": "Mirrored Spiked Shield",
+     "baseType": "Mirrored Spiked Shield",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       15,
+       "Chance to Block",
+       [
+        "26%"
+       ]
+      ],
+      [
+       17,
+       "Evasion Rating",
+       [
+        "151"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "155"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 0,
+      "ev": 181,
+      "ev_aug": true,
+      "es": 186,
+      "es_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "Reflects 199 Physical Damage to Melee Attackers",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3767873853",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 62,
+          "magnitudes": [
+           {
+            "min": "181",
+            "max": "220"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+124 to maximum Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4052037485",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Incandescent",
+          "tier": "P0",
+          "level": 69,
+          "magnitudes": [
+           {
+            "min": "77",
+            "max": "90"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+39 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Cerulean",
+          "tier": "P8",
+          "level": 29,
+          "magnitudes": [
+           {
+            "min": "35",
+            "max": "39"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+31% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Furnace",
+          "tier": "S4",
+          "level": 48,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+45% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Ice",
+          "tier": "S2",
+          "level": 72,
+          "magnitudes": [
+           {
+            "min": "42",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+45% total to Cold Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_cold_resistance",
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "+31% total to Fire Resistance",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_fire_resistance",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "c6": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "stats": [
+     {
+      "type": "and",
+      "filters": [
+       {
+        "id": "pseudo.pseudo_total_attack_speed"
+       }
+      ]
+     },
+     {
+      "type": "not",
+      "filters": [
+       {
+        "id": "explicit.stat_681332047"
+       },
+       {
+        "id": "implicit.stat_681332047"
+       },
+       {
+        "id": "fractured.stat_681332047"
+       },
+       {
+        "id": "scourge.stat_681332047"
+       },
+       {
+        "id": "crafted.stat_681332047"
+       },
+       {
+        "id": "explicit.stat_210067635"
+       },
+       {
+        "id": "implicit.stat_210067635"
+       },
+       {
+        "id": "fractured.stat_210067635"
+       },
+       {
+        "id": "enchant.stat_210067635"
+       },
+       {
+        "id": "crafted.stat_210067635"
+       }
+      ]
+     }
+    ],
+    "filters": {
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 17,
+    "total": 212
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "Grim Vise",
+     "typeLine": "Shagreen Gloves",
+     "baseType": "Shagreen Gloves",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       6,
+       "Quality",
+       [
+        "+20%"
+       ]
+      ],
+      [
+       17,
+       "Evasion Rating",
+       [
+        "253"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 43,
+      "ev": 253
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "Inflict Fire Exposure on Hit, applying -12% to Fire Resistance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1309840354",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "-12",
+            "max": "-12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "While a Unique Enemy is in your Presence, 13% increased Attack Speed",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3401410854",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "13",
+            "max": "13"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+19% chance to Suppress Spell Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3680664274",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Abjuration",
+          "tier": "S2",
+          "level": 76,
+          "magnitudes": [
+           {
+            "min": "11",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 1 to 2 Physical Damage to Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3032590688",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Glinting",
+          "tier": "P4",
+          "level": 5,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           },
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+525 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_803737631",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Lioneye",
+          "tier": "S1",
+          "level": 85,
+          "magnitudes": [
+           {
+            "min": "481",
+            "max": "600"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+19 to Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_53045048",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Dancer's",
+          "tier": "P6",
+          "level": 11,
+          "magnitudes": [
+           {
+            "min": "13",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+86 to maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Athlete's",
+          "tier": "P1",
+          "level": 54,
+          "magnitudes": [
+           {
+            "min": "115",
+            "max": "129"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+48% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Haast",
+          "tier": "S1",
+          "level": 84,
+          "magnitudes": [
+           {
+            "min": "46",
+            "max": "48"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+13% total Attack Speed",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_attack_speed",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Vortex Fingers",
+     "typeLine": "Carnal Mitts",
+     "baseType": "Carnal Mitts",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       17,
+       "Evasion Rating",
+       [
+        "124"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "26"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 5,
+      "ev": 149,
+      "ev_aug": true,
+      "es": 31,
+      "es_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "While a Unique Enemy is in your Presence, 13% increased Attack Speed",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3401410854",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "13",
+            "max": "13"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "36% increased Evasion and Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1999113824",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Ethereal",
+          "tier": "P6",
+          "level": 19,
+          "magnitudes": [
+           {
+            "min": "27",
+            "max": "42"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+5 to maximum Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3299347043",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Hale",
+          "tier": "P9",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "9"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Regenerate 2 Life per second",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3325883026",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Newt",
+          "tier": "S8",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+22 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Cobalt",
+          "tier": "P11",
+          "level": 11,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "24"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+13% total Attack Speed",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_attack_speed",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Behemoth Vise",
+     "typeLine": "Legion Gloves",
+     "baseType": "Legion Gloves",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       16,
+       "Armour",
+       [
+        "116"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "24"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 74,
+      "ar": 139,
+      "ar_aug": true,
+      "es": 29,
+      "es_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "While a Unique Enemy is in your Presence, +8% chance to Suppress Spell Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3998961962",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "8"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "While a Unique Enemy is in your Presence, 15% increased Attack Speed",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3401410854",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "15",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+25 to Dexterity",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3261801346",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Falcon",
+          "tier": "S7",
+          "level": 33,
+          "magnitudes": [
+           {
+            "min": "23",
+            "max": "27"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+56 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Chalybeous",
+          "tier": "P4",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "55",
+            "max": "59"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Gain 2 Life per Enemy Hit with Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2797971005",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Rejuvenation",
+          "tier": "S1",
+          "level": 8,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Gain 13 Mana per Enemy Killed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1368271171",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Consumption",
+          "tier": "S4",
+          "level": 40,
+          "magnitudes": [
+           {
+            "min": "11",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+15% total Attack Speed",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_attack_speed",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Glyph Paw",
+     "typeLine": "Arcanist Gloves",
+     "baseType": "Arcanist Gloves",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       6,
+       "Quality",
+       [
+        "+20%"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "87"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 14,
+      "es": 87
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "34% increased Evasion Rating from Equipped Helmet and Boots",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_623823763",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "33",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "While a Unique Enemy is in your Presence, 13% increased Attack Speed",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3401410854",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "13",
+            "max": "13"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+55 to Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_328541901",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Genius",
+          "tier": "S1",
+          "level": 82,
+          "magnitudes": [
+           {
+            "min": "51",
+            "max": "55"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+162 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_803737631",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Precision",
+          "tier": "S5",
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "100",
+            "max": "165"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "40% increased Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4015621042",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Strong-Willed",
+          "tier": "P6",
+          "level": 18,
+          "magnitudes": [
+           {
+            "min": "27",
+            "max": "42"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+17 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Beryl",
+          "tier": "P12",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "15",
+            "max": "19"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+25% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Yeti",
+          "tier": "S5",
+          "level": 38,
+          "magnitudes": [
+           {
+            "min": "24",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "18% increased Energy Shield",
+        "domain": "crafted",
+        "hash": "stat.crafted.stat_4015621042",
+        "flags": {
+         "crafted": true
+        },
+        "mods": [
+         {
+          "name": "Upgraded",
+          "tier": "P0",
+          "level": 81,
+          "magnitudes": [
+           {
+            "min": "18",
+            "max": "21"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+12 to maximum Life",
+        "domain": "crafted",
+        "hash": "stat.crafted.stat_3299347043",
+        "flags": {
+         "crafted": true
+        },
+        "mods": [
+         {
+          "name": "Upgraded",
+          "tier": "P0",
+          "level": 81,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "14"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+13% total Attack Speed",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_attack_speed",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Corpse Paw",
+     "typeLine": "Slink Gloves",
+     "baseType": "Slink Gloves",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       6,
+       "Quality",
+       [
+        "+20%"
+       ]
+      ],
+      [
+       17,
+       "Evasion Rating",
+       [
+        "319"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 67,
+      "ev": 319
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+7% chance to Suppress Spell Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3680664274",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "7",
+            "max": "7"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "While a Unique Enemy is in your Presence, 13% increased Attack Speed",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3401410854",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "13",
+            "max": "13"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+2 to Level of Socketed AoE Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2551600084",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Chosen",
+          "tier": "P0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "12% increased Rarity of Items found",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3917489142",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Magpie's",
+          "tier": "P2",
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+48% to Lightning Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1671376347",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Ephij",
+          "tier": "S1",
+          "level": 84,
+          "magnitudes": [
+           {
+            "min": "46",
+            "max": "48"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+35% to Chaos Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2923486259",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Bameth",
+          "tier": "S1",
+          "level": 81,
+          "magnitudes": [
+           {
+            "min": "31",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Area of Effect",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_280731498",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Chosen",
+          "tier": "P0",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+70 to maximum Life",
+        "domain": "crafted",
+        "hash": "stat.crafted.stat_3299347043",
+        "flags": {
+         "crafted": true
+        },
+        "mods": [
+         {
+          "name": "Upgraded",
+          "tier": "R4",
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "56",
+            "max": "70"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+13% chance to Suppress Spell Damage",
+        "domain": "fractured",
+        "hash": "stat.fractured.stat_3680664274",
+        "flags": {
+         "fractured": true
+        },
+        "mods": [
+         {
+          "name": "of Nullification",
+          "tier": "S1",
+          "level": 85,
+          "magnitudes": [
+           {
+            "min": "13",
+            "max": "14"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+13% total Attack Speed",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_attack_speed",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Vengeance Clutches",
+     "typeLine": "Shagreen Gloves",
+     "baseType": "Shagreen Gloves",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       17,
+       "Evasion Rating",
+       [
+        "275"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 60,
+      "ev": 330,
+      "ev_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "While a Unique Enemy is in your Presence, 13% increased Attack Speed",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3401410854",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "13",
+            "max": "13"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+15 to Dexterity",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3261801346",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Lynx",
+          "tier": "S9",
+          "level": 11,
+          "magnitudes": [
+           {
+            "min": "13",
+            "max": "17"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+6 to Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_53045048",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Agile",
+          "tier": "P7",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "35% increased Evasion Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_124859000",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Dragonfly's",
+          "tier": "P2",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "33",
+            "max": "38"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+42% to Lightning Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1671376347",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Lightning",
+          "tier": "S2",
+          "level": 72,
+          "magnitudes": [
+           {
+            "min": "42",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "14% increased Stun and Block Recovery",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2511217560",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Dragonfly's",
+          "tier": "P2",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+13% total Attack Speed",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_attack_speed",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Apocalypse Fist",
+     "typeLine": "Velvet Gloves",
+     "baseType": "Velvet Gloves",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       6,
+       "Quality",
+       [
+        "+9%"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "19"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 100,
+      "es": 21,
+      "es_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "While a Unique Enemy is in your Presence, 13% increased Attack Speed",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3401410854",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "13",
+            "max": "13"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Adds 4 to 10 Physical Damage to Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3032590688",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Honed",
+          "tier": "P1",
+          "level": 28,
+          "magnitudes": [
+           {
+            "min": "4",
+            "max": "6"
+           },
+           {
+            "min": "9",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+108 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_803737631",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Precision",
+          "tier": "S5",
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "100",
+            "max": "165"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "35% increased Energy Shield",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4015621042",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Djinn's",
+          "tier": "P2",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "33",
+            "max": "38"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+31% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Walrus",
+          "tier": "S4",
+          "level": 50,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Gain 6 Life per Enemy Killed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3695891184",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Success",
+          "tier": "S6",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "7",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "15% increased Stun and Block Recovery",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2511217560",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Djinn's",
+          "tier": "P2",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+13% total Attack Speed",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_attack_speed",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Wrath Mitts",
+     "typeLine": "Assassin's Mitts",
+     "baseType": "Assassin's Mitts",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       17,
+       "Evasion Rating",
+       [
+        "105"
+       ]
+      ],
+      [
+       18,
+       "Energy Shield",
+       [
+        "21"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 3,
+      "ev": 126,
+      "ev_aug": true,
+      "es": 25,
+      "es_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "While a Unique Enemy is in your Presence, 14% increased Attack Speed",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3401410854",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "14"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Regenerate 50 Life per second",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3325883026",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Ryslatha",
+          "tier": "S2",
+          "level": 68,
+          "magnitudes": [
+           {
+            "min": "48.1",
+            "max": "64"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Rarity of Items found",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3917489142",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Magpie's",
+          "tier": "P2",
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+7% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Inuit",
+          "tier": "S8",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "6",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+13% to Lightning Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1671376347",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Squall",
+          "tier": "S7",
+          "level": 13,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "17"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+14% total Attack Speed",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_attack_speed",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Storm Grip",
+     "typeLine": "Shagreen Gloves",
+     "baseType": "Shagreen Gloves",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       17,
+       "Evasion Rating",
+       [
+        "180"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 9,
+      "ev": 216,
+      "ev_aug": true
+     },
+     "lines": {
+      "enchantMods": [
+       {
+        "description": "Trigger Word of Reflection when Hit",
+        "domain": "enchant",
+        "hash": "stat.enchant.stat_2634094270",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Enchantment Word of Reflection",
+          "tier": null,
+          "level": 32,
+          "magnitudes": [
+           {
+            "min": "100",
+            "max": "100"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "implicitMods": [
+       {
+        "description": "While a Unique Enemy is in your Presence, 14% increased Attack Speed",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3401410854",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "14"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Adds 4 to 7 Physical Damage to Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3032590688",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Polished",
+          "tier": "P2",
+          "level": 19,
+          "magnitudes": [
+           {
+            "min": "3",
+            "max": "4"
+           },
+           {
+            "min": "6",
+            "max": "7"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+74 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_803737631",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Steadiness",
+          "tier": "S6",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "50",
+            "max": "100"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+35% to Lightning Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1671376347",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Tempest",
+          "tier": "S4",
+          "level": 49,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Gain 5 Mana per Enemy Killed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1368271171",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Consumption",
+          "tier": "S4",
+          "level": 40,
+          "magnitudes": [
+           {
+            "min": "11",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+14% total Attack Speed",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_attack_speed",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "Dragon Paw",
+     "typeLine": "Hydrascale Gauntlets",
+     "baseType": "Hydrascale Gauntlets",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       6,
+       "Quality",
+       [
+        "+20%"
+       ]
+      ],
+      [
+       16,
+       "Armour",
+       [
+        "222"
+       ]
+      ],
+      [
+       17,
+       "Evasion Rating",
+       [
+        "222"
+       ]
+      ]
+     ],
+     "extended": {
+      "base_defence_percentile": 94,
+      "ev": 222,
+      "ar": 222
+     },
+     "lines": {
+      "enchantMods": [
+       {
+        "description": "Trigger Commandment of Force on Hit",
+        "domain": "enchant",
+        "hash": "stat.enchant.stat_2666843091",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Enchantment Commandment of Force",
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "100",
+            "max": "100"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "implicitMods": [
+       {
+        "description": "15% chance to Impale Enemies on Hit with Attacks",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3739863694",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "15",
+            "max": "15"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "While a Unique Enemy is in your Presence, 14% increased Attack Speed",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3401410854",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "14"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+24 to Strength",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4080418644",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Lion",
+          "tier": "S6",
+          "level": 33,
+          "magnitudes": [
+           {
+            "min": "23",
+            "max": "27"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 9 to 18 Fire Damage to Attacks",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1573130764",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Burning",
+          "tier": "P3",
+          "level": 28,
+          "magnitudes": [
+           {
+            "min": "7",
+            "max": "10"
+           },
+           {
+            "min": "15",
+            "max": "18"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "53% increased Armour and Evasion",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2451402625",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Fencer's",
+          "tier": "P5",
+          "level": 30,
+          "magnitudes": [
+           {
+            "min": "43",
+            "max": "55"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+48% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Puhuarte",
+          "tier": "S0",
+          "level": 50,
+          "magnitudes": [
+           {
+            "min": "46",
+            "max": "48"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+45% to Lightning Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1671376347",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Lightning",
+          "tier": "S2",
+          "level": 72,
+          "magnitudes": [
+           {
+            "min": "42",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "49% increased Damage with Hits against Chilled Enemies",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2805714016",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Puhuarte",
+          "tier": "S0",
+          "level": 50,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+68 to maximum Life",
+        "domain": "crafted",
+        "hash": "stat.crafted.stat_3299347043",
+        "flags": {
+         "crafted": true
+        },
+        "mods": [
+         {
+          "name": "Upgraded",
+          "tier": "R4",
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "56",
+            "max": "70"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "pseudoMods": [
+       {
+        "description": "+14% total Attack Speed",
+        "domain": "pseudo",
+        "hash": "stat.pseudo.pseudo_total_attack_speed",
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    }
+   ]
+  },
   "p1": {
    "returned_query": {
     "status": {

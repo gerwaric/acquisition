@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot captured and read — 2026-09-26; the checks with the owner.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; round two (d01–d24) with the owner.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -13,10 +13,10 @@ Headline:
 - **The export separates** the unsuffixed `Adds # to # <type> Damage` on a weapon (`local_*`, is_local)
   from the same text elsewhere (`global_*`: uniques, bench crafts, grafts, veiled mods, delve gloves),
   as the site does with its `(Local)` ids; the committed census cannot split the owner's lines by class.
-- **The pilot opened** (p1, p2): the site takes a composed link, and an `if` group shows a value
-  without filtering by it. Total life counts `Strength and Dexterity`, `Strength and Intelligence`
-  and `all Attributes` at one half; the combined speed line feeds neither speed total. The sitting
-  is six checks that ask the site of every listed item at once, not the 264 searches part 1 counted.
+- **The site is the checker** (p1, p2, c1–c6; 100 readings, none disagreeing): `+# total maximum
+  Life` is complete on five rows; attack speed counts a conditional implicit the shipped total
+  lacks; the combined speed line feeds neither speed total; a sum of nothing shows no total; one
+  text under two ids is counted under one. Round two is 24 searches, not the 264 part 1 counted.
 - `+#% to All Resistances` is named by APT under five resistance totals and left out by the C++
   tables (`sources-differ`, sheet row L001); the owner's corpus holds none.
 
@@ -134,41 +134,48 @@ pseudo the control also feeds is read by value; a result with no items decides n
 rerun with the other control. L033 and L219 repeat the pilot's p2 and p1. 131 rows (72 of them
 representatives or direct) have no stat id: a skill gem's text, a description, a buff.
 
-## The pilot and the checks
+## The captures: the pilot and the checks
 
-The owner ran p1 and p2 on 2026-09-26 (`MANIFEST.md`). The site returned each query as the sheet
-wrote it, less every `"disabled":false`, so the id it returns is not the id the link carried.
+The owner ran p1, p2 and c1–c6 on 2026-09-26 (`MANIFEST.md`). Per-pair detail is
+`data/evidence.csv`: every capture read against each pseudo's latest rows (`scripts/rows.py`).
 
-| Pseudo | Line | Weight tested | Items agreeing | Disagreeing | From |
-| --- | --- | ---: | ---: | ---: | --- |
-| `+# total maximum Life` | `# to Strength and Intelligence` | 0.5 | 10 | 0 | p1 |
-| | `# to Strength and Dexterity` | 0.5 | 1 | 0 | p1[0]: 10 and 8 show `+9` |
-| | `# to all Attributes` | 0.5 | 1 | 0 | p1[7]: 6 and 10 show `+8` |
-| | `# to maximum Life` | 1 | 1 | 0 | p1[3]: 40, 10 crafted and 11 show `+55.5` |
-| | `#% increased maximum Life` | 0 | 1 | 0 | p1[1] |
-| `+#% total Attack Speed` | `#% increased Attack and Cast Speed` | 0 | 10 | 0 | p2 |
-| `+#% total Cast Speed` | `#% increased Attack and Cast Speed` | 0 | 10 | 0 | p2 |
-| `+#% total to Fire Resistance` | `#% to Fire Resistance` | 1 | 10 | 0 | p2, the control |
+A line-by-line search reads ten items, and a pseudo's rows are a claim about every item. Rows are
+**complete** when no listed item shows the pseudo while carrying none of them, **sound** when no
+listed item carries one while showing no pseudo. A search that finds nothing proves nothing until
+its mutant, the same search with one row changed, finds something.
 
-40 readings of an item under a pseudo, none disagreeing; the conditional speed lines p2 met, one
-item each, are `data/evidence.csv`'s. The check can fail: `Strength and Intelligence` at 1
-disagrees on 10 items, `all Attributes` left out on 1, `maximum Life` left out on 1, the combined
-speed line counted on 10. p2's two speed rows carry a caveat: its control was its group's first
-member, and that every member of an `if` group displays is c5's to show.
+| Search | Asked | Found | Says |
+| --- | --- | ---: | --- |
+| p1 | total life beside `Strength and Intelligence` | 10,000 | a composed link is taken; the hybrid attribute lines count at one half |
+| p2 | an `if` group over three pseudos | 4,642 | an `if` group shows a value and filters nothing; the combined speed line feeds neither speed total |
+| c1 | total life, complete on five rows | **0** | no listed item shows the total without one of the five |
+| c2 | c1's mutant, `all Attributes` left out | 10,000 | the check can find: ten items, each the line at one half |
+| c3 | total life, sound | 3,338 | two kinds, below |
+| c4 | c3's mutant, `#% increased maximum Life` among the rows | 10,000 | a pseudo inside a `not` group is taken |
+| c5 | two pseudos in one `if` group | 10,000 | both show on all ten, in either order: p2's caveat is closed |
+| c6 | total attack speed, complete on the shipped row | 212 | ten of ten carry one line the total lacks |
 
-The checks ask what part 1's batch could not: a line-by-line search reads ten items, and a pseudo's
-rows are a claim about every item. Rows are **complete** when no listed item shows the pseudo while
-carrying none of them, **sound** when no listed item carries one while showing no pseudo. A search
-that finds nothing proves nothing until its mutant finds something.
+What c3 and c6 found:
 
-| Search | Asks | Its control |
+| Finding | Evidence | For the build |
 | --- | --- | --- |
-| c1 | total life, complete: the pseudo required, the five rows' 23 ids in a `not` group | c2 |
-| c2 | c1 with `all Attributes` left out: it must find items | the mutant |
-| c3 | total life, sound: a row required, the pseudo in a `not` group | c4 |
-| c4 | c3 with `#% increased maximum Life` among the rows: it must find items | the mutant |
-| c5 | every member of an `if` group displays: cold and fire required, both totals asked | both lines required |
-| c6 | total attack speed, complete, against the shipped total's one row | c1 and c2 |
+| **A sum of nothing shows no total.** `+21 to Strength` beside `-21 to Strength`; `+24 to maximum Life` beside a scourge's `-24` | c3[2], [3], [6], [8], [9] | the site has no total of 0: the item lacks the pseudo |
+| **One text, two ids, one counted.** `+# to Strength and Intelligence` under `explicit.stat_2543977012`, on the unique jewel That Which Was Taken, shows no total; under `stat_1535626285` it counts at one half | c3[0], [1], [4], [5], [7]; p1, eleven items | a private item shows the text and no id: counting the line on that jewel departs from the site, and only the item's name tells the two apart |
+| **A conditional line is counted.** `While a Unique Enemy is in your Presence, #% increased Attack Speed` feeds `+#% total Attack Speed` at 1 | c6, ten of ten | a row the shipped total lacks; what else is among the 212 is d03's |
+
+The reading can fail, shown on the captures: the twin id counted disagrees on 5 items, the
+conditional implicit left out on 10, `all Attributes` at 1 on 12, the combined speed line counted
+on 10, a sum of nothing read as a value on 5.
+
+Round two, `data/search-sheet.csv`, each search pinned to the version of the rows it names:
+
+| Searches | Ask |
+| --- | --- |
+| d01, d02 | total life, sound by the site's own sum — a `weight2` group, which leaves out the items whose lines cancel — and its mutant |
+| d03 | total attack speed, complete, with the implicit c6 found among the rows |
+| d04–d06 | the fire family, complete on the pseudo's own text: plain, to attacks, to spells |
+| d07–d12 | the six aggregates no line displays (`Elemental Damage`, `Damage`): what carries each |
+| d13–d24 | cold, lightning, physical and chaos, as fire |
 
 ## Left out
 

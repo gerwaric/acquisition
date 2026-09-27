@@ -14,8 +14,10 @@ method `browser`).
     search-sheet.py --verify       # decode every link in the sheet, compare its query
 
 The checks ask the site of every listed item at once whether a pseudo's rows
-are complete and sound (`checks`, below); the pilot showed the method, and the
-committed sheet is the pilot and the checks. The batch is the form before it,
+are complete and sound (`checks` and `round_two`, below, the second written
+from scripts/rows.py); the pilot showed the method, and the committed sheet is
+the pilot and the checks. A generated search pins the version of the rows it
+was composed from and says so in what it decides. The batch is the form before it,
 kept one command away and not run: 264 searches, one line at a time.
 
 The batch is generated from ../data/candidates.csv (scripts/candidates.py),
@@ -508,6 +510,82 @@ def checks():
     ]
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import rows as table  # noqa: E402
+
+
+def weighted(version, ids, extra=()):
+    """A version's rows as a `weight2` group: each id at its row's weight, the
+    sum at least the smallest a row can give. Where a `count` of the rows finds
+    every item whose lines cancel (c3: 3,338 found, most of them a sum of
+    nothing), the site's own sum leaves those out."""
+    filters = []
+    for t, w in version["rows"].items():
+        for i in ids[t]:
+            if i not in version["never"] or i in extra:
+                filters.append({"id": i, "value": {"weight": float(w)}, "disabled": False})
+    return {"type": "weight2", "filters": filters, "value": {"min": 0.5}}
+
+
+def complete(search, name, number, version, ids, texts):
+    text = texts[version["pseudo"]]
+    counted = table.ids_of(version, ids)
+    stats = [group("and", [version["pseudo"]])]
+    if counted:
+        stats.append(group("not", counted))
+        decides = (f"{name} v{number}, complete: whether any listed item shows `{text}` while carrying none of "
+                   f"its {len(version['rows'])} rows ({len(counted)} ids). None found: the rows "
+                   "are all the site counts. Any found: its lines name what is missing")
+    else:
+        decides = (f"{name} v{number}, what carries `{text}`: no line displays the pseudo's text, so the items "
+                   "found name its first rows")
+    return {
+        "search": search,
+        "decides": decides,
+        "control": "c1 and c2: a `not` group over every id of a row finds what it should",
+        "query": batch_query(stats),
+    }
+
+
+def round_two():
+    """d01–d24. Each pins the version of the rows it was composed from, so a
+    later version changes no search here: a capture answers the row it names."""
+    ids, texts = table.stats()
+    versions = table.versions()
+    life = versions["total_life"][1]
+    speed = versions["total_attack_speed"][1]
+    out = [
+        {
+            "search": "d01",
+            "decides": (
+                "total_life v2, sound, by the site's own sum: whether any listed item's rows sum to a half "
+                "or more while it shows no `+# total maximum Life` — the rows weighted in a "
+                "`weight2` group, the twin id c3 found left out. None found: c3's two kinds "
+                "were all there is"
+            ),
+            "control": "d02, this search with the twin id among the rows, must find items",
+            "query": batch_query([weighted(life, ids), group("not", [life["pseudo"]])]),
+        },
+        {
+            "search": "d02",
+            "decides": (
+                "d01's mutant: the twin id `explicit.stat_2543977012` weighted with the rows. "
+                "It must find That Which Was Taken, which c3 showed carrying the line and no total"
+            ),
+            "control": "the mutant is the control: nothing found means a `weight2` group beside a `not` decides nothing",
+            "query": batch_query([weighted(life, ids, extra=life["never"]),
+                                  group("not", [life["pseudo"]])]),
+        },
+        complete("d03", "total_attack_speed", 2, speed, ids, texts),
+    ]
+    order = [f"adds_{k}{scope}" for k in ("fire", "elemental", "damage", "cold", "lightning",
+                                          "physical", "chaos")
+             for scope in table.SCOPES]
+    for number, name in enumerate(order, start=4):
+        out.append(complete(f"d{number:02d}", name, 1, versions[name][0], ids, texts))
+    return out
+
+
 def decode(link_text):
     token = link_text.rsplit("/", 1)[1]
     raw = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
@@ -565,7 +643,7 @@ def main():
     else:
         print(__doc__)
         return 2
-    searches = PILOT + (checks() if method == "site" else batch(method))
+    searches = PILOT + (checks() + round_two() if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
         sheet = csv.writer(out, lineterminator="\n")
@@ -591,7 +669,8 @@ def main():
              "percentile case": 0, "open question": 0}
     for row in searches:
         s = row["search"]
-        kind = ("pilot" if s.startswith("p") else "check" if s.startswith("c")
+        kind = ("pilot" if s.startswith("p")
+                else "check" if s.startswith(("c", "d"))
                 else "percentile case" if s.startswith("C")
                 else "open question" if s.startswith("R")
                 else "percentile line" if s.startswith("P") else "pair" if "." in s else "line")

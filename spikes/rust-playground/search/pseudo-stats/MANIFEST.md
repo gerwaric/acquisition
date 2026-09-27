@@ -47,3 +47,22 @@ it.
 | `raw/searches/p1-search.json` | 7969 | 2026-09-26 18:28 | `5d1ed7c167f96d68364184961c21d21db7a8a8880453e667861377f7ba4a6fba` |
 | `raw/searches/p2-fetch.json` | 69252 | 2026-09-26 18:31 | `9922f9e3df50c565a671bd6041c7c822aca47bac5735f98704f3c0e34e4afe77` |
 | `raw/searches/p2-search.json` | 7961 | 2026-09-26 18:31 | `2e3622508623b928ba00e825b97cbe676b100f8f511cd976377b3974fcc16e7a` |
+
+The checks, 2026-09-26, 19:08–19:11 US Central, by the owner, from the links
+of `data/search-sheet.csv` at `9166e88b`. c1 found nothing, so it has no fetch:
+the file is empty.
+
+| File | Bytes | Captured | sha256 |
+| --- | --- | --- | --- |
+| `raw/searches/c1-fetch.json` | 0 | 2026-09-26 19:08 | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `raw/searches/c1-search.json` | 454 | 2026-09-26 19:08 | `49eddcf0d41ea007320846d97e0a3f25fa3d219e799e89b1ca2825cc0236c3d2` |
+| `raw/searches/c2-fetch.json` | 84461 | 2026-09-26 19:09 | `eab9818dcc358a7036722be9b45b780ff70a2ade9f12a79be4e0508939068acd` |
+| `raw/searches/c2-search.json` | 8059 | 2026-09-26 19:09 | `5611d7eaf63d727ac5dcaed2f6f84ae361b7906016e218479a45e2cdb93aa692` |
+| `raw/searches/c3-fetch.json` | 80584 | 2026-09-26 19:10 | `25261cc007e32c8e1845b3865164f33c92a59c5d06a813024fec13a0f29e8f10` |
+| `raw/searches/c3-search.json` | 8078 | 2026-09-26 19:09 | `1963bf1ec60fcc698bcabeea59ed3dcce812a11621eba447628ee5bb10de4a50` |
+| `raw/searches/c4-fetch.json` | 94694 | 2026-09-26 19:10 | `750c088cf8b9756204f76aa960e1b9e2f916eebc9a0a3265335733b8de925216` |
+| `raw/searches/c4-search.json` | 8140 | 2026-09-26 19:10 | `ef387078c06942545f0914f7f1726ea7b85dd0ff47888c6ea59bab05d2c31dff` |
+| `raw/searches/c5-fetch.json` | 103443 | 2026-09-26 19:11 | `2876878489f4f4752cfca6a78aeeb72757b6ed3130cca4913eae3e46878551cf` |
+| `raw/searches/c5-search.json` | 7948 | 2026-09-26 19:11 | `36f14d1221c20a644b543e66dc53d43fdcee3bb40021bae4163c042c0bfa7d6a` |
+| `raw/searches/c6-fetch.json` | 124471 | 2026-09-26 19:11 | `4e6f2c92bd1ec7948648523f6664f6687c6b108fb2ba346316c553a6be63a3e4` |
+| `raw/searches/c6-search.json` | 7980 | 2026-09-26 19:11 | `78d27ea9fa2e8fc27e13a3444e873ff489b1024972a233acdc12e46b5faf4a0a` |
