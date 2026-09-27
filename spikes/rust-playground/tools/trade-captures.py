@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""The owner's captures as a scrubbed extract: ../data/captures.json.
+"""The owner's captures as a scrubbed extract: search/pseudo-stats/data/captures.json.
 
-Reads ../raw/searches/<search>-search.json and <search>-fetch.json, with any
+Reads search/pseudo-stats/raw/searches/<search>-search.json and <search>-fetch.json, with any
 further page of the same search as <search>-fetch-2.json, -3 and so on (local
 only: a fetch carries seller accounts and tokens; MANIFEST.md) and writes,
 per search: the query as the site returned it (the id, decoded), whether it
@@ -10,9 +10,9 @@ what the evidence reads — its names, rarity, properties, the site's computed
 `extended` figures, and every line with its domain, hash, flags and mods.
 No item id, icon, seller, price, stash position or token leaves raw/.
 
-    captures.py             # write ../data/captures.json
-    captures.py --check     # say what is in raw/ and write nothing
-    captures.py --manifest  # print the manifest's rows for what is in raw/
+    tools/trade-captures.py             # write search/pseudo-stats/data/captures.json
+    tools/trade-captures.py --check     # say what is in raw/ and write nothing
+    tools/trade-captures.py --manifest  # print the manifest's rows for what is in raw/
 
 A file saved empty is a search not yet captured and is passed over. A capture
 whose returned query is not its own row's is left out of the extract and named
@@ -32,7 +32,7 @@ import sys
 import time
 from pathlib import Path
 
-TRACK = Path(__file__).resolve().parents[1]
+TRACK = Path(__file__).resolve().parents[1] / "search" / "pseudo-stats"
 RAW = TRACK / "raw" / "searches"
 SHEET = TRACK / "data" / "search-sheet.csv"
 OUT = TRACK / "data" / "captures.json"
@@ -113,7 +113,7 @@ def main():
     with SHEET.open(newline="\n") as f:
         sheet = {r["search"]: json.loads(r["query"]) for r in csv.DictReader(f)}
     out = {
-        "_generated": "by scripts/captures.py from raw/searches (MANIFEST.md) — do not edit",
+        "_generated": "by tools/trade-captures.py from raw/searches (MANIFEST.md) — do not edit",
         "searches": {},
     }
     for name in searches():

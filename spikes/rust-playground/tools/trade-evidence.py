@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""What the owner's captures say of each (pseudo, line): ../data/evidence.csv.
+"""What the owner's captures say of each (pseudo, line): search/pseudo-stats/data/evidence.csv.
 
-Reads ../data/captures.json (scripts/captures.py) and the rows under test
-(scripts/rows.py, each pseudo's latest version) and asks one question of every
+Reads search/pseudo-stats/data/captures.json (tools/trade-captures.py) and the rows under test
+(tools/trade_rows.py, each pseudo's latest version) and asks one question of every
 fetched item, for every pseudo its search named: is what the site says of the
 item what the rows give?
 
@@ -14,10 +14,10 @@ both places — a line under an id or a twin the version does not count adding
 nothing. **A sum of nothing is no value**: the site shows no total
 where the lines cancel (c3), so the rows give none there either.
 
-    evidence.py    # write ../data/evidence.csv, print what disagrees
+    tools/trade-evidence.py    # write search/pseudo-stats/data/evidence.csv, print what disagrees
 
 A row is tested by the items that carry its line; a line the rows leave out
-is tested at weight 0 the same way, for every pair ../data/candidates.csv
+is tested at weight 0 the same way, for every pair search/pseudo-stats/data/candidates.csv
 holds. A pair no captured item carries has no row. An item that disagrees is
 printed with its lines and counted under `disagree` on each pair it carries:
 the rows are wrong for it, and nothing here says which.
@@ -34,9 +34,9 @@ from fractions import Fraction
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import rows as table  # noqa: E402
+import trade_rows as table  # noqa: E402
 
-TRACK = Path(__file__).resolve().parents[1]
+TRACK = Path(__file__).resolve().parents[1] / "search" / "pseudo-stats"
 ROOT = TRACK.parent.parent
 CAPTURES = TRACK / "data" / "captures.json"
 CANDIDATES = TRACK / "data" / "candidates.csv"

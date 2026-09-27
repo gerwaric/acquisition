@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the sheet of trade searches the owner runs: ../data/search-sheet.csv.
+"""Write the sheet of trade searches the owner runs: search/pseudo-stats/data/search-sheet.csv.
 
 A search is a query object; the site's search id is that object, serialized
 compactly, gzipped and base64url-encoded without padding (trade-query F9), so
@@ -7,20 +7,20 @@ a link is composed here and opened by a human in a browser. Nothing in this
 script touches the network (C79; SURFACES.md, the trade site's rows: access
 method `browser`).
 
-    search-sheet.py                # the pilot and the checks: what the owner is asked to run
-    search-sheet.py --method if    # the pilot and the batch, one search per candidate line
-    search-sheet.py --method and   # the pilot and the batch, one search per pair
-    search-sheet.py --self-test    # compose each captured request and compare ids
-    search-sheet.py --verify       # decode every link in the sheet, compare its query
+    tools/trade-sheet.py                # the pilot and the checks: what the owner is asked to run
+    tools/trade-sheet.py --method if    # the pilot and the batch, one search per candidate line
+    tools/trade-sheet.py --method and   # the pilot and the batch, one search per pair
+    tools/trade-sheet.py --self-test    # compose each captured request and compare ids
+    tools/trade-sheet.py --verify       # decode every link in the sheet, compare its query
 
 The checks ask the site of every listed item at once whether a pseudo's rows
 are complete and sound (`checks` and `round_two`, below, the second written
-from scripts/rows.py); the pilot showed the method, and the committed sheet is
+from tools/trade_rows.py); the pilot showed the method, and the committed sheet is
 the pilot and the checks. A generated search pins the version of the rows it
 was composed from and says so in what it decides. The batch is the form before it,
 kept one command away and not run: 264 searches, one line at a time.
 
-The batch is generated from ../data/candidates.csv (scripts/candidates.py),
+The batch is generated from search/pseudo-stats/data/candidates.csv (search/pseudo-stats/scripts/candidates.py),
 in two forms, since the pilot's answer was not in: `if` — one search per
 candidate line, every pseudo it might feed in one `if` group (p2 asks whether
 an `if` group shows a value at all); `and` — one search per pair, the pseudo
@@ -29,7 +29,7 @@ lines whose best pair is `sources-differ`, `text-only`, `one-source`,
 `sources-agree`, then the percentile's own cases (PERCENTILE_CASES), then
 the first pass's open question 5 (R1).
 
-The self-test reads `../../trade-query/raw/searches/` (local only, never
+The self-test reads `search/trade-query/raw/searches/` (local only, never
 committed): for every `<q>-request.json` with a `<q>-search.json` beside it,
 the id composed from the request must equal the id the site returned. It
 skips, saying so, where the captures are absent.
@@ -48,7 +48,7 @@ import sys
 import zlib
 from pathlib import Path
 
-TRACK = Path(__file__).resolve().parents[1]
+TRACK = Path(__file__).resolve().parents[1] / "search" / "pseudo-stats"
 OUT = TRACK / "data" / "search-sheet.csv"
 CAPTURED = TRACK.parent / "trade-query" / "raw" / "searches"
 
@@ -335,7 +335,7 @@ def percentile_line_searches(lines):
         out.append({
             "search": line_id,
             "decides": (f"whether the site reads {line_names(e)} into `#% Base Defence Percentile` "
-                        f"({pair['status']}): recover each roll as scripts/percentile.py does, with the "
+                        f"({pair['status']}): recover each roll as search/pseudo-stats/scripts/percentile.py does, with the "
                         "line read and without; the reading that gives the site's value is the answer. "
                         "No result: the line is not seen on armour with a percentile above 0"),
             "control": PERCENTILE_CONTROL,
@@ -346,7 +346,7 @@ def percentile_line_searches(lines):
 
 
 # What no capture reaches (README, the percentile): each case is fetched and
-# scored by scripts/percentile.py's reading.
+# scored by search/pseudo-stats/scripts/percentile.py's reading.
 PERCENTILE_CASES = [
     ("C1", "three rolls averaged: a base with armour, evasion and energy shield",
      batch_query([], percentile_filter(), "Sacrificial Garb")),
@@ -511,7 +511,7 @@ def checks():
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import rows as table  # noqa: E402
+import trade_rows as table  # noqa: E402
 
 
 def weighted(version, ids, extra=()):

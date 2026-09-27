@@ -4,17 +4,17 @@ the search it answers.
 
 The owner opens the sheet's links with the browser's network panel recording,
 then exports the panel once as a HAR file. This script reads that file and
-writes ../raw/searches/<search>-search.json and <search>-fetch.json (further
+writes search/pseudo-stats/raw/searches/<search>-search.json and <search>-fetch.json (further
 pages -fetch-2.json, -3), as saving each response by hand would have. No name
 is typed: a search response carries its query in its id, and the sheet says
 which row that query is; a fetch belongs to the search whose result list holds
 its items. Nothing here touches the network (C79; SURFACES.md: a person opens
 each link).
 
-    har-split.py <file.har>            # say what the recording holds, write nothing
-    har-split.py <file.har> --write    # write the captures
-    har-split.py <file.har> --write --replace   # and overwrite a capture that differs
-    har-split.py <file.har> --shape    # write ../data/recording-shape.csv
+    tools/trade-split.py <file.har>            # say what the recording holds, write nothing
+    tools/trade-split.py <file.har> --write    # write the captures
+    tools/trade-split.py <file.har> --write --replace   # and overwrite a capture that differs
+    tools/trade-split.py <file.har> --shape    # write search/pseudo-stats/data/recording-shape.csv
 
 **A recording may hold no bodies.** The browser can drop a response's body
 and keep its request, its size and its headers (the first recording, 2026-09-26:
@@ -44,7 +44,7 @@ import sys
 import urllib.parse
 from pathlib import Path
 
-TRACK = Path(__file__).resolve().parents[1]
+TRACK = Path(__file__).resolve().parents[1] / "search" / "pseudo-stats"
 RAW = TRACK / "raw" / "searches"
 SHEET = TRACK / "data" / "search-sheet.csv"
 SHAPE = TRACK / "data" / "recording-shape.csv"

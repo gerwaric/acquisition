@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """The rows under test: what each pseudo is believed to count, by version.
 
-One maker for the two scripts that need it: search-sheet.py writes a
-pseudo's checks from its rows, evidence.py reads every capture against them.
+One maker for the two scripts that need it: tools/trade-sheet.py writes a
+pseudo's checks from its rows, tools/trade-evidence.py reads every capture against them.
 A pseudo's rows start as what the build ships
-(../data/totals-v1.toml, the table as shipped then) or, for a pseudo no table
+(search/pseudo-stats/data/totals-v1.toml, the table as shipped then) or, for a pseudo no table
 ships, as the lines that display its own text; each later version is one
 change, with the capture that asked for it. Versions are appended, never
 edited: a search already captured was composed from the version it names, and
 editing that version would turn the capture into an answer to no question.
 
-    rows.py    # print every pseudo's latest rows and the ids behind them
+    tools/trade_rows.py    # print every pseudo's latest rows and the ids behind them
 
 A row is a template, a weight and which of the stats displaying that text it
 means: `any`, or the twin the site marks `(Local)` — a weapon's own damage —
@@ -32,7 +32,7 @@ from collections import defaultdict
 from fractions import Fraction
 from pathlib import Path
 
-TRACK = Path(__file__).resolve().parents[1]
+TRACK = Path(__file__).resolve().parents[1] / "search" / "pseudo-stats"
 ROOT = TRACK.parent.parent
 STATS = TRACK.parent / "trade-query" / "data" / "stats-2026-09-12.json"
 TOTALS = TRACK / "data" / "totals-v1.toml"

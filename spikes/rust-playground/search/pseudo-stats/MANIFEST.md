@@ -8,35 +8,9 @@ other tracks', named in the README's provenance. Access method:
 
 ## How a search is captured
 
-The searches are `data/search-sheet.csv`, written by
-`scripts/search-sheet.py`, which prints each link beside its name: each
-row is a query, what it decides, its control, and a link composed from
-the query. A person opens the link; no tool does.
-
-By one recording of the sitting, which types no file name:
-
-1. Signed in, open the browser's network panel before the first link and
-   keep its log across pages ("Preserve log", "Persist Logs").
-2. Open the links one at a time, at the pace of reading each result.
-   Order does not matter and a link opened twice does no harm.
-3. Export the panel once as a HAR file, with its content, into `raw/`.
-   A sanitized export held no response body (2026-09-26); the export
-   that held them is the second row of round two below.
-   The browser keeps only so much: of 107 searches in one recording the
-   first fifteen had lost their bodies. Export every forty or so.
-4. `scripts/har-split.py raw/<file>.har` says what the recording holds
-   and writes nothing; with `--write` it writes each capture under the
-   name of the row its query answers. Then delete the HAR file: it can
-   hold the session's cookie, which the script never reads or copies.
-
-Or by hand, one response at a time: the response of the call to
-`/api/trade/search/` as `raw/searches/<search>-search.json`, the first
-call to `/api/trade/fetch/` as `raw/searches/<search>-fetch.json`,
-further pages as `-fetch-2.json`, `-3`. A search with no results has no
-fetch. `scripts/captures.py --check` says what is on disk, and names a
-capture saved under another row's name.
-
-A link the site refuses is a finding: note what the page showed.
+The procedure is the site-sitting skill (`.claude/skills/site-sitting/SKILL.md`):
+the searches are `data/search-sheet.csv`, a person opens each link, a sitting
+is recorded and split by `tools/trade-split.py`.
 
 A fetch response carries seller accounts and whisper tokens: `raw/`
 only, never `data/`. What is committed is an extract, scrubbed, its
@@ -88,7 +62,7 @@ of its 2,260 entries and no cookie; its shape is `data/recording-shape.csv`.
 
 The second is the same sitting exported again with its content: the same
 2,260 entries and the same 26 searches, 00:41:17–00:44:32 UTC, every body held,
-no cookie. `scripts/har-split.py --write` wrote its 46 captures,
+no cookie. `tools/trade-split.py --write` wrote its 46 captures,
 `raw/searches/d01-search.json` to `b2-fetch.json`, each named by the row its
 query answers; they are the recording's bytes and are not listed apart.
 
@@ -97,7 +71,7 @@ by the owner, from the links of `data/search-sheet.csv` at `ecd682e2`: one
 recording of 107 searches, exported with its content, no cookie. The bodies of
 its first fifteen searches (e001–e015) were gone from the browser by the
 export; two searches were refused, status 400, "Query is too complex" (e047,
-e051). `scripts/har-split.py --write` wrote the 90 others' captures.
+e051). `tools/trade-split.py --write` wrote the 90 others' captures.
 
 | File | Bytes | Captured | sha256 |
 | --- | --- | --- | --- |

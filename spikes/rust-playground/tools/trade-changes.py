@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""The totals table's changes as rows: ../data/table-changes.csv.
+"""The totals table's changes as rows: search/pseudo-stats/data/table-changes.csv.
 
 What the plan's step 9c closes on: every change the captures ask of
-the totals table as shipped at v1 (../data/totals-v1.toml), one row each, with the
+the totals table as shipped at v1 (search/pseudo-stats/data/totals-v1.toml), one row each, with the
 evidence that asks for it — none applied here, and none to be applied without
-its row. Reads scripts/rows.py (each pseudo's versions, every version's `why`
-naming its captures), ../data/captures.json and ../data/search-sheet.csv.
+its row. Reads tools/trade_rows.py (each pseudo's versions, every version's `why`
+naming its captures), search/pseudo-stats/data/captures.json and search/pseudo-stats/data/search-sheet.csv.
 
-    table-changes.py    # write ../data/table-changes.csv, print the counts
+    tools/trade-changes.py    # write search/pseudo-stats/data/table-changes.csv, print the counts
 
 A row's `change` is one of: `new total` (a pseudo no table ships), `add row`,
 `remove row`, `twin` (a row that means one of two stats displaying its text,
@@ -29,9 +29,9 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import rows as table  # noqa: E402
+import trade_rows as table  # noqa: E402
 
-TRACK = Path(__file__).resolve().parents[1]
+TRACK = Path(__file__).resolve().parents[1] / "search" / "pseudo-stats"
 ROOT = TRACK.parent.parent
 CAPTURES = TRACK / "data" / "captures.json"
 SHEET = TRACK / "data" / "search-sheet.csv"

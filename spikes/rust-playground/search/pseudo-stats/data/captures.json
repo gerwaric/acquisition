@@ -1,5 +1,5 @@
 {
- "_generated": "by scripts/captures.py from raw/searches (MANIFEST.md) — do not edit",
+ "_generated": "by tools/trade-captures.py from raw/searches (MANIFEST.md) — do not edit",
  "searches": {
   "b1": {
    "returned_query": {

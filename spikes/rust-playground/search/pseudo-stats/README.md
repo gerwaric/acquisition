@@ -21,8 +21,8 @@ Headline:
   shows it under the fire, lightning and chaos totals (e042, e044, e048).
 
 Per-row detail: `data/candidates.csv` (`scripts/candidates.py`), `data/percentile-check.csv`
-(`scripts/percentile.py`), `data/search-sheet.csv` (`scripts/search-sheet.py`), `data/captures.json`
-(`scripts/captures.py`, the owner's captures scrubbed), `data/evidence.csv` (`scripts/evidence.py`).
+(`scripts/percentile.py`), `data/search-sheet.csv` (`tools/trade-sheet.py`), `data/captures.json`
+(`tools/trade-captures.py`, the owner's captures scrubbed), `data/evidence.csv` (`tools/trade-evidence.py`).
 Each regenerates byte-for-byte; run `percentile.py` before `candidates.py`, which reads its output.
 
 ## Part 1: the candidates by status
@@ -119,7 +119,7 @@ capture has three defence types, ward, a shield, a helmet or gloves, quality abo
 
 ## The searches part 1 counted, by form
 
-Not run, and one command away (`search-sheet.py --method if`): the rows named L, P, C and R below
+Not run, and one command away (`tools/trade-sheet.py --method if`): the rows named L, P, C and R below
 and in the open questions are that sheet's. The committed sheet is the pilot and the checks.
 
 | Form | Pilot | Batch | Percentile lines | Percentile cases | Open question | Total |
@@ -140,8 +140,8 @@ A line-by-line search reads ten items, and a pseudo's rows are a claim about eve
 **complete** when no listed item shows the pseudo while carrying none of them, **sound** when no
 listed item carries one while showing no pseudo: each is one search over everything listed. A
 search that finds nothing proves nothing until its mutant, the same search with one row changed,
-finds something (c2, c4, d02). The rows are `scripts/rows.py`, versions appended and never edited;
-every capture is read against each pseudo's latest (`scripts/evidence.py`, `data/evidence.csv`).
+finds something (c2, c4, d02). The rows are `tools/trade_rows.py`, versions appended and never edited;
+every capture is read against each pseudo's latest (`tools/trade-evidence.py`, `data/evidence.csv`).
 
 | Round | Searches | Asked | Captured |
 | --- | --- | --- | --- |
@@ -152,7 +152,7 @@ every capture is read against each pseudo's latest (`scripts/evidence.py`, `data
 | four | f001–f073 | the 33 pseudos whose rows round three moved | three recordings |
 
 A sitting is one recording of the browser's network panel, exported with its content and split by
-`scripts/har-split.py` (`MANIFEST.md`): no file name is typed, since a search response carries its
+`tools/trade-split.py` (`MANIFEST.md`): no file name is typed, since a search response carries its
 query and the sheet says which row that is.
 
 What the site counts, as the rows now stand:
@@ -193,7 +193,7 @@ For `docs/design/trade-ground-truth.md`, authored master-side; each is what the 
 
 | Claim | Evidence |
 | --- | --- |
-| A search's id is its query: compact JSON, deflate, a fixed ten-byte gzip header, base64url without padding. The site takes a link composed so, and returns the query less every `"disabled":false` | `search-sheet.py --self-test`, 8 ids; 212 composed links opened |
+| A search's id is its query: compact JSON, deflate, a fixed ten-byte gzip header, base64url without padding. The site takes a link composed so, and returns the query less every `"disabled":false` | `tools/trade-sheet.py --self-test`, 8 ids; 212 composed links opened |
 | The site shows a pseudo's value only where the query names it; an `if` group shows every member's and filters nothing | q4, q5; p2, c5 |
 | A pseudo is the sum of the displayed numbers of the lines it counts, each at its weight; a sum of nothing is no pseudo | every reading; c3, d01 |
 | A ranged pseudo is the average of a line's two numbers, shown in both places | round two |
