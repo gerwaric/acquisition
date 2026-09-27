@@ -192,8 +192,8 @@ filed again by the step that touches it.
 **Step 8.**
 
 - On a socket whose colour is unread `linked(red=1 or red=0)` is
-  undecided: each comparison is read over the interval on its own. For
-  the seat did not reach it.
+  undecided: each comparison is read over the interval on its own. The
+  seat did not reach it.
 - A poe2 socket's `type`, a gem's own `colour` and `socket`: kept, asked
   by nothing.
 
