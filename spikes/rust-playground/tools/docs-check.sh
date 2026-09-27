@@ -67,7 +67,7 @@ budget CONTEXT.md      20000
 budget README.md       15000
 budget LIVE-TESTING.md 15000
 budget search/BUILD-PLAN.md 28000  # the brief; its history is SEARCH-SLICE.md
-budget SEARCH-SLICE.md 35000  # the record: a ledger row per step, holes one line each, a verdict line per measurement (its tables: search/MEASUREMENTS.md, no budget — a block per measurement, a row per build by construction, read by the block named)
+budget SEARCH-SLICE.md 24000  # the record, what every step reads whole: the shapes of fault, a standing verdict per measurement, the observations; set to hold to the slice's close (owner, 2026-09-27). Its rows are search/LEDGER.md and its tables search/MEASUREMENTS.md, neither budgeted: a line per step and per hole, a block per measurement and a row per build, by construction, each looked up and never loaded whole
 budget search/DESIGN.md 46000  # the reference whole until the seat; the contract detail empties as modules take it
 budget decisions/search.md 28000
 # RUN-LEDGER.md has no budget: one row per live run, append-only by
