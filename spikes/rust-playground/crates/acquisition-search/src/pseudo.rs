@@ -117,9 +117,10 @@
 //!   alone, where `--describe` names them (owner, 2026-09-24, T5 in
 //!   `SEARCH-SLICE.md`; the reference, `--count line[:text]`;
 //!   `counts.rs`), marked computed, with the count of the matches that
-//!   carry it — as `has:` of it asks ([`present`]), which a lacked one and
-//!   an incomplete one do not — routed by `has:pseudo.<name>`, exactly
-//!   those.
+//!   have it, as `has:` of it asks ([`present`]): one whose value is
+//!   established, and a count one of whose totals is — never one lacked,
+//!   nor one left open with nothing established — routed by
+//!   `has:pseudo.<name>`, exactly those.
 //!   Why it is open is the open contributors' own reasons (rule 8): a
 //!   source a row admits unread, an occurrence whose number or flag is,
 //!   the property that could not be read; a reading's are those of the
