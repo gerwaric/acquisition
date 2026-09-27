@@ -19,8 +19,9 @@ By one recording of the sitting, which types no file name:
    keep its log across pages ("Preserve log", "Persist Logs").
 2. Open the links one at a time, at the pace of reading each result.
    Order does not matter and a link opened twice does no harm.
-3. Export the panel once as a HAR file into `raw/`. A sanitized export
-   held no response body (2026-09-26); which export does is under test.
+3. Export the panel once as a HAR file, with its content, into `raw/`.
+   A sanitized export held no response body (2026-09-26); the export
+   that held them is the second row of round two below.
 4. `scripts/har-split.py raw/<file>.har` says what the recording holds
    and writes nothing; with `--write` it writes each capture under the
    name of the row its query answers. Then delete the HAR file: it can
@@ -81,3 +82,10 @@ of its 2,260 entries and no cookie; its shape is `data/recording-shape.csv`.
 | File | Bytes | Captured | sha256 |
 | --- | --- | --- | --- |
 | `raw/searches/d-searches.har` | 15439357 | 2026-09-26 19:45 | `f4ab149a29aed66e85095546b1043520a136fb55aa1f878687a9c9aeb8a9baa4` |
+| `raw/searches/www.pathofexile.com.har` | 114023184 | 2026-09-26 19:57 | `5555bf4a73215d32103d002fe674016b686fdeb21be24af66ed4a018c52112b6` |
+
+The second is the same sitting exported again with its content: the same
+2,260 entries and the same 26 searches, 00:41:17–00:44:32 UTC, every body held,
+no cookie. `scripts/har-split.py --write` wrote its 46 captures,
+`raw/searches/d01-search.json` to `b2-fetch.json`, each named by the row its
+query answers; they are the recording's bytes and are not listed apart.

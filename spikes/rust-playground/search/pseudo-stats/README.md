@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; round two (d01–d24, b1, b2) recorded without bodies — 2026-09-26, its shape read; to be captured again.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; round two (d01–d24, b1, b2) captured and read — 2026-09-26; round three (e001–e107) with the owner.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -10,13 +10,11 @@ Headline:
   defence rolls, averaged". Rolls recovered as integers from the display reproduce **30 of 30**
   captured values, each a single value; APT's formula gives 20 exactly and 29 within rounding;
   every negative control fails. A private item displays everything the rule reads.
-- **The export separates** the unsuffixed `Adds # to # <type> Damage` on a weapon (`local_*`, is_local)
-  from the same text elsewhere (`global_*`: uniques, bench crafts, grafts, veiled mods, delve gloves),
-  as the site does with its `(Local)` ids; the committed census cannot split the owner's lines by class.
-- **The site is the checker** (p1, p2, c1–c6; 100 readings, none disagreeing): `+# total maximum
-  Life` is complete on five rows; attack speed counts a conditional implicit the shipped total
-  lacks; the combined speed line feeds neither speed total; a sum of nothing shows no total; one
-  text under two ids is counted under one. Round two is 24 searches, not the 264 part 1 counted.
+- **The site is the checker** (34 searches captured; 281 readings, none disagreeing): total life
+  is complete and sound on five rows; attack speed counts two conditional implicits the shipped
+  total lacks; a sum of nothing shows no total; one text under two ids may be counted under one.
+- **The ranged family is one reading**: the site shows the average of a line's two numbers; a
+  weapon's own line feeds the attacks' pseudo and never the spells', the other twin feeds both.
 - `+#% to All Resistances` is named by APT under five resistance totals and left out by the C++
   tables (`sources-differ`, sheet row L001); the owner's corpus holds none.
 
@@ -167,36 +165,46 @@ The reading can fail, shown on the captures: the twin id counted disagrees on 5 
 conditional implicit left out on 10, `all Attributes` at 1 on 12, the combined speed line counted
 on 10, a sum of nothing read as a value on 5.
 
-Round two, `data/search-sheet.csv`, each search pinned to the version of the rows it names:
+Round two (d01–d24, b1, b2), one sitting of 26 searches in 3 min 15 s, recorded once and split by
+`scripts/har-split.py` (`MANIFEST.md`): no file name is typed, since a search response carries its
+query and the sheet says which row that is. The first export held no body; the second, of the same
+sitting, held every one.
 
-| Searches | Ask |
+| Search | Asked | Found | Says |
+| --- | --- | ---: | --- |
+| d01 | total life, sound by the site's own sum | 1 | the one item is `+27 to maximum Life` beside a scourge's `-27`: a sum of nothing. Total life is sound |
+| d02 | d01's mutant, the twin id among the rows | 3,298 | a `weight2` group beside a `not` is taken |
+| d03 | total attack speed, complete on two rows | 18 | ten of ten carry `While a Pinnacle Atlas Boss is in your Presence, #% increased Attack Speed` |
+| d04, d13, d16, d19, d22 | each plain `Adds # to # <type> Damage`, complete on its own text | **0** | the plain pseudo counts its own text and nothing else |
+| the ten scoped, d05–d24 | each `to Attacks` and `to Spells`, complete on its own text | 10,000 | each counts lines beyond its own text, below |
+| d07–d12 | the six aggregates | 10,000 | an aggregate is its types' rows together |
+| b1, b2 | the twin id with total life required, and alone | 0; 3,297 | what the owner's report says |
+
+The ranged family, one reading for the five types (`scripts/rows.py`, `ranged_changes`):
+
+| The site | Evidence |
 | --- | --- |
-| d01, d02 | total life, sound by the site's own sum — a `weight2` group, which leaves out the items whose lines cancel — and its mutant |
-| d03 | total attack speed, complete, with the implicit c6 found among the rows |
-| d04–d06 | the fire family, complete on the pseudo's own text: plain, to attacks, to spells |
-| d07–d12 | the six aggregates no line displays (`Elemental Damage`, `Damage`): what carries each |
-| d13–d24 | cold, lightning, physical and chaos, as fire |
-| b1, b2 | the twin id with the total required, and alone: what the owner's report to GGG rests on |
+| shows the **average** of a line's two numbers, in both places: `Adds 54.5 to 54.5 Fire Damage to Attacks` over `Adds 31 to 78 Fire Damage` | every one of 160 readings; the low number read instead disagrees on all 160 |
+| counts a weapon's own line — the `(Local)` twin — toward the attacks' pseudo and never the spells' | 54 readings toward attacks; 5 carrying it show a spells' pseudo without it |
+| counts the other twin toward both | 21 readings toward spells, 3 toward attacks (chaos alone: thin) |
+| counts `to Spells and Attacks` toward both | 35 readings toward spells, 2 toward attacks |
+| leaves `to Attacks` lines out of the plain aggregate | 2 readings |
 
-A sitting is one recording, split by `scripts/har-split.py` (`MANIFEST.md`): no file name is typed,
-since a search response carries its query and the sheet says which row that is.
+A private item shows one text for both twins. What tells them apart on it is what the item is: the
+export spawns the `(Local)` stats on weapons alone (the table above, by what the export says is
+local). A row that means a twin is the build's to answer by the item's class.
 
-**The first recording holds no body** (2026-09-26: 26 searches in 3 min 15 s, every row of round two
-opened once, in order; a sanitized export). What it holds is its shape, `data/recording-shape.csv`
-— provisional, the page's behaviour and not the site's word, until the bodies are captured:
+The reading can fail, shown on the captures: a weapon's own line counted toward spells disagrees on
+5 items, left out of attacks on 54; the other twin left out of attacks on 3; `to Spells and Attacks`
+left out on 37; lightning left out of the aggregates on 25; the Pinnacle implicit left out on 10.
 
-| Rows | Shape | Reads as |
-| --- | --- | --- |
-| d04, d13, d16, d19, d22 | 326–354 bytes, no fetch followed | each plain `Adds # to # <type> Damage` is complete on its own text: the `to Attacks` and `to Spells` lines do not feed it |
-| d05, d06 and the other eight scoped | near 7,000 bytes, ten items fetched | each `to Attacks` and `to Spells` pseudo counts a line beyond its own text |
-| d07–d12 | near 7,000 bytes, ten items fetched | the six aggregates are carried by many items |
-| d01 | 533 bytes, one item fetched | one listed item's rows sum to a half or more with no total life |
-| d02 | 7,180 bytes, ten items fetched | d01's mutant finds, so a `weight2` group beside a `not` is taken |
-| d03 | 1,565 bytes, ten items fetched | a few items show total attack speed by a line still missing |
-| b1, b2 | 253 bytes and no fetch; 6,932 bytes and ten items | the twin id with the total required finds nothing, alone it finds the jewels |
+The most the sitting used of what the site allows: 9 of 15 searches in 60 s, 28 of 60 in 300 s, 71
+of 600 in three hours; 22 of 100 fetches in 300 s. No response asked it to slow down.
 
-The most the sitting used of what the site allows: 9 of 15 searches in 60 s, 28 of 60 in 300 s,
-71 of 600 in three hours; 22 of 100 fetches in 300 s. No response asked it to slow down.
+Round three, e001–e107, each search pinned to its version: every pseudo in scope complete and sound,
+less what is closed — the ranged family first (e001–e037), attack speed (e038, e039), then the 34
+other shipped totals. A sound check of a total is by the site's own sum; of a ranged pseudo, by a
+count. The largest group holds 71 ids, where 29 is the most the site has been seen to take.
 
 ## Left out
 

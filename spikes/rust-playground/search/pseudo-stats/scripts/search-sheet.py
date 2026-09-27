@@ -520,9 +520,9 @@ def weighted(version, ids, extra=()):
     every item whose lines cancel (c3: 3,338 found, most of them a sum of
     nothing), the site's own sum leaves those out."""
     filters = []
-    for t, w in version["rows"].items():
+    for (t, which), w in version["rows"].items():
         for i in ids[t]:
-            if i not in version["never"] or i in extra:
+            if (i not in version["never"] and table.means(which, i)) or i in extra:
                 filters.append({"id": i, "value": {"weight": float(w)}, "disabled": False})
     return {"type": "weight2", "filters": filters, "value": {"min": 0.5}}
 
@@ -583,6 +583,55 @@ def round_two():
              for scope in table.SCOPES]
     for number, name in enumerate(order, start=4):
         out.append(complete(f"d{number:02d}", name, 1, versions[name][0], ids, texts))
+    return out
+
+
+def sound(search, name, number, version, ids, texts):
+    """Whether any listed item carries a row while showing no pseudo. A total
+    whose lines carry a sign is asked by the site's own sum, which leaves out
+    most items whose lines cancel (d01 found one where c3's count found 3,338);
+    a ranged pseudo, whose lines have none, by a count of its rows."""
+    text = texts[version["pseudo"]]
+    if version["reads"] == "avg":
+        rows = group("count", table.ids_of(version, ids), {"min": 1})
+        how = "a count of its rows"
+    else:
+        rows = weighted(version, ids)
+        how = "the site's own sum of its rows, a half or more"
+    return {
+        "search": search,
+        "decides": (f"{name} v{number}, sound: whether any listed item carries a row — {how} "
+                    f"— while showing no `{text}`. None found: every row is counted wherever "
+                    "it appears. Any found: a row, a twin or an id the site does not count"),
+        "control": "c4 and d02: a pseudo inside a `not` group, beside a count or a sum, finds what it should",
+        "query": batch_query([rows, group("not", [version["pseudo"]])]),
+    }
+
+
+def round_three():
+    """e001 on: every pseudo in scope at its latest rows when this round was
+    written, complete and sound, less what a capture has already closed —
+    total life (c1, d01) and the five plain ranged pseudos' completeness
+    (d04, d13, d16, d19, d22). Each pins its version."""
+    ids, texts = table.stats()
+    versions = table.versions()
+    pinned = {name: 2 for name in versions if name.startswith("adds_")}
+    pinned.update({name: 1 for name in versions
+                   if name.startswith("adds_") and len(versions[name]) == 1})
+    pinned["total_attack_speed"] = 3
+    order = [f"adds_{k}{scope}" for k in ("fire", "cold", "lightning", "physical", "chaos",
+                                          "elemental", "damage")
+             for scope in table.SCOPES]
+    order += ["total_attack_speed"]
+    order += [n for n in versions if n not in order and n != "total_life"]
+    out = []
+    for name in order:
+        number = pinned.get(name, 1)
+        version = versions[name][number - 1]
+        closed = name in ("adds_fire", "adds_cold", "adds_lightning", "adds_physical", "adds_chaos")
+        if not closed:
+            out.append(complete(f"e{len(out) + 1:03d}", name, number, version, ids, texts))
+        out.append(sound(f"e{len(out) + 1:03d}", name, number, version, ids, texts))
     return out
 
 
@@ -665,7 +714,8 @@ def main():
     else:
         print(__doc__)
         return 2
-    searches = PILOT + (checks() + round_two() + report() if method == "site" else batch(method))
+    searches = PILOT + (checks() + round_two() + report() + round_three()
+                        if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
         sheet = csv.writer(out, lineterminator="\n")
@@ -692,7 +742,7 @@ def main():
     for row in searches:
         s = row["search"]
         kind = ("pilot" if s.startswith("p")
-                else "check" if s.startswith(("c", "d", "b"))
+                else "check" if s.startswith(("c", "d", "b", "e"))
                 else "percentile case" if s.startswith("C")
                 else "open question" if s.startswith("R")
                 else "percentile line" if s.startswith("P") else "pair" if "." in s else "line")

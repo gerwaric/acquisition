@@ -8,9 +8,10 @@ item what the rows give?
 
 What the site says is the value it shows, or that it shows none; a pseudo
 named inside a `not` group is one the site says the item has not. What the
-rows give is the sum, over the item's lines, of each line's numbers times its
-row's weight, slot by slot, a line under an id the version never counts
-adding nothing. **A sum of nothing is no value**: the site shows no total
+rows give is the sum, over the item's lines, of each line's number times its
+row's weight — for the ranged family the average of a line's two, shown in
+both places — a line under an id or a twin the version does not count adding
+nothing. **A sum of nothing is no value**: the site shows no total
 where the lines cancel (c3), so the rows give none there either.
 
     evidence.py    # write ../data/evidence.csv, print what disagrees
@@ -73,32 +74,40 @@ def asked(query):
     ]
 
 
+def stat_of(entry):
+    return (entry.get("hash") or "").removeprefix("stat.")
+
+
 def given(version, slots, item):
-    """What the rows give an item: the value, slot by slot, and the lines counted."""
-    total = [Fraction(0)] * slots
+    """What the rows give an item, as the site would show it, or None."""
+    total = Fraction(0)
     counted = False
     for array, entries in item["lines"].items():
         if array == "pseudoMods":
             continue
         for e in entries:
-            weight = version["rows"].get(template(e["description"]))
-            stat = (e.get("hash") or "").removeprefix("stat.")
-            if weight is None or stat in version["never"]:
-                continue
+            weight = table.weight_of(version, template(e["description"]), stat_of(e))
             read = numbers(e["description"])
-            if len(read) < slots:
+            if weight is None or not read:
                 continue
+            if version["reads"] == "avg":
+                if len(read) < 2:
+                    continue
+                total += (read[0] + read[1]) / 2 * weight
+            else:
+                total += read[0] * weight
             counted = True
-            for slot in range(slots):
-                total[slot] += read[slot] * weight
-    return total if counted and any(total) else None
+    return [total] * slots if counted and total else None
 
 
 def key(version, entry):
-    """The pair a line tests: its template, with its id where the id is what decides."""
-    stat = (entry.get("hash") or "").removeprefix("stat.")
+    """The pair a line tests: its template, with its twin or its id where that decides."""
+    stat = stat_of(entry)
     t = template(entry["description"])
-    return f"{t} [{stat}]" if stat in version["never"] else t
+    if stat in version["never"]:
+        return f"{t} [{stat}]"
+    twins = {which for (row, which) in version["rows"] if row == t}
+    return f"{t} (Local)" if stat in table.LOCAL and twins and twins != {"any"} else t
 
 
 def main():
@@ -148,17 +157,17 @@ def main():
                           f"{texts[pseudo]} — the site {site}, the rows {ours}")
                     for e in lines:
                         print(f"             {e['description']!r} {e.get('hash')}")
+                named = {row for (row, _) in version["rows"]}
                 for e in lines:
                     t = template(e["description"])
-                    if t in version["rows"] or t in candidates[pseudo]:
+                    if t in named or t in candidates[pseudo]:
                         k = (pseudo, key(version, e))
                         where = f"{name}[{index}]"
                         bucket = pairs[k]["agree" if agrees else "disagree"]
                         if where not in bucket:
                             bucket.append(where)
-                        stat = (e.get("hash") or "").removeprefix("stat.")
-                        counted = t in version["rows"] and stat not in version["never"]
-                        pairs[k]["weight"] = version["rows"][t] if counted else Fraction(0)
+                        weight = table.weight_of(version, t, stat_of(e))
+                        pairs[k]["weight"] = Fraction(0) if weight is None else weight
 
     with OUT.open("w", newline="") as out:
         sheet = csv.writer(out, lineterminator="\n")

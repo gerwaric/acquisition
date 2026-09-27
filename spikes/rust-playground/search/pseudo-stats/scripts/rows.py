@@ -12,10 +12,16 @@ editing that version would turn the capture into an answer to no question.
 
     rows.py    # print every pseudo's latest rows and the ids behind them
 
-A row is a template and a weight. `never` lists stat ids that display a row's
-text and are not counted: the site tells two stats with one text apart, a
-private item cannot, so an id here is a difference the search can state and
-cannot mimic by the line alone.
+A row is a template, a weight and which of the stats displaying that text it
+means: `any`, or the twin the site marks `(Local)` — a weapon's own damage —
+or the other, `global`. `never` lists single ids that display a row's text and
+are not counted. The site tells two stats with one text apart; a private item
+shows the text alone, so a row that names a twin is one the build answers by
+what the item is, and a `never` id is a difference it can only state.
+
+A pseudo `reads` each line's first number (`slot`), or, for the ranged family,
+the average of its two (`avg`): the site shows `Adds 54.5 to 54.5 Fire Damage
+to Attacks` over a line of 31 to 78 (d05).
 """
 
 import json
@@ -32,6 +38,8 @@ STATS = TRACK.parent / "trade-query" / "data" / "stats-2026-09-12.json"
 TOTALS = ROOT / "crates" / "acquisition-search" / "reference" / "totals-v1.toml"
 
 TYPES = ["physical", "lightning", "cold", "fire", "chaos"]
+# The types the site lists a plain `… to Spells and Attacks` stat for.
+BOTH = ["lightning", "cold", "fire"]
 SCOPES = {"": "", "_to_attacks": " to Attacks", "_to_spells": " to Spells"}
 
 # Every change to a pseudo's rows after its first version, in order.
@@ -59,8 +67,53 @@ CHANGES = {
             "add": [("While a Unique Enemy is in your Presence, #% increased Attack Speed", "1")],
             "why": "c6: ten items of ten show the total with this implicit as their one speed line",
         },
+        {
+            "add": [("While a Pinnacle Atlas Boss is in your Presence, #% increased Attack Speed", "1")],
+            "why": "d03: 18 found, the ten fetched each showing this implicit as the total",
+        },
     ],
 }
+
+
+def ranged_changes():
+    """The ranged family's second versions, from round two (d04–d24).
+
+    What the captures show, one reading for all five types: a weapon's own
+    line (the `(Local)` twin) feeds the attacks' pseudo and never the spells';
+    the other twin feeds both; `to Spells and Attacks` feeds both; and the
+    plain pseudo is complete on its own text (d04, d13, d16, d19, d22 found
+    nothing). An aggregate is its types' rows together."""
+    out = {}
+
+    def scoped(kind, scope):
+        text = f"Adds # to # {kind.capitalize()} Damage"
+        rows = [(text, "1", "local" if scope == "_to_attacks" else "global")]
+        if kind in BOTH:
+            rows.append((f"{text} to Spells and Attacks", "1", "any"))
+        if scope == "_to_attacks":
+            rows.append((text, "1", "global"))
+        return rows
+
+    for scope in ("_to_attacks", "_to_spells"):
+        for kind in TYPES:
+            out[f"adds_{kind}{scope}"] = [{
+                "add": scoped(kind, scope),
+                "why": "round two: the items fetched by this pseudo's complete check",
+            }]
+        for name, kinds in (("elemental", ["fire", "cold", "lightning"]), ("damage", TYPES)):
+            key = f"adds_{name}{scope}" if name != "damage" else f"adds_damage{scope}"
+            add = []
+            for kind in kinds:
+                add.append((f"Adds # to # {kind.capitalize()} Damage{SCOPES[scope]}", "1", "any"))
+                add += scoped(kind, scope)
+            out[key] = [{"add": add, "why": "round two: an aggregate is its types' rows together"}]
+    for name, kinds in (("elemental", ["fire", "cold", "lightning"]), ("damage", TYPES)):
+        key = f"adds_{name}" if name != "damage" else "adds_damage"
+        out[key] = [{
+            "add": [(f"Adds # to # {kind.capitalize()} Damage", "1", "any") for kind in kinds],
+            "why": "round two: an aggregate is its types' rows together",
+        }]
+    return out
 
 
 def norm(text):
@@ -70,6 +123,7 @@ def norm(text):
 
 
 def stats():
+    """({template: [id, …]}, {pseudo id: text}); the ids of `(Local)` twins are LOCAL."""
     groups = json.loads(STATS.read_text())["result"]
     ids = defaultdict(list)
     pseudo = {}
@@ -79,7 +133,17 @@ def stats():
                 pseudo[e["id"]] = e["text"]
             else:
                 ids[norm(e["text"])].append(e["id"])
+                if e["text"].endswith(" (Local)"):
+                    LOCAL.add(e["id"])
     return ids, pseudo
+
+
+LOCAL = set()
+
+
+def means(which, stat):
+    """Whether a row that means `which` twin counts a line under this id."""
+    return which == "any" or (which == "local") == (stat in LOCAL)
 
 
 def first_versions():
@@ -106,29 +170,51 @@ def first_versions():
     return out
 
 
+def row(entry):
+    """(template, which twin) and the weight of a row written (template, weight[, which])."""
+    return (entry[0], entry[2] if len(entry) > 2 else "any"), Fraction(entry[1])
+
+
 def versions():
-    """{name: [version, …]}, a version {pseudo, rows: {template: weight}, never, why}."""
+    """{name: [version, …]}; a version is {pseudo, reads, rows, never, why}, its
+    rows {(template, which twin): weight}."""
     out = {}
+    every = dict(CHANGES)
+    every.update(ranged_changes())
     for name, first in first_versions().items():
-        rows = {t: Fraction(w) for t, w in first["rows"]}
+        rows = dict(row(r) for r in first["rows"])
         never = []
         history = []
-        changes = list(CHANGES.get(name, []))
+        changes = list(every.get(name, []))
         if changes and "first" in changes[0]:
-            rows = {t: Fraction(w) for t, w in changes[0]["first"]}
+            rows = dict(row(r) for r in changes[0]["first"])
             first = dict(first, why=changes[0]["why"])
             changes = changes[1:]
-        history.append({"pseudo": first["pseudo"], "rows": dict(rows), "never": [], "why": first["why"]})
+        reads = "avg" if name.startswith("adds_") else "slot"
+        history.append({"pseudo": first["pseudo"], "reads": reads, "rows": dict(rows), "never": [],
+                        "why": first["why"]})
         for change in changes:
-            for t, w in change.get("add", []):
-                rows[t] = Fraction(w)
-            for t in change.get("remove", []):
-                del rows[t]
+            for r in change.get("add", []):
+                key, weight = row(r)
+                rows[key] = weight
+            for r in change.get("remove", []):
+                del rows[row(r)[0]]
             never = never + change.get("never", [])
-            history.append({"pseudo": first["pseudo"], "rows": dict(rows), "never": list(never),
-                            "why": change["why"]})
+            history.append({"pseudo": first["pseudo"], "reads": reads, "rows": dict(rows),
+                            "never": list(never), "why": change["why"]})
         out[name] = history
     return out
+
+
+def weight_of(version, template, stat):
+    """The weight a version gives a line, by its template and, where the line
+    carries one, its id; None where no row counts it."""
+    if stat and stat in version["never"]:
+        return None
+    for (t, which), weight in version["rows"].items():
+        if t == template and (not stat or means(which, stat)):
+            return weight
+    return None
 
 
 def latest():
@@ -139,10 +225,11 @@ def latest():
 def ids_of(version, ids):
     """Every counted id behind a version's rows, in every category."""
     out = []
-    for t in version["rows"]:
+    for (t, which) in version["rows"]:
         if not ids.get(t):
             raise SystemExit(f"no stat displays {t!r}")
-        out += [i for i in ids[t] if i not in version["never"]]
+        out += [i for i in ids[t]
+                if i not in version["never"] and means(which, i) and i not in out]
     return out
 
 
@@ -161,8 +248,8 @@ def main():
             raise SystemExit(f"{name}: the site has no {v['pseudo']}")
         print(f"{name} v{len(history)} · {pseudo[v['pseudo']]} · {len(v['rows'])} rows, "
               f"{len(ids_of(v, ids))} ids" + (f", never {', '.join(v['never'])}" if v["never"] else ""))
-        for t, w in v["rows"].items():
-            print(f"    {plain(w):>4}  {t}")
+        for (t, which), w in v["rows"].items():
+            print(f"    {plain(w):>4}  {t}" + ("" if which == "any" else f"  ({which})"))
     print(f"{len(versions())} pseudos under test")
     return 0
 
