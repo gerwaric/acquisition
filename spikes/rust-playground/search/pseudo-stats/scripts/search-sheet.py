@@ -586,6 +586,28 @@ def round_two():
     return out
 
 
+def report():
+    """b1, b2: the two searches a report of c3's twin id rests on."""
+    twin = "explicit.stat_2543977012"
+    return [
+        {
+            "search": "b1",
+            "decides": (
+                "the report: `+# to Strength and Intelligence` under the id That Which Was "
+                "Taken carries, with `+# total maximum Life` required. c3 says none will be found"
+            ),
+            "control": "b2, the line alone, finds the items b1 should have",
+            "query": batch_query([group("and", [twin, "pseudo.pseudo_total_life"])]),
+        },
+        {
+            "search": "b2",
+            "decides": "the report's control: the same line with no total asked, which finds the jewels",
+            "control": "c3 fetched five of them",
+            "query": batch_query([group("and", [twin])]),
+        },
+    ]
+
+
 def decode(link_text):
     token = link_text.rsplit("/", 1)[1]
     raw = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
@@ -643,7 +665,7 @@ def main():
     else:
         print(__doc__)
         return 2
-    searches = PILOT + (checks() + round_two() if method == "site" else batch(method))
+    searches = PILOT + (checks() + round_two() + report() if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
         sheet = csv.writer(out, lineterminator="\n")
@@ -670,7 +692,7 @@ def main():
     for row in searches:
         s = row["search"]
         kind = ("pilot" if s.startswith("p")
-                else "check" if s.startswith(("c", "d"))
+                else "check" if s.startswith(("c", "d", "b"))
                 else "percentile case" if s.startswith("C")
                 else "open question" if s.startswith("R")
                 else "percentile line" if s.startswith("P") else "pair" if "." in s else "line")

@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; round two (d01–d24) with the owner.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; round two (d01–d24, b1, b2) with the owner.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -159,8 +159,8 @@ What c3 and c6 found:
 
 | Finding | Evidence | For the build |
 | --- | --- | --- |
-| **A sum of nothing shows no total.** `+21 to Strength` beside `-21 to Strength`; `+24 to maximum Life` beside a scourge's `-24` | c3[2], [3], [6], [8], [9] | the site has no total of 0: the item lacks the pseudo |
-| **One text, two ids, one counted.** `+# to Strength and Intelligence` under `explicit.stat_2543977012`, on the unique jewel That Which Was Taken, shows no total; under `stat_1535626285` it counts at one half | c3[0], [1], [4], [5], [7]; p1, eleven items | a private item shows the text and no id: counting the line on that jewel departs from the site, and only the item's name tells the two apart |
+| **A sum of nothing shows no total.** `+21 to Strength` beside `-21 to Strength`; `+24 to maximum Life` beside a scourge's `-24` | c3[2], [3], [6], [8], [9] | ruled 2026-09-26, the owner: "Yes, let's make it absent to match the site." The item lacks the total |
+| **One text, two ids, one counted.** `+# to Strength and Intelligence` under `explicit.stat_2543977012`, on the unique jewel That Which Was Taken, shows no total; under `stat_1535626285` it counts at one half | c3[0], [1], [4], [5], [7]; p1, eleven items | ruled 2026-09-26, the owner: "I believe this is a bug. Let's count the mod". The search counts the line wherever it is displayed, and the difference from the site is stated; b1 and b2 are the report's two searches |
 | **A conditional line is counted.** `While a Unique Enemy is in your Presence, #% increased Attack Speed` feeds `+#% total Attack Speed` at 1 | c6, ten of ten | a row the shipped total lacks; what else is among the 212 is d03's |
 
 The reading can fail, shown on the captures: the twin id counted disagrees on 5 items, the
@@ -176,6 +176,10 @@ Round two, `data/search-sheet.csv`, each search pinned to the version of the row
 | d04–d06 | the fire family, complete on the pseudo's own text: plain, to attacks, to spells |
 | d07–d12 | the six aggregates no line displays (`Elemental Damage`, `Damage`): what carries each |
 | d13–d24 | cold, lightning, physical and chaos, as fire |
+| b1, b2 | the twin id with the total required, and alone: what the owner's report to GGG rests on |
+
+A sitting is one recording, split by `scripts/har-split.py` (`MANIFEST.md`): no file name is typed,
+since a search response carries its query and the sheet says which row that is.
 
 ## Left out
 

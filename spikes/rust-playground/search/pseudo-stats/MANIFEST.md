@@ -9,25 +9,31 @@ other tracks', named in the README's provenance. Access method:
 ## How a search is captured
 
 The searches are `data/search-sheet.csv`, written by
-`scripts/search-sheet.py`: each row is a query, what it decides, its
-control, and a link composed from the query. A person opens the link;
-no tool does.
+`scripts/search-sheet.py`, which prints each link beside its name: each
+row is a query, what it decides, its control, and a link composed from
+the query. A person opens the link; no tool does.
 
-1. Signed in, with the browser's network panel open before the link is
-   loaded.
-2. Open one link. Save the response of the call to `/api/trade/search/`
-   as `raw/searches/<search>-search.json`, and the response of the
-   first call to `/api/trade/fetch/` as
-   `raw/searches/<search>-fetch.json`. If the page sent a request body,
-   save it as `raw/searches/<search>-request.json`; the link already
-   holds the query, so its absence loses nothing.
-3. The first ten items are enough unless the sheet's row says otherwise.
-   Where more are wanted, scroll once or twice and save each further
-   fetch as `raw/searches/<search>-fetch-2.json`, `-3`.
-4. A search with no results has no fetch: save the search response
-   alone. A link the site refuses is a finding: note what the page
-   showed.
-5. One link at a time, at the pace of reading each result.
+By one recording of the sitting, which types no file name:
+
+1. Signed in, open the browser's network panel before the first link and
+   keep its log across pages ("Preserve log", "Persist Logs").
+2. Open the links one at a time, at the pace of reading each result.
+   Order does not matter and a link opened twice does no harm.
+3. Export the panel once as a HAR file — sanitized, where the browser
+   offers it — into `raw/`.
+4. `scripts/har-split.py raw/<file>.har` says what the recording holds
+   and writes nothing; with `--write` it writes each capture under the
+   name of the row its query answers. Then delete the HAR file: it can
+   hold the session's cookie, which the script never reads or copies.
+
+Or by hand, one response at a time: the response of the call to
+`/api/trade/search/` as `raw/searches/<search>-search.json`, the first
+call to `/api/trade/fetch/` as `raw/searches/<search>-fetch.json`,
+further pages as `-fetch-2.json`, `-3`. A search with no results has no
+fetch. `scripts/captures.py --check` says what is on disk, and names a
+capture saved under another row's name.
+
+A link the site refuses is a finding: note what the page showed.
 
 A fetch response carries seller accounts and whisper tokens: `raw/`
 only, never `data/`. What is committed is an extract, scrubbed, its
