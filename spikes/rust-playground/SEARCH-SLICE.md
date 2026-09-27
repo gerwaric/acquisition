@@ -67,13 +67,14 @@ same commit.
 | 4b · the properties | `39e7667a`–`36a9738a` | `tests/common/generated.rs`; `tests/generated_equivalence.rs`, `tests/generated_completion.rs`, `tests/generated_cross_checks.rs`; `group.rs`; `tools/docs-check.sh` §7 |
 | 5 · counts and the vocabulary | `31b5f09d` | `counts.rs`, `answer::Router`; `tests/counts.rs`; E1–E5 |
 | 6 · class | `eeaec66e` | `class.rs`, `reference/classes-v1.toml`, `tools/class-table.py`; `tests/class.rs`; G1–G6 |
-| 7 · computed values | `b5d62d92` | `totals.rs`, `pseudo.rs`, the totals table (v2 since 9c), `tools/totals-table.py`; `tests/pseudo.rs`; M6; T1, T2, T5 |
+| 7 · computed values | `b5d62d92` | `totals.rs`, `pseudo.rs`, the totals table (v4 since 9c2), `tools/totals-table.py`; `tests/pseudo.rs`; M6; T1, T2, T5 |
 | 7 · the third look | `ecb83b65` | `tests/common/generated.rs`: the generators reach the computed values; no source changed |
 | 8 · sockets | `ec024ceb`; reviewed `dca017f5`, `7010f658` | `sockets.rs`, `derive.rs`; `tests/sockets.rs`; K1 |
 | 9 · price | `57c2f78b`; reviewed `1e0d85c6`, `7ff3c947` | `price.rs`, and the store's and the planner's part in the commits; `tests/price.rs`; P1, P2 |
 | the first seat | `94a3d18c`, the release build (sha256 `9ecf385d…`; the owner's choice, so the seat feels the number the budget judges); the run is `runs/seat-2026-09-26/` — brief, 65 journaled asks, report, `replay.sh` — gitignored, so the fix commits carry each fault's story | An agent's seat with the owner in the loop (the plan, "The first seat"): a second session drove `acq search` and `acq show` on the owner's store through a journaling wrapper, one binary, no daemon, no repository edit; the orchestrating session routed the report. 65 asks; 10 faults, F1–F10, held at 9b; 10 verdicts, V1–V10 ("Holes ruled"); the six lines (the observations below); the wall times in `search/MEASUREMENTS.md`, the seat block. |
 | 9b · the seat's fixes | `0d5706d1`–`73d33419` | `tests/seat_faults.rs`, the review's `review_` tests among them; the replay of the seat's asks, each diff read: the message of `1f9c868c`; V1, V2, V8, V10; G2 revised |
-| 9c · the trade site's computed values | `6362255a`–`6b033c60` | `search/pseudo-stats/README.md` and its `data/table-changes.csv`; `reference/totals-v2.toml`; `tests/pseudo.rs` (`v6_…`, the two `c94_…`); the site-sitting skill; the ranged family's totals wait for 9d |
+| 9c · the trade site's computed values | `6362255a`–`6b033c60` | `search/pseudo-stats/README.md` and its `data/table-changes.csv`; the totals table; `tests/pseudo.rs` (`v6_…`, the two `c94_…`); the site-sitting skill; the ranged family's totals wait for 9d |
+| 9c2 · the site's other totals | `88810610`–`77685777`, and the close | `search/pseudo-stats/data/other-totals.csv`, the track's README and `data/table-changes.csv`; `reference/totals-v4.toml`; `tests/pseudo.rs` (`c94_a_reduced_…`, `v6_the_other_…`); four pseudos are no sum and are the plan's 9c3 |
 
 ## Findings
 
@@ -159,6 +160,10 @@ number there was measured, never recalled. The verdicts:
 - M3 at totals v2 (`e81cc8ca`): every ask 445–488 but the totals' two,
   579 and 578, 50 and 55 more than at 9b: a total's cost is its rows,
   155 where there were 104.
+- M3 at totals v3 (`9842d0c9`): the two are 588 and 587, moved with the
+  floor and not by the table, whose 128 new rows are other totals';
+  a third ask is over, a total of 10 rows at 508. An ask pays for the
+  rows of the total it names, near 6 ms each over a floor of 452.
 
 ## Holes ruled, and where the rule went
 
@@ -188,6 +193,7 @@ commit's message. One line each.
 | 9 | P1 a listing resolved to `skip` or `no_price` lacks `has:priced`, known absence beside no row at all — a `price.kind` field waits for a seat that asks for skips (C101); P2 a decimal price lacks `price.lot`, a ratio has one | the reference, *Values*; `price.rs` | the ruling commit |
 | seat | V1 a blighted map's class is read past the API's prefix (`Blighted Map (Tier 13)` is Maps); a beast's follows the trade site's categories (9d); V2 an invitation's class is its frame's — quest Quest Items, any other Misc Map Items; V4 the variant field stays parked; V5 `pseudo.defence_pct` is the site's Base Percentile, built at 9d, the ranged total's lines 9c's to evidence; V6 every total counts what the site's pseudo counts, 9c's human-run searches settling it, what cannot be mimicked listed; V7 C104 kept; V8 undecided by distinct reason, one example, one route, no items, no per-reason count; V9 the totals batch parked, the spikes measured first; V10 a tab's type a field at 9b | `class.rs`, `answer.rs` (the detail taken at 9b); the 9c line below; the plan, 9d, T3; the parks | the routing commit |
 | 9c | a total of nothing is lacked and `has:` asks its presence, T2's "every item has a total" taken back ("A"); a row's eldritch forms are the row ("include the eldritch mods"); what the site leaves out and the search counts: the twin on That Which Was Taken ("I believe this is a bug. Let's count the mod"), the skill gems' own text ("yes, include the socketed skill gems"); a ranged total asked with no slot word is its `avg` ("yes, bare means average"), built at 9d; composed links ("yes"); the site's other totals at launch | `totals.rs`, `pseudo.rs`; the reference, *A sum's status*; `totals-v2.toml`; `SURFACES.md`; the plan, 9c2 and 9d | `37faf903`, `e81cc8ca`, `6362255a` |
+| 9c2 | the two counts are in scope ("In"); explained is enough at launch ("Yes"); a row's `reduced` spelling is the row, counted below nothing ("yes, we need to be able to find reduced lines and totals. There are occasionally niche builds for which this is critically important."); the twin on That Which Was Taken counted toward mana ("yes, count it for mana."); life regenerated read from the line's text, a tenth a line under the site's at most ("yes, let's go with what we can observe directly from the text we have.") | `totals.rs`, *a weight*, *a limit*; `totals-v4.toml`; `tools/trade-changes.py`; the brief at `88810610` | `9842d0c9`, `77685777` |
 | plan | gap 1 a line break inside a template; gap 4 a node forced true or false, `true()` and `false()`; gap 5 `name`, `typeline` and `base` each what GGG gives; gap 6 the totals example cites the C++ app's table, and whether a fractional total is ever rounded is step 7's to show | the reference, *Strings*, *Composition*, *Item-level*; the contract detail, C94 | `acfc37cd`, `152bfde3`, `fe9ca5f4`; 6 at `aeeba6d3` |
 | plan | gap 3 membership is a scope value — `live` by default, `all` on request with every removed row marked, `removed` alone waits for a question, the prune verb advances the revision; `all` moved to step 10 | the reference, *Membership*; C108; the plan, step 10 | `3b7cf192`, `d829c25a`, `ea68d7c2` |
 
@@ -337,11 +343,15 @@ filed again by the step that touches it.
 
 **Since 9c, by who uses it.**
 
-- *9c2's sittings:* a `not` on an eldritch form's id lets some items
-  through, so 24 pseudos are explained, never closed
-  (`search/pseudo-stats/README.md`).
+- *9c3:* a total read by a count or a least-of is asked three or four
+  at a time of every item, and a totals ask is over budget already
+  (M3, below the table).
+- *9d:* the two leech pseudos count the line under every id, the
+  `(Local)` twin among them, so neither waits for a row that names what
+  the item is; of 9c2's totals none does.
 - *The trade translation (C99):* what the search counts and the site
   leaves out is said in the table's changes and nowhere a user reads.
 - *A fix on the site:* the owner reported the twin id to GGG
-  (2026-09-26); it is left out of total Strength and Intelligence as of
-  total life, and a fix moves three `not mimicked` rows to agreement.
+  (2026-09-26); it is left out of total Strength, Intelligence and mana
+  as of total life, and a fix moves four `not mimicked` rows to
+  agreement.

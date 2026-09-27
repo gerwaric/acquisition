@@ -68,6 +68,10 @@ ASKS = [
     ("seat 53: OQ2 --count line:reservation,attributes", ['name="Ashes of the Stars"', "--count", "line:reservation,attributes"]),
     ("seat 60: --count line~^adds # to # cold", ["", "--count", "line~^adds # to # cold", "--limit", "20"]),
     ("seat 62: a bare phrase, \"Kaom\"", ['"Kaom"', "--limit", "2"]),
+    # step 9c2: the site's other totals, and a total below nothing
+    ("pseudo.total_mana", ["pseudo.total_mana>=100"]),
+    ("a total below nothing", ["pseudo.total_attack_speed<0"]),
+    ("the type's damage with attack skills", ["pseudo.increased_lightning_attack_damage>=30"]),
 ]
 
 def main():

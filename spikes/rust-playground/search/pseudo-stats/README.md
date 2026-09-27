@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows, none applied.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows and applied (totals v4), but the four pseudos that are no sum, which are the plan's 9c3.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -13,7 +13,7 @@ Headline:
 - **The site is the checker** (310 searches captured; 1,453 readings, none disagreeing): of 86
   pseudos 42 are closed — a complete and a sound check each found nothing — and 44 explained:
   what a check found shows, item for item, what the rows give. `data/table-changes.csv` is the
-  totals table's changes as rows, 388; the 161 of step 9c2 are not applied.
+  totals table's changes as rows, 388, applied but the ranged family's and the four `no sum`.
 - **The ranged family is one reading**: the site shows the average of a line's two numbers; a
   weapon's own line feeds the attacks' pseudo alone, the other twin the plain, the attacks' and
   the spells'.
@@ -174,12 +174,12 @@ in `tools/trade_rows.py` names its captures and counts):
 
 | Finding | Evidence | For the build |
 | --- | --- | --- |
-| **Four pseudos are no sum of lines**: the two counts count the resistance totals an item shows, chaos among them, never lines; `total to all Elemental Resistances` and `total to all Attributes` are the least of their three totals, shown where all three are | R1, g001, g002, h040; g003, h039; h001, h002 | 4 rows `no sum`: no table row can say one, a derived field can (C101); not ruled |
-| **A row's `reduced` spelling is the row, below nothing**: the line is under the `increased` spelling's id | 60 readings of the 61 that carry one, the other a sum of nothing; left out, 59 disagree | a rule, and a row at a weight of -1 for every row that says `increased`, six of them on totals the build ships; not ruled |
-| Total mana is total life's rows with Intelligence for Strength, the twin id left out of it too | g005, h003, h004 (3,295 found, b2's 3,297) | 5 rows; the twin `not mimicked`, of this total not ruled |
+| **Four pseudos are no sum of lines**: the two counts count the resistance totals an item shows, chaos among them, never lines; `total to all Elemental Resistances` and `total to all Attributes` are the least of their three totals, shown where all three are | R1, g001, g002, h040; g003, h039; h001, h002 | 4 rows `no sum`: no table row can say one, a derived field can (C101); the plan's 9c3 |
+| **A row's `reduced` spelling is the row, below nothing**: the line is under the `increased` spelling's id | 60 readings of the 61 that carry one, the other a sum of nothing; left out, 59 disagree | a rule, and a row at a weight of -1 for every row that says `increased`, six of them on totals the build shipped; ruled, the owner: "yes, we need to be able to find reduced lines and totals" |
+| Total mana is total life's rows with Intelligence for Strength, the twin id left out of it too | g005, h003, h004 (3,295 found, b2's 3,297) | 5 rows; the twin `not mimicked`: ruled, the owner: "yes, count it for mana." |
 | A type's `increased` damage counts elemental damage; its spell damage, spell damage too; its damage with attack skills, elemental damage with attack skills too; burning damage counts fire and elemental damage | g014–g035, each tested complete and sound at round six | rows |
 | The two leech pseudos count the line under all ten ids, the `(Local)` twin among them | g039–g042 found nothing; h041, the bound's mutant, found 10,000 | no twin: nothing waits for 9d |
-| Life regenerated is shown a tenth over the line's text on two items of ten: the site rounds what the text cuts | g037 | a `limit`: a total read from the text is under the site's by less than a tenth a line |
+| Life regenerated is shown a tenth over the line's text on two items of ten: the site rounds what the text cuts | g037 | a `limit`: a total read from the text is under the site's by a tenth a line at most; ruled, the owner: "yes, let's go with what we can observe directly from the text we have." |
 
 Two things the searches could not do, each a limit of what is closed:
 
