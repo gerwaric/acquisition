@@ -7,7 +7,7 @@ a link is composed here and opened by a human in a browser. Nothing in this
 script touches the network (C79; SURFACES.md, the trade site's rows: access
 method `browser`).
 
-    tools/trade-sheet.py                # the pilot and the checks: what the owner is asked to run
+    tools/trade-sheet.py                # the pilot, the checks and the rounds: what the owner is asked to run
     tools/trade-sheet.py --method if    # the pilot and the batch, one search per candidate line
     tools/trade-sheet.py --method and   # the pilot and the batch, one search per pair
     tools/trade-sheet.py --self-test    # compose each captured request and compare ids
@@ -514,7 +514,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import trade_rows as table  # noqa: E402
 
 
-def weighted(version, ids, extra=()):
+def weighted(version, ids, extra=(), at_least=0.5):
     """A version's rows as a `weight2` group: each id at its row's weight, the
     sum at least the smallest a row can give. Where a `count` of the rows finds
     every item whose lines cancel (c3: 3,338 found, most of them a sum of
@@ -524,7 +524,7 @@ def weighted(version, ids, extra=()):
         for i in ids[t]:
             if (i not in version["never"] and table.means(which, i)) or i in extra:
                 filters.append({"id": i, "value": {"weight": float(w)}, "disabled": False})
-    return {"type": "weight2", "filters": filters, "value": {"min": 0.5}}
+    return {"type": "weight2", "filters": filters, "value": {"min": at_least}}
 
 
 def complete(search, name, number, version, ids, texts):
@@ -586,7 +586,7 @@ def round_two():
     return out
 
 
-def sound(search, name, number, version, ids, texts):
+def sound(search, name, number, version, ids, texts, at_least=0.5):
     """Whether any listed item carries a row while showing no pseudo. A total
     whose lines carry a sign is asked by the site's own sum, which leaves out
     most items whose lines cancel (d01 found one where c3's count found 3,338);
@@ -596,8 +596,8 @@ def sound(search, name, number, version, ids, texts):
         rows = group("count", table.ids_of(version, ids), {"min": 1})
         how = "a count of its rows"
     else:
-        rows = weighted(version, ids)
-        how = "the site's own sum of its rows, a half or more"
+        rows = weighted(version, ids, at_least=at_least)
+        how = "the site's own sum of its rows, " + ("a half" if at_least == 0.5 else str(at_least)) + " or more"
     return {
         "search": search,
         "decides": (f"{name} v{number}, sound: whether any listed item carries a row — {how} "
@@ -622,7 +622,7 @@ def round_three():
                                           "elemental", "damage")
              for scope in table.SCOPES]
     order += ["total_attack_speed"]
-    order += [n for n in versions if n not in order and n != "total_life"]
+    order += [n for n in versions if n not in order and n != "total_life" and n not in table.OTHER]
     out = []
     for name in order:
         number = pinned.get(name, 1)
@@ -709,6 +709,67 @@ def round_four():
     return out
 
 
+# The plan's step 9c2, the site's other totals: each at the version round
+# five asks of, written out. A pseudo with a row whose eldritch forms the site
+# lists is asked at the version that holds them, the rule being ruled.
+ROUND_FIVE = {
+    "count_res": 1,
+    "count_ele_res": 1,
+    "total_all_ele_res": 1,
+    "total_all_attributes": 1,
+    "total_mana": 1,
+    "total_energy_shield": 1,
+    "total_increased_energy_shield": 1,
+    "increased_movement_speed": 2,
+    "global_crit_chance": 1,
+    "global_crit_multi": 1,
+    "increased_ele_damage": 1,
+    "increased_lightning_damage": 2,
+    "increased_cold_damage": 2,
+    "increased_fire_damage": 2,
+    "increased_spell_damage": 2,
+    "increased_lightning_spell_damage": 1,
+    "increased_cold_spell_damage": 1,
+    "increased_fire_spell_damage": 1,
+    "increased_lightning_attack_damage": 1,
+    "increased_cold_attack_damage": 1,
+    "increased_fire_attack_damage": 1,
+    "increased_ele_attack_damage": 1,
+    "increased_rarity": 1,
+    "increased_burning_damage": 1,
+    "life_regen": 1,
+    "life_regen_pct": 1,
+    "phys_attack_life_leech": 1,
+    "phys_attack_mana_leech": 1,
+    "increased_mana_regen": 2,
+}
+# The smallest a row can give where it is under a half: a leech line is
+# displayed to a hundredth of a percent.
+SMALLEST = {"phys_attack_life_leech": 0.01, "phys_attack_mana_leech": 0.01}
+
+
+def round_five():
+    """g001 on: the pseudos of ROUND_FIVE at their pinned versions — complete
+    and sound where a version has rows, and where it has none the one search
+    of what carries the pseudo, whose items name its first rows."""
+    ids, texts = table.stats()
+    versions = table.versions()
+    if set(ROUND_FIVE) != set(table.OTHER):
+        raise SystemExit("round five pins what tools/trade_rows.py does not name, or leaves one out")
+    out = []
+    for name, number in ROUND_FIVE.items():
+        version = versions[name][number - 1]
+        out.append(complete(f"g{len(out) + 1:03d}", name, number, version, ids, texts))
+        if not version["rows"]:
+            continue
+        check = sound(f"g{len(out) + 1:03d}", name, number, version, ids, texts,
+                      at_least=SMALLEST.get(name, 0.5))
+        if len(check["query"]["stats"][0]["filters"]) > WEIGHTED_AT_MOST:
+            raise SystemExit(f"{name}: more weighted ids than the site takes; ask it in parts")
+        out.append(check)
+    return out
+
+
 def report():
     """b1, b2: the two searches a report of c3's twin id rests on."""
     twin = "explicit.stat_2543977012"
@@ -789,6 +850,7 @@ def main():
         print(__doc__)
         return 2
     searches = PILOT + (checks() + round_two() + report() + round_three() + round_four()
+                        + round_five() + OPEN_QUESTION_SEARCHES
                         if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
@@ -816,7 +878,7 @@ def main():
     for row in searches:
         s = row["search"]
         kind = ("pilot" if s.startswith("p")
-                else "check" if s.startswith(("c", "d", "b", "e", "f"))
+                else "check" if s.startswith(("c", "d", "b", "e", "f", "g"))
                 else "percentile case" if s.startswith("C")
                 else "open question" if s.startswith("R")
                 else "percentile line" if s.startswith("P") else "pair" if "." in s else "line")

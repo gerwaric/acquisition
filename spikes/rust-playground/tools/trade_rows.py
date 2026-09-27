@@ -113,6 +113,44 @@ CHANGES["total_skill_gem_levels"] = [{
 }]
 
 
+# Step 9c2, the site's other totals: the pseudos that stand `in scope` in
+# search/pseudo-stats/data/other-totals.csv, whose script refuses a name here
+# that is not one of them. A name is the builder's, in the totals table's
+# style, and never derived from the site's id. A pseudo's first rows are its
+# own text under every id that displays it, or none where no line displays it.
+OTHER = {
+    "count_res": "pseudo_count_resistances",
+    "count_ele_res": "pseudo_count_elemental_resistances",
+    "total_all_ele_res": "pseudo_total_all_elemental_resistances",
+    "total_all_attributes": "pseudo_total_all_attributes",
+    "total_mana": "pseudo_total_mana",
+    "total_energy_shield": "pseudo_total_energy_shield",
+    "total_increased_energy_shield": "pseudo_increased_energy_shield",
+    "increased_movement_speed": "pseudo_increased_movement_speed",
+    "global_crit_chance": "pseudo_global_critical_strike_chance",
+    "global_crit_multi": "pseudo_global_critical_strike_multiplier",
+    "increased_ele_damage": "pseudo_increased_elemental_damage",
+    "increased_lightning_damage": "pseudo_increased_lightning_damage",
+    "increased_cold_damage": "pseudo_increased_cold_damage",
+    "increased_fire_damage": "pseudo_increased_fire_damage",
+    "increased_spell_damage": "pseudo_increased_spell_damage",
+    "increased_lightning_spell_damage": "pseudo_increased_lightning_spell_damage",
+    "increased_cold_spell_damage": "pseudo_increased_cold_spell_damage",
+    "increased_fire_spell_damage": "pseudo_increased_fire_spell_damage",
+    "increased_lightning_attack_damage": "pseudo_increased_lightning_damage_with_attack_skills",
+    "increased_cold_attack_damage": "pseudo_increased_cold_damage_with_attack_skills",
+    "increased_fire_attack_damage": "pseudo_increased_fire_damage_with_attack_skills",
+    "increased_ele_attack_damage": "pseudo_increased_elemental_damage_with_attack_skills",
+    "increased_rarity": "pseudo_increased_rarity",
+    "increased_burning_damage": "pseudo_increased_burning_damage",
+    "life_regen": "pseudo_total_life_regen",
+    "life_regen_pct": "pseudo_percent_life_regen",
+    "phys_attack_life_leech": "pseudo_physical_attack_damage_leeched_as_life",
+    "phys_attack_mana_leech": "pseudo_physical_attack_damage_leeched_as_mana",
+    "increased_mana_regen": "pseudo_increased_mana_regen",
+}
+
+
 def ranged_changes():
     """The ranged family's second versions, from round two (d04–d24).
 
@@ -205,6 +243,15 @@ def first_versions():
             site = f"pseudo.pseudo_adds_{kind + '_' if kind else ''}damage{scope}"
             out[name] = {"pseudo": site, "rows": [], "why": "no line displays the pseudo's text"}
     out["total_life"] = {"pseudo": "pseudo.pseudo_total_life", "rows": [], "why": ""}
+    ids, texts = stats()
+    for name, site in OTHER.items():
+        own = norm(texts["pseudo." + site])
+        out[name] = {
+            "pseudo": "pseudo." + site,
+            "rows": [(own, "1")] if ids.get(own) else [],
+            "why": ("the pseudo's own text, under every id that displays it" if ids.get(own)
+                    else "no line displays the pseudo's text"),
+        }
     return out
 
 
@@ -234,7 +281,10 @@ def round_three_changes(name, rows, ids):
     seen = []
     add = [r for r in add if not (r[0] in seen or seen.append(r[0]))]
     if add:
-        out.append({"add": add, "why": "round three: the site counts a row's eldritch forms as the row"})
+        why = "round three: the site counts a row's eldritch forms as the row"
+        if name in OTHER:
+            why += "; of this pseudo unseen, and asked with its first rows"
+        out.append({"add": add, "why": why})
     return out
 
 

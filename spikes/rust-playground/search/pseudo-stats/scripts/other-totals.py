@@ -5,8 +5,8 @@ search/pseudo-stats/data/other-totals.csv.
 The step's scope is "the sum-like pseudos 9c left `unresolved`". This script
 says which those are, by three reads and no list of names:
 
-  1. under test already — the pseudo is one tools/trade_rows.py holds rows
-     for, whatever the first pass called it;
+  1. under test already — the pseudo is one tools/trade_rows.py held rows
+     for at 9c, whatever the first pass called it;
   2. the first pass's class — search/pseudo-stats/data/pseudo-classes.csv,
      unchanged since 2026-09-18;
   3. for an `unresolved` row, the read its note names as the one that closes
@@ -61,7 +61,9 @@ def main():
         print(__doc__)
         return 2
     ids, texts = table.stats()
-    under = {h[-1]["pseudo"]: name for name, h in table.versions().items()}
+    # What 9c put under test; what this step adds there is the scope itself.
+    under = {h[-1]["pseudo"]: name for name, h in table.versions().items()
+             if name not in table.OTHER}
     held = corpus()
     with CLASSES.open(newline="\n") as f:
         classes = list(csv.DictReader(f))
@@ -97,6 +99,11 @@ def main():
         sheet.writerow(["id", "text", "first_pass_class", "stands", "why", "own_text_template",
                         "own_text_ids", "local_twin_ids", "eldritch_form_ids", "corpus_items"])
         sheet.writerows(out)
+    named = {"pseudo." + site for site in table.OTHER.values()}
+    scope = {r[0] for r in out if r[3] == "in scope"}
+    if named != scope:
+        raise SystemExit("tools/trade_rows.py names what is not in scope, or leaves out what is: "
+                         + ", ".join(sorted(named ^ scope)))
     print(f"{len(out)} pseudo stats written to {OUT.relative_to(ROOT)}: "
           + ", ".join(f"{n} {k}" for k, n in sorted(stands.items())))
     scoped = [r for r in out if r[3] == "in scope"]
