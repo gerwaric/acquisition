@@ -77,6 +77,9 @@ ASKS = [
     ("pseudo.count_ele_res", ["pseudo.count_ele_res=3"]),
     ("pseudo.total_all_ele_res", ["pseudo.total_all_ele_res>=30"]),
     ("pseudo.total_all_attributes", ["pseudo.total_all_attributes>=10"]),
+    # step 9c4: a mod displayed over several rows, named by a row
+    ("a mod named by a row", ['"#% to all Elemental Resistances"<0']),
+    ("Thread of Hope's counts", ['name="Thread of Hope" pseudo.count_res=3 pseudo.count_ele_res=3']),
 ]
 
 def main():

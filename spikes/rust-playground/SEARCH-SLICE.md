@@ -64,7 +64,7 @@ first: the shapes of fault that came back until they were named.
 | **A block past its bound.** Rows appended after the cut — the vocabulary's computed values, 39 under a limit of 1 — with the omission uncounted | step 7 | invariant 5; every list an answer holds is cut by the limit and counts its rest, a new kind of row with its own count; the audit test |
 | **A number no game displays, read as one.** Scientific notation through a length check; a product past the units rounded in silence | step 7 | `exact::reads` reads decimal syntax alone; `Exact::times` is none where the units cannot hold it; the input is unread to what asked it |
 | **A join inherits the producer's grain.** A field the other area's read typed strictly — a note, a slot — failed that read whole on one malformed body, and the join made every such failure the search's, for queries that never asked the field; an override in the producer decided without the gate its own rule states (a note where no index sees it); a number from the intent file bypassed the crate's rule for numbers and two prices met in one bucket; coverage was derived from the locations that name a league, and a character with none went unpriced | step 9, the first outside review: four of five | rule 8 at the producer's grain (`ItemSnapshot::note_unread`, `inventory_id_unread`; `body_string`); C81's own gate (`game.public`) on the override; `exact::reads` on every number that enters (`price::number`); `price::leagues` |
-| **A claim the code did not make.** A hand count wrong; `DERIVATION` not moved when a body derived to another item; a cause named before it was measured; "covered" said of a property whose generators could not reach the case; a record row crediting the wrong commit; a commit message claiming what a failed step had not shown | every step | every count worked by hand and then run; the constant's rule on its own doc; a number stated only after measuring; the generators reaching what a fix touched (`reqlevel` joined them at step 6); a command that commits stops at the first error, each check's exit read first |
+| **A claim the code did not make.** A hand count wrong; `DERIVATION` not moved when a body derived to another item; a cause named before it was measured; "covered" said of a property whose generators could not reach the case; a record row crediting the wrong commit; a commit message claiming what a failed step had not shown; a fixture that wrote its capture's input another way, a mod's rows apart, and agreement with the research tool reported as the build's | every step | every count worked by hand and then run; the constant's rule on its own doc; a number stated only after measuring; the generators reaching what a fix touched (`reqlevel` joined them at step 6, a mod of several rows at 9c4); a command that commits stops at the first error, each check's exit read first; a capture entered as captured and asked through the boundary (`tests/pseudo.rs`, `c94_a_row_inside_…`) |
 | **Silent reach.** Right by its rule and wrong for the reader: an open-text `:` example reaching 87 bases with five shown (`base:ring`); two realms' place values merged under `--realm all`, one `Standard` whose route returned both | the first seat, twice (the examples; F3) | `tests/seat_faults.rs` (`f3_`); the help's examples teach `class:ring`, a closed set whose picks are all printed |
 | **A refusal right in kind, wrong in size.** 82 names inline, twice, the meant one not singled out; one reason printed once per term, eighteen times; a near reading for a field and none for a computed value | the first seat, three times (F5, F9, F10) | `tests/seat_faults.rs` (`f5_`, `v8_`, `f10_`); `bind::near`, `bind::LISTED_INLINE`; `Total.undecided_reasons` |
 
@@ -79,15 +79,17 @@ number there was measured, never recalled. The verdicts:
 - M2 (step 2, rerun at every change of the deriver): 0 unread and 0
   unexplained against the census; seven departures, each a rule of
   `derive.rs`, two of them candidate ground-truth claims.
-- M3 (step 4, rerun at every build since; as of `c28c476a`): the load,
-  the empty query, is 457 ms release, under 500, so the projection park
-  does not fire; the price join raised it from 276 at step 9. Seven
-  asks are over 500, each by an evaluator's cost, the totals batch
-  park's (V9, revisited at step 11): an ask pays 5 to 6 ms for each row
-  of every total it reads, a least stopping at the first total that is
-  nothing. The six asks the seat saw at 695–715 ms did not recur on the
-  copy, their cause unmeasured. The debug build is 2.4 to 3.8 s. What
-  each rerun showed is the block's.
+- M3 (step 4, rerun at every build since; as of `bd4679e1`): the load,
+  the empty query, is 467 ms release, under 500, so the projection park
+  does not fire; the price join raised it from 276 at step 9, and a
+  mod's rows, kept by the deriver, by 15 at 9c4. Twelve asks are over
+  500, each by an evaluator's cost, the totals batch park's (V9,
+  revisited at step 11), four of them carried over by the floor alone:
+  an ask pays 5 to 6 ms for each row of every total it reads, a least
+  stopping at the first total that is nothing. The six asks the seat
+  saw at 695–715 ms did not recur on the copy, their cause unmeasured.
+  The debug build is 2.5 to 5.7 s. What each rerun showed is the
+  block's.
 - M4 (step 4): `~` over all text adds 9 ms.
 - The class table (step 6): 56 of 82 classes carried, 681 of 22,721
   undecided, the buckets summing to the copy (C105).
@@ -252,21 +254,31 @@ filed again by the step that touches it.
   names ever shows no pseudo was not asked, nor the count of all four
   of an item with no resistance, nor the elemental least of an item
   with one or two of its totals. Each is explained, never closed.
-- *9c4, and the review's next look:* three choices of 9c3 were the
-  builder's (`c28c476a`). The first look weighed two, a count and a
-  least where a total is open, and found no contradiction; the third,
-  the definitions' home in the totals table, is unruled. What the
-  builder doubted and no look has asked: what `--sum` and the undecided
-  block print of a reading; `tests/generated_routes.rs` reaches no
-  computed value; a narrowing lists every reading whose definition it
-  matches, `resist` three; `has:` of a ranged total asks its `avg`,
-  untested until 9d; `pseudo::evidence` of a reading that is lacked
-  gives its totals still, reached by nothing.
+- *The review's next look:* of 9c3's three choices the third, the
+  definitions' home in the totals table, is unruled. Of what the
+  builder doubted, 9c4 asked two: a sum and the undecided block of a
+  reading print as a total's do on the copy, where no count is open;
+  the generated rows follow a computed value's routes
+  (`tests/generated_rows.rs`). Unasked still: a narrowing lists every
+  reading whose definition it matches, `resist` three;
+  `pseudo::evidence` of a reading that is lacked gives its totals
+  still, reached by nothing. 9c4's own choices, each the builder's:
+  two rows named by two templates read the mod's numbers in order; two
+  rows of one template are unread, and no mod of the copy is one; a
+  not inside a group is of the occurrence, so it holds on no mod the
+  template names by a row; `template~"^…$"` ends at the whole text and
+  reaches no row; a template spelled two ways counts no mod by a row
+  in the vocabulary; a template listed is counted beside `none` where
+  the narrowing's pattern passes the row and not the whole text.
 - *9d:* the two leech pseudos count the line under every id, the
   `(Local)` twin among them, so neither waits for a row that names what
-  the item is; of 9c2's totals none does.
+  the item is; of 9c2's totals none does. `has:` of a ranged total
+  asks its `avg`, untested until then.
 - *The trade translation (C99):* what the search counts and the site
   leaves out is said in the table's changes and nowhere a user reads.
+  A stat whose rows another's sit between is named by a row or by the
+  mod, never by the stat's own text: one mod of the copy, Thread of
+  Hope's (`totals.rs`).
 - *A fix on the site:* the owner reported the twin id to GGG
   (2026-09-26); it is left out of total Strength, Intelligence and mana
   as of total life, and a fix moves four `not mimicked` rows to

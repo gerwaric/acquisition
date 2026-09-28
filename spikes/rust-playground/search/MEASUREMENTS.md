@@ -205,6 +205,7 @@ to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 | `e81cc8ca` | step 9c, totals v2: 155 rows where v1 held 104 (the `-p acquisition-cli` form, sha256 `c2766a44…`) | 629 | 445–579, the same two over and further: AQ2 as worded 579 and the worked example whole 578, 50 and 55 ms more than at 9b; every other ask 445–488, the empty query 446 | 2,348–3,614 |
 | `9842d0c9` | step 9c2, totals v3: 60 totals and 283 rows where v2 held 36 and 155, with its three asks added to the script (the `-p acquisition-cli` form, sha256 `13fa9955…`) | 615 | 452–508 but the two totals asks of before, three over: AQ2 as worded 588 and the worked example whole 587, 9 more each than at 9c as the empty query is 7 more, and the type's damage with attack skills 508; every other ask 452–497 | 2,421–3,167 but the totals' three: 3,689, 3,347 and 2,788 |
 | `c28c476a` | step 9c3, totals v5: four readings of other totals, with their four asks added to the script (the `-p acquisition-cli` form, sha256 `ed3b02fa…`) | 458 | 450–496 but seven over: the three totals asks of before at 593, 584 and 506; three of the readings' four, 640, 611 and 522; and the vocabulary twice narrowed at 514, whose narrowing `resist` three readings' definitions match — 499 at `23991fe1` and 520 here, the two binaries asked in turn | 2,432–3,162 but the seven: 3,708, 3,356, 2,799, 3,806, 3,543, 2,886 and 2,894 |
+| `bd4679e1` | step 9c4, a mod's rows kept by the deriver, with its two asks added to the script (the `-p acquisition-cli` form, sha256 `cb391165…`) | 475 | 464–499 but twelve over, the empty query 467 and an ask 12 to 22 ms above what `7435874e` asks in turn (the step's block): the seven of before at 606, 608, 527, 668, 631, 538 and the vocabulary twice narrowed 530; four the floor carried over, the `sum` over `template:resistance` 510, the vocabulary whole 509, `--count class --sum pseudo.total_res` 514 and `pseudo.total_mana` 501; and the step's own, two readings in one ask, 817 | 2,537–3,012 but the twelve: 4,036, 3,709, 3,011, 4,274, 3,942, 3,106, 3,070, 3,289, 2,843, 2,908, 2,789 and 5,657 |
 
 The asks each step added to the script, at the step's build, warm
 medians in ms; a step's empty query is its floor.
@@ -242,6 +243,7 @@ medians in ms; a step's empty query is its floor.
 | `e81cc8ca`, 9c | the two totals asks (AQ2 as worded · the worked example whole) · `--count class --sum pseudo.total_res` | 579 · 578 · 488 | 3,614 · 3,273 · 2,660 |
 | `9842d0c9`, 9c2 | `pseudo.total_mana>=100` (5 rows) · `pseudo.total_attack_speed<0` (4) · `pseudo.increased_lightning_attack_damage>=30` (10) | 479 · 475 · 508 | 2,610 · 2,575 · 2,788 |
 | `c28c476a`, 9c3 | `pseudo.count_res>=3` (37 rows of four totals) · `pseudo.count_ele_res=3` (30 of three) · `pseudo.total_all_ele_res>=30` (the same 30) · `pseudo.total_all_attributes>=10` (12 of three) | 640 · 611 · 522 · 481 | 3,806 · 3,543 · 2,886 · 2,611 |
+| `bd4679e1`, 9c4 | `"#% to all Elemental Resistances"<0`, a mod named by a row · `name="Thread of Hope" pseudo.count_res=3 pseudo.count_ele_res=3` (two readings, 67 rows of the totals they read) | 487 · 817 | 2,667 · 5,657 |
 
 **The price join's cost (step 9, `57c2f78b`): the floor rose from 276
 to 445 ms release, and two totals asks crossed 500 ms with it.** The
@@ -380,3 +382,67 @@ a cold cache, another process, or the asks there — did not recur here
 and is unmeasured (a review of 9b corrected the first wording, which
 named the machine); the disposition
 is V9's: the totals batch stays parked, revisited at step 11.
+
+**Step 9c4 — a mod displayed over several rows, over the copy (`bd4679e1`, 2026-09-27): 2,345 lines of 532 templates; one of them feeds a total by a row, Thread of Hope's, and its 12 items answer as the site shows; the step costs an ask 12 to 22 ms.**
+`python3 search/pseudo-stats/scripts/rows-of-a-mod.py`, over the
+deriver's census of the copy (`item-facts/raw/m2/rust.json`, written by
+the M2 rerun at the step: 0 unread, 0 unexplained, 22,721 items, 86,450
+lines, 6,148 templates), the trade site's stats
+(`trade-query/data/stats-2026-09-12.json`) and the shipped table:
+
+| | The copy | The trade site's stats |
+| --- | ---: | ---: |
+| mods, or texts, of several rows | 2,345 lines of 532 templates | 2,026 of 18,187 stats, 1,984 distinct texts |
+| by how many rows | 2 rows 1,863 · 3 rows 446 · 4 rows 23 · 5 rows 3 · 6 rows 6 · 8 rows 4 | — |
+| their rows, as templates | 901, of which 353 carry a number | — |
+| rows that are also some mod's whole text, which the vocabulary lists | 45 | — |
+| rows beginning lower-case, a sentence wrapped | 81 templates in 264 lines | — |
+| one template displayed by two rows of one mod | 0 | 0 |
+| rows a total's row names | 1: `#% to all Elemental Resistances`, 12 lines, under five totals | 0 |
+| a stat of the site's with another's row between its rows | 1 mod, 12 lines: Thread of Hope's, `Passive Skills in Radius can be Allocated without being connected to your tree\nPassage` around the resistance | — |
+
+So a row named reaches every mod of the copy that a total could read
+and had not, and listing every row in the vocabulary would add 856
+rows to its 6,148 (the plan, L2). The store's own bodies give Thread of
+Hope's mod as the trade site's capture does, three rows in one
+description: what the review of 9c3 could not verify without the copy.
+
+The copy's 12 Threads of Hope, `target/release/acq --json search --realm
+pc` over the M3 copy: `name="Thread of Hope"` 12; with
+`pseudo.count_res=3 pseudo.count_ele_res=3` 12; with
+`pseudo.total_all_ele_res<0` 12; with `"#% to all Elemental
+Resistances"<0` 12; with `-has:pseudo.count_res` 0 and with
+`undecided(pseudo.count_res)` 0; sorted by `pseudo.total_fire_res`,
+-20, -17, -17, -15, -14, -13, -13, -11, -11 and -10 three times. Over
+the whole realm the row's term matches 33, fails 651 and lacks 21,939;
+among the jewels the vocabulary's row of the template counts 46, the
+12 among them, its route returning 46, and the mod's own row 12.
+
+The text, read on the copy: a row of the answer shows the mod whole,
+its rows on one line; `show` prints each row as a name with its own
+numbers; a wrapped sentence's row finds its mod (`line("to a maximum of
+#%")`, 8 items). A sum and the undecided block of a reading print as a
+total's do (`--count rarity --sum pseudo.count_res` over the unique
+rings: 399 over 363, 140 lacking); no count of the copy is open.
+
+What the step costs, the release binaries of three commits asked in
+turn over the copy, the median of eleven, in ms (`7435874e`, sha256
+`d486b814…`; `6d5847df`, `3981e54f…`; `bd4679e1`, `cb391165…`); the
+same binary under two names differs by 1:
+
+| Ask | `7435874e` | `6d5847df` | `bd4679e1` |
+| --- | ---: | ---: | ---: |
+| the empty query | 458 | 473 | 473 |
+| OQ7, one line everywhere | 464 | 476 | 476 |
+| the vocabulary whole | 495 | 517 | 512 |
+| the vocabulary twice narrowed | 517 | 534 | 536 |
+| AQ2 as worded | 589 | 608 | 611 |
+| `pseudo.count_res>=3` | 650 | 668 | 669 |
+
+The deriver alone, release, over the copy's bodies
+(`target/release/examples/derive-census`, five runs in turn): 195 to
+199 ms at `7435874e`, 206 to 215 at `bd4679e1`; and before the step's
+second commit, with the reading of rows taken out by hand, 200 to 204
+beside 198 to 200 — so some 3 ms is the line being larger and the rest
+the reading of the rows. What an ask costs beyond the deriver's 8 to 10
+is unmeasured.
