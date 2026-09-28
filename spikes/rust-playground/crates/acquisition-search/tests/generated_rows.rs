@@ -10,11 +10,14 @@
 //!   the oracle a row's name has. A term that names one exact template, a
 //!   sum of one, a largest of one, a total and a reading of totals return
 //!   the same items, count the same four ways and sort by the same
-//!   number. What is asked names one template in a group, and never
-//!   under a not there: two in one group hold on the mod and on no row
-//!   apart, a not of one holds on a row apart of the mod it names, and
-//!   `template:` tests the whole text, which the rows apart have none of
-//!   — each by the rule that a mod is one occurrence.
+//!   number — and so do alternatives inside one group, each naming its
+//!   own row, a sum and a largest over them among these: a mod named by
+//!   two alternatives has the two numbers its rows apart have. What is
+//!   asked names one template in each alternative, and never under a not
+//!   alone: two conjoined hold on the mod and on no row apart, a not of
+//!   one holds on a row apart of the mod it names, and `template:` tests
+//!   the whole text, which the rows apart have none of — each by the
+//!   rule that a mod is one occurrence.
 //! - **A vocabulary row counts what its term returns** (invariant 4):
 //!   every bucket of `--count line`, narrowed or not, and every source and
 //!   flag beneath it, routes to as many items as it counted — a template
@@ -25,17 +28,25 @@
 
 mod common;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use acquisition_search::Corpus;
 use common::generated::*;
 use proptest::prelude::*;
 use serde_json::{Value, json};
 
-/// A template a row displays, with a slot it has.
+/// A template a row displays, with a slot it has: the two rows of the
+/// generated mod of two foremost, the second above all, whose number is
+/// not its mod's first.
 fn named() -> BoxedStrategy<(&'static str, &'static str)> {
     proptest::sample::select(vec![
         (LIFE, "arg1"),
+        (LIFE, "arg1"),
+        (LIFE, "arg1"),
+        (COLD, "arg1"),
+        (COLD, "arg1"),
+        (COLD, "arg1"),
+        (COLD, "arg1"),
         (COLD, "arg1"),
         (FIRE, "arg1"),
         (ALL_RES, "arg1"),
@@ -73,15 +84,42 @@ fn restriction() -> BoxedStrategy<String> {
 
 /// One term that names one exact template, or a computed value.
 fn term() -> BoxedStrategy<String> {
-    let line = (named(), restriction(), compared(), 0u8..5).prop_map(
+    let line = (named(), restriction(), compared(), 0u8..7).prop_map(
         |((template, slot), restriction, compared, shape)| match shape {
             0 => format!("line(\"{template}\"{restriction})"),
             1 => format!("line(\"{template}\"{restriction} {slot}{compared})"),
             2 => format!("line(\"{template}\"{restriction} -{slot}{compared})"),
             3 => format!("sum(line(\"{template}\"{restriction}).{slot}){compared}"),
-            _ => format!("line(\"{template}\"{restriction}).{slot}{compared}"),
+            4 => format!("line(\"{template}\"{restriction}).{slot}{compared}"),
+            // a not of several: either's not, and both's
+            5 => format!("line(\"{template}\" -({slot}{compared}{restriction}))"),
+            _ => format!("line(\"{template}\" -({slot}{compared} or source=implicit))"),
         },
     );
+    // alternatives inside one group, each naming its own row: what the
+    // same alternatives say at the item's level, a mod written apart or
+    // not (the outside review of step 9c4, finding 1)
+    let either = (
+        (named(), compared()),
+        (named(), compared()),
+        restriction(),
+        0u8..6,
+    )
+        .prop_map(
+            |(((a, slot_a), cmp_a), ((b, slot_b), cmp_b), restriction, shape)| {
+                let (a, b) = (format!("\"{a}\""), format!("\"{b}\""));
+                match shape {
+                    0 => format!("line(({a} {slot_a}{cmp_a}) or ({b} {slot_b}{cmp_b}))"),
+                    1 => format!(
+                        "line(({a}{restriction} {slot_a}{cmp_a}) or ({b} -{slot_b}{cmp_b}))"
+                    ),
+                    2 => format!("line(({a} or {b}){restriction} arg1{cmp_a})"),
+                    3 => format!("line(({a} {slot_a}{cmp_a}) or ({b} -{b}))"),
+                    4 => format!("sum(line(({a} or {b}){restriction}).arg1){cmp_a}"),
+                    _ => format!("line({a} or ({b}{restriction})).arg1{cmp_b}"),
+                }
+            },
+        );
     let computed = (
         proptest::sample::select(vec![
             "pseudo.total_res",
@@ -102,6 +140,7 @@ fn term() -> BoxedStrategy<String> {
         });
     prop_oneof![
         6 => line,
+        4 => either,
         1 => Just(format!("line(template=\"{PASSAGE}\")")),
         3 => computed,
     ]
@@ -121,52 +160,13 @@ fn query() -> BoxedStrategy<String> {
 
 fn sort() -> BoxedStrategy<String> {
     prop_oneof![
+        (named(), named()).prop_map(|((a, _), (b, _))| format!("line(\"{a}\" or \"{b}\").arg1")),
         named().prop_map(|(template, slot)| format!("line(\"{template}\").{slot}")),
         named().prop_map(|(template, slot)| format!("sum(line(\"{template}\").{slot})")),
         proptest::sample::select(vec!["pseudo.total_res", "pseudo.total_all_ele_res"])
             .prop_map(str::to_string),
     ]
     .boxed()
-}
-
-/// What an answer says that the rows apart must say too: who matched, how
-/// every term counted and whom each count routes to, the together count,
-/// and what every item sorts by. Never what a row shows: a mod is shown
-/// whole, and its row apart is the row.
-fn said(corpus: &Corpus, scope: &Ids, request: &Value) -> Result<Value, String> {
-    let a = run(corpus, request).map_err(|e| format!("refused: {request}: {e}"))?;
-    let mut cache = HashMap::new();
-    let mut terms = Vec::new();
-    for term in a["terms"].as_array().ok_or("no terms block")? {
-        let mut counted: BTreeMap<&str, Ids> = BTreeMap::new();
-        for kind in ["matched", "failed", "lacked", "undecided"] {
-            counted.insert(kind, members(corpus, &term[kind], scope, &mut cache)?);
-        }
-        if term.get("together").is_some_and(|t| !t.is_null()) {
-            counted.insert(
-                "together",
-                members(corpus, &term["together"], scope, &mut cache)?,
-            );
-        }
-        terms.push(json!(counted));
-    }
-    let rows: Vec<Value> = a["rows"]
-        .as_array()
-        .ok_or("no rows")?
-        .iter()
-        .map(|row| {
-            json!({
-                "id": row["id"],
-                "sort": { "value": row["sort"]["value"], "status": row["sort"]["status"] },
-            })
-        })
-        .collect();
-    Ok(json!({
-        "matched": a["total"]["matched"],
-        "undecided": a["total"]["undecided"]["count"],
-        "terms": terms,
-        "rows": rows,
-    }))
 }
 
 fn a_row_named_answers_as_the_row_alone(
@@ -238,6 +238,20 @@ fn a_vocabulary_row_counts_what_its_term_returns(
     Ok(by_a_row)
 }
 
+/// An item of one mod displayed over several rows, or an item as the
+/// dice give it: an item of several lines matches by any of them, which
+/// hides what one mod answered.
+fn item() -> BoxedStrategy<Body> {
+    let one_mod = line(true).prop_map(|mut mod_| {
+        mod_.kind = 9 + mod_.kind % 2;
+        Body {
+            explicit: Lines::Of(vec![Elem::Line(mod_)]),
+            ..Body::blank(Tri::No)
+        }
+    });
+    prop_oneof![2 => one_mod, 1 => body(true)].boxed()
+}
+
 proptest! {
     #![proptest_config(ProptestConfig {
         cases: cases(192), failure_persistence: None, ..ProptestConfig::default()
@@ -245,7 +259,7 @@ proptest! {
 
     #[test]
     fn c90_a_row_named_answers_as_the_row_alone(
-        bodies in proptest::collection::vec(body(true), 1..6),
+        bodies in proptest::collection::vec(item(), 1..6),
         queries in proptest::collection::vec(query(), 1..4),
         sort in proptest::option::of(sort()),
         desc in any::<bool>(),
@@ -275,10 +289,13 @@ fn the_generators_reach_a_mod_of_several_rows() {
     let lines = Body::every_line(Tri::No);
     let of_several = lines.iter().filter(|l| matches!(l.kind, 9 | 10)).count();
     assert_eq!(of_several, 8);
+    // an item for each line: an item of several matches by any of them
     let bodies: Vec<Body> = lines
-        .chunks(4)
-        .enumerate()
-        .map(|(n, chunk)| Body::nth(n, chunk.to_vec()))
+        .iter()
+        .map(|line| Body {
+            explicit: Lines::Of(vec![Elem::Line(line.clone())]),
+            ..Body::blank(Tri::No)
+        })
         .collect();
     let given: Vec<Value> = bodies.iter().map(Body::json).collect();
     let several = given
@@ -292,6 +309,10 @@ fn the_generators_reach_a_mod_of_several_rows() {
         .count();
     assert_eq!(several, 8);
     for query in [
+        format!("line((\"{LIFE}\" arg1>=1) or arg1=999)"),
+        format!("line((\"{COLD}\" arg1>=10) or (\"{LIFE}\" source=scourge))"),
+        format!("line((\"{LIFE}\" or \"{COLD}\") arg1>=10)"),
+        format!("sum(line(\"{LIFE}\" or \"{COLD}\").arg1)=9"),
         format!("\"{ALL_RES}\">=1"),
         format!("\"{COLD}\">=3"),
         format!("\"{LIFE}\"<=0"),

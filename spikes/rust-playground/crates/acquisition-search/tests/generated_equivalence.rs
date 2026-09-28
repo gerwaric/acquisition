@@ -13,6 +13,13 @@
 //! canonical text, the paths, and the text of a route — a route is followed
 //! and compared by the ids it returns.
 //!
+//! And a fourth way since the outside review of step 9c4: with an
+//! alternative that holds nowhere beside every line's group. It changes
+//! what is said of the group's syntax — the slot check, the together
+//! bound, what its templates resolved to — and nothing else: the matches,
+//! every term's four counts by their members, and what each row sorts by
+//! are compared.
+//!
 //! What this cannot see: a fault every spelling shares. That is the
 //! hand-counted tests' and the completion property's.
 
@@ -231,20 +238,48 @@ fn check(
         Spelling::Authored,
     )?;
     match (&written, &reordered) {
-        (Ok(a), Ok(b)) if a == b => Ok(()),
-        (Err(_), Err(_)) => Ok(()),
-        (Ok(a), Ok(b)) => Err(format!(
-            "`{text}` and `{moved_text}` are answered differently:\n{}",
-            differs(a, b)
-        )),
-        (a, b) => Err(format!(
-            "`{text}` and `{moved_text}`: {} against {}",
-            a.as_ref()
-                .map_or_else(Value::to_string, |_| "an answer".into()),
-            b.as_ref()
-                .map_or_else(Value::to_string, |_| "an answer".into()),
-        )),
+        (Ok(a), Ok(b)) if a == b => {}
+        (Err(_), Err(_)) => {}
+        (Ok(a), Ok(b)) => {
+            return Err(format!(
+                "`{text}` and `{moved_text}` are answered differently:\n{}",
+                differs(a, b)
+            ));
+        }
+        (a, b) => {
+            return Err(format!(
+                "`{text}` and `{moved_text}`: {} against {}",
+                a.as_ref()
+                    .map_or_else(Value::to_string, |_| "an answer".into()),
+                b.as_ref()
+                    .map_or_else(Value::to_string, |_| "an answer".into()),
+            ));
+        }
     }
+
+    // an alternative that holds nowhere, beside every group: the same
+    // matches, the same counts and the same order. An error of the
+    // group's own syntax — a slot its one template lacks — is the
+    // authored group's alone, so only an answer is compared.
+    if written.is_err() {
+        return Ok(());
+    }
+    let beside = padded(q, seed);
+    let beside_text = q_text(&beside, Spelling::Authored);
+    let ask = |q: &Q, sort: &Sort| -> Result<Value, String> {
+        let sort = sort_text(sort, Spelling::Authored);
+        let request = request(&q_text(q, Spelling::Authored), sort.as_deref(), desc, 50);
+        let answer = run(corpus, &request).map_err(|e| format!("refused: {request}: {e}"))?;
+        said_of(corpus, scope, &answer, false)
+    };
+    let (one, two) = (ask(q, sort)?, ask(&beside, &sort_padded(sort, seed))?);
+    if one != two {
+        return Err(format!(
+            "`{text}` and `{beside_text}` are answered differently:\n{}",
+            differs(&one, &two)
+        ));
+    }
+    Ok(())
 }
 
 proptest! {

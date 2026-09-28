@@ -51,16 +51,26 @@
 //!   whose template is `T` and on a mod displayed over several rows one of
 //!   which is — a property of the occurrence, so that a not of it is a no
 //!   on both. `template:` and `template~` test the whole text, across its
-//!   rows. **The numbers a slot word names** are the named part's: where
-//!   the quoted templates of the selector name one row of the occurrence
-//!   and not its whole text, that row's numbers, so `arg1` is the row's
-//!   first number whatever the rows before it display; otherwise the mod's
-//!   numbers in order. The selector's templates, and never the syntax's:
-//!   a template the folding took out decides no occurrence, and the
-//!   together route, which is the selector bound again, reads the numbers
-//!   the count read. Two rows named by two templates name no one row.
-//!   Both of a group's askings, and every sum, largest and together count
-//!   read through [`Asked::slot`].
+//!   rows.
+//! - **The numbers a slot word names are those of the part the quoted
+//!   templates conjoined with it name.** A group is read as its
+//!   alternatives spread out — `("T" arg1>=5) or arg2=3` is two, `("T" or
+//!   "U") arg1>=5` is `"T" arg1>=5` or `"U" arg1>=5` — and in each the
+//!   templates that must hold with a comparison say what it reads: one
+//!   row of the mod, where they name that row and nothing else of it, so
+//!   `arg1` is the row's first number whatever the rows before it
+//!   display; the mod's numbers in order where they name its whole text,
+//!   two rows of it, or where there is none. So an alternative beside a
+//!   comparison — one that holds nowhere, one naming another row —
+//!   changes no number it reads, and a group's or is the item's or of
+//!   the same alternatives (the outside review of step 9c4, finding 1:
+//!   the first build read one part for the whole group, from every
+//!   template in it). Spread out by the truths each part can reach
+//!   ([`reached`]), never by listing the alternatives, so a group costs
+//!   its size. An occurrence has a number for each part an alternative
+//!   that holds names: a sum adds each, a largest is the largest of them
+//!   ([`Asked::parts`]). A mod of one row is one part, and is read as it
+//!   always was.
 //! - **Its template tests**, wherever they sit: whether it makes any, so
 //!   that it resolves to templates; whether each is a quoted `"T"`, which
 //!   resolves to itself; and the words a suggestion is scored against.
@@ -146,48 +156,174 @@ enum BMember {
 #[derive(Debug, Clone)]
 pub(crate) struct Asked {
     member: BMember,
-    /// The selector's quoted templates: what names a row (the module doc).
+    /// Its quoted templates: what may name a row (the module doc).
     quoted: Vec<TextTest>,
 }
 
+/// What the quoted templates of one alternative have named of a mod
+/// displayed over several rows: nothing yet, its whole text, one row —
+/// the first of those displaying the template — or two rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Named {
+    Nothing,
+    Whole,
+    Row(usize),
+    Several,
+}
+
+impl Named {
+    fn and(self, other: Named) -> Named {
+        match (self, other) {
+            (Named::Nothing, named) | (named, Named::Nothing) => named,
+            (Named::Whole, _) | (_, Named::Whole) => Named::Whole,
+            (Named::Row(a), Named::Row(b)) if a == b => Named::Row(a),
+            _ => Named::Several,
+        }
+    }
+
+    /// Whether an alternative that named this reads `part`: a row where
+    /// it named that row alone, the mod's numbers in order otherwise.
+    fn reads(self, part: Option<usize>) -> bool {
+        match (self, part) {
+            (Named::Row(a), Some(b)) => a == b,
+            (Named::Row(_), None) | (_, Some(_)) => false,
+            (_, None) => true,
+        }
+    }
+}
+
+fn least(a: Truth, b: Truth) -> Truth {
+    all_of([a, b].into_iter())
+}
+
+fn most(a: Truth, b: Truth) -> Truth {
+    any_of([a, b].into_iter())
+}
+
+/// The truths the alternatives of `member` reach on a mod of several
+/// rows, by what each has named, its comparisons reading `numbers`: the
+/// best of each, and none that is a no. The group spread into its
+/// alternatives without listing them — and distributes over or in
+/// three values as in two, so the best over the alternatives is the
+/// tree's own truth wherever every part reads the same numbers.
+fn reached(member: &BMember, not: bool, line: &Line, numbers: Numbers<'_>) -> Vec<(Named, Truth)> {
+    fn keep(into: &mut Vec<(Named, Truth)>, named: Named, truth: Truth) {
+        if truth == Truth::False {
+            return;
+        }
+        match into.iter_mut().find(|(seen, _)| *seen == named) {
+            Some((_, best)) => *best = most(*best, truth),
+            None => into.push((named, truth)),
+        }
+    }
+    let leaf = |truth: Truth| {
+        let truth = if not { negated(truth) } else { truth };
+        let mut out = Vec::new();
+        keep(&mut out, Named::Nothing, truth);
+        out
+    };
+    match member {
+        BMember::Not(inner) => reached(inner, !not, line, numbers),
+        // together: an and, or an or under a not
+        BMember::All(children) | BMember::Any(children)
+            if matches!(member, BMember::All(_)) != not =>
+        {
+            let mut so_far = vec![(Named::Nothing, Truth::True)];
+            for child in children {
+                let next = reached(child, not, line, numbers);
+                let mut both = Vec::new();
+                for (a, held) in &so_far {
+                    for (b, holds) in &next {
+                        keep(&mut both, a.and(*b), least(*held, *holds));
+                    }
+                }
+                so_far = both;
+            }
+            so_far
+        }
+        BMember::All(children) | BMember::Any(children) => {
+            let mut either = Vec::new();
+            for child in children {
+                for (named, truth) in reached(child, not, line, numbers) {
+                    keep(&mut either, named, truth);
+                }
+            }
+            either
+        }
+        // a not of a name is of the occurrence: it names nothing
+        BMember::Named(test) if not => leaf(sure(line.names().any(|name| test.holds(name)))),
+        BMember::Named(test) if test.holds(&line.template) => vec![(Named::Whole, Truth::True)],
+        BMember::Named(test) => line
+            .rows
+            .iter()
+            .position(|row| test.holds(&row.template))
+            .map(|row| (Named::Row(row), Truth::True))
+            .into_iter()
+            .collect(),
+        other => leaf(truth(other, line, numbers)),
+    }
+}
+
 impl Asked {
+    fn new(member: BMember, tree: &Member) -> Result<Asked, LanguageError> {
+        let mut tests = Vec::new();
+        template_tests(tree, &mut tests);
+        let quoted = tests
+            .iter()
+            .filter(|(op, _)| *op == Op::Eq)
+            .map(|(op, text)| bind::text_test("template", *op, &Value::Text(text.clone())))
+            .collect::<Result<_, _>>()?;
+        Ok(Asked { member, quoted })
+    }
+
     /// Three-valued (the module doc, "The whole").
     pub fn of(&self, line: &Line) -> Truth {
-        truth(&self.member, line, self.numbers(line))
+        if line.rows.is_empty() {
+            return truth(&self.member, line, line.whole());
+        }
+        any_of(self.parts(line).into_iter().map(|(truth, _)| truth))
     }
 
     pub fn holds(&self, line: &Line) -> bool {
         self.of(line) == Truth::True
     }
 
-    /// The number a slot word names on this occurrence, as the group
-    /// named it.
-    pub fn slot(&self, line: &Line, word: &str) -> Slot {
-        self.numbers(line).slot(word)
-    }
-
-    /// The numbers the slot words name on this occurrence (the module
-    /// doc): one row's, where the quoted templates name that row alone.
-    fn numbers<'a>(&self, line: &'a Line) -> Numbers<'a> {
-        if line.rows.is_empty() || self.quoted.is_empty() {
-            return line.whole();
+    /// The parts of the occurrence that what is asked may read a number
+    /// of (the module doc): each with the truth of the alternatives that
+    /// name it, and none of which every one is a no. A mod of one row is
+    /// one part.
+    pub fn parts<'a>(&self, line: &'a Line) -> Vec<(Truth, Numbers<'a>)> {
+        if line.rows.is_empty() {
+            return match truth(&self.member, line, line.whole()) {
+                Truth::False => Vec::new(),
+                held => vec![(held, line.whole())],
+            };
         }
-        let names = |template: &str| self.quoted.iter().any(|test| test.holds(template));
-        if names(&line.template) {
-            return line.whole();
-        }
-        let mut named = line.rows.iter().filter(|row| names(&row.template));
-        match named.next() {
-            // rows displaying one template are one name, whose numbers the
-            // deriver left unread
-            Some(row)
-                if named
-                    .all(|other| bind::folded(&other.template) == bind::folded(&row.template)) =>
-            {
-                row.read()
-            }
-            _ => line.whole(),
-        }
+        // the mod's numbers in order, then each row a quoted template
+        // names, once: rows displaying one template are one name
+        let mut rows: Vec<usize> = self
+            .quoted
+            .iter()
+            .filter_map(|test| line.rows.iter().position(|row| test.holds(&row.template)))
+            .collect();
+        rows.sort_unstable();
+        rows.dedup();
+        std::iter::once(None)
+            .chain(rows.into_iter().map(Some))
+            .filter_map(|part| {
+                let numbers = match part {
+                    Some(row) => line.rows[row].read(),
+                    None => line.whole(),
+                };
+                let held = any_of(
+                    reached(&self.member, false, line, numbers)
+                        .into_iter()
+                        .filter(|(named, _)| named.reads(part))
+                        .map(|(_, truth)| truth),
+                );
+                (held != Truth::False).then_some((held, numbers))
+            })
+            .collect()
     }
 }
 
@@ -292,18 +428,8 @@ impl Group {
         });
         let mut templates = Vec::new();
         template_tests(whole, &mut templates);
-        let mut selecting = Vec::new();
-        template_tests(&selector_tree, &mut selecting);
-        let quoted: Vec<TextTest> = selecting
-            .iter()
-            .filter(|(op, _)| *op == Op::Eq)
-            .map(|(op, text)| bind::text_test("template", *op, &Value::Text(text.clone())))
-            .collect::<Result<_, _>>()?;
         Ok(Group {
-            selector: Asked {
-                member: member(&selector_tree)?,
-                quoted: quoted.clone(),
-            },
+            selector: Asked::new(member(&selector_tree)?, &selector_tree)?,
             selects_only: !has_slot(whole),
             selector_asks_a_flag: asks_a_flag(&selector_tree),
             asks_a_flag: asks_a_flag(whole),
@@ -313,10 +439,7 @@ impl Group {
                 .filter(|source| admits(&bound, source))
                 .collect(),
             admits_another: admits(&bound, ""),
-            whole: Asked {
-                member: bound,
-                quoted,
-            },
+            whole: Asked::new(bound, whole)?,
             selector_tree,
             together,
             templates,

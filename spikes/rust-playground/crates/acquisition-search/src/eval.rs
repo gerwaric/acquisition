@@ -49,11 +49,14 @@
 //!   not be selected is incomplete, and they establish no together count —
 //!   where they name the slot: one that does not cannot contribute
 //!   whichever way its flag falls, and leaves nothing open.
-//! - **A slot's number is what the group named** (`group::Asked::slot`):
+//! - **A slot's number is what the group named** (`group::Asked::parts`):
 //!   a row's, where a quoted template names a row of a mod displayed over
 //!   several, so a sum, a largest and the together count add and compare
 //!   the number the comparison read, and a number unread in another row
-//!   leaves none of them open (rule 8 of the plan).
+//!   leaves none of them open (rule 8 of the plan). An occurrence has a
+//!   number for each part an alternative of the group names and holds
+//!   on — two, where two templates under an or name two rows of one mod —
+//!   and a sum adds each.
 //! - **A value is open exactly when it would sort as incomplete**:
 //!   `undecided(sum( … ))`, `undecided(line(P).<slot>)` and `--sort` ask
 //!   one function.
@@ -525,16 +528,27 @@ fn open_on_a_line(held: &Held, asked: &Asked) -> bool {
         .any(|l| asked.of(l) == Truth::Undecided)
 }
 
-/// Whether an occurrence leaves the slot's contribution open: it may or
-/// may not satisfy what is asked and names the slot, or it satisfies it
-/// and the slot's number could not be read. One that does not name the
+/// The slot's number on each part of an occurrence that leaves its
+/// contribution open (`group::Asked::parts`): a part that may or may not
+/// satisfy what is asked and names the slot, or one that satisfies it
+/// and whose number could not be read. A part that does not name the
 /// slot cannot contribute whichever way its flag falls, so it leaves no
 /// sum, no largest and no together count open (C93's known absence).
+fn open_slots(asked: &Asked, slot: &str, line: &Line) -> Vec<Slot> {
+    asked
+        .parts(line)
+        .into_iter()
+        .map(|(held, numbers)| (held, numbers.slot(slot)))
+        .filter(|(held, named)| match (held, named) {
+            (Truth::False, _) | (_, Slot::Absent) | (Truth::True, Slot::Is(_)) => false,
+            (Truth::Undecided, _) | (Truth::True, Slot::Unread) => true,
+        })
+        .map(|(_, named)| named)
+        .collect()
+}
+
 fn leaves_the_slot_open(asked: &Asked, slot: &str, line: &Line) -> bool {
-    match (asked.of(line), asked.slot(line, slot)) {
-        (Truth::False, _) | (_, Slot::Absent) | (Truth::True, Slot::Is(_)) => false,
-        (Truth::Undecided, _) | (Truth::True, Slot::Unread) => true,
-    }
+    !open_slots(asked, slot, line).is_empty()
 }
 
 fn open_with_the_slot(held: &Held, asked: &Asked, slot: &str) -> bool {
@@ -544,22 +558,37 @@ fn open_with_the_slot(held: &Held, asked: &Asked, slot: &str) -> bool {
         .any(|l| leaves_the_slot_open(asked, slot, l))
 }
 
-/// The slot's number on an occurrence, as what is asked named it: a
-/// row's, where a quoted template names the row (`group.rs`).
-fn value(asked: &Asked, line: &Line, slot: &str) -> Option<f64> {
-    match asked.slot(line, slot) {
-        Slot::Is(n) => Some(n),
-        Slot::Absent | Slot::Unread => None,
-    }
+/// The slot's numbers on an occurrence, as what is asked named them: one
+/// for each part an alternative that holds names — a row's, where a
+/// quoted template names the row (`group.rs`) — and one on a mod of one
+/// row.
+fn values<'a>(asked: &'a Asked, line: &'a Line, slot: &'a str) -> impl Iterator<Item = f64> + 'a {
+    asked
+        .parts(line)
+        .into_iter()
+        .filter(|(held, _)| *held == Truth::True)
+        .filter_map(move |(_, numbers)| match numbers.slot(slot) {
+            Slot::Is(n) => Some(n),
+            Slot::Absent | Slot::Unread => None,
+        })
+}
+
+/// Every number of the slot the item's occurrences have under what is
+/// asked.
+fn every_value<'a>(
+    held: &'a Held,
+    asked: &'a Asked,
+    slot: &'a str,
+) -> impl Iterator<Item = f64> + 'a {
+    held.item
+        .lines
+        .iter()
+        .flat_map(move |line| values(asked, line, slot))
 }
 
 /// A sum, in units, and whether every possible contributor was readable.
 pub(crate) fn sum(held: &Held, group: &Group, slot: &str) -> (Exact, bool) {
-    let total = Exact::sum(
-        satisfying(held, &group.whole)
-            .filter_map(|line| value(&group.whole, line, slot))
-            .map(Exact::of),
-    );
+    let total = Exact::sum(every_value(held, &group.whole, slot).map(Exact::of));
     let complete =
         unread_lines(held, group).is_empty() && !open_with_the_slot(held, &group.whole, slot);
     (total, complete)
@@ -588,9 +617,7 @@ pub(crate) fn together(held: &Held, group: &Group) -> bool {
     // a sum of no occurrence is zero, which is at least any bound of zero
     // or less — and is nothing reaching it: only occurrences that count
     // reach a bound together
-    let counted: Vec<f64> = satisfying(held, &group.selector)
-        .filter_map(|line| value(&group.selector, line, &lower.slot))
-        .collect();
+    let counted: Vec<f64> = every_value(held, &group.selector, &lower.slot).collect();
     !counted.is_empty() && NumTest::Cmp(lower.op, lower.bound.as_f64()).holds(exact::sum(counted))
 }
 
@@ -1243,12 +1270,12 @@ pub(crate) fn sorted_by(key: &SortKey, held: &Held) -> (Vec<Evidence>, usize) {
             .into_iter()
             .collect(),
         SortKey::Projection { group, slot } => {
-            let largest = satisfying(held, &group.whole)
-                .filter_map(|line| value(&group.whole, line, slot))
-                .reduce(f64::max);
-            satisfying(held, &group.whole)
+            let largest = every_value(held, &group.whole, slot).reduce(f64::max);
+            held.item
+                .lines
+                .iter()
                 .filter(|line| {
-                    largest.is_some_and(|most| value(&group.whole, line, slot) == Some(most))
+                    largest.is_some_and(|most| values(&group.whole, line, slot).any(|n| n == most))
                 })
                 .take(1)
                 .map(line_evidence)
@@ -1294,14 +1321,15 @@ pub(crate) fn scalar(key: &SortKey, held: &Held) -> Scalar {
             None => Scalar::None,
         },
         SortKey::Projection { group, slot } => {
-            let largest = satisfying(held, &group.whole)
-                .filter_map(|line| value(&group.whole, line, slot))
-                .reduce(f64::max);
+            let largest = every_value(held, &group.whole, slot).reduce(f64::max);
             // an unread number may be any number
             let could_be_larger = held.item.lines.iter().any(|line| {
-                leaves_the_slot_open(&group.whole, slot, line)
-                    && value(&group.whole, line, slot)
-                        .is_none_or(|n| largest.is_none_or(|most| n > most))
+                open_slots(&group.whole, slot, line)
+                    .into_iter()
+                    .any(|open| match open {
+                        Slot::Is(n) => largest.is_none_or(|most| n > most),
+                        Slot::Unread | Slot::Absent => true,
+                    })
             });
             let largest = largest.map(Exact::of);
             if could_be_larger || !unread_lines(held, group).is_empty() {

@@ -807,6 +807,109 @@ pub fn sort_shuffled(sort: &Sort, seed: u64) -> Sort {
     }
 }
 
+/// An alternative that holds on no generated occurrence, beside every
+/// line's group: `false()`, or a quoted template — a row of a mod of
+/// several rows among them — from a source no generated line has. The
+/// rewrite changes no match, and no number a comparison of the group
+/// reads (the outside review of step 9c4, finding 1). What it may
+/// change is what is said of the group's own syntax — the slot check,
+/// the together bound, what its templates resolved to — so its answers
+/// are compared by [`said`].
+pub fn padded(q: &Q, seed: u64) -> Q {
+    fn walk(q: &Q, rng: &mut Lcg) -> Q {
+        let each = |children: &[Q], rng: &mut Lcg| -> Vec<Q> {
+            children.iter().map(|c| walk(c, rng)).collect()
+        };
+        match q {
+            Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Alt(..) | Q::Linked(_) => q.clone(),
+            Q::Line(g) => Q::Line(g_padded(g, rng)),
+            Q::Sum(g, slot, cmp) => Q::Sum(g_padded(g, rng), slot.clone(), cmp.clone()),
+            Q::Proj(g, slot, cmp) => Q::Proj(g_padded(g, rng), slot.clone(), cmp.clone()),
+            Q::Open(g, slot, sum) => Q::Open(g_padded(g, rng), slot.clone(), *sum),
+            Q::And(children) => Q::And(each(children, rng)),
+            Q::Or(children) => Q::Or(each(children, rng)),
+            Q::Not(inner) => Q::Not(Box::new(walk(inner, rng))),
+            Q::Holds(of, bound) => Q::Holds(each(of, rng), bound.clone()),
+            Q::Undecided(inner) => Q::Undecided(Box::new(walk(inner, rng))),
+        }
+    }
+    walk(q, &mut Lcg(seed.rotate_left(29) | 1))
+}
+
+pub fn sort_padded(sort: &Sort, seed: u64) -> Sort {
+    let mut rng = Lcg(seed.rotate_left(41) | 1);
+    match sort {
+        Sort::Proj(g, slot) => Sort::Proj(g_padded(g, &mut rng), slot.clone()),
+        Sort::Sum(g, slot) => Sort::Sum(g_padded(g, &mut rng), slot.clone()),
+        other => other.clone(),
+    }
+}
+
+fn g_padded(g: &G, rng: &mut Lcg) -> G {
+    const NAMED: [&str; 5] = [LIFE, COLD, ADDS, ALL_RES, LIFE_COLD];
+    let beside = match rng.next() % 3 {
+        0 => G::Leaf("false()".to_string()),
+        pick => {
+            let template = NAMED[(rng.next() % NAMED.len() as u64) as usize];
+            let named = G::And(vec![
+                G::Leaf(quoted(template)),
+                G::Leaf("source=scourge".to_string()),
+            ]);
+            if pick == 1 {
+                return G::Or(vec![named, g.clone()]);
+            }
+            named
+        }
+    };
+    G::Or(vec![g.clone(), beside])
+}
+
+/// What an answer says of who matched and of what each term counted,
+/// every count followed to its members, and what every row sorts by:
+/// what stays when a group is written another way that changes what is
+/// said of its syntax, or when what a row shows is another text.
+pub fn said(corpus: &Corpus, scope: &Ids, request: &Value) -> Result<Value, String> {
+    let a = run(corpus, request).map_err(|e| format!("refused: {request}: {e}"))?;
+    said_of(corpus, scope, &a, true)
+}
+
+/// [`said`] of an answer in hand; `together` with the together counts,
+/// which a rewrite of a group's conjuncts may take away.
+pub fn said_of(corpus: &Corpus, scope: &Ids, a: &Value, together: bool) -> Result<Value, String> {
+    let mut cache = HashMap::new();
+    let mut terms = Vec::new();
+    for term in a["terms"].as_array().ok_or("no terms block")? {
+        let mut counted: std::collections::BTreeMap<&str, Ids> = Default::default();
+        for kind in ["matched", "failed", "lacked", "undecided"] {
+            counted.insert(kind, members(corpus, &term[kind], scope, &mut cache)?);
+        }
+        if together && term.get("together").is_some_and(|t| !t.is_null()) {
+            counted.insert(
+                "together",
+                members(corpus, &term["together"], scope, &mut cache)?,
+            );
+        }
+        terms.push(json!(counted));
+    }
+    let rows: Vec<Value> = a["rows"]
+        .as_array()
+        .ok_or("no rows")?
+        .iter()
+        .map(|row| {
+            json!({
+                "id": row["id"],
+                "sort": { "value": row["sort"]["value"], "status": row["sort"]["status"] },
+            })
+        })
+        .collect();
+    Ok(json!({
+        "matched": a["total"]["matched"],
+        "undecided": a["total"]["undecided"]["count"],
+        "terms": terms,
+        "rows": rows,
+    }))
+}
+
 /// The tree in one spelling whatever rewrite or order it was written in:
 /// what two trees that mean the same have in common.
 fn sorted(q: &Q) -> Q {
@@ -938,8 +1041,8 @@ pub struct LineM {
     /// ([`Body::rows_apart`]); `None` for the mod as GGG gives it.
     pub row: Option<u8>,
     /// The second row's number of a mod of two, where a completion gave
-    /// the first another: what was read stays as it was. `None` is two
-    /// more than the first.
+    /// the first another: what was read stays as it was. `None` is nine
+    /// less the first, so the two are seldom near.
     pub second: Option<i32>,
 }
 
@@ -990,7 +1093,7 @@ impl LineM {
                 format!("{first} to maximum Life"),
                 format!(
                     "{}% to Cold Resistance",
-                    n(self.second.unwrap_or(self.n + 2), false)
+                    n(self.second.unwrap_or(9 - self.n), false)
                 ),
             ],
         }
@@ -1683,7 +1786,7 @@ impl Body {
                                 unread_number: false,
                                 flags: Flags::Each { crafted, fractured },
                                 // a number that was read stays as it was
-                                second: Some(l.second.unwrap_or(l.n + 2)),
+                                second: Some(l.second.unwrap_or(9 - l.n)),
                                 ..l.clone()
                             }));
                         }

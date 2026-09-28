@@ -345,6 +345,94 @@ fn c92_a_slot_names_the_numbers_of_the_row_named() {
     );
 }
 
+/// C91, C92 (the outside review of step 9c4, finding 1): a comparison
+/// reads the numbers of the part the quoted templates conjoined with it
+/// name, so an alternative beside it — one that holds nowhere, one that
+/// names another row, one with no template — changes no number it reads.
+/// The group is its alternatives spread out, each read on its own, as the
+/// same alternatives are at the item's level.
+#[test]
+fn c92_an_alternative_changes_no_number_a_comparison_reads() {
+    let s = stash();
+    let found = |text: &str| found(&s, text);
+    let life = format!("\"{LIFE}\" arg1=40");
+    assert_eq!(found(&format!("line({life})")), ["pair"]);
+    for beside in [
+        "arg1=999",
+        "\"Adds # to # Cold Damage\" source=implicit",
+        "\"Adds # to # Cold Damage\" -\"Adds # to # Cold Damage\"",
+        "\"#% to Cold Resistance\" arg1=999",
+        "false()",
+    ] {
+        assert_eq!(
+            found(&format!("line(({life}) or ({beside}))")),
+            ["pair"],
+            "{beside}"
+        );
+        assert_eq!(
+            found(&format!("line(({beside}) or ({life}))")),
+            ["pair"],
+            "{beside}"
+        );
+        // as the two are at the item's level
+        assert_eq!(
+            found(&format!("line({life}) or line({beside})")),
+            ["pair"],
+            "{beside}"
+        );
+    }
+    // each alternative reads its own part: the mod's first number is 3,
+    // its cold damage row's 3 to 9, its life row's 40 — and twice's mod,
+    // read in order, begins with 3 too
+    assert_eq!(
+        found(&format!("line((\"{LIFE}\" arg1=41) or arg1=3)")),
+        ["pair", "twice"]
+    );
+    assert_eq!(
+        found(&format!(
+            "line((\"{LIFE}\" arg1=41) or (\"Adds # to # Cold Damage\" high=9))"
+        )),
+        ["pair"]
+    );
+    assert_eq!(
+        found(&format!("line((\"{LIFE}\" arg1=3) or arg1=40)")),
+        Vec::<String>::new()
+    );
+    // a not of two together is either's not, and of either is both's:
+    // thread's resistance is -17 and explicit, ring's 12
+    assert_eq!(
+        found(&format!("line(\"{ALL_RES}\" -(arg1=-17 source=implicit))")),
+        ["ring", "thread"]
+    );
+    assert_eq!(
+        found(&format!(
+            "line(\"{ALL_RES}\" -(arg1=-17 or source=implicit))"
+        )),
+        ["ring"]
+    );
+    // a template beside the alternatives is conjoined with each
+    assert_eq!(
+        found(&format!(
+            "line(\"{LIFE}\" (arg1=40 or arg1=999) is:crafted)"
+        )),
+        ["pair"]
+    );
+    // a sum and a largest read each part an alternative names: pair's mod
+    // is 3 and 40 under the two, and its own life line 25
+    assert_eq!(
+        found(&format!(
+            "sum(line(\"{LIFE}\" or \"Adds # to # Cold Damage\").arg1)=68"
+        )),
+        ["pair"]
+    );
+    let sorted = view(
+        &s,
+        "id:pair",
+        json!({ "rows": { "sort": format!("line(\"Adds # to # Cold Damage\" or \"{LIFE}\").arg1") } }),
+    );
+    assert_eq!(sorted["rows"][0]["sort"]["value"], 40);
+}
+
 /// Rule 8 of the plan, C93: what is unread of one row is unread of that
 /// row. A number the search does not read in the first row leaves the
 /// second row's comparison decided and the first's open, with its reason;
