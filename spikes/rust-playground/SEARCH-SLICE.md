@@ -54,7 +54,7 @@ first: the shapes of fault that came back until they were named.
 
 | Shape | Where it came back | Held by |
 | --- | --- | --- |
-| **A meaning read off the syntax.** Which sources a group admits, what its selector picks, where its together bound sits, which slot a template has, what the zero block reads — each answered at the group's own level and wrong one level down, so parentheses changed the answer; and which part of a mod a slot reads, answered once for the group from every template in it, so an alternative beside a comparison changed its number — then, mended by pushing every not down to the tests, answered apart from the template a not had held it with, so a group and its not both held | five times across step 4's four audits; twice at 9c4, a look each | `group.rs`, the one reader of a group's meaning; `tools/docs-check.sh` §7; the equivalence property (rule 9), which asks a fourth way since: an alternative that holds nowhere beside every group; two laws asked of any generated group (`tests/generated_rows.rs`): a group or its not holds, and a group's or is the item's |
+| **A meaning read off the syntax.** Which sources a group admits, what its selector picks, where its together bound sits, which slot a template has, what the zero block reads — each answered at the group's own level and wrong one level down, so parentheses changed the answer; and which part of a mod a slot reads, answered once for the group from every template in it, so an alternative beside a comparison changed its number — then, mended by pushing every not down to the tests, answered apart from the template a not had held it with, so a group and its not both held; then, two rows being named together, answered by the mod's numbers in order, so a row named as a condition moved the number beside it, while the slot check held every slot against the group's one quoted template | five times across step 4's four audits; four times at 9c4, in three looks | `group.rs`, the one reader of a group's meaning, `Slots` what a slot is read beside (L3); `tools/docs-check.sh` §7; the equivalence property (rule 9), which asks a fourth way since: an alternative that holds nowhere beside every group; two laws asked of any generated group (`tests/generated_rows.rs`): a group or its not holds, and a group's or is the item's |
 | **One thing counted under two names, and two taken for one.** The mod's first number and its first row's first, two parts read by two alternatives, added twice to a sum and to the together count; then, a place being added once, a number that is either of two rows' given the first row's place and dropped for the number read there | 9c4's review, the second look and the third; the builder had seen the first case and let it pass | `derive::Place`, a number known by where it sits in its mod, and none where it sits in no one place; `eval::Read`; `tests/rows.rs` (`c95_…`, `c93_a_number_that_is_either_…`), the rows-apart oracle |
 | **Unknown said at the wrong grain.** A whole object unread for one flag that is no boolean, a whole array for one number too long, a whole requirements list for one bad row: too wide leaves open terms that never needed it, too narrow reads as absence, which a not makes a witness of | steps 4, 4b, 6, 7, 8 | rule 8; `derive::Slot`, `Line::flags_unknown`, `Unread::line`, `Unread::name`; `sockets::Groups`; the completion property |
 | **Two statuses for one thing.** A number kept beside the unread that may replace it, so a comparison, the sort and the sum disagreed; a total exact on the item and rounded again in the bucket | steps 5, 6 | rule 8 (`reqlevel`'s one status); `exact::Exact`, units carried to the print |
@@ -80,15 +80,16 @@ number there was measured, never recalled. The verdicts:
 - M2 (step 2, rerun at every change of the deriver): 0 unread and 0
   unexplained against the census; seven departures, each a rule of
   `derive.rs`, two of them candidate ground-truth claims.
-- M3 (step 4, rerun at every build since; as of `d9d7c9da`): the load,
-  the empty query, is 464 ms release, under 500, so the projection park
+- M3 (step 4, rerun at every build since; as of `62a6d7c8`): the load,
+  the empty query, is 448 ms release, under 500, so the projection park
   does not fire; the price join raised it from 276 at step 9, and a
   mod's rows, kept by the deriver, by 3 to 5 at 9c4. Four asks are over
   500, each by an evaluator's cost, the totals batch park's (V9,
   revisited at step 11): an ask pays some 1 ms for each row of every
   total it reads, where it paid 5 to 6 until 9c4's review had a slot
   read of a part that may hold alone and an occurrence weighed once, a
-  least stopping at the first total that is nothing. The six asks the
+  least stopping at the first total that is nothing; a fifth, a bare
+  phrase at 517, was the run's, 468 asked again. The six asks the
   seat saw at 695–715 ms did not recur on the copy, their cause
   unmeasured. The debug build is 2.4 to 3.8 s. What each rerun showed
   is the block's.
@@ -254,34 +255,26 @@ filed again by the step that touches it.
   of an item with no resistance, nor the elemental least of an item
   with one or two of its totals. Each is explained, never closed.
 - *The review's next look:* of 9c3's three choices the third, the
-  definitions' home in the totals table, is unruled. Of what the
-  builder doubted, 9c4 asked two: a sum and the undecided block of a
-  reading print as a total's do on the copy, where no count is open;
-  the generated rows follow a computed value's routes
-  (`tests/generated_rows.rs`). Unasked still: a narrowing lists every
-  reading whose definition it matches, `resist` three;
-  `pseudo::evidence` of a reading that is lacked gives its totals
-  still, reached by nothing. 9c4's own choices, each the builder's,
-  of which its outside review found five at fault in three looks —
-  what a slot reads beside an alternative, what it reads under a not,
-  a number read twice, a number that is either row's, and what a not
-  inside a not costs, each as fixed (`group.rs`, `eval.rs`,
-  `derive.rs`) — and passed over the rest: two rows named by two conjoined templates read
-  the mod's numbers in order; two rows of one template are unread, and
-  no mod of the copy is one; a not of a name is of the occurrence, so
-  it holds on no mod the template names by a row; a not of two
-  conditions together is no or of their nots where one is a template
-  that says what the other reads; `template~"^…$"` ends at the whole
-  text and reaches no row; a template spelled two ways counts no mod
-  by a row in the vocabulary; a template listed is counted beside
-  `none` where the narrowing's pattern passes the row and not the
-  whole text; an occurrence two alternatives name by two rows adds two
-  numbers to a sum.
+  definitions' home in the totals table, is unruled. Unasked still: a
+  narrowing lists every reading whose definition it matches, `resist`
+  three; `pseudo::evidence` of a reading that is lacked gives its
+  totals still, reached by nothing. 9c4's own choices that four looks
+  passed over, each the builder's: two rows of one template are
+  unread, and no mod of the copy is one; a not of a name is of the
+  occurrence, so it holds on no mod the template names by a row; a not
+  of two conditions together is no or of their nots where one is a
+  template that says what the other reads; a slot with no template
+  beside it reads the mod's numbers in order, so a row named beside it
+  says another number; `template~"^…$"` ends at the whole text and
+  reaches no row; a template spelled two ways counts no mod by a row
+  in the vocabulary; a template listed is counted beside `none` where
+  the narrowing's pattern passes the row and not the whole text; an
+  occurrence two alternatives name by two rows adds two numbers to a
+  sum; a reading of L3's refusal asks the other row by `template:`,
+  which holds on any text the words are part of.
 - *The totals batch park (V9, step 11):* what it was parked on has
-  moved. A slot is read of a part that may hold and an occurrence is
-  weighed once, so an ask pays some 1 ms for each row of a total where
-  it paid 5 to 6; the table's 284 rows are bound at every ask, a test
-  compiled for each (`search/MEASUREMENTS.md`, the step's block).
+  moved, M3's verdict above; the table's 284 rows are bound at every
+  ask (`search/MEASUREMENTS.md`, the step's block).
 - *9d:* the two leech pseudos count the line under every id, the
   `(Local)` twin among them, so neither waits for a row that names what
   the item is; of 9c2's totals none does. `has:` of a ranged total

@@ -209,6 +209,7 @@ to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 | `0962588b` | step 9c4, the review's fix: a slot read of a part that may hold, never of every line (the `-p acquisition-cli` form, sha256 `71f97b38…`) | 569 | 472–498 but eight over: the totals' asks 64 to 223 ms under `bd4679e1`'s — 542, 541, 546, 531 and the two readings in one ask 594 — and every other ask some 8 above it, the empty query 475, which carries the `sum` over `template:resistance` 511 and the vocabulary's two, 510 and 519 | 2,659–3,152 but the eight: 3,879, 3,555, 3,928, 3,679, 4,999, 3,401, 3,087 and 2,976 |
 | `ca9f53bc` | step 9c4, a group's quoted tests compiled once (the `-p acquisition-cli` form, sha256 `cfdec97b…`) | 599 | 455–494 but six over, the empty query 461: the two totals asks of step 7 at 521 and 522, two readings at 528 and 522, the two readings in one ask 578, and the vocabulary whole 507 | 2,438–3,178 but the six: 3,666, 3,340, 3,708, 3,467, 4,792 and 2,751 |
 | `d9d7c9da` | step 9c4, after its review's third look: an occurrence weighed once, every node of a group once (the `-p acquisition-cli` form, sha256 `6c64352a…`) | 553 | 456–500 but four over, the empty query 464: the two totals asks of step 7 at 508 and 516, `pseudo.count_res>=3` at 504 and the two readings in one ask 537 | 2,441–3,152 but the four: 3,392, 3,031, 3,172 and 3,756 |
+| `62a6d7c8` | step 9c4, after its review's fourth look: a slot beside two rows named together refused before anything is read (the `-p acquisition-cli` form, sha256 `4a481496…`) | 696 | 448–500 but five over, the empty query 448: the two totals asks of step 7 at 509 and 507, `pseudo.count_res>=3` at 510, the two readings in one ask 542, and the seat's bare phrase 517, the run's own — `d9d7c9da`'s binary and this one, asked in turn afterwards, answer it in 469 and 468 | 2,443–3,157 but the five: 3,395, 3,035, 3,237, 3,780 and 2,671 |
 
 The asks each step added to the script, at the step's build, warm
 medians in ms; a step's empty query is its floor.
@@ -448,7 +449,8 @@ differs by 1:
 | a mod named by a row | 473 | 494 | 495 | 479 |
 | two alternatives in one group | 490 | 506 | 510 | 496 |
 
-Two causes, each measured by taking it out or putting it back:
+What was measured of each change, a cause taken out or put back, or
+two builds asked in turn:
 
 - **A total's row compiled again at every ask.** The table is read at
   every ask, 284 rows, each a line's group. The step's first build
@@ -485,9 +487,21 @@ Two causes, each measured by taking it out or putting it back:
   not 490 and 487, a not in a not 489 and 484, four nots deep 639 and
   493.
 
+- **What a slot is read beside, weighed from the query.** The fourth
+  look's fix (`62a6d7c8`) weighs a line's group once, where it is
+  checked, and a group that reads no number — a total's row — not at
+  all. `d9d7c9da` and `62a6d7c8` asked in turn: the empty query 460
+  and 462, OQ7 469 and 465, the vocabulary whole 498 and 494, AQ2 as
+  worded 506 and 502, `pseudo.count_res>=3` 504 and 499, a mod named
+  by a row 474 and 472, `line("# to maximum Life" arg1>=90
+  -is:crafted)` 480 and 479, `line(("# to maximum Life" or "#% to
+  Cold Resistance") arg1>=40)` 482 and 480, `line("# to maximum Life"
+  template:"cold resistance" arg1>=40)` 505 and 505. Nothing the asks
+  show.
+
 Every one of M3's 49 asks is answered the same, whole, by
-`bd4679e1`, `0962588b`, `ca9f53bc`, `e8422ac6`, `80609d19` and
-`d9d7c9da`, each compared with the one before it. The deriver alone, release, over
+`bd4679e1`, `0962588b`, `ca9f53bc`, `e8422ac6`, `80609d19`,
+`d9d7c9da` and `62a6d7c8`, each compared with the one before it. The deriver alone, release, over
 the copy's bodies (`target/release/examples/derive-census`, five runs
 in turn), is 195 to 199 ms at `7435874e` and 206 to 215 at `bd4679e1`:
 a difference the asks do not show, the whole step being 3 to 5 on the
