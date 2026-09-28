@@ -54,7 +54,7 @@ first: the shapes of fault that came back until they were named.
 
 | Shape | Where it came back | Held by |
 | --- | --- | --- |
-| **A meaning read off the syntax.** Which sources a group admits, what its selector picks, where its together bound sits, which slot a template has, what the zero block reads — each answered at the group's own level and wrong one level down, so parentheses changed the answer | five times across step 4's four audits | `group.rs`, the one reader of a group's meaning; `tools/docs-check.sh` §7; the equivalence property (rule 9) |
+| **A meaning read off the syntax.** Which sources a group admits, what its selector picks, where its together bound sits, which slot a template has, what the zero block reads — each answered at the group's own level and wrong one level down, so parentheses changed the answer; and which part of a mod a slot reads, answered once for the group from every template in it, so an alternative beside a comparison changed its number | five times across step 4's four audits; once at 9c4 | `group.rs`, the one reader of a group's meaning; `tools/docs-check.sh` §7; the equivalence property (rule 9), which asks a fourth way since: an alternative that holds nowhere beside every group |
 | **Unknown said at the wrong grain.** A whole object unread for one flag that is no boolean, a whole array for one number too long, a whole requirements list for one bad row: too wide leaves open terms that never needed it, too narrow reads as absence, which a not makes a witness of | steps 4, 4b, 6, 7, 8 | rule 8; `derive::Slot`, `Line::flags_unknown`, `Unread::line`, `Unread::name`; `sockets::Groups`; the completion property |
 | **Two statuses for one thing.** A number kept beside the unread that may replace it, so a comparison, the sort and the sum disagreed; a total exact on the item and rounded again in the bucket | steps 5, 6 | rule 8 (`reqlevel`'s one status); `exact::Exact`, units carried to the print |
 | **A second maker.** A route, a printed command, a reason, a selector's resolved list, each made in two places that then disagreed — a lacked count of 1 whose route returned 0, a `show` continuation that dropped the account | steps 4, 4b, 5 | rule 10; `answer::command`, `answer::Router`, `eval::why`; the CLI test that runs every printed command with a second account known |
@@ -79,17 +79,17 @@ number there was measured, never recalled. The verdicts:
 - M2 (step 2, rerun at every change of the deriver): 0 unread and 0
   unexplained against the census; seven departures, each a rule of
   `derive.rs`, two of them candidate ground-truth claims.
-- M3 (step 4, rerun at every build since; as of `bd4679e1`): the load,
-  the empty query, is 467 ms release, under 500, so the projection park
+- M3 (step 4, rerun at every build since; as of `ca9f53bc`): the load,
+  the empty query, is 461 ms release, under 500, so the projection park
   does not fire; the price join raised it from 276 at step 9, and a
-  mod's rows, kept by the deriver, by 15 at 9c4. Twelve asks are over
-  500, each by an evaluator's cost, the totals batch park's (V9,
-  revisited at step 11), four of them carried over by the floor alone:
-  an ask pays 5 to 6 ms for each row of every total it reads, a least
-  stopping at the first total that is nothing. The six asks the seat
-  saw at 695–715 ms did not recur on the copy, their cause unmeasured.
-  The debug build is 2.5 to 5.7 s. What each rerun showed is the
-  block's.
+  mod's rows, kept by the deriver, by 3 to 5 at 9c4. Six asks are over
+  500, five by an evaluator's cost, the totals batch park's (V9,
+  revisited at step 11) — an ask pays some 2 ms for each row of every
+  total it reads, where it paid 5 to 6 until the slot was read of a
+  part that may hold alone, a least stopping at the first total that is
+  nothing — and the vocabulary whole by 7. The six asks the seat saw at
+  695–715 ms did not recur on the copy, their cause unmeasured. The
+  debug build is 2.4 to 4.8 s. What each rerun showed is the block's.
 - M4 (step 4): `~` over all text adds 9 ms.
 - The class table (step 6): 56 of 82 classes carried, 681 of 22,721
   undecided, the buckets summing to the copy (C105).
@@ -117,9 +117,6 @@ will use it, and that step's close removes it or brings it to a
 ruling. One written before is filed by the step that made it, and is
 filed again by the step that touches it.
 
-**Step 1 — the builder's.**
-
-- Two quoted templates in one and-group is valid and matches nothing.
 **Step 2.**
 
 - Nothing was unread on this corpus, so C93's unread path is exercised
@@ -262,14 +259,23 @@ filed again by the step that touches it.
   (`tests/generated_rows.rs`). Unasked still: a narrowing lists every
   reading whose definition it matches, `resist` three;
   `pseudo::evidence` of a reading that is lacked gives its totals
-  still, reached by nothing. 9c4's own choices, each the builder's:
-  two rows named by two templates read the mod's numbers in order; two
-  rows of one template are unread, and no mod of the copy is one; a
-  not inside a group is of the occurrence, so it holds on no mod the
-  template names by a row; `template~"^…$"` ends at the whole text and
-  reaches no row; a template spelled two ways counts no mod by a row
-  in the vocabulary; a template listed is counted beside `none` where
-  the narrowing's pattern passes the row and not the whole text.
+  still, reached by nothing. 9c4's own choices, each the builder's,
+  which its outside look passed over but the first, its one finding:
+  what a slot reads where a group has alternatives (`group.rs`, as
+  fixed); two rows named by two conjoined templates read the mod's
+  numbers in order; two rows of one template are unread, and no mod of
+  the copy is one; a not inside a group is of the occurrence, so it
+  holds on no mod the template names by a row; `template~"^…$"` ends
+  at the whole text and reaches no row; a template spelled two ways
+  counts no mod by a row in the vocabulary; a template listed is
+  counted beside `none` where the narrowing's pattern passes the row
+  and not the whole text; an occurrence two alternatives name by two
+  parts adds two numbers to a sum.
+- *The totals batch park (V9, step 11):* what it was parked on has
+  moved. A slot is read of a part that may hold, and an ask pays some
+  2 ms for each row of a total where it paid 5 to 6; the table's 284
+  rows are bound at every ask, a test compiled for each
+  (`search/MEASUREMENTS.md`, the step's block).
 - *9d:* the two leech pseudos count the line under every id, the
   `(Local)` twin among them, so neither waits for a row that names what
   the item is; of 9c2's totals none does. `has:` of a ranged total
