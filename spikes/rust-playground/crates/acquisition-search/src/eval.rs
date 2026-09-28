@@ -550,30 +550,34 @@ struct Read {
 impl Read {
     fn of(&mut self, asked: &Asked, slot: &str, line: &Line) {
         let parts = asked.parts(line);
+        // what each part reads, where it names the slot: the number, and
+        // its place where it has one — a number that is either of two
+        // rows' has none, and is known to be no number read elsewhere
+        let read = |held: Truth| {
+            parts
+                .iter()
+                .filter(move |(truth, _)| *truth == held)
+                .map(|(_, numbers)| (numbers.slot(slot), numbers.place(slot)))
+                .filter(|(named, _)| *named != Slot::Absent)
+        };
         let mut holds: Vec<Place> = Vec::new();
-        for (held, numbers) in &parts {
-            if *held == Truth::True
-                && let Some(place) = numbers.place(slot)
-                && !holds.contains(&place)
-            {
-                holds.push(place);
-                match numbers.slot(slot) {
-                    Slot::Is(n) => self.added.push(n),
-                    Slot::Unread => self.open.push(Slot::Unread),
-                    Slot::Absent => {}
-                }
+        for (named, place) in read(Truth::True) {
+            if place.is_some_and(|place| holds.contains(&place)) {
+                continue;
+            }
+            holds.extend(place);
+            match named {
+                Slot::Is(n) => self.added.push(n),
+                Slot::Unread | Slot::Absent => self.open.push(named),
             }
         }
         let mut may: Vec<Place> = Vec::new();
-        for (held, numbers) in &parts {
-            if *held == Truth::Undecided
-                && let Some(place) = numbers.place(slot)
-                && !holds.contains(&place)
-                && !may.contains(&place)
-            {
-                may.push(place);
-                self.open.push(numbers.slot(slot));
+        for (named, place) in read(Truth::Undecided) {
+            if place.is_some_and(|place| holds.contains(&place) || may.contains(&place)) {
+                continue;
             }
+            may.extend(place);
+            self.open.push(named);
         }
     }
 

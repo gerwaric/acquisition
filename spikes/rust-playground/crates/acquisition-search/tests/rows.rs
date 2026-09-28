@@ -612,6 +612,80 @@ fn c95_a_number_two_alternatives_read_is_added_once() {
     );
 }
 
+/// C93, rule 8 of the plan (the outside review of step 9c4, its third
+/// look, finding 2): a row whose template another row of its mod
+/// displays has no one place among the mod's numbers — its number is
+/// either's — so nothing read elsewhere is known to be it, and what it
+/// leaves open stays open beside a number that is added. twice's two
+/// rows are life, 3 and 7.
+#[test]
+fn c93_a_number_that_is_either_rows_is_no_number_added_already() {
+    let s = stash();
+    let found = |text: &str| found(&s, &format!("id:twice {text}"));
+    let none = Vec::<String>::new();
+    // by words alone, the mod's numbers in order
+    assert_eq!(found("sum(line(template:life).arg1)=3"), ["twice"]);
+    // by the row named, either's
+    assert_eq!(found(&format!("undecided(sum(\"{LIFE}\"))")), ["twice"]);
+    // by both: 3 is added, and the row named may be the 7
+    let either = format!("sum(line(\"{LIFE}\" or template:life).arg1)");
+    assert_eq!(found(&format!("undecided({either})")), ["twice"]);
+    for n in [3, 6, 7, 10] {
+        assert_eq!(found(&format!("{either}={n}")), none, "{n}");
+    }
+    let sorted = view(&s, "id:twice", json!({ "rows": { "sort": either } }));
+    assert_eq!(
+        scalar(&sorted["rows"][0]["sort"]),
+        json!({ "value": 3, "status": "incomplete" })
+    );
+    // and the comparison is open on it: its 3 is under 5, and the row
+    // named may be the 7. Over the seven items ring, pair and plain
+    // match, thread and taken have no such line, and long's life is
+    // unread
+    let a = asked(&s, &format!("line((\"{LIFE}\" or template:life) arg1>=5)"));
+    let term = &a["terms"][0];
+    assert_eq!(counts(term), [3, 0, 2, 2]);
+    assert_eq!(follow(&s, &term["undecided"]), ["long", "twice"]);
+    assert_eq!(term["together"]["count"], 0);
+}
+
+/// A group costs its size (the same look, finding 1): a not inside a
+/// not inside a not is weighed once for each, where each had weighed
+/// all it held again for every part a template may name — ten deep took
+/// 2.7 s of a release build on one item. Thirty deep is no time, and an
+/// even number of nots is none.
+#[test]
+fn a_not_inside_a_not_costs_its_size() {
+    let s = parts_stash();
+    let mut inner = format!("\"{LIFE}\" arg1=40");
+    let mut answers = Vec::new();
+    let started = std::time::Instant::now();
+    for depth in 0..=30 {
+        if depth % 10 == 0 || depth == 29 {
+            answers.push((depth, found(&s, &format!("line({inner})"))));
+        }
+        inner = format!("-(true() ({inner}))");
+    }
+    let all = ["alone", "equal", "first", "two"]
+        .map(String::from)
+        .to_vec();
+    assert_eq!(
+        answers,
+        [
+            (0, all.clone()),
+            (10, all.clone()),
+            (20, all.clone()),
+            (29, Vec::new()),
+            (30, all),
+        ]
+    );
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(20),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
 /// Rule 8 of the plan, C93: what is unread of one row is unread of that
 /// row. A number the search does not read in the first row leaves the
 /// second row's comparison decided and the first's open, with its reason;

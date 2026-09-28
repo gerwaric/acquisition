@@ -66,9 +66,9 @@
 //!   the same alternatives (the outside review of step 9c4, finding 1:
 //!   the first build read one part for the whole group, from every
 //!   template in it). Spread out by the truths each part can reach
-//!   ([`alternatives`]), never by listing the alternatives, so a group
-//!   costs its size. A mod of one row is one part, and is read as it
-//!   always was.
+//!   ([`Mod::reached`]), never by listing the alternatives, and every
+//!   node weighed once, so a group costs its size. A mod of one row is
+//!   one part, and is read as it always was.
 //! - **A not is of what it holds, read as it is read there** (the same
 //!   review's second look, finding 1: a not pushed down to its
 //!   comparisons parted each from the template that said what it read,
@@ -84,7 +84,10 @@
 //!   holds reads** ([`Asked::parts`], `derive::Place`): a sum adds each,
 //!   a largest is the largest of them. The mod's first number and its
 //!   first row's first are one place, read twice and added once (the
-//!   second look's finding 2); two rows' numbers are two, equal or not.
+//!   second look's finding 2); two rows' numbers are two, equal or not;
+//!   and a row whose template another row displays has no one place, so
+//!   nothing read elsewhere is known to be its number (the third look's
+//!   finding 2).
 //! - **Its template tests**, wherever they sit: whether it makes any, so
 //!   that it resolves to templates; whether each is a quoted `"T"`, which
 //!   resolves to itself; and the words a suggestion is scored against.
@@ -226,78 +229,117 @@ struct Mod<'a> {
     named: Vec<Named>,
 }
 
+/// The truths the alternatives of a group reach, by what each has
+/// named: the best of each, and none that is a no.
+type Reached = Vec<(Named, Truth)>;
+
+fn keep(into: &mut Reached, named: Named, truth: Truth) {
+    if truth == Truth::False {
+        return;
+    }
+    match into.iter_mut().find(|(seen, _)| *seen == named) {
+        Some((_, best)) => *best = most(*best, truth),
+        None => into.push((named, truth)),
+    }
+}
+
+fn leaf(truth: Truth) -> Reached {
+    let mut out = Vec::new();
+    keep(&mut out, Named::Nothing, truth);
+    out
+}
+
 impl Mod<'_> {
-    /// Whether `member` holds where the templates conjoined with it
-    /// have named `outer`: whether any of its alternatives does, each
-    /// read by what it and they name together.
-    fn holds(&self, member: &BMember, outer: Named) -> Truth {
-        any_of(self.named.iter().flat_map(|together| {
-            self.alternatives(member, *together)
-                .into_iter()
-                .filter(|(named, _)| outer.and(*named) == *together)
-                .map(|(_, truth)| truth)
-        }))
+    /// Whether what `reached` is of holds where the templates conjoined
+    /// with it have named `outer`: whether any of its alternatives does,
+    /// each read by what it and they name together.
+    fn holds(&self, reached: &[Reached], outer: Named) -> Truth {
+        any_of(
+            self.named
+                .iter()
+                .zip(reached)
+                .flat_map(|(together, alternatives)| {
+                    alternatives
+                        .iter()
+                        .filter(|(named, _)| outer.and(*named) == *together)
+                        .map(|(_, truth)| *truth)
+                }),
+        )
     }
 
-    /// The truths the alternatives of `member` reach, by what each has
-    /// named, were what is named together `together`: the best of each,
-    /// and none that is a no. The group spread into its alternatives
-    /// without listing them — and distributes over or in three values as
-    /// in two, so the best over the alternatives is the tree's own truth
-    /// wherever every part reads the same numbers.
-    fn alternatives(&self, member: &BMember, together: Named) -> Vec<(Named, Truth)> {
-        fn keep(into: &mut Vec<(Named, Truth)>, named: Named, truth: Truth) {
-            if truth == Truth::False {
-                return;
-            }
-            match into.iter_mut().find(|(seen, _)| *seen == named) {
-                Some((_, best)) => *best = most(*best, truth),
-                None => into.push((named, truth)),
-            }
-        }
-        let leaf = |truth: Truth| {
-            let mut out = Vec::new();
-            keep(&mut out, Named::Nothing, truth);
-            out
+    /// What the alternatives of `member` reach, for each thing that may
+    /// be named together, in the order of [`Mod::named`]: the group
+    /// spread into its alternatives without listing them — and
+    /// distributes over or in three values as in two, so the best over
+    /// the alternatives is the tree's own truth wherever every part
+    /// reads the same numbers. Every node is weighed once, what it holds
+    /// before it, so a not inside a not costs what it holds and no more
+    /// (the outside review of step 9c4, its third look: weighed again
+    /// by each not for each thing named, ten nots deep took 2.7 s).
+    fn reached(&self, member: &BMember) -> Vec<Reached> {
+        let each = |of: &dyn Fn(usize, Named) -> Reached| -> Vec<Reached> {
+            self.named
+                .iter()
+                .enumerate()
+                .map(|(at, together)| of(at, *together))
+                .collect()
         };
         match member {
             // a group of its own, which names nothing
-            BMember::Not(inner) => leaf(negated(self.holds(inner, together))),
+            BMember::Not(inner) => {
+                let inner = self.reached(inner);
+                each(&|_, together| leaf(negated(self.holds(&inner, together))))
+            }
             BMember::All(children) => {
-                let mut so_far = vec![(Named::Nothing, Truth::True)];
-                for child in children {
-                    let next = self.alternatives(child, together);
-                    let mut both = Vec::new();
-                    for (a, held) in &so_far {
-                        for (b, holds) in &next {
-                            keep(&mut both, a.and(*b), least(*held, *holds));
+                let children: Vec<Vec<Reached>> =
+                    children.iter().map(|c| self.reached(c)).collect();
+                each(&|at, _| {
+                    let mut so_far = vec![(Named::Nothing, Truth::True)];
+                    for child in &children {
+                        let mut both = Vec::new();
+                        for (a, held) in &so_far {
+                            for (b, holds) in &child[at] {
+                                keep(&mut both, a.and(*b), least(*held, *holds));
+                            }
                         }
+                        so_far = both;
                     }
-                    so_far = both;
-                }
-                so_far
+                    so_far
+                })
             }
             BMember::Any(children) => {
-                let mut either = Vec::new();
-                for child in children {
-                    for (named, truth) in self.alternatives(child, together) {
-                        keep(&mut either, named, truth);
+                let children: Vec<Vec<Reached>> =
+                    children.iter().map(|c| self.reached(c)).collect();
+                each(&|at, _| {
+                    let mut either = Vec::new();
+                    for child in &children {
+                        for (named, truth) in &child[at] {
+                            keep(&mut either, *named, *truth);
+                        }
                     }
-                }
-                either
+                    either
+                })
             }
-            BMember::Named(test) if test.holds(&self.line.template) => {
-                vec![(Named::Whole, Truth::True)]
+            BMember::Named(test) => {
+                let named = if test.holds(&self.line.template) {
+                    Some(Named::Whole)
+                } else {
+                    self.line
+                        .rows
+                        .iter()
+                        .position(|row| test.holds(&row.template))
+                        .map(Named::Row)
+                };
+                each(&|_, _| {
+                    named
+                        .map(|named| (named, Truth::True))
+                        .into_iter()
+                        .collect()
+                })
             }
-            BMember::Named(test) => self
-                .line
-                .rows
-                .iter()
-                .position(|row| test.holds(&row.template))
-                .map(|row| (Named::Row(row), Truth::True))
-                .into_iter()
-                .collect(),
-            other => leaf(truth(other, self.line, together.numbers(self.line))),
+            other => {
+                each(&|_, together| leaf(truth(other, self.line, together.numbers(self.line))))
+            }
         }
     }
 }
@@ -341,7 +383,8 @@ impl Asked {
         if line.rows.is_empty() {
             return truth(&self.member, line, line.whole());
         }
-        self.several(line).holds(&self.member, Named::Nothing)
+        let of = self.several(line);
+        of.holds(&of.reached(&self.member), Named::Nothing)
     }
 
     pub fn holds(&self, line: &Line) -> bool {
@@ -380,13 +423,14 @@ impl Asked {
             };
         }
         let of = self.several(line);
+        let reached = of.reached(&self.member);
         let mut parts: Vec<(Option<usize>, Truth)> = Vec::new();
-        for together in &of.named {
+        for (together, alternatives) in of.named.iter().zip(&reached) {
             let held = any_of(
-                of.alternatives(&self.member, *together)
-                    .into_iter()
+                alternatives
+                    .iter()
                     .filter(|(named, _)| named == together)
-                    .map(|(_, truth)| truth),
+                    .map(|(_, truth)| *truth),
             );
             match parts.iter_mut().find(|(row, _)| *row == together.row()) {
                 Some((_, best)) => *best = most(*best, held),

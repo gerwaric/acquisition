@@ -49,7 +49,8 @@
 //!   before it, and what is unread of one row is unread of that row
 //!   (rule 8 of the plan). A row knows where its first number sits among
 //!   its mod's ([`Place`]), so a number read by the row and by the mod in
-//!   order is known for one number. A row that displays nothing is no name. Two
+//!   order is known for one number — but a row whose template another
+//!   displays, which sits in no one place. A row that displays nothing is no name. Two
 //!   rows of one mod displaying one template leave that row's numbers
 //!   unread, every slot of it on each of them, said here: a number named
 //!   by that row would be either's. None is on the census's copy, and
@@ -272,9 +273,11 @@ pub struct Row {
     #[serde(serialize_with = "whole_numbers")]
     pub numbers: Vec<Option<f64>>,
     /// Where the row's first number sits among its mod's, in order: how
-    /// many numbers the rows before it display.
+    /// many numbers the rows before it display. None where another row
+    /// of the mod displays the same template: the row named is either,
+    /// and its number sits in no one place.
     #[serde(skip)]
-    pub first: usize,
+    pub first: Option<usize>,
 }
 
 /// The numbers a slot word names (the reference, *Slots*): a mod's, in
@@ -283,14 +286,16 @@ pub struct Row {
 pub struct Numbers<'a> {
     template: &'a str,
     numbers: &'a [Option<f64>],
-    /// Where the first of them sits among the mod's.
-    first: usize,
+    /// Where the first of them sits among the mod's; none where that is
+    /// no one place.
+    first: Option<usize>,
 }
 
 /// Where a slot's number sits among its mod's numbers, in order: what
 /// tells one number of a mod from another, equal or not, and says that
 /// the mod's first number and its first row's first are one. `avg` is
-/// of two.
+/// of two. A number that may be either of two rows' has none: nothing
+/// is known to be the same number as it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Place(usize, Option<usize>);
 
@@ -912,7 +917,7 @@ impl Item {
                     rows.push(Row {
                         template,
                         numbers,
-                        first,
+                        first: Some(first),
                     });
                     first += displayed;
                 }
@@ -959,6 +964,7 @@ fn displayed_twice(rows: &mut [Row]) -> Option<String> {
             .any(|(j, fold)| j != i && *fold == folds[i]);
         if shared && numbered(row) {
             row.numbers = vec![None; template::slots(&row.template).count];
+            row.first = None;
             twice.get_or_insert_with(|| row.template.clone());
         }
     }
@@ -995,7 +1001,7 @@ impl Line {
         Numbers {
             template: &self.template,
             numbers: &self.numbers,
-            first: 0,
+            first: Some(0),
         }
     }
 
@@ -1043,15 +1049,17 @@ impl<'a> Numbers<'a> {
     }
 
     /// Where the number a slot word names sits among the mod's; none
-    /// where [`Numbers::slot`] is absent.
+    /// where [`Numbers::slot`] is absent, and none where the number is
+    /// either of two rows'.
     pub fn place(&self, word: &str) -> Option<Place> {
         let slots = template::slots(self.template);
         if slots.count != self.numbers.len() {
             return None;
         }
+        let first = self.first?;
         let at = |n: usize| {
             let at = n.checked_sub(1).filter(|i| *i < self.numbers.len())?;
-            Some(self.first + at)
+            Some(first + at)
         };
         match (word, slots.ranged) {
             ("low", Some((low, _))) => Some(Place(at(low)?, None)),
