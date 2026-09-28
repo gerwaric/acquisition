@@ -47,7 +47,9 @@
 //!   [`Line::names`]), read on its own as a line is — its template, its
 //!   numbers — so that a number of one row is named without the rows
 //!   before it, and what is unread of one row is unread of that row
-//!   (rule 8 of the plan). A row that displays nothing is no name. Two
+//!   (rule 8 of the plan). A row knows where its first number sits among
+//!   its mod's ([`Place`]), so a number read by the row and by the mod in
+//!   order is known for one number. A row that displays nothing is no name. Two
 //!   rows of one mod displaying one template leave that row's numbers
 //!   unread, every slot of it on each of them, said here: a number named
 //!   by that row would be either's. None is on the census's copy, and
@@ -269,6 +271,10 @@ pub struct Row {
     /// the same template.
     #[serde(serialize_with = "whole_numbers")]
     pub numbers: Vec<Option<f64>>,
+    /// Where the row's first number sits among its mod's, in order: how
+    /// many numbers the rows before it display.
+    #[serde(skip)]
+    pub first: usize,
 }
 
 /// The numbers a slot word names (the reference, *Slots*): a mod's, in
@@ -277,7 +283,16 @@ pub struct Row {
 pub struct Numbers<'a> {
     template: &'a str,
     numbers: &'a [Option<f64>],
+    /// Where the first of them sits among the mod's.
+    first: usize,
 }
+
+/// Where a slot's number sits among its mod's numbers, in order: what
+/// tells one number of a mod from another, equal or not, and says that
+/// the mod's first number and its first row's first are one. `avg` is
+/// of two.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Place(usize, Option<usize>);
 
 /// Something the deriver met and could not read.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -883,16 +898,23 @@ impl Item {
             }
             let mut rows: Vec<Row> = Vec::new();
             if text.contains('\n') {
+                let mut first = 0;
                 for row in text.split('\n').filter(|row| !row.is_empty()) {
                     let (template, read) = template::read(row);
-                    let numbers = match source {
+                    let numbers: Vec<Option<f64>> = match source {
                         "veiled" => Vec::new(),
                         _ => read
                             .into_iter()
                             .map(|(n, reads)| reads.then_some(n))
                             .collect(),
                     };
-                    rows.push(Row { template, numbers });
+                    let displayed = numbers.len();
+                    rows.push(Row {
+                        template,
+                        numbers,
+                        first,
+                    });
+                    first += displayed;
                 }
             }
             if let Some(twice) = displayed_twice(&mut rows) {
@@ -949,6 +971,7 @@ impl Row {
         Numbers {
             template: &self.template,
             numbers: &self.numbers,
+            first: self.first,
         }
     }
 }
@@ -972,6 +995,7 @@ impl Line {
         Numbers {
             template: &self.template,
             numbers: &self.numbers,
+            first: 0,
         }
     }
 
@@ -1015,6 +1039,26 @@ impl<'a> Numbers<'a> {
             },
             ("low" | "high" | "avg", None) => Slot::Absent,
             (other, _) => crate::tree::arg_index(other).map_or(Slot::Absent, at),
+        }
+    }
+
+    /// Where the number a slot word names sits among the mod's; none
+    /// where [`Numbers::slot`] is absent.
+    pub fn place(&self, word: &str) -> Option<Place> {
+        let slots = template::slots(self.template);
+        if slots.count != self.numbers.len() {
+            return None;
+        }
+        let at = |n: usize| {
+            let at = n.checked_sub(1).filter(|i| *i < self.numbers.len())?;
+            Some(self.first + at)
+        };
+        match (word, slots.ranged) {
+            ("low", Some((low, _))) => Some(Place(at(low)?, None)),
+            ("high", Some((_, high))) => Some(Place(at(high)?, None)),
+            ("avg", Some((low, high))) => Some(Place(at(low)?, Some(at(high)?))),
+            ("low" | "high" | "avg", None) => None,
+            (other, _) => Some(Place(at(crate::tree::arg_index(other)?)?, None)),
         }
     }
 

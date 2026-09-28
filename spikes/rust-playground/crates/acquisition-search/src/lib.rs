@@ -150,7 +150,7 @@ pub use bind::{NOT_BUILT, NotBuilt, Query, bind, not_built, parse_query};
 pub use class::{CLASS_TABLE_VERSION, ClassGap, ClassTable, ClassTableError, Classed};
 pub use corpus::{Basis, Corpus, Realm};
 pub use derive::{
-    Facts, Item, Line, Numbers, Part, Property, Row, Shown, Slot, Socket, Unread, derive,
+    Facts, Item, Line, Numbers, Part, Place, Property, Row, Shown, Slot, Socket, Unread, derive,
 };
 pub use describe::{Describe, describe};
 pub use error::{ErrorKind, LanguageError, SearchError};

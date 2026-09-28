@@ -433,6 +433,147 @@ fn c92_an_alternative_changes_no_number_a_comparison_reads() {
     assert_eq!(sorted["rows"][0]["sort"]["value"], 40);
 }
 
+/// Four items of one line each, in pc Standard, `Parts` (p1): `two`,
+/// cold damage 3 to 9 and 40 life in one mod; `first`, 40 life and 5 cold
+/// resistance in one mod; `equal`, 40 life and 40 cold resistance in one
+/// mod; `alone`, 40 life.
+fn parts_stash() -> Store {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("p1", "Parts")]), 10);
+    let one = |id: &str, line: &str| {
+        item(
+            id,
+            &format!("Item {id}"),
+            "Iron Ring",
+            "Rare",
+            json!({ "explicitMods": [line] }),
+        )
+    };
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "p1",
+        "Parts",
+        vec![
+            one("two", "Adds 3 to 9 Cold Damage\n+40 to maximum Life"),
+            one("first", "+40 to maximum Life\n+5% to Cold Resistance"),
+            one("equal", "+40 to maximum Life\n+40% to Cold Resistance"),
+            one("alone", "+40 to maximum Life"),
+        ],
+        20,
+    );
+    s
+}
+
+/// C91, C93 (the outside review of step 9c4, its second look, finding
+/// 1): a not is of what it holds, read as it is read there — the
+/// templates inside it say what its comparisons read, as they do outside
+/// one, and those conjoined with the not say it where it has none. On an
+/// occurrence that is read, a group or its not holds, never both and
+/// never neither.
+#[test]
+fn c93_a_not_is_of_what_it_holds_read_as_it_is_read_there() {
+    let s = parts_stash();
+    let found = |text: &str| found(&s, text);
+    let all = ["alone", "equal", "first", "two"];
+    let none = Vec::<String>::new();
+    let life_is = |n: i32| format!("\"{LIFE}\" arg1={n}");
+    assert_eq!(found(&format!("line({})", life_is(40))), all);
+    assert_eq!(found(&format!("line(-({}))", life_is(40))), none);
+    // two's first number is 3, and its life is not
+    assert_eq!(found(&format!("line({})", life_is(3))), none);
+    assert_eq!(found(&format!("line(-({}))", life_is(3))), all);
+    for n in [3, 40] {
+        let (is, not) = (life_is(n), format!("-({})", life_is(n)));
+        assert_eq!(found(&format!("line(({is}) or {not})")), all, "{n}");
+        assert_eq!(found(&format!("line({not} or ({is}))")), all, "{n}");
+        assert_eq!(found(&format!("line(({is}) {not})")), none, "{n}");
+        assert_eq!(found(&format!("line({is}) or line({not})")), all, "{n}");
+        // a doubled not is none, and a template under one still says
+        // what the comparison beside it reads
+        assert_eq!(
+            found(&format!("line(-{not})")),
+            found(&format!("line({is})")),
+            "{n}"
+        );
+        assert_eq!(
+            found(&format!("line(--\"{LIFE}\" arg1={n})")),
+            found(&format!("line({is})")),
+            "{n}"
+        );
+    }
+    // the template conjoined with the not says what it reads
+    assert_eq!(found(&format!("line(\"{LIFE}\" -(arg1=40))")), none);
+    assert_eq!(found(&format!("line(\"{LIFE}\" -(arg1=3))")), all);
+    assert_eq!(
+        found("line(\"#% to Cold Resistance\" -(arg1=5 or arg1=3))"),
+        ["equal"]
+    );
+    // a not inside a not: first's cold resistance is 5, equal's 40, and
+    // the two others have none
+    assert_eq!(
+        found("line(-(\"#% to Cold Resistance\" -(arg1=5)))"),
+        ["alone", "first", "two"]
+    );
+    // every count of the not, routed
+    let a = asked(&s, &format!("line(-({}))", life_is(40)));
+    let term = &a["terms"][0];
+    assert_eq!(counts(term)[0], 0);
+    assert_eq!(counts(term)[3], 0);
+    for kind in ["failed", "lacked"] {
+        if term[kind]["count"] != 0 {
+            follow(&s, &term[kind]);
+        }
+    }
+}
+
+/// C92, C95 (the same look, finding 2): a number of a mod is added
+/// once, however many alternatives read it — the mod's first number and
+/// its first row's first are one number — and two numbers of two rows are
+/// two, equal or not.
+#[test]
+fn c95_a_number_two_alternatives_read_is_added_once() {
+    let s = parts_stash();
+    let found = |text: &str| found(&s, text);
+    // by words alone, the mod's numbers in order: two's first is 3
+    assert_eq!(
+        found("sum(line(template:life).arg1)=40"),
+        ["alone", "equal", "first"]
+    );
+    assert_eq!(found("sum(line(template:life).arg1)=3"), ["two"]);
+    // the row named and the mod's first number are one number, but on
+    // two, whose life is its third
+    let either = format!("\"{LIFE}\" or template:life");
+    assert_eq!(
+        found(&format!("sum(line({either}).arg1)=40")),
+        ["alone", "equal", "first"]
+    );
+    assert_eq!(found(&format!("sum(line({either}).arg1)=43")), ["two"]);
+    assert_eq!(
+        found(&format!("sum(line({either}).arg1)=80")),
+        Vec::<String>::new()
+    );
+    // two rows are two numbers, equal or not
+    let rows = format!("\"{LIFE}\" or \"#% to Cold Resistance\"");
+    assert_eq!(found(&format!("sum(line({rows}).arg1)=80")), ["equal"]);
+    assert_eq!(found(&format!("sum(line({rows}).arg1)=45")), ["first"]);
+    // together: one number of 40 reaches no 60, and two's 40 and 3 reach 42
+    let a = asked(&s, &format!("line(({either}) arg1>=60)"));
+    assert_eq!(counts(&a["terms"][0]), [0, 4, 0, 0]);
+    assert_eq!(a["terms"][0]["together"]["count"], 0);
+    let a = asked(&s, &format!("line(({either}) arg1>=42)"));
+    assert_eq!(a["terms"][0]["together"]["count"], 1);
+    assert_eq!(follow(&s, &a["terms"][0]["together"]), ["two"]);
+    // what a row sorts by is the number, once
+    let sorted = view(
+        &s,
+        "id:first",
+        json!({ "rows": { "sort": format!("sum(line({either}).arg1)") } }),
+    );
+    assert_eq!(sorted["rows"][0]["sort"]["value"], 40);
+}
+
 /// Rule 8 of the plan, C93: what is unread of one row is unread of that
 /// row. A number the search does not read in the first row leaves the
 /// second row's comparison decided and the first's open, with its reason;

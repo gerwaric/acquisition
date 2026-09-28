@@ -66,11 +66,25 @@
 //!   the same alternatives (the outside review of step 9c4, finding 1:
 //!   the first build read one part for the whole group, from every
 //!   template in it). Spread out by the truths each part can reach
-//!   ([`reached`]), never by listing the alternatives, so a group costs
-//!   its size. An occurrence has a number for each part an alternative
-//!   that holds names: a sum adds each, a largest is the largest of them
-//!   ([`Asked::parts`]). A mod of one row is one part, and is read as it
+//!   ([`alternatives`]), never by listing the alternatives, so a group
+//!   costs its size. A mod of one row is one part, and is read as it
 //!   always was.
+//! - **A not is of what it holds, read as it is read there** (the same
+//!   review's second look, finding 1: a not pushed down to its
+//!   comparisons parted each from the template that said what it read,
+//!   so `-("T" arg1=40)` held beside `"T" arg1=40`). What a not holds is
+//!   a group of its own: its alternatives are spread, each reading what
+//!   its templates name together with those conjoined with the not, and
+//!   the not is the not of whether any holds — so a group or its not
+//!   holds on an occurrence that is read, never both. A not names
+//!   nothing: of a name it is of the occurrence. A doubled not is
+//!   neither, taken out when the group is bound, as the slot check reads
+//!   through one.
+//! - **An occurrence has a number for each place an alternative that
+//!   holds reads** ([`Asked::parts`], `derive::Place`): a sum adds each,
+//!   a largest is the largest of them. The mod's first number and its
+//!   first row's first are one place, read twice and added once (the
+//!   second look's finding 2); two rows' numbers are two, equal or not.
 //! - **Its template tests**, wherever they sit: whether it makes any, so
 //!   that it resolves to templates; whether each is a quoted `"T"`, which
 //!   resolves to itself; and the words a suggestion is scored against.
@@ -181,13 +195,19 @@ impl Named {
         }
     }
 
-    /// Whether an alternative that named this reads `part`: a row where
-    /// it named that row alone, the mod's numbers in order otherwise.
-    fn reads(self, part: Option<usize>) -> bool {
-        match (self, part) {
-            (Named::Row(a), Some(b)) => a == b,
-            (Named::Row(_), None) | (_, Some(_)) => false,
-            (_, None) => true,
+    /// What an alternative that named this reads: a row where it named
+    /// that row alone, the mod's numbers in order otherwise.
+    fn row(self) -> Option<usize> {
+        match self {
+            Named::Row(row) => Some(row),
+            Named::Nothing | Named::Whole | Named::Several => None,
+        }
+    }
+
+    fn numbers(self, line: &Line) -> Numbers<'_> {
+        match self.row().and_then(|row| line.rows.get(row)) {
+            Some(row) => row.read(),
+            None => line.whole(),
         }
     }
 }
@@ -200,74 +220,105 @@ fn most(a: Truth, b: Truth) -> Truth {
     any_of([a, b].into_iter())
 }
 
-/// The truths the alternatives of `member` reach on a mod of several
-/// rows, by what each has named, its comparisons reading `numbers`: the
-/// best of each, and none that is a no. The group spread into its
-/// alternatives without listing them — and distributes over or in
-/// three values as in two, so the best over the alternatives is the
-/// tree's own truth wherever every part reads the same numbers.
-fn reached(member: &BMember, not: bool, line: &Line, numbers: Numbers<'_>) -> Vec<(Named, Truth)> {
-    fn keep(into: &mut Vec<(Named, Truth)>, named: Named, truth: Truth) {
-        if truth == Truth::False {
-            return;
-        }
-        match into.iter_mut().find(|(seen, _)| *seen == named) {
-            Some((_, best)) => *best = most(*best, truth),
-            None => into.push((named, truth)),
-        }
+/// A mod of several rows, and what an alternative may have named of it.
+struct Mod<'a> {
+    line: &'a Line,
+    named: Vec<Named>,
+}
+
+impl Mod<'_> {
+    /// Whether `member` holds where the templates conjoined with it
+    /// have named `outer`: whether any of its alternatives does, each
+    /// read by what it and they name together.
+    fn holds(&self, member: &BMember, outer: Named) -> Truth {
+        any_of(self.named.iter().flat_map(|together| {
+            self.alternatives(member, *together)
+                .into_iter()
+                .filter(|(named, _)| outer.and(*named) == *together)
+                .map(|(_, truth)| truth)
+        }))
     }
-    let leaf = |truth: Truth| {
-        let truth = if not { negated(truth) } else { truth };
-        let mut out = Vec::new();
-        keep(&mut out, Named::Nothing, truth);
-        out
-    };
-    match member {
-        BMember::Not(inner) => reached(inner, !not, line, numbers),
-        // together: an and, or an or under a not
-        BMember::All(children) | BMember::Any(children)
-            if matches!(member, BMember::All(_)) != not =>
-        {
-            let mut so_far = vec![(Named::Nothing, Truth::True)];
-            for child in children {
-                let next = reached(child, not, line, numbers);
-                let mut both = Vec::new();
-                for (a, held) in &so_far {
-                    for (b, holds) in &next {
-                        keep(&mut both, a.and(*b), least(*held, *holds));
+
+    /// The truths the alternatives of `member` reach, by what each has
+    /// named, were what is named together `together`: the best of each,
+    /// and none that is a no. The group spread into its alternatives
+    /// without listing them — and distributes over or in three values as
+    /// in two, so the best over the alternatives is the tree's own truth
+    /// wherever every part reads the same numbers.
+    fn alternatives(&self, member: &BMember, together: Named) -> Vec<(Named, Truth)> {
+        fn keep(into: &mut Vec<(Named, Truth)>, named: Named, truth: Truth) {
+            if truth == Truth::False {
+                return;
+            }
+            match into.iter_mut().find(|(seen, _)| *seen == named) {
+                Some((_, best)) => *best = most(*best, truth),
+                None => into.push((named, truth)),
+            }
+        }
+        let leaf = |truth: Truth| {
+            let mut out = Vec::new();
+            keep(&mut out, Named::Nothing, truth);
+            out
+        };
+        match member {
+            // a group of its own, which names nothing
+            BMember::Not(inner) => leaf(negated(self.holds(inner, together))),
+            BMember::All(children) => {
+                let mut so_far = vec![(Named::Nothing, Truth::True)];
+                for child in children {
+                    let next = self.alternatives(child, together);
+                    let mut both = Vec::new();
+                    for (a, held) in &so_far {
+                        for (b, holds) in &next {
+                            keep(&mut both, a.and(*b), least(*held, *holds));
+                        }
+                    }
+                    so_far = both;
+                }
+                so_far
+            }
+            BMember::Any(children) => {
+                let mut either = Vec::new();
+                for child in children {
+                    for (named, truth) in self.alternatives(child, together) {
+                        keep(&mut either, named, truth);
                     }
                 }
-                so_far = both;
+                either
             }
-            so_far
-        }
-        BMember::All(children) | BMember::Any(children) => {
-            let mut either = Vec::new();
-            for child in children {
-                for (named, truth) in reached(child, not, line, numbers) {
-                    keep(&mut either, named, truth);
-                }
+            BMember::Named(test) if test.holds(&self.line.template) => {
+                vec![(Named::Whole, Truth::True)]
             }
-            either
+            BMember::Named(test) => self
+                .line
+                .rows
+                .iter()
+                .position(|row| test.holds(&row.template))
+                .map(|row| (Named::Row(row), Truth::True))
+                .into_iter()
+                .collect(),
+            other => leaf(truth(other, self.line, together.numbers(self.line))),
         }
-        // a not of a name is of the occurrence: it names nothing
-        BMember::Named(test) if not => leaf(sure(line.names().any(|name| test.holds(name)))),
-        BMember::Named(test) if test.holds(&line.template) => vec![(Named::Whole, Truth::True)],
-        BMember::Named(test) => line
-            .rows
-            .iter()
-            .position(|row| test.holds(&row.template))
-            .map(|row| (Named::Row(row), Truth::True))
-            .into_iter()
-            .collect(),
-        other => leaf(truth(other, line, numbers)),
+    }
+}
+
+/// A doubled not taken out, wherever it sits.
+fn undoubled(member: BMember) -> BMember {
+    match member {
+        BMember::All(children) => BMember::All(children.into_iter().map(undoubled).collect()),
+        BMember::Any(children) => BMember::Any(children.into_iter().map(undoubled).collect()),
+        BMember::Not(inner) => match undoubled(*inner) {
+            BMember::Not(twice) => *twice,
+            other => BMember::Not(Box::new(other)),
+        },
+        other => other,
     }
 }
 
 impl Asked {
     /// The tests are the bound tree's own, compiled once: a total's row
-    /// is bound at every ask, and a test compiled again for each was a
-    /// third of what the step cost the load (`search/MEASUREMENTS.md`).
+    /// is bound at every ask, and a test compiled again for each was
+    /// most of what the step cost the load (`search/MEASUREMENTS.md`).
     fn new(member: BMember) -> Asked {
         fn named(member: &BMember, out: &mut Vec<TextTest>) {
             match member {
@@ -279,6 +330,7 @@ impl Asked {
                 _ => {}
             }
         }
+        let member = undoubled(member);
         let mut quoted = Vec::new();
         named(&member, &mut quoted);
         Asked { member, quoted }
@@ -289,16 +341,36 @@ impl Asked {
         if line.rows.is_empty() {
             return truth(&self.member, line, line.whole());
         }
-        any_of(self.parts(line).into_iter().map(|(truth, _)| truth))
+        self.several(line).holds(&self.member, Named::Nothing)
     }
 
     pub fn holds(&self, line: &Line) -> bool {
         self.of(line) == Truth::True
     }
 
+    /// A mod of several rows, with what may be named of it: nothing,
+    /// its whole text, two rows, and each row a quoted template names,
+    /// once — rows displaying one template are one name.
+    fn several<'a>(&self, line: &'a Line) -> Mod<'a> {
+        let mut rows: Vec<usize> = self
+            .quoted
+            .iter()
+            .filter_map(|test| line.rows.iter().position(|row| test.holds(&row.template)))
+            .collect();
+        rows.sort_unstable();
+        rows.dedup();
+        Mod {
+            line,
+            named: [Named::Nothing, Named::Whole, Named::Several]
+                .into_iter()
+                .chain(rows.into_iter().map(Named::Row))
+                .collect(),
+        }
+    }
+
     /// The parts of the occurrence that what is asked may read a number
     /// of (the module doc): each with the truth of the alternatives that
-    /// name it, and none of which every one is a no. A mod of one row is
+    /// read it, and none of which every one is a no. A mod of one row is
     /// one part.
     pub fn parts<'a>(&self, line: &'a Line) -> Vec<(Truth, Numbers<'a>)> {
         if line.rows.is_empty() {
@@ -307,29 +379,29 @@ impl Asked {
                 held => vec![(held, line.whole())],
             };
         }
-        // the mod's numbers in order, then each row a quoted template
-        // names, once: rows displaying one template are one name
-        let mut rows: Vec<usize> = self
-            .quoted
-            .iter()
-            .filter_map(|test| line.rows.iter().position(|row| test.holds(&row.template)))
-            .collect();
-        rows.sort_unstable();
-        rows.dedup();
-        std::iter::once(None)
-            .chain(rows.into_iter().map(Some))
-            .filter_map(|part| {
-                let numbers = match part {
+        let of = self.several(line);
+        let mut parts: Vec<(Option<usize>, Truth)> = Vec::new();
+        for together in &of.named {
+            let held = any_of(
+                of.alternatives(&self.member, *together)
+                    .into_iter()
+                    .filter(|(named, _)| named == together)
+                    .map(|(_, truth)| truth),
+            );
+            match parts.iter_mut().find(|(row, _)| *row == together.row()) {
+                Some((_, best)) => *best = most(*best, held),
+                None => parts.push((together.row(), held)),
+            }
+        }
+        parts
+            .into_iter()
+            .filter(|(_, held)| *held != Truth::False)
+            .map(|(row, held)| {
+                let numbers = match row {
                     Some(row) => line.rows[row].read(),
                     None => line.whole(),
                 };
-                let held = any_of(
-                    reached(&self.member, false, line, numbers)
-                        .into_iter()
-                        .filter(|(named, _)| named.reads(part))
-                        .map(|(_, truth)| truth),
-                );
-                (held != Truth::False).then_some((held, numbers))
+                (held, numbers)
             })
             .collect()
     }

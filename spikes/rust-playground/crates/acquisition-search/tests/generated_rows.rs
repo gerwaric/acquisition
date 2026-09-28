@@ -23,8 +23,20 @@
 //!   flag beneath it, routes to as many items as it counted — a template
 //!   that names a mod by a row, and one GGG spelled two ways, among them.
 //!
-//! What this cannot see: a fault the mod and its rows apart share. That
-//! is the hand-counted tests' (`tests/rows.rs`, `tests/pseudo.rs`).
+//! - **On one occurrence a group or its not holds, never both and never
+//!   neither**, and the two are open together (C93): any generated group,
+//!   `template:` and patterns among its tests, over items of one line —
+//!   a mod of several rows or not, its flags and its number read or not.
+//!   A not that parted a comparison from the template saying what it
+//!   reads held beside the group it was the not of (the outside review
+//!   of step 9c4, its second look).
+//! - **A group's or is the item's or of the same alternatives**: `line(A
+//!   or B)` and `line(A) or line(B)` return the same items of one line,
+//!   and leave the same open.
+//!
+//! What this cannot see: a fault the mod and its rows apart share, or a
+//! group and its not. That is the hand-counted tests' (`tests/rows.rs`,
+//! `tests/pseudo.rs`).
 
 mod common;
 
@@ -96,6 +108,23 @@ fn term() -> BoxedStrategy<String> {
             _ => format!("line(\"{template}\" -({slot}{compared} or source=implicit))"),
         },
     );
+    // a row named and words that hold of the same row, the mod's first
+    // with a number: one number, read by the row and by the mod in order
+    // (the second look's finding 2)
+    let twice = (
+        proptest::sample::select(vec![(LIFE, "life"), (ALL_RES, "elemental")]),
+        compared(),
+        restriction(),
+        0u8..3,
+    )
+        .prop_map(|((template, words), compared, restriction, shape)| {
+            let either = format!("(\"{template}\" or template:{words}){restriction}");
+            match shape {
+                0 => format!("sum(line({either}).arg1){compared}"),
+                1 => format!("line({either} arg1{compared})"),
+                _ => format!("line({either}).arg1{compared}"),
+            }
+        });
     // alternatives inside one group, each naming its own row: what the
     // same alternatives say at the item's level, a mod written apart or
     // not (the outside review of step 9c4, finding 1)
@@ -141,6 +170,7 @@ fn term() -> BoxedStrategy<String> {
     prop_oneof![
         6 => line,
         4 => either,
+        4 => twice,
         1 => Just(format!("line(template=\"{PASSAGE}\")")),
         3 => computed,
     ]
@@ -252,10 +282,113 @@ fn item() -> BoxedStrategy<Body> {
     prop_oneof![2 => one_mod, 1 => body(true)].boxed()
 }
 
+/// An item of one line, whatever the line: a mod of several rows two
+/// times in five.
+fn of_one_line() -> BoxedStrategy<Body> {
+    (line(true), any::<bool>(), 0u8..5)
+        .prop_map(|(mut line, implicit, several)| {
+            if several < 2 {
+                line.kind = 9 + several;
+            }
+            let lines = Lines::Of(vec![Elem::Line(line)]);
+            let mut body = Body::blank(Tri::No);
+            if implicit {
+                body.implicit = lines;
+            } else {
+                body.explicit = lines;
+            }
+            body
+        })
+        .boxed()
+}
+
+/// Who matched a query and whom it left open; none where it is refused.
+fn matched_and_open(corpus: &Corpus, scope: &Ids, q: &Q) -> Result<Option<(Ids, Ids)>, String> {
+    let text = q_text(q, Spelling::Authored);
+    let Ok(a) = run(corpus, &request(&text, None, false, scope.len().max(1))) else {
+        return Ok(None);
+    };
+    let matched: Ids = a["rows"]
+        .as_array()
+        .ok_or("no rows")?
+        .iter()
+        .filter_map(|row| row["id"].as_str().map(str::to_string))
+        .collect();
+    let mut cache = HashMap::new();
+    let open = members(corpus, &a["total"]["undecided"], scope, &mut cache)
+        .map_err(|e| format!("`{text}`: {e}"))?;
+    Ok(Some((matched, open)))
+}
+
+fn a_group_or_its_not_holds(corpus: &Corpus, scope: &Ids, g: &G) -> Result<(), String> {
+    let is = Q::Line(g.clone());
+    let not = Q::Line(G::Not(Box::new(g.clone())));
+    let (Some((is_in, is_open)), Some((not_in, not_open))) = (
+        matched_and_open(corpus, scope, &is)?,
+        matched_and_open(corpus, scope, &not)?,
+    ) else {
+        return Ok(());
+    };
+    let text = q_text(&is, Spelling::Authored);
+    if let Some(both) = is_in.intersection(&not_in).next() {
+        return Err(format!("`{text}` and its not both hold on {both}"));
+    }
+    if is_open != not_open {
+        return Err(format!(
+            "`{text}` leaves {is_open:?} open and its not {not_open:?}"
+        ));
+    }
+    let said: Ids = is_in.union(&not_in).chain(&is_open).cloned().collect();
+    if said != *scope {
+        let neither: Vec<&String> = scope.difference(&said).collect();
+        return Err(format!("neither `{text}` nor its not holds on {neither:?}"));
+    }
+    Ok(())
+}
+
+fn a_groups_or_is_the_items(corpus: &Corpus, scope: &Ids, a: &G, b: &G) -> Result<(), String> {
+    let inside = Q::Line(G::Or(vec![a.clone(), b.clone()]));
+    let outside = Q::Or(vec![Q::Line(a.clone()), Q::Line(b.clone())]);
+    let (Some(one), Some(two)) = (
+        matched_and_open(corpus, scope, &inside)?,
+        matched_and_open(corpus, scope, &outside)?,
+    ) else {
+        return Ok(());
+    };
+    if one != two {
+        return Err(format!(
+            "`{}` says {one:?} and `{}` {two:?}",
+            q_text(&inside, Spelling::Authored),
+            q_text(&outside, Spelling::Authored)
+        ));
+    }
+    Ok(())
+}
+
 proptest! {
     #![proptest_config(ProptestConfig {
         cases: cases(192), failure_persistence: None, ..ProptestConfig::default()
     })]
+
+    #[test]
+    fn c93_on_one_occurrence_a_group_or_its_not_holds(
+        bodies in proptest::collection::vec(of_one_line(), 1..6),
+        groups in proptest::collection::vec(group(), 1..4),
+    ) {
+        let (corpus, scope) = fixture(bodies.iter().map(Body::json).collect());
+        for g in &groups {
+            a_group_or_its_not_holds(&corpus, &scope, g).map_err(TestCaseError::fail)?;
+        }
+    }
+
+    #[test]
+    fn c91_a_groups_or_is_the_items_or_of_the_same_alternatives(
+        bodies in proptest::collection::vec(of_one_line(), 1..6),
+        a in group(), b in group(),
+    ) {
+        let (corpus, scope) = fixture(bodies.iter().map(Body::json).collect());
+        a_groups_or_is_the_items(&corpus, &scope, &a, &b).map_err(TestCaseError::fail)?;
+    }
 
     #[test]
     fn c90_a_row_named_answers_as_the_row_alone(
@@ -313,6 +446,8 @@ fn the_generators_reach_a_mod_of_several_rows() {
         format!("line((\"{COLD}\" arg1>=10) or (\"{LIFE}\" source=scourge))"),
         format!("line((\"{LIFE}\" or \"{COLD}\") arg1>=10)"),
         format!("sum(line(\"{LIFE}\" or \"{COLD}\").arg1)=9"),
+        format!("sum(line(\"{LIFE}\" or template:life).arg1)>=2"),
+        format!("line((\"{ALL_RES}\" or template:elemental) arg1>=13)"),
         format!("\"{ALL_RES}\">=1"),
         format!("\"{COLD}\">=3"),
         format!("\"{LIFE}\"<=0"),

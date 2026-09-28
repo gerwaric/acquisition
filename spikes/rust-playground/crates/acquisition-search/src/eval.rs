@@ -54,9 +54,10 @@
 //!   several, so a sum, a largest and the together count add and compare
 //!   the number the comparison read, and a number unread in another row
 //!   leaves none of them open (rule 8 of the plan). An occurrence has a
-//!   number for each part an alternative of the group names and holds
-//!   on — two, where two templates under an or name two rows of one mod —
-//!   and a sum adds each.
+//!   number for each place an alternative that holds reads — two, where
+//!   two templates under an or name two rows of one mod; one, where a
+//!   row's number is read by the row and by the mod in order — and a sum
+//!   adds each.
 //! - **A value is open exactly when it would sort as incomplete**:
 //!   `undecided(sum( … ))`, `undecided(line(P).<slot>)` and `--sort` ask
 //!   one function.
@@ -120,7 +121,7 @@ use serde::Serialize;
 use crate::bind::{Atom, BProbe, Bound, NumTest, SortKey, Term, Thing};
 use crate::class::Classed;
 use crate::corpus::Held;
-use crate::derive::{Line, Part, Shown, Slot, Unread};
+use crate::derive::{Line, Part, Place, Shown, Slot, Unread};
 use crate::exact::{self, Exact};
 pub(crate) use crate::group::Truth;
 use crate::group::{Asked, Group};
@@ -528,21 +529,40 @@ fn open_on_a_line(held: &Held, asked: &Asked) -> bool {
         .any(|l| asked.of(l) == Truth::Undecided)
 }
 
-/// The slot's number on each part of an occurrence that leaves its
-/// contribution open (`group::Asked::parts`): a part that may or may not
-/// satisfy what is asked and names the slot, or one that satisfies it
-/// and whose number could not be read. A part that does not name the
-/// slot cannot contribute whichever way its flag falls, so it leaves no
-/// sum, no largest and no together count open (C93's known absence).
+/// The slot's number at each place of an occurrence that an alternative
+/// which holds reads (`group::Asked::parts`), a place once: the mod's
+/// first number and its first row's first are one number, however many
+/// alternatives read it.
+fn read_slots(asked: &Asked, slot: &str, line: &Line, held: Truth) -> Vec<(Place, Slot)> {
+    let mut read: Vec<(Place, Slot)> = Vec::new();
+    for (truth, numbers) in asked.parts(line) {
+        if truth == held
+            && let Some(place) = numbers.place(slot)
+            && !read.iter().any(|(seen, _)| *seen == place)
+        {
+            read.push((place, numbers.slot(slot)));
+        }
+    }
+    read
+}
+
+/// The slot's number at each place of an occurrence that leaves its
+/// contribution open: a place an alternative that holds reads, whose
+/// number could not be read; and one read by an alternative that may or
+/// may not hold, and by none that does — a number added already is added
+/// no more. A part that does not name the slot cannot contribute
+/// whichever way its flag falls, so it leaves no sum, no largest and no
+/// together count open (C93's known absence).
 fn open_slots(asked: &Asked, slot: &str, line: &Line) -> Vec<Slot> {
-    asked
-        .parts(line)
+    let added = read_slots(asked, slot, line, Truth::True);
+    let may_be = read_slots(asked, slot, line, Truth::Undecided)
         .into_iter()
-        .map(|(held, numbers)| (held, numbers.slot(slot)))
-        .filter(|(held, named)| match (held, named) {
-            (Truth::False, _) | (_, Slot::Absent) | (Truth::True, Slot::Is(_)) => false,
-            (Truth::Undecided, _) | (Truth::True, Slot::Unread) => true,
-        })
+        .filter(|(place, _)| !added.iter().any(|(seen, _)| seen == place));
+    added
+        .iter()
+        .filter(|(_, named)| *named == Slot::Unread)
+        .copied()
+        .chain(may_be)
         .map(|(_, named)| named)
         .collect()
 }
@@ -559,15 +579,13 @@ fn open_with_the_slot(held: &Held, asked: &Asked, slot: &str) -> bool {
 }
 
 /// The slot's numbers on an occurrence, as what is asked named them: one
-/// for each part an alternative that holds names — a row's, where a
+/// for each place an alternative that holds reads — a row's, where a
 /// quoted template names the row (`group.rs`) — and one on a mod of one
 /// row.
 fn values<'a>(asked: &'a Asked, line: &'a Line, slot: &'a str) -> impl Iterator<Item = f64> + 'a {
-    asked
-        .parts(line)
+    read_slots(asked, slot, line, Truth::True)
         .into_iter()
-        .filter(|(held, _)| *held == Truth::True)
-        .filter_map(move |(_, numbers)| match numbers.slot(slot) {
+        .filter_map(|(_, named)| match named {
             Slot::Is(n) => Some(n),
             Slot::Absent | Slot::Unread => None,
         })
