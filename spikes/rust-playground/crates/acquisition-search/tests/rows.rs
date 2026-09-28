@@ -11,7 +11,9 @@ mod common;
 
 use std::collections::BTreeSet;
 
-use acquisition_search::{Request, answer};
+use acquisition_search::{
+    Collection, ErrorKind, Member, Node, Number, Op, Request, Value as TreeValue, answer, check,
+};
 use acquisition_store::Store;
 use common::*;
 use serde_json::{Value, json};
@@ -280,13 +282,13 @@ fn c92_a_slot_names_the_numbers_of_the_row_named() {
         .unwrap_err()
         .to_json();
     assert_eq!(e["kind"], "slot_unknown", "{e}");
-    // two rows named name no one row: the mod's numbers in order
+    // two rows named together name no one row, and a number beside them
+    // is refused (`c92_a_number_beside_two_rows_…`, below)
     let both = format!("\"Adds # to # Cold Damage\" \"{LIFE}\"");
-    assert_eq!(found(&format!("line({both} arg3=40)")), ["pair"]);
-    assert_eq!(
-        found(&format!("line({both} arg1=40)")),
-        Vec::<String>::new()
-    );
+    let e = ask(&load(&s, Some("pc")), &format!("line({both} arg3=40)"))
+        .unwrap_err()
+        .to_json();
+    assert_eq!(e["kind"], "slot_of_two_rows", "{e}");
     // under an or the row a template names on the occurrence: pair's life
     // row, plain's line; long's two rows are both named, and its first
     // number is unread
@@ -431,6 +433,308 @@ fn c92_an_alternative_changes_no_number_a_comparison_reads() {
         json!({ "rows": { "sort": format!("line(\"Adds # to # Cold Damage\" or \"{LIFE}\").arg1") } }),
     );
     assert_eq!(sorted["rows"][0]["sort"]["value"], 40);
+}
+
+const COLD: &str = "Adds # to # Cold Damage";
+const FIRE: &str = "Adds # to # Fire Damage";
+/// As a query writes it, `one`'s mod by its whole text.
+const COLD_LIFE_TYPED: &str = r#""Adds # to # Cold Damage\n# to maximum Life""#;
+
+/// Three items of one mod each, in pc Standard, `Both` (b1): `one`, cold
+/// damage 3 to 9 then 40 life; `other`, 40 life then cold damage 3 to 9;
+/// `ranged`, cold damage 3 to 9 then fire damage 5 to 7.
+fn both_stash() -> Store {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("b1", "Both")]), 10);
+    let one = |id: &str, line: &str| {
+        item(
+            id,
+            &format!("Item {id}"),
+            "Iron Ring",
+            "Rare",
+            json!({ "explicitMods": [line] }),
+        )
+    };
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "b1",
+        "Both",
+        vec![
+            one("one", "Adds 3 to 9 Cold Damage\n+40 to maximum Life"),
+            one("other", "+40 to maximum Life\nAdds 3 to 9 Cold Damage"),
+            one("ranged", "Adds 3 to 9 Cold Damage\nAdds 5 to 7 Fire Damage"),
+        ],
+        20,
+    );
+    s
+}
+
+/// C91, C92 (owner, 2026-09-28: "refuse"; the outside review of step
+/// 9c4, its fourth look): a number word beside two rows of a mod named
+/// together has no one row to read, and which is never guessed — the
+/// term is refused however it is spelled, as a text and as a tree, and
+/// each reading offered is one this build answers. Read of the mod's
+/// numbers in order, as it was, a row named as a condition moved what
+/// the number beside it read: `one` left `"# to maximum Life" arg1>=40`
+/// when the cold damage it shows was named, and a not of cold damage's
+/// `high` held on `ranged`, whose `high` is 9.
+#[test]
+fn c92_a_number_beside_two_rows_named_together_is_refused() {
+    let s = both_stash();
+    let c = load(&s, Some("pc"));
+    let found = |text: &str| found(&s, text);
+    let none = Vec::<String>::new();
+    let refused = |text: &str| -> Value {
+        let e = match ask(&c, text) {
+            Ok(_) => panic!("`{text}` is answered"),
+            Err(e) => e.to_json(),
+        };
+        assert_eq!(e["kind"], "slot_of_two_rows", "`{text}`: {e}");
+        // a reading is a text this build answers
+        for reading in e["readings"].as_array().into_iter().flatten() {
+            let reading = reading.as_str().unwrap();
+            if let Err(e) = ask(&c, reading) {
+                panic!("`{text}` offers `{reading}`, which is refused: {e}");
+            }
+        }
+        e
+    };
+    let (life, cold, fire) = (
+        format!("\"{LIFE}\""),
+        format!("\"{COLD}\""),
+        format!("\"{FIRE}\""),
+    );
+    // in any order, under any parentheses, beside an alternative that
+    // holds nowhere or one that names the same row again
+    for text in [
+        format!("line({life} {cold} arg1>=40)"),
+        format!("line({cold} arg1>=40 {life})"),
+        format!("line(({life} arg1>=40) {cold})"),
+        format!("line({life} ({cold} or false()) arg1>=40)"),
+        format!("line({life} ({life} or {cold}) arg1=3)"),
+        format!("line(({life} {cold} arg1=3) or {fire})"),
+        // a doubled not is none, and names what it holds
+        format!("line(--{life} {cold} arg1>=40)"),
+        // a not is read with what is conjoined with it
+        format!("line({fire} -({cold} high=9))"),
+        format!("line({fire} -(is:crafted or -({cold} high=9)))"),
+        // a value, compared or asked
+        format!("sum(line({life} {cold}).arg1)>=1"),
+        format!("line({life} {cold}).arg1>=40"),
+        format!("undecided(line({life} {cold}).arg1)"),
+        format!("-line({life} {cold} arg1>=40) rarity=rare"),
+    ] {
+        let e = refused(&text);
+        assert_eq!(e["readings"].as_array().map(Vec::len), Some(2), "{text}");
+    }
+    // what is offered: the row whose number is meant stays quoted, and
+    // the other is asked of the mod's text
+    let e = refused(&format!("line({life} {cold} arg1>=40)"));
+    assert_eq!(
+        e["readings"],
+        json!([
+            format!("line({life} template:{cold} arg1>=40)"),
+            format!("line(template:{life} {cold} arg1>=40)"),
+        ])
+    );
+    assert!(
+        e["error"].as_str().unwrap().contains(&life)
+            && e["error"].as_str().unwrap().contains(&cold),
+        "{e}"
+    );
+    assert_eq!(
+        found(&format!("line({life} template:{cold} arg1>=40)")),
+        ["one", "other"]
+    );
+    assert_eq!(
+        found(&format!("line(template:{life} {cold} arg1>=40)")),
+        none
+    );
+    // and under the not: fire's high is 7, cold's is 9
+    let e = refused(&format!("line({fire} -({cold} high=9))"));
+    assert_eq!(
+        e["readings"],
+        json!([
+            format!("line({fire} -(template:{cold} high=9))"),
+            format!("line(template:{fire} -({cold} high=9))"),
+        ])
+    );
+    assert_eq!(
+        found(&format!("line({fire} -(template:{cold} high=9))")),
+        ["ranged"]
+    );
+    assert_eq!(
+        found(&format!("line(template:{fire} -({cold} high=9))")),
+        none
+    );
+    // a reading the build would refuse is not offered: with life asked
+    // of the text, fire and cold are two rows still
+    let e = refused(&format!("line(({life} or {fire}) {cold} arg1>=1)"));
+    assert_eq!(
+        e["readings"],
+        json!([format!("line(({life} or {fire}) template:{cold} arg1>=1)")])
+    );
+    // what a row is sorted by
+    let sort = format!("line({life} {cold}).arg1");
+    let request: Request = serde_json::from_value(
+        json!({ "query": { "text": "" }, "view": { "rows": { "sort": sort } } }),
+    )
+    .unwrap();
+    let e = match answer(&c, &request) {
+        Ok(_) => panic!("`{sort}` sorts"),
+        Err(e) => e.to_json(),
+    };
+    assert_eq!(e["kind"], "slot_of_two_rows", "{e}");
+    assert_eq!(
+        e["readings"],
+        json!([
+            format!("line({life} template:{cold}).arg1"),
+            format!("line(template:{life} {cold}).arg1"),
+        ])
+    );
+    // a tree is refused as its text is
+    let test = |attr: &str, op: Op, value: TreeValue| Member::Test {
+        attr: attr.to_string(),
+        op,
+        value,
+    };
+    let tree = Node::Members {
+        of: Collection::Lines,
+        where_: Box::new(Member::All(vec![
+            test("template", Op::Eq, TreeValue::Text(LIFE.to_string())),
+            test("template", Op::Eq, TreeValue::Text(COLD.to_string())),
+            test("arg1", Op::Ge, TreeValue::Number(Number::Int(40))),
+        ])),
+    };
+    let e = check(&tree).unwrap_err();
+    assert_eq!(e.kind, ErrorKind::SlotOfTwoRows);
+    assert_eq!(
+        e.readings,
+        [
+            format!("line({life} template:{cold} arg1>=40)"),
+            format!("line(template:{life} {cold} arg1>=40)"),
+        ]
+    );
+}
+
+/// C92, the reference's *Slots* (the same look, finding 1): what is not
+/// refused is read as it was — two rows named with no number beside
+/// them, alternatives each naming its own row, a row asked of the mod's
+/// text, a not of a name, a mod named by its whole text beside a row of
+/// it — and a slot is checked against the one quoted template among the
+/// group's conjuncts where that template alone says what the slot reads:
+/// beside the mod's whole text the numbers are the mod's, and the check
+/// that took `arg3` for the row's refused a term the evaluator reads.
+#[test]
+fn c92_a_slot_is_checked_against_the_template_that_says_what_it_reads() {
+    let s = both_stash();
+    let found = |text: &str| found(&s, text);
+    let none = Vec::<String>::new();
+    let (life, cold, fire) = (
+        format!("\"{LIFE}\""),
+        format!("\"{COLD}\""),
+        format!("\"{FIRE}\""),
+    );
+    assert_eq!(found(&format!("line({life} {cold})")), ["one", "other"]);
+    assert_eq!(
+        found(&format!("line(({life} or {cold}) arg1>=40)")),
+        ["one", "other"]
+    );
+    assert_eq!(
+        found(&format!("line(({life} {cold}) or ({fire} high=7))")),
+        ["one", "other", "ranged"]
+    );
+    // GGG's two spellings of one row are one name
+    assert_eq!(
+        found("line(\"# to maximum Life\" \"# to Maximum life\" arg1>=40)"),
+        ["one", "other"]
+    );
+    // a row asked of the mod's text names nothing, and moves no number
+    assert_eq!(
+        found(&format!("line({life} template:\"cold damage\" arg1>=40)")),
+        ["one", "other"]
+    );
+    assert_eq!(
+        found(&format!("line({life} template:\"cold damage\" arg1=3)")),
+        none
+    );
+    // a not of a name is of the occurrence, and names nothing
+    assert_eq!(
+        found(&format!("line({life} -{fire} arg1=40)")),
+        ["one", "other"]
+    );
+    assert_eq!(found(&format!("line({life} -{cold} arg1=40)")), none);
+    // named by its whole text, the mod's numbers in order, a row of it
+    // named beside or not
+    let whole = COLD_LIFE_TYPED;
+    assert_eq!(found(&format!("line({whole} arg3=40)")), ["one"]);
+    assert_eq!(found(&format!("line({whole} {life} arg3=40)")), ["one"]);
+    assert_eq!(
+        found(&format!("line({life} ({whole} or false()) arg3=40)")),
+        ["one"]
+    );
+    assert_eq!(
+        found(&format!("line({life} -({whole} arg3=40))")),
+        ["other"]
+    );
+    // the row alone says what the slot reads, wherever the slot sits
+    for text in [
+        format!("line({life} arg3=40)"),
+        format!("line({life} -(high=9))"),
+        format!("line({life} (high=9 or true()))"),
+        format!("line({life} -{cold} high=9)"),
+        format!("line({life} template:\"cold damage\" high=9)"),
+    ] {
+        let e = ask(&load(&s, Some("pc")), &text).unwrap_err().to_json();
+        assert_eq!(e["kind"], "slot_unknown", "`{text}`: {e}");
+    }
+}
+
+/// What a slot is read beside is weighed from the query, and a reading
+/// is made by the group that was asked and by no reading of it: a
+/// hundred rows named in five alternations, twenty rows named together,
+/// and a slot thirty groups deep are each weighed in no time. None of
+/// the first two's readings is offered, two rows being named in each
+/// still.
+#[test]
+fn what_a_slot_is_read_beside_costs_the_groups_size() {
+    let s = both_stash();
+    let c = load(&s, Some("pc"));
+    let name = |group: u8, n: u8| {
+        format!(
+            "\"# to {}{}\"",
+            char::from(b'A' + group),
+            char::from(b'a' + n)
+        )
+    };
+    let alternation = |group: u8| {
+        let names: Vec<String> = (0..20).map(|n| name(group, n)).collect();
+        format!("({})", names.join(" or "))
+    };
+    let wide: Vec<String> = (0..5).map(alternation).collect();
+    let together: Vec<String> = (0..20).map(|n| name(0, n)).collect();
+    let mut deep = format!("\"{LIFE}\" arg1>=40");
+    for _ in 0..30 {
+        deep = format!("(({deep}) or false()) -is:fractured");
+    }
+    let started = std::time::Instant::now();
+    for text in [
+        format!("line({} arg1>=1)", wide.join(" ")),
+        format!("line({} arg1>=1)", together.join(" ")),
+    ] {
+        let e = ask(&c, &text).unwrap_err().to_json();
+        assert_eq!(e["kind"], "slot_of_two_rows", "{e}");
+        assert_eq!(e.get("readings"), None, "{e}");
+    }
+    assert_eq!(found(&s, &format!("line({deep})")), ["one", "other"]);
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(20),
+        "{:?}",
+        started.elapsed()
+    );
+    println!("weighed in {:?}", started.elapsed());
 }
 
 /// Four items of one line each, in pc Standard, `Parts` (p1): `two`,

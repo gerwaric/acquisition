@@ -59,16 +59,31 @@
 //!   templates that must hold with a comparison say what it reads: one
 //!   row of the mod, where they name that row and nothing else of it, so
 //!   `arg1` is the row's first number whatever the rows before it
-//!   display; the mod's numbers in order where they name its whole text,
-//!   two rows of it, or where there is none. So an alternative beside a
-//!   comparison — one that holds nowhere, one naming another row —
-//!   changes no number it reads, and a group's or is the item's or of
-//!   the same alternatives (the outside review of step 9c4, finding 1:
-//!   the first build read one part for the whole group, from every
-//!   template in it). Spread out by the truths each part can reach
+//!   display; the mod's numbers in order where they name its whole text
+//!   or where there is none. So an alternative beside a comparison — one
+//!   that holds nowhere, one naming another row — changes no number it
+//!   reads, and a group's or is the item's or of the same alternatives
+//!   (the outside review of step 9c4, finding 1: the first build read
+//!   one part for the whole group, from every template in it). Spread
+//!   out by the truths each part can reach
 //!   ([`Mod::reached`]), never by listing the alternatives, and every
 //!   node weighed once, so a group costs its size. A mod of one row is
 //!   one part, and is read as it always was.
+//! - **What a slot is read beside is weighed before any mod is read**
+//!   ([`Slots`]; owner, 2026-09-28: "refuse"). Two rows named together
+//!   name no one row, and a slot beside them is refused by `tree::check`,
+//!   never read: read of the mod's numbers in order, as the step first
+//!   built it, a row named as a condition moved what the number beside
+//!   it read, and a not of one row's number held beside another row
+//!   named (the same review, its fourth look). What an alternative names
+//!   is weighed from the query alone, by the rule the evaluator names a
+//!   mod's parts by — a quoted template with a row break is the whole
+//!   text, any other a row, one name in any case — so validity asks no
+//!   corpus. Each reading offered keeps one row quoted and asks the
+//!   other of the mod's text, `template:`, which names nothing. The same
+//!   weighing says which slots the one quoted template among the group's
+//!   conjuncts says the numbers of, which is all the slot check holds
+//!   against it: beside the mod's whole text a slot is the mod's.
 //! - **A not is of what it holds, read as it is read there** (the same
 //!   review's second look, finding 1: a not pushed down to its
 //!   comparisons parted each from the template that said what it read,
@@ -102,6 +117,8 @@
 //!   candidate — and the group's members are the item's link groups, which
 //!   is why an item with none *lacks* a `linked( … )` and `-has:links`
 //!   routes it (`answer.rs`).
+
+use std::collections::BTreeSet;
 
 use crate::bind::{self, LINE_FLAGS, NumTest, SOURCES, TextTest};
 use crate::derive::{ITEM_FLAGS, Line, Numbers, Slot};
@@ -341,6 +358,185 @@ impl Mod<'_> {
                 each(&|_, together| leaf(truth(other, self.line, together.numbers(self.line))))
             }
         }
+    }
+}
+
+/// What the quoted templates of one alternative name, as the query says
+/// it and before any mod is read: the mod's whole text — a template
+/// with a row break is nothing else — and the rows, each by its place
+/// among the group's quoted templates, the first two of them.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Says {
+    whole: bool,
+    rows: Vec<usize>,
+}
+
+impl Says {
+    fn nothing() -> Says {
+        Says {
+            whole: false,
+            rows: Vec::new(),
+        }
+    }
+
+    fn and(&self, other: &Says) -> Says {
+        let mut rows: Vec<usize> = self.rows.iter().chain(&other.rows).copied().collect();
+        rows.sort_unstable();
+        rows.dedup();
+        rows.truncate(2);
+        Says {
+            whole: self.whole || other.whole,
+            rows,
+        }
+    }
+
+    /// What an occurrence carrying every one of them has named: the
+    /// evaluator's own rule.
+    fn named(&self) -> Named {
+        let whole = if self.whole {
+            Named::Whole
+        } else {
+            Named::Nothing
+        };
+        self.rows
+            .iter()
+            .fold(whole, |named, row| named.and(Named::Row(*row)))
+    }
+}
+
+/// What the alternatives of a group name, each thing once.
+type Said = BTreeSet<Says>;
+
+fn nothing() -> Said {
+    Said::from([Says::nothing()])
+}
+
+fn both(these: &Said, those: &Said) -> Said {
+    these
+        .iter()
+        .flat_map(|a| those.iter().map(|b| a.and(b)))
+        .collect()
+}
+
+/// What each slot word of a line's group is read beside (the module doc,
+/// "What a slot is read beside"): the group's quoted templates, each
+/// once, and for every slot word — one a value projects among them —
+/// what the templates of each alternative that holds it name together.
+pub(crate) struct Slots<'a> {
+    quoted: Vec<&'a str>,
+    read: Vec<(&'a str, Said)>,
+}
+
+impl<'a> Slots<'a> {
+    pub fn of(where_: &'a Member, projected: Option<&'a str>) -> Slots<'a> {
+        let mut slots = Slots {
+            quoted: Vec::new(),
+            read: Vec::new(),
+        };
+        // a group that reads no number — a total's row, bound at every
+        // ask — has nothing to weigh
+        if projected.is_none() && !has_slot(where_) {
+            return slots;
+        }
+        if let Some(slot) = projected {
+            let beside = slots.says(where_);
+            slots.read.push((slot, beside));
+        }
+        slots.walk(where_, &nothing());
+        slots
+    }
+
+    /// A quoted template's place among the group's: one place for one
+    /// name, and `=` compares in any case.
+    fn place(&mut self, template: &'a str) -> usize {
+        let found = self
+            .quoted
+            .iter()
+            .position(|known| known.to_lowercase() == template.to_lowercase());
+        found.unwrap_or_else(|| {
+            self.quoted.push(template);
+            self.quoted.len() - 1
+        })
+    }
+
+    /// What the alternatives of `member` name: a not names nothing.
+    fn says(&mut self, member: &'a Member) -> Said {
+        match member {
+            Member::All(children) => children
+                .iter()
+                .fold(nothing(), |said, child| both(&said, &self.says(child))),
+            Member::Any(children) => children.iter().flat_map(|c| self.says(c)).collect(),
+            Member::Test {
+                attr,
+                op: Op::Eq,
+                value: Value::Text(template),
+            } if attr == "template" => Said::from([if template.contains('\n') {
+                Says {
+                    whole: true,
+                    rows: Vec::new(),
+                }
+            } else {
+                Says {
+                    whole: false,
+                    rows: vec![self.place(template)],
+                }
+            }]),
+            // a doubled not is none, as the evaluator takes it out
+            Member::Not(inner) => match inner.as_ref() {
+                Member::Not(twice) => self.says(twice),
+                _ => nothing(),
+            },
+            _ => nothing(),
+        }
+    }
+
+    /// Every slot word under `member`, with what is named beside it:
+    /// what is conjoined with it at each level, and with the not that
+    /// holds it.
+    fn walk(&mut self, member: &'a Member, beside: &Said) {
+        match member {
+            Member::All(children) => {
+                let each: Vec<Said> = children.iter().map(|c| self.says(c)).collect();
+                for (at, child) in children.iter().enumerate() {
+                    let beside = each
+                        .iter()
+                        .enumerate()
+                        .filter(|(other, _)| *other != at)
+                        .fold(beside.clone(), |said, (_, other)| both(&said, other));
+                    self.walk(child, &beside);
+                }
+            }
+            Member::Any(children) => children.iter().for_each(|c| self.walk(c, beside)),
+            Member::Not(inner) => self.walk(inner, beside),
+            Member::Test { attr, .. } if tree::is_slot_word(attr) => {
+                self.read.push((attr, beside.clone()));
+            }
+            Member::Test { .. } | Member::Const(_) | Member::Is(_) => {}
+        }
+    }
+
+    /// The first slot word read beside two rows named together, and the
+    /// two templates that name them.
+    pub fn of_two_rows(&self) -> Option<(&'a str, &'a str, &'a str)> {
+        self.read.iter().find_map(|(slot, beside)| {
+            let two = beside.iter().find(|said| said.named() == Named::Several)?;
+            Some((*slot, self.quoted[two.rows[0]], self.quoted[two.rows[1]]))
+        })
+    }
+
+    /// The slot words `template` alone says the numbers of: beside
+    /// nothing else that is named, in every alternative that holds them.
+    pub fn of_alone(&self, template: &str) -> Vec<&'a str> {
+        let alone = |said: &Says| match (said.whole, said.rows.as_slice()) {
+            (true, []) => template.contains('\n'),
+            (false, [row]) => self.quoted[*row].to_lowercase() == template.to_lowercase(),
+            _ => false,
+        };
+        self.read
+            .iter()
+            .filter(|(_, beside)| beside.iter().all(alone))
+            .map(|(slot, _)| *slot)
+            .collect()
     }
 }
 

@@ -150,6 +150,9 @@ STRINGS
                         line("Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value")
                       A quoted template names it by that whole text or by any one of its rows, and
                       named by a row its numbers are that row's: arg1 is the row's first number.
+                      Two rows named together name no one row: a number word beside them is an error
+                      that shows both readings, the row meant quoted and the other asked of the text —
+                        line("# to maximum Life" template:"Adds # to # Cold Damage" arg1>=40)
                       A phrase tests each displayed row on its own; template:words and
                       template~"pattern" test the whole text, across its rows, and a pattern's ^ and $
                       are its ends; a total's row names a mod as a quoted template does.
@@ -268,7 +271,8 @@ SLOTS — the words that name a number
                       reads `# to #`: positional only — a line, and searchable, like any other
   a slot is checked against a quoted template wherever the template sits among the group's
   conjuncts: line(("T" source=explicit) arg3>=0) is the error line("T" source=explicit arg3>=0)
-  is. A template under an or or a not states no numbers, and its slots are the evaluator's.
+  is. A template under an or or a not states no numbers, and its slots are the evaluator's;
+  so are a slot's beside the mod's whole text, where the numbers are the mod's.
   a number            the search reads a number of up to ten whole digits and four decimals — more
                       than any game displays. One written longer is an unread slot of its line:
                       what asks that slot is undecided, through a not as well, and the line's text,

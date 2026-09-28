@@ -70,10 +70,8 @@ pub fn parse_value(text: &str) -> Result<ValueRef, LanguageError> {
     if !p.at_end() {
         return Err(p.unexpected("the value to end"));
     }
-    match tree::check(&Node::Undecided(Probe::Thing(value.clone()))) {
-        Ok(()) => Ok(value),
-        Err(e) => Err(e),
-    }
+    tree::check_value(&value)?;
+    Ok(value)
 }
 
 /// The tree's own rules, run on the parser's output as on any tree, and a

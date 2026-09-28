@@ -93,6 +93,7 @@ const CONSTRUCTS: &[&str] = &[
     "slots.paren_range",
     "slots.beyond",
     "slots.unchecked_selector",
+    "slots.two_rows",
     // Values
     "values.shorthand",
     "values.projection_lowers",

@@ -27,6 +27,9 @@ pub enum ErrorKind {
     SlotUnknown,
     /// A slot word outside a line's group: `"T" low>=15 high<=45`.
     SlotOutsideGroup,
+    /// A slot word beside two rows of a mod named together: which row's
+    /// number is never guessed, and each reading quotes one.
+    SlotOfTwoRows,
     /// `realm:` — the realm is the scope, never a term (C96).
     RealmIsScope,
     /// `word(` that is no call of the language: `mod(`, `stat(`.

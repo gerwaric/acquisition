@@ -8,7 +8,8 @@
 //! construction, and a tree arriving as JSON is checked before use.
 
 use crate::error::{ErrorKind, LanguageError};
-use crate::template;
+use crate::group::Slots;
+use crate::{print, template};
 
 /// A number of the language. A whole value is always [`Number::Int`] —
 /// `90.0` is `90` — so a number has one spelling and one tree.
@@ -311,7 +312,9 @@ fn check_node(node: &Node) -> Result<(), LanguageError> {
             }
             of.iter().try_for_each(check_node)
         }
-        Node::Undecided(Probe::Thing(value)) => check_value_ref(value),
+        Node::Undecided(Probe::Thing(value)) => check_value_ref(value, &|asked| {
+            print::print(&Node::Undecided(Probe::Thing(asked.clone())))
+        }),
         Node::Undecided(Probe::Term(term)) => check_node(term),
         Node::Const(_) => Ok(()),
         Node::Test { field, op, value } => {
@@ -323,7 +326,12 @@ fn check_node(node: &Node) -> Result<(), LanguageError> {
         }
         Node::Has(name) => check_plain_name(name),
         Node::Is(name) => check_plain_name(name),
-        Node::Members { of, where_ } => check_members(*of, where_, None),
+        Node::Members { of, where_ } => check_members(*of, where_, None, &|asked| {
+            print::print(&Node::Members {
+                of: *of,
+                where_: Box::new(asked.clone()),
+            })
+        }),
         Node::Compare { value, op, rhs } => {
             match value {
                 ValueRef::Pseudo { .. } | ValueRef::Sum { .. } => {}
@@ -340,7 +348,13 @@ fn check_node(node: &Node) -> Result<(), LanguageError> {
                     ));
                 }
             }
-            check_value_ref(value)?;
+            check_value_ref(value, &|asked| {
+                print::print(&Node::Compare {
+                    value: asked.clone(),
+                    op: *op,
+                    rhs: rhs.clone(),
+                })
+            })?;
             match rhs {
                 Value::Text(_) => Err(invalid(
                     ErrorKind::ComparisonNeedsNumber,
@@ -447,7 +461,16 @@ fn check_numbers<'a>(mut numbers: impl Iterator<Item = &'a Number>) -> Result<()
     }
 }
 
-fn check_value_ref(value: &ValueRef) -> Result<(), LanguageError> {
+/// A value alone: what `--sort` and `--sum` take, a reading printed as
+/// the value it is.
+pub(crate) fn check_value(value: &ValueRef) -> Result<(), LanguageError> {
+    check_value_ref(value, &print::print_value)
+}
+
+fn check_value_ref(
+    value: &ValueRef,
+    shown: &dyn Fn(&ValueRef) -> String,
+) -> Result<(), LanguageError> {
     match value {
         ValueRef::Field(name) => check_field(name),
         ValueRef::Pseudo { name, slot } => {
@@ -467,19 +490,81 @@ fn check_value_ref(value: &ValueRef) -> Result<(), LanguageError> {
                 _ => Ok(()),
             }
         }
-        ValueRef::Sum { lines, slot } | ValueRef::Projection { lines, slot } => {
-            check_members(Collection::Lines, lines, Some(slot))
+        ValueRef::Sum { lines, slot } => {
+            check_members(Collection::Lines, lines, Some(slot), &|asked| {
+                shown(&ValueRef::Sum {
+                    lines: Box::new(asked.clone()),
+                    slot: slot.clone(),
+                })
+            })
+        }
+        ValueRef::Projection { lines, slot } => {
+            check_members(Collection::Lines, lines, Some(slot), &|asked| {
+                shown(&ValueRef::Projection {
+                    lines: Box::new(asked.clone()),
+                    slot: slot.clone(),
+                })
+            })
         }
     }
 }
 
-/// A member group, and — when it selects one quoted template — every slot
-/// it names against that template's own numbers.
+/// A member group, and what its slot words read (the reference, *Slots*;
+/// `group::Slots`): a slot beside two rows of a mod named together is
+/// refused, each reading that the check passes offered as `shown`
+/// prints it; and where the group selects one quoted template, every
+/// slot that template alone says the numbers of is checked against the
+/// template's own.
 fn check_members(
     of: Collection,
     where_: &Member,
     projected: Option<&str>,
+    shown: &dyn Fn(&Member) -> String,
 ) -> Result<(), LanguageError> {
+    let (slot, one, other) = match members_checked(of, where_, projected) {
+        Ok(()) => return Ok(()),
+        Err(Refused::Error(e)) => return Err(e),
+        Err(Refused::TwoRows { slot, one, other }) => (slot, one, other),
+    };
+    let readings = [other, one]
+        .into_iter()
+        .map(|asked| asked_of_the_text(where_, asked))
+        .filter(|reading| members_checked(of, reading, projected).is_ok())
+        .map(|reading| shown(&reading))
+        .collect();
+    Err(invalid(
+        ErrorKind::SlotOfTwoRows,
+        format!(
+            "`{slot}` names a number of one row, and {} and {} name two rows together: quote the row whose number is meant, and ask the other of the mod's text with template:",
+            print::quoted_text(one),
+            print::quoted_text(other)
+        ),
+    )
+    .with_readings(readings))
+}
+
+/// Why a member group is refused: a slot beside two rows named together
+/// apart, its readings being made once and by the group that was asked.
+enum Refused<'a> {
+    Error(LanguageError),
+    TwoRows {
+        slot: &'a str,
+        one: &'a str,
+        other: &'a str,
+    },
+}
+
+impl From<LanguageError> for Refused<'_> {
+    fn from(e: LanguageError) -> Self {
+        Refused::Error(e)
+    }
+}
+
+fn members_checked<'a>(
+    of: Collection,
+    where_: &'a Member,
+    projected: Option<&'a str>,
+) -> Result<(), Refused<'a>> {
     check_member(where_)?;
     if let Some(slot) = projected
         && !is_slot_word(slot)
@@ -487,31 +572,54 @@ fn check_members(
         return Err(invalid(
             ErrorKind::Tree,
             format!("`{slot}` is not a slot word: low, high, avg, arg1, arg2 …"),
-        ));
+        )
+        .into());
     }
     if of != Collection::Lines {
         return Ok(());
     }
-    let Some(quoted) = template::selected(where_) else {
+    let quoted = template::selected(where_);
+    if let Some(quoted) = quoted {
+        template::check_typed(quoted)?;
+    }
+    let slots = Slots::of(where_, projected);
+    if let Some((slot, one, other)) = slots.of_two_rows() {
+        return Err(Refused::TwoRows { slot, one, other });
+    }
+    let Some(quoted) = quoted else {
         return Ok(());
     };
-    template::check_typed(quoted)?;
-    let mut slots = Vec::new();
-    collect_slots(where_, &mut slots);
-    slots.extend(projected);
-    slots
-        .into_iter()
-        .try_for_each(|slot| template::check_slot(quoted, slot))
+    for slot in slots.of_alone(quoted) {
+        template::check_slot(quoted, slot)?;
+    }
+    Ok(())
 }
 
-fn collect_slots<'a>(member: &'a Member, out: &mut Vec<&'a str>) {
+/// The group with one quoted template asked of the mod's text instead,
+/// wherever it sits: `template:` tests the whole text and names no row.
+fn asked_of_the_text(member: &Member, quoted: &str) -> Member {
+    let each = |children: &[Member]| {
+        children
+            .iter()
+            .map(|c| asked_of_the_text(c, quoted))
+            .collect()
+    };
     match member {
-        Member::All(children) | Member::Any(children) => {
-            children.iter().for_each(|c| collect_slots(c, out));
+        Member::All(children) => Member::All(each(children)),
+        Member::Any(children) => Member::Any(each(children)),
+        Member::Not(inner) => Member::Not(Box::new(asked_of_the_text(inner, quoted))),
+        Member::Test {
+            attr,
+            op: Op::Eq,
+            value: Value::Text(template),
+        } if attr == "template" && template.to_lowercase() == quoted.to_lowercase() => {
+            Member::Test {
+                attr: attr.clone(),
+                op: Op::Contains,
+                value: Value::Text(template.clone()),
+            }
         }
-        Member::Not(inner) => collect_slots(inner, out),
-        Member::Test { attr, .. } if is_slot_word(attr) => out.push(attr),
-        Member::Test { .. } | Member::Const(_) | Member::Is(_) => {}
+        other => other.clone(),
     }
 }
 

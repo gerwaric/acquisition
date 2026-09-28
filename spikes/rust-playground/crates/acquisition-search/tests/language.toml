@@ -509,6 +509,43 @@ construct = "slots.unchecked_selector"
 text = '''line(template:resistance avg>=20 arg7>=1)'''
 canonical = '''line(template:resistance avg>=20 arg7>=1)'''
 
+# Two rows of a mod named together name no one row: a number word beside them is
+# refused, the row meant staying quoted in each reading and the other asked of the
+# mod's text. With no number beside them they are two conditions of one occurrence.
+[[case]]
+construct = "slots.two_rows"
+text = '''line("# to maximum Life" "Adds # to # Cold Damage" arg1>=40)'''
+error = "slot_of_two_rows"
+readings = ['''line("# to maximum Life" template:"Adds # to # Cold Damage" arg1>=40)''', '''line(template:"# to maximum Life" "Adds # to # Cold Damage" arg1>=40)''']
+
+[[case]]
+construct = "slots.two_rows"
+text = '''line("Adds # to # Fire Damage" -("Adds # to # Cold Damage" high=9))'''
+error = "slot_of_two_rows"
+readings = ['''line("Adds # to # Fire Damage" -(template:"Adds # to # Cold Damage" high=9))''', '''line(template:"Adds # to # Fire Damage" -("Adds # to # Cold Damage" high=9))''']
+
+[[case]]
+construct = "slots.two_rows"
+text = '''sum(line("# to maximum Life" "Adds # to # Cold Damage").arg1)>=1'''
+error = "slot_of_two_rows"
+readings = ['''sum(line("# to maximum Life" template:"Adds # to # Cold Damage").arg1)>=1''', '''sum(line(template:"# to maximum Life" "Adds # to # Cold Damage").arg1)>=1''']
+
+[[case]]
+construct = "slots.two_rows"
+text = '''line("# to maximum Life" "Adds # to # Cold Damage")'''
+canonical = '''line("# to maximum Life" "Adds # to # Cold Damage")'''
+
+[[case]]
+construct = "slots.two_rows"
+text = '''line(("# to maximum Life" or "Adds # to # Cold Damage") arg1>=40)'''
+canonical = '''line(("# to maximum Life" or "Adds # to # Cold Damage") arg1>=40)'''
+
+# A mod named by its whole text beside a row of it: the numbers are the mod's.
+[[case]]
+construct = "slots.two_rows"
+text = '''line("Adds # to # Cold Damage\n# to maximum Life" "# to maximum Life" arg3>=40)'''
+canonical = '''line("Adds # to # Cold Damage\n# to maximum Life" "# to maximum Life" arg3>=40)'''
+
 # ---- values --------------------------------------------------------------------------
 
 [[case]]
@@ -647,6 +684,12 @@ text = '''"Adds # to # Cold Damage".high'''
 canonical = '''line("Adds # to # Cold Damage").high'''
 
 # A value with no slot named takes the template's one number.
+[[value]]
+construct = "sort.projection"
+text = '''line("# to maximum Life" "Adds # to # Cold Damage").arg1'''
+error = "slot_of_two_rows"
+readings = ['''line("# to maximum Life" template:"Adds # to # Cold Damage").arg1''', '''line(template:"# to maximum Life" "Adds # to # Cold Damage").arg1''']
+
 [[value]]
 construct = "sort.slotless"
 text = '''"# to maximum Life"'''

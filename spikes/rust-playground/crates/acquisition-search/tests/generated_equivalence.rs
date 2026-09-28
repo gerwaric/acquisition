@@ -11,7 +11,8 @@
 //! and with the members of every and, or and `holds` in another order. The
 //! three answers must be one answer once what may differ is set aside: the
 //! canonical text, the paths, and the text of a route — a route is followed
-//! and compared by the ids it returns.
+//! and compared by the ids it returns — and, of an error, the text of a
+//! reading that prints the query's own tree, followed as a route is.
 //!
 //! And a fourth way since the outside review of step 9c4: with an
 //! alternative that holds nowhere beside every line's group. It changes
@@ -150,7 +151,7 @@ fn asked(
     let sort = sort_text(sort, spelling);
     let request = request(&text, sort.as_deref(), desc, 50);
     match run(corpus, &request) {
-        Err(error) => Ok(Err(error)),
+        Err(error) => refusal(corpus, scope, &error, desc).map(Err),
         Ok(answer) => {
             // transformation 11: the returned tree, sent back, is the same
             // request — the whole answer, text and paths too
@@ -169,6 +170,29 @@ fn asked(
                 .map_err(|e| format!("`{text}`: {e}"))
         }
     }
+}
+
+/// An error with what a rewrite may change set aside. The readings of a
+/// slot beside two rows are the query's own tree printed, one template
+/// asked of the text, and a canonical text keeps the parentheses it was
+/// written with (invariant 1): each is followed — as the query it is, or
+/// as what the rows are sorted by — and compared by what it says. A
+/// reading this build refuses fails the case.
+fn refusal(corpus: &Corpus, scope: &Ids, error: &Value, desc: bool) -> Result<Value, String> {
+    if error["kind"] != "slot_of_two_rows" {
+        return Ok(error.clone());
+    }
+    let mut followed = Vec::new();
+    for reading in error["readings"].as_array().into_iter().flatten() {
+        let text = reading.as_str().ok_or("a reading that is no text")?;
+        let answer = run(corpus, &request(text, None, desc, 50))
+            .or_else(|_| run(corpus, &request("", Some(text), desc, 50)))
+            .map_err(|e| format!("`{text}` is offered, and refused: {e}"))?;
+        followed.push(said_of(corpus, scope, &answer, true)?);
+    }
+    let mut out = error.clone();
+    out["readings"] = json!(followed);
+    Ok(out)
 }
 
 fn differs(a: &Value, b: &Value) -> String {

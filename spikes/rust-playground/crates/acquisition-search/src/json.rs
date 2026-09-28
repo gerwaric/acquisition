@@ -117,7 +117,7 @@ pub fn from_json(json: &Json) -> Result<Node, LanguageError> {
 /// Read a value, strictly, and check it.
 pub fn value_ref_from_json(json: &Json) -> Result<ValueRef, LanguageError> {
     let value = value_ref_from(json, "$")?;
-    tree::check(&Node::Undecided(Probe::Thing(value.clone())))?;
+    tree::check_value(&value)?;
     Ok(value)
 }
 
