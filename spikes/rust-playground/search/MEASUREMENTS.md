@@ -208,6 +208,7 @@ to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 | `bd4679e1` | step 9c4, a mod's rows kept by the deriver, with its two asks added to the script (the `-p acquisition-cli` form, sha256 `cb391165…`) | 475 | 464–499 but twelve over, the empty query 467 and an ask 12 to 22 ms above what `7435874e` asks in turn (the step's block): the seven of before at 606, 608, 527, 668, 631, 538 and the vocabulary twice narrowed 530; four the floor carried over, the `sum` over `template:resistance` 510, the vocabulary whole 509, `--count class --sum pseudo.total_res` 514 and `pseudo.total_mana` 501; and the step's own, two readings in one ask, 817 | 2,537–3,012 but the twelve: 4,036, 3,709, 3,011, 4,274, 3,942, 3,106, 3,070, 3,289, 2,843, 2,908, 2,789 and 5,657 |
 | `0962588b` | step 9c4, the review's fix: a slot read of a part that may hold, never of every line (the `-p acquisition-cli` form, sha256 `71f97b38…`) | 569 | 472–498 but eight over: the totals' asks 64 to 223 ms under `bd4679e1`'s — 542, 541, 546, 531 and the two readings in one ask 594 — and every other ask some 8 above it, the empty query 475, which carries the `sum` over `template:resistance` 511 and the vocabulary's two, 510 and 519 | 2,659–3,152 but the eight: 3,879, 3,555, 3,928, 3,679, 4,999, 3,401, 3,087 and 2,976 |
 | `ca9f53bc` | step 9c4, a group's quoted tests compiled once (the `-p acquisition-cli` form, sha256 `cfdec97b…`) | 599 | 455–494 but six over, the empty query 461: the two totals asks of step 7 at 521 and 522, two readings at 528 and 522, the two readings in one ask 578, and the vocabulary whole 507 | 2,438–3,178 but the six: 3,666, 3,340, 3,708, 3,467, 4,792 and 2,751 |
+| `d9d7c9da` | step 9c4, after its review's third look: an occurrence weighed once, every node of a group once (the `-p acquisition-cli` form, sha256 `6c64352a…`) | 553 | 456–500 but four over, the empty query 464: the two totals asks of step 7 at 508 and 516, `pseudo.count_res>=3` at 504 and the two readings in one ask 537 | 2,441–3,152 but the four: 3,392, 3,031, 3,172 and 3,756 |
 
 The asks each step added to the script, at the step's build, warm
 medians in ms; a step's empty query is its floor.
@@ -247,6 +248,7 @@ medians in ms; a step's empty query is its floor.
 | `c28c476a`, 9c3 | `pseudo.count_res>=3` (37 rows of four totals) · `pseudo.count_ele_res=3` (30 of three) · `pseudo.total_all_ele_res>=30` (the same 30) · `pseudo.total_all_attributes>=10` (12 of three) | 640 · 611 · 522 · 481 | 3,806 · 3,543 · 2,886 · 2,611 |
 | `bd4679e1`, 9c4 | `"#% to all Elemental Resistances"<0`, a mod named by a row · `name="Thread of Hope" pseudo.count_res=3 pseudo.count_ele_res=3` (two readings, 67 rows of the totals they read) | 487 · 817 | 2,667 · 5,657 |
 | `ca9f53bc`, 9c4 after its review | the same two · the four readings of 9c3 (`pseudo.count_res>=3` · `pseudo.count_ele_res=3` · `pseudo.total_all_ele_res>=30` · `pseudo.total_all_attributes>=10`) | 477 · 578 · 528 · 522 · 484 · 470 | 2,576 · 4,792 · 3,708 · 3,467 · 2,858 · 2,607 |
+| `d9d7c9da`, 9c4 after its review's third look | the same six | 476 · 537 · 504 · 494 · 472 · 465 | 2,575 · 3,756 · 3,172 · 3,027 · 2,676 · 2,535 |
 
 **The price join's cost (step 9, `57c2f78b`): the floor rose from 276
 to 445 ms release, and two totals asks crossed 500 ms with it.** The
@@ -386,7 +388,7 @@ and is unmeasured (a review of 9b corrected the first wording, which
 named the machine); the disposition
 is V9's: the totals batch stays parked, revisited at step 11.
 
-**Step 9c4 — a mod displayed over several rows, over the copy (`bd4679e1`, 2026-09-27): 2,345 lines of 532 templates; one of them feeds a total by a row, Thread of Hope's, and its 12 items answer as the site shows; the step costs the load 3 to 5 ms, and an ask of a total pays some 2 ms a row where it paid 5 to 6.**
+**Step 9c4 — a mod displayed over several rows, over the copy (`bd4679e1`, 2026-09-27): 2,345 lines of 532 templates; one of them feeds a total by a row, Thread of Hope's, and its 12 items answer as the site shows; the step costs the load 3 to 5 ms, and an ask of a total pays some 1 ms a row where it paid 5 to 6.**
 `python3 search/pseudo-stats/scripts/rows-of-a-mod.py`, over the
 deriver's census of the copy (`item-facts/raw/m2/rust.json`, written by
 the M2 rerun at the step: 0 unread, 0 unexplained, 22,721 items, 86,450
@@ -463,12 +465,29 @@ Two causes, each measured by taking it out or putting it back:
   the same. The fix reads a slot of a part that may hold. With the
   read put back by hand in that build, `pseudo.count_res>=3` is 684 ms
   beside 544 without it and 662 before the fix, and AQ2 as worded 618
-  beside 532 and 605. So an ask of a total pays 1.7 to 2.0 ms for each
+  beside 532 and 605. So an ask of a total paid 1.7 to 2.0 ms for each
   row it reads (`ca9f53bc`: 67 ms over 37 rows, 61 over 30, 117 over
   67), where it paid 5 to 6.
+- **An occurrence weighed again for what it leaves open.** A sum
+  weighed each occurrence for what it adds and again for what it
+  leaves open, and the second look's fix (`e8422ac6`) a third time;
+  `80609d19` weighs it once and says both. The release binaries of
+  `7435874e`, `ca9f53bc`, `e8422ac6` and `80609d19` asked in turn: the
+  empty query 453, 458, 459 and 457; AQ2 as worded 586, 518, 553 and
+  508; `pseudo.count_res>=3` 646, 532, 582 and 509. At `d9d7c9da` an
+  ask of a total pays 1.0 to 1.1 ms a row (40 ms over 37 rows, 30 over
+  30, 73 over 67).
+- **A not inside a not weighing what it held again.** From `e8422ac6`
+  a not asked whether what it held holds for each thing a template may
+  name, at every depth: on one item, release, six nots deep 11 ms,
+  eight 173, ten 2.73 s (the reviewer's probe). `d9d7c9da` weighs every
+  node once. On the copy, `80609d19` and `d9d7c9da` asked in turn: one
+  not 490 and 487, a not in a not 489 and 484, four nots deep 639 and
+  493.
 
 Every one of M3's 49 asks is answered the same, whole, by
-`bd4679e1`, `0962588b` and `ca9f53bc`. The deriver alone, release, over
+`bd4679e1`, `0962588b`, `ca9f53bc`, `e8422ac6`, `80609d19` and
+`d9d7c9da`, each compared with the one before it. The deriver alone, release, over
 the copy's bodies (`target/release/examples/derive-census`, five runs
 in turn), is 195 to 199 ms at `7435874e` and 206 to 215 at `bd4679e1`:
 a difference the asks do not show, the whole step being 3 to 5 on the
