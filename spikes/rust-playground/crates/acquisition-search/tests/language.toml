@@ -150,7 +150,8 @@ construct = "strings.unterminated"
 text = '''name="Kaom's Heart'''
 error = "unterminated_string"
 
-# A mod displayed over several rows is one occurrence with one template.
+# A mod displayed over several rows is one occurrence, its template its
+# whole text.
 [[case]]
 construct = "strings.multirow_template"
 text = '''line("Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value")'''

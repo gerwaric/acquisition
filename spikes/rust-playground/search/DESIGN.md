@@ -145,10 +145,14 @@ COMPOSITION
 
 STRINGS
   "…"                 inside quotes  \"  \\  \n  are the only escapes. \n is the row break of a mod
-                      displayed over several rows; such a mod is one occurrence with one template:
+                      displayed over several rows; such a mod is one occurrence, and its template is
+                      its whole text:
                         line("Monsters' Action Speed cannot be modified to below Base Value\nMonsters' Movement Speed cannot be modified to below Base Value")
-                      A phrase tests each displayed row on its own; template:words reaches across
-                      rows; a total's row may name such a template like any other.
+                      A quoted template names it by that whole text or by any one of its rows, and
+                      named by a row its numbers are that row's: arg1 is the row's first number.
+                      A phrase tests each displayed row on its own; template:words and
+                      template~"pattern" test the whole text, across its rows, and a pattern's ^ and $
+                      are its ends; a total's row names a mod as a quoted template does.
   "+# …"              in a quoted template a + before a # is spelling, as the game and the trade
                       site write a line, and is dropped: the sign is the number's (C90).
                         "+# to maximum Life">=90  →  line("# to maximum Life" arg1>=90)
