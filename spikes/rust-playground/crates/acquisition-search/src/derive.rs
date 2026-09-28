@@ -49,9 +49,9 @@
 //!   before it, and what is unread of one row is unread of that row
 //!   (rule 8 of the plan). A row that displays nothing is no name. Two
 //!   rows of one mod displaying one template leave that row's numbers
-//!   unread, said here: a number named by that row would be either's. None
-//!   is on the census's copy, and none among the trade site's 1,984 texts
-//!   of several rows.
+//!   unread, every slot of it on each of them, said here: a number named
+//!   by that row would be either's. None is on the census's copy, and
+//!   none among the trade site's 1,984 texts of several rows.
 //! - **A number the search does not read** — more whole digits or decimals
 //!   than any game displays (`exact.rs`, the rule and its measurement) —
 //!   is an unread slot of its line, said here, once, so that no arithmetic
@@ -916,9 +916,15 @@ impl Item {
 }
 
 /// The template two rows or more display, in any case as `=` compares
-/// one, where they carry a number: those rows' numbers are made unread
-/// (the module doc). The first such template, in the rows' order.
+/// one, where it has a number: a slot of those rows is made unread, on
+/// every one of them, so that the row named first says what the others
+/// do (the module doc). The first such template, in the rows' order.
 fn displayed_twice(rows: &mut [Row]) -> Option<String> {
+    // only a template with a number has a slot to leave open
+    let numbered = |row: &Row| row.template.contains('#');
+    if rows.iter().filter(|row| numbered(row)).count() < 2 {
+        return None;
+    }
     let folds: Vec<String> = rows
         .iter()
         .map(|row| crate::bind::folded(&row.template))
@@ -929,8 +935,8 @@ fn displayed_twice(rows: &mut [Row]) -> Option<String> {
             .iter()
             .enumerate()
             .any(|(j, fold)| j != i && *fold == folds[i]);
-        if shared && !row.numbers.is_empty() {
-            row.numbers.iter_mut().for_each(|n| *n = None);
+        if shared && numbered(row) {
+            row.numbers = vec![None; template::slots(&row.template).count];
             twice.get_or_insert_with(|| row.template.clone());
         }
     }

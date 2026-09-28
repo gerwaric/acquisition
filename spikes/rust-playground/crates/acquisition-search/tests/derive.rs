@@ -313,6 +313,15 @@ fn two_rows_of_one_template_leave_that_rows_numbers_unread() {
     assert_eq!(it.unread.len(), 1, "{:#?}", it.unread);
     assert_eq!(it.unread[0].part, Part::Numbers("explicit".into()));
     assert_eq!(it.unread[0].line, Some(0));
+    // whichever row is read first: a row whose `#` is displayed, and no
+    // number, shares the template of the row after it
+    let literal = item(json!({"explicitMods": ["# to maximum Life\n+7 to maximum Life"]}));
+    let rows = &literal.lines[0].rows;
+    assert_eq!(
+        (&rows[0].numbers, &rows[1].numbers),
+        (&vec![None], &vec![None])
+    );
+    assert_eq!(rows[0].read().slot("arg1"), Slot::Unread);
     assert_eq!(
         it.unread[0].problem,
         "`explicitMods[0]`: two rows of this mod display one template, `# to maximum Life`: a number named by that row is either's"
@@ -817,10 +826,10 @@ fn any_json() -> impl Strategy<Value = Value> {
 }
 
 proptest! {
-    /// A mod's rows read apart are the mod read whole (C90): the rows'
-    /// templates are the whole's between its row breaks, and their numbers
-    /// the whole's in order — but a row whose template another shares,
-    /// whose numbers are unread.
+    /// A mod's rows read apart are the mod read whole (C90): each row is
+    /// what the deriver makes of that row alone, and the mod's numbers are
+    /// the rows' in order — but a row whose template another shares, every
+    /// slot of which is unread.
     #[test]
     fn the_rows_of_a_mod_are_the_mod_read_apart(
         text in "([+\\-]?[0-9]{1,3}([,.][0-9]{1,3})?|[#%a-c ]|\r?\n){0,14}"
@@ -831,21 +840,25 @@ proptest! {
                 prop_assert!(l.rows.is_empty());
                 continue;
             }
-            let apart: Vec<&str> = l.template.split('\n').filter(|r| !r.is_empty()).collect();
-            let rows: Vec<&str> = l.rows.iter().map(|r| r.template.as_str()).collect();
-            prop_assert_eq!(&rows, &apart);
-            let mut rest = &l.numbers[..];
-            for row in &l.rows {
-                let (own, after) = rest.split_at(row.numbers.len());
-                rest = after;
-                let shared = l.rows.iter().filter(|r| r.template.eq_ignore_ascii_case(&row.template)).count() > 1;
+            let shown: Vec<&str> = l.shown_rows().filter(|r| !r.is_empty()).collect();
+            prop_assert_eq!(l.rows.len(), shown.len());
+            let mut whole: Vec<Option<f64>> = Vec::new();
+            for (row, shown) in l.rows.iter().zip(shown) {
+                let alone = item(json!({"explicitMods": [shown]}));
+                let alone = &alone.lines[0];
+                prop_assert_eq!(&row.template, &alone.template);
+                whole.extend(&alone.numbers);
+                let shared = row.template.contains('#')
+                    && l.rows.iter().filter(|r| r.template.eq_ignore_ascii_case(&row.template)).count() > 1;
                 if shared {
-                    prop_assert!(row.numbers.iter().all(Option::is_none));
+                    let slots = row.template.matches('#').count();
+                    prop_assert_eq!(&row.numbers, &vec![None; slots]);
+                    prop_assert_eq!(row.read().slot("arg1"), Slot::Unread);
                 } else {
-                    prop_assert_eq!(&row.numbers[..], own);
+                    prop_assert_eq!(&row.numbers, &alone.numbers);
                 }
             }
-            prop_assert!(rest.is_empty());
+            prop_assert_eq!(&l.numbers, &whole);
         }
     }
 

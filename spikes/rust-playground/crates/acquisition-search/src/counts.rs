@@ -956,6 +956,9 @@ pub(crate) fn crossed(bound: &BoundCounts, matches: &Matches<'_>) -> CrossOut {
 
 #[derive(Default)]
 struct Row {
+    /// Whether the narrowing selected a mod of this whole text: what
+    /// lists the row.
+    listed: bool,
     pile: Pile,
     sources: BTreeMap<String, usize>,
     flags: BTreeMap<String, usize>,
@@ -1001,8 +1004,6 @@ fn vocabulary(
         .map(|(fold, _)| fold)
         .collect();
     let mut rows: HashMap<(String, String), Row> = HashMap::new();
-    // the templates listed: the whole texts the narrowing selects
-    let mut listed: HashSet<(String, String)> = HashSet::new();
     let (mut none, mut undecided) = (Pile::default(), Pile::default());
     let mut tally: BTreeMap<String, usize> = BTreeMap::new();
     for (m, held) in matches.held().enumerate() {
@@ -1023,23 +1024,22 @@ fn vocabulary(
         for line in &held.item.lines {
             // under its whole text where the narrowing selects it, and
             // under each template spelled once that names it by a row
-            let whole = group
-                .selector
-                .holds(line)
-                .then_some((line.template.as_str(), line.whole()));
-            if let Some((template, _)) = whole {
-                listed.insert((held.place.realm.clone(), template.to_string()));
-            }
+            let whole =
+                group
+                    .selector
+                    .holds(line)
+                    .then_some((line.template.as_str(), line.whole(), true));
             let by_a_row = line.rows.iter().filter_map(|row| {
                 match spelled.get(&bind::folded(&row.template))?.as_slice() {
-                    [once] => Some((*once, row.read())),
+                    [once] => Some((*once, row.read(), false)),
                     _ => None,
                 }
             });
-            for (template, numbers) in whole.into_iter().chain(by_a_row) {
+            for (template, numbers, selected) in whole.into_iter().chain(by_a_row) {
                 let row = rows
                     .entry((held.place.realm.clone(), template.to_string()))
                     .or_default();
+                row.listed |= selected;
                 if seen.insert((template, None)) {
                     row.pile.add(scalar);
                 }
@@ -1076,7 +1076,8 @@ fn vocabulary(
             }
         }
     }
-    rows.retain(|key, _| listed.contains(key));
+    // the templates listed: the whole texts the narrowing selects
+    rows.retain(|_, row| row.listed);
     // by realm under an all-realms scope: a template is another line in
     // another game (C90), and its row's route is scoped to its realm (C97)
     let by_realm = matches.corpus.realm == Realm::All;
