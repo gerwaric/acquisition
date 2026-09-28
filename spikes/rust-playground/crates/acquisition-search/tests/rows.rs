@@ -572,6 +572,44 @@ fn c95_a_number_two_alternatives_read_is_added_once() {
         json!({ "rows": { "sort": format!("sum(line({either}).arg1)") } }),
     );
     assert_eq!(sorted["rows"][0]["sort"]["value"], 40);
+
+    // a number added is added, whatever an alternative that may hold
+    // would read: 40 life beside a cold resistance the search does not
+    // read, which leaves the second alternative open and the sum whole
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("o1", "Open")]), 10);
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "o1",
+        "Open",
+        vec![item(
+            "half",
+            "Item half",
+            "Iron Ring",
+            "Rare",
+            json!({ "explicitMods": ["+40 to maximum Life\n+5.12345% to Cold Resistance"] }),
+        )],
+        20,
+    );
+    let may = format!("\"{LIFE}\" or (template:life arg2>=1)");
+    assert_eq!(
+        self::found(
+            &s,
+            &format!("line({may}) undecided(line(template:life arg2>=1))")
+        ),
+        ["half"]
+    );
+    assert_eq!(
+        self::found(&s, &format!("sum(line({may}).arg1)=40")),
+        ["half"]
+    );
+    // and one no alternative that holds reads is open
+    assert_eq!(
+        self::found(&s, "undecided(sum(line(template:life arg2>=1).arg1))"),
+        ["half"]
+    );
 }
 
 /// Rule 8 of the plan, C93: what is unread of one row is unread of that

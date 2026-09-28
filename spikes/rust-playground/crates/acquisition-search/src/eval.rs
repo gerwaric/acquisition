@@ -529,86 +529,78 @@ fn open_on_a_line(held: &Held, asked: &Asked) -> bool {
         .any(|l| asked.of(l) == Truth::Undecided)
 }
 
-/// The slot's number at each place of an occurrence that an alternative
-/// which holds reads (`group::Asked::parts`), a place once: the mod's
-/// first number and its first row's first are one number, however many
-/// alternatives read it.
-fn read_slots(asked: &Asked, slot: &str, line: &Line, held: Truth) -> Vec<(Place, Slot)> {
-    let mut read: Vec<(Place, Slot)> = Vec::new();
-    for (truth, numbers) in asked.parts(line) {
-        if truth == held
-            && let Some(place) = numbers.place(slot)
-            && !read.iter().any(|(seen, _)| *seen == place)
-        {
-            read.push((place, numbers.slot(slot)));
-        }
-    }
-    read
+/// What a slot is on the occurrences weighed, under what is asked
+/// (`group::Asked::parts`), each occurrence weighed once.
+#[derive(Default)]
+struct Read {
+    /// The slot's number at each place an alternative that holds reads,
+    /// a place once: the mod's first number and its first row's first are
+    /// one number, however many alternatives read it.
+    added: Vec<f64>,
+    /// The slot at each place that leaves its contribution open: a place
+    /// an alternative that holds reads, whose number could not be read;
+    /// and one read by an alternative that may or may not hold, and by
+    /// none that does — a number added already is added no more. A part
+    /// that does not name the slot cannot contribute whichever way its
+    /// flag falls, so it leaves no sum, no largest and no together count
+    /// open (C93's known absence).
+    open: Vec<Slot>,
 }
 
-/// The slot's number at each place of an occurrence that leaves its
-/// contribution open: a place an alternative that holds reads, whose
-/// number could not be read; and one read by an alternative that may or
-/// may not hold, and by none that does — a number added already is added
-/// no more. A part that does not name the slot cannot contribute
-/// whichever way its flag falls, so it leaves no sum, no largest and no
-/// together count open (C93's known absence).
-fn open_slots(asked: &Asked, slot: &str, line: &Line) -> Vec<Slot> {
-    let added = read_slots(asked, slot, line, Truth::True);
-    let may_be = read_slots(asked, slot, line, Truth::Undecided)
-        .into_iter()
-        .filter(|(place, _)| !added.iter().any(|(seen, _)| seen == place));
-    added
-        .iter()
-        .filter(|(_, named)| *named == Slot::Unread)
-        .copied()
-        .chain(may_be)
-        .map(|(_, named)| named)
-        .collect()
+impl Read {
+    fn of(&mut self, asked: &Asked, slot: &str, line: &Line) {
+        let parts = asked.parts(line);
+        let mut holds: Vec<Place> = Vec::new();
+        for (held, numbers) in &parts {
+            if *held == Truth::True
+                && let Some(place) = numbers.place(slot)
+                && !holds.contains(&place)
+            {
+                holds.push(place);
+                match numbers.slot(slot) {
+                    Slot::Is(n) => self.added.push(n),
+                    Slot::Unread => self.open.push(Slot::Unread),
+                    Slot::Absent => {}
+                }
+            }
+        }
+        let mut may: Vec<Place> = Vec::new();
+        for (held, numbers) in &parts {
+            if *held == Truth::Undecided
+                && let Some(place) = numbers.place(slot)
+                && !holds.contains(&place)
+                && !may.contains(&place)
+            {
+                may.push(place);
+                self.open.push(numbers.slot(slot));
+            }
+        }
+    }
+
+    fn line(asked: &Asked, slot: &str, line: &Line) -> Read {
+        let mut read = Read::default();
+        read.of(asked, slot, line);
+        read
+    }
+
+    fn item(held: &Held, asked: &Asked, slot: &str) -> Read {
+        let mut read = Read::default();
+        for line in &held.item.lines {
+            read.of(asked, slot, line);
+        }
+        read
+    }
 }
 
 fn leaves_the_slot_open(asked: &Asked, slot: &str, line: &Line) -> bool {
-    !open_slots(asked, slot, line).is_empty()
-}
-
-fn open_with_the_slot(held: &Held, asked: &Asked, slot: &str) -> bool {
-    held.item
-        .lines
-        .iter()
-        .any(|l| leaves_the_slot_open(asked, slot, l))
-}
-
-/// The slot's numbers on an occurrence, as what is asked named them: one
-/// for each place an alternative that holds reads — a row's, where a
-/// quoted template names the row (`group.rs`) — and one on a mod of one
-/// row.
-fn values<'a>(asked: &'a Asked, line: &'a Line, slot: &'a str) -> impl Iterator<Item = f64> + 'a {
-    read_slots(asked, slot, line, Truth::True)
-        .into_iter()
-        .filter_map(|(_, named)| match named {
-            Slot::Is(n) => Some(n),
-            Slot::Absent | Slot::Unread => None,
-        })
-}
-
-/// Every number of the slot the item's occurrences have under what is
-/// asked.
-fn every_value<'a>(
-    held: &'a Held,
-    asked: &'a Asked,
-    slot: &'a str,
-) -> impl Iterator<Item = f64> + 'a {
-    held.item
-        .lines
-        .iter()
-        .flat_map(move |line| values(asked, line, slot))
+    !Read::line(asked, slot, line).open.is_empty()
 }
 
 /// A sum, in units, and whether every possible contributor was readable.
 pub(crate) fn sum(held: &Held, group: &Group, slot: &str) -> (Exact, bool) {
-    let total = Exact::sum(every_value(held, &group.whole, slot).map(Exact::of));
-    let complete =
-        unread_lines(held, group).is_empty() && !open_with_the_slot(held, &group.whole, slot);
+    let read = Read::item(held, &group.whole, slot);
+    let total = Exact::sum(read.added.into_iter().map(Exact::of));
+    let complete = unread_lines(held, group).is_empty() && read.open.is_empty();
     (total, complete)
 }
 
@@ -629,13 +621,14 @@ pub(crate) fn together(held: &Held, group: &Group) -> bool {
     let Some(lower) = &group.together else {
         return false;
     };
-    if open_with_the_slot(held, &group.selector, &lower.slot) {
+    let read = Read::item(held, &group.selector, &lower.slot);
+    if !read.open.is_empty() {
         return false;
     }
     // a sum of no occurrence is zero, which is at least any bound of zero
     // or less — and is nothing reaching it: only occurrences that count
     // reach a bound together
-    let counted: Vec<f64> = every_value(held, &group.selector, &lower.slot).collect();
+    let counted = read.added;
     !counted.is_empty() && NumTest::Cmp(lower.op, lower.bound.as_f64()).holds(exact::sum(counted))
 }
 
@@ -1288,12 +1281,17 @@ pub(crate) fn sorted_by(key: &SortKey, held: &Held) -> (Vec<Evidence>, usize) {
             .into_iter()
             .collect(),
         SortKey::Projection { group, slot } => {
-            let largest = every_value(held, &group.whole, slot).reduce(f64::max);
+            let largest = Read::item(held, &group.whole, slot)
+                .added
+                .into_iter()
+                .reduce(f64::max);
             held.item
                 .lines
                 .iter()
                 .filter(|line| {
-                    largest.is_some_and(|most| values(&group.whole, line, slot).any(|n| n == most))
+                    largest.is_some_and(|most| {
+                        Read::line(&group.whole, slot, line).added.contains(&most)
+                    })
                 })
                 .take(1)
                 .map(line_evidence)
@@ -1339,15 +1337,12 @@ pub(crate) fn scalar(key: &SortKey, held: &Held) -> Scalar {
             None => Scalar::None,
         },
         SortKey::Projection { group, slot } => {
-            let largest = every_value(held, &group.whole, slot).reduce(f64::max);
+            let read = Read::item(held, &group.whole, slot);
+            let largest = read.added.iter().copied().reduce(f64::max);
             // an unread number may be any number
-            let could_be_larger = held.item.lines.iter().any(|line| {
-                open_slots(&group.whole, slot, line)
-                    .into_iter()
-                    .any(|open| match open {
-                        Slot::Is(n) => largest.is_none_or(|most| n > most),
-                        Slot::Unread | Slot::Absent => true,
-                    })
+            let could_be_larger = read.open.iter().any(|open| match open {
+                Slot::Is(n) => largest.is_none_or(|most| *n > most),
+                Slot::Unread | Slot::Absent => true,
             });
             let largest = largest.map(Exact::of);
             if could_be_larger || !unread_lines(held, group).is_empty() {
