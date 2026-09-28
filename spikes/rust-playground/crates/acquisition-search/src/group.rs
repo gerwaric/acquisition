@@ -265,15 +265,23 @@ fn reached(member: &BMember, not: bool, line: &Line, numbers: Numbers<'_>) -> Ve
 }
 
 impl Asked {
-    fn new(member: BMember, tree: &Member) -> Result<Asked, LanguageError> {
-        let mut tests = Vec::new();
-        template_tests(tree, &mut tests);
-        let quoted = tests
-            .iter()
-            .filter(|(op, _)| *op == Op::Eq)
-            .map(|(op, text)| bind::text_test("template", *op, &Value::Text(text.clone())))
-            .collect::<Result<_, _>>()?;
-        Ok(Asked { member, quoted })
+    /// The tests are the bound tree's own, compiled once: a total's row
+    /// is bound at every ask, and a test compiled again for each was a
+    /// third of what the step cost the load (`search/MEASUREMENTS.md`).
+    fn new(member: BMember) -> Asked {
+        fn named(member: &BMember, out: &mut Vec<TextTest>) {
+            match member {
+                BMember::All(children) | BMember::Any(children) => {
+                    children.iter().for_each(|c| named(c, out));
+                }
+                BMember::Not(inner) => named(inner, out),
+                BMember::Named(test) => out.push(test.clone()),
+                _ => {}
+            }
+        }
+        let mut quoted = Vec::new();
+        named(&member, &mut quoted);
+        Asked { member, quoted }
     }
 
     /// Three-valued (the module doc, "The whole").
@@ -429,7 +437,7 @@ impl Group {
         let mut templates = Vec::new();
         template_tests(whole, &mut templates);
         Ok(Group {
-            selector: Asked::new(member(&selector_tree)?, &selector_tree)?,
+            selector: Asked::new(member(&selector_tree)?),
             selects_only: !has_slot(whole),
             selector_asks_a_flag: asks_a_flag(&selector_tree),
             asks_a_flag: asks_a_flag(whole),
@@ -439,7 +447,7 @@ impl Group {
                 .filter(|source| admits(&bound, source))
                 .collect(),
             admits_another: admits(&bound, ""),
-            whole: Asked::new(bound, whole)?,
+            whole: Asked::new(bound),
             selector_tree,
             together,
             templates,
