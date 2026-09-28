@@ -403,7 +403,7 @@ lines, 6,148 templates), the trade site's stats
 
 So a row named reaches every mod of the copy that a total could read
 and had not, and listing every row in the vocabulary would add 856
-rows to its 6,148 (the plan, L2). The store's own bodies give Thread of
+rows to its 6,148 (L2, `search/LEDGER.md`). The store's own bodies give Thread of
 Hope's mod as the trade site's capture does, three rows in one
 description: what the review of 9c3 could not verify without the copy.
 
