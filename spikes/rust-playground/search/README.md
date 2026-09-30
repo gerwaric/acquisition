@@ -80,9 +80,9 @@ cited at a commit.
 | [`pseudo-stats/`](pseudo-stats/README.md) | Which mechanism of the ruled model answers each of the site's 298 pseudo stats, on what evidence? (stage-5 audit, finding 1) | first pass complete — 2026-09-18; second pass (step 9c), part 1 complete — 2026-09-26: the candidates, the percentile's rule, the searches; 212 searches captured and read; the totals table's changes as rows, applied but the ranged family's, which waits for 9d; step 9c2, rounds five and six — 2026-09-27: 98 searches captured and read, the other totals' changes as rows, applied; the four that are no sum built as readings (step 9c3), and answered as the site shows them once a total's row named a row of a mod (step 9c4) | 25172 |
 | [`legacy/`](legacy/README.md) | How well do Path of Building's version-labelled unique variants match the owner's uniques, and what on this machine says a line — a rare's mod, an enchant, a crucible node — can no longer be made? (it fired the legacy park's trigger; ruled 2026-09-18, C107: a unique's variant may be a field, legacy never) | second pass complete — 2026-09-18 (fit over selections, catalyst rescale); three questions on one page, so past the guide: text moved to its homes, none cut (`legacy/REVIEW.md`, row 5) | 19337 |
 
-The rulings are `decisions/search.md` (harvested 2026-09-17;
-provisional under note 23's decision 15 until the owner's first seat at
-a surface he can use), read before touching anything here; the standing
+The rulings are `decisions/search.md` (harvested 2026-09-17; each line
+stands since the first seat, its header says how), read before
+touching anything here; the standing
 rulings they revisit — C48 (raw SQL is not a surface), C34
 (derivations), C12 (two surfaces), C79 (governed surfaces;
 `SURFACES.md`) — and the store's parks they cite are named from there.
