@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows and applied (totals v4); the four pseudos that are no sum built as readings of other totals (step 9c3, totals v5), answered as the site shows them with the captures' mods entered unchanged (step 9c4).
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows and applied (totals v4); the four pseudos that are no sum built as readings of other totals (step 9c3, totals v5), answered as the site shows them with the captures' mods entered unchanged (step 9c4); before 9d (the brief at `9280f559`) — 2026-09-30, reviewed: round i prepared, not sat; the ranged census over the copy, open question 7 closed.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -117,6 +117,50 @@ What the captures do not pin: 15 of the 30 are 0, and only 2 hybrids discriminat
 capture has three defence types, ward, a shield, a helmet or gloves, quality above 20, the
 `Quality does not increase Defences` enchant, a unique's base, a reduced local line or the triple
 `#% increased Armour, Evasion and Energy Shield`: cases C1–C8 and the percentile lines P001–P034.
+
+## The percentile's round
+
+`percentile.py` now scores the sittings' captures too (`data/percentile-captures.csv`, apart, as
+`candidates.py` reads `percentile-check.csv`): of 543 distinct items the stated rule reproduces 541;
+a display at an exact half read as either integer, 543, each one value (half down: 537). Of 250
+hybrids, min, max and first type give 154, 160, 160. Read from text alone, as the build must, all 543
+read as from their ids (`percentile-shapes.py`).
+
+Round i (`tools/trade-sheet.py`, `round_i`): the percentile's read by `percentile.py`. The core is i01–i08.
+
+| Search | Shape | Decides | Copy / captured |
+| --- | --- | --- | --- |
+| i01 | C1 | three rolls averaged, Sacrificial Garb (the copy's base) | 3 / 0 |
+| i02 | C7 | `Quality does not increase Defences`: the percentile, the 20%-quality figure | 2 / 0 |
+| i03, i04 | C10 | whether the site shows over 100; i04 at 100 its mutant | 0 / 0 |
+| i05 | C14 | a defence line under its global twin (text cannot tell): read or not | 1 / 0 |
+| i06–i08 | ranged | a weapon under the global twin: sound, mutant, control | below |
+| i09 | C2 | ward on any ward base | 13 / 2 |
+
+Left out, answered by the captures (captured / reproduced): C3 shields 20 / 20, C4 helmets 214 / 213,
+C5 gloves 146 / 146, C6 quality over 20 6 / 6, C8 uniques 160 / 160, C9 a defence the base lacks (its
+own types read) 34 / 34. Not the site's: C11 poe2, no table (ruled); C12 an exact half, no filter
+selects it; C13 a `reduced` local line, none on the copy or captured. The copy's 2,272 armour items:
+2,240 read to a value, 22 poe2, 9 at an exact half, 1 under its minimum (C14's trace); 20 bases not in
+the class table. Per shape: `data/percentile-shapes.csv`.
+
+Nine searches, one every ten seconds; the first page is `raw/sitting/i-1.html`.
+
+## The ranged family on the copy
+
+`scripts/ranged-census.py`: 703 live unsuffixed lines on 559 items, one poe2's (no class); by class,
+rarity, array and flags `data/ranged-census.csv`; each line on a unique, with the mods the text join
+found, `data/ranged-uniques.csv` (339 lines, 95 uniques).
+
+| Lines | On a weapon | Not a weapon |
+| --- | ---: | ---: |
+| all live | **573** | **129** |
+| on uniques, export local: site local / global / not captured | 92 / 0 / 96 | 0 / 0 / 0 |
+| on uniques, export global: the same | 0 / 0 / 0 | 0 / 26 / 4 |
+| on uniques, export cannot say: the same | 17 / 0 / 19 | 0 / 68 / 17 |
+
+The class decides as the export and the site do wherever either speaks. The limit: 36 weapon lines
+the join cannot place (29 match local and global mods, 7 none), 19 uncaptured; i06–i08 ask.
 
 ## The searches part 1 counted, by form
 
@@ -257,7 +301,7 @@ The first pass's full text is this README at `d18fa6dd`.
 | 4 | What do a logbook and a lake tablet look like in the private API? | capture one of each |
 | 5 | Does `# total Resistances` count lines or resistance types? | **Closed 2026-09-27**: resistances — R1's ten items each carry an all-elemental line and show 3 |
 | 6 | Are the 63 family rows right per entry? | a trade fetch of one unattested room and one unattested quality |
-| 7 | How many of the owner's unsuffixed `Adds # to #` lines are on weapons? | a census of those templates by item class over the owner's copy |
+| 7 | How many of the owner's unsuffixed `Adds # to #` lines are on weapons? | **Closed 2026-09-30**: 573 of the copy's 703, 129 not (`data/ranged-census.csv`); no weapon line the export or the site calls global (`data/ranged-uniques.csv`) |
 | 8 | Are APT's percentile lines the site's, and the flat hybrids PoB models? | P001–P034, each scored as `percentile.py` does |
 
 ## Provenance
@@ -273,6 +317,8 @@ The first pass's full text is this README at `d18fa6dd`.
 | `poe1` @ e2bd511a `data/stats.json`, `data/mods.json` | `is_local`; where the ranged stats spawn |
 | `PathOfBuilding` @ 16de4b82 `src/Classes/Item.lua`, `TradeQueryGenerator.lua` | the per-type percentile; the stat-to-pseudo map |
 | `awakened-poe-trade` @ ce551eb7 `…/filters/pseudo/index.ts`, `…/parser/calc-q20.ts`, `Parser.ts` | its pseudo rules; its percentile |
+| `../item-facts/raw/m3/store/mock/GERWARIC_7694.db` (local; read-only) | the copy: percentile shapes, the ranged census |
+| `classes-v1.toml` (the crate's), `../repoe/data/class-to-trade-category.csv`, `poe1` `stat_translations.json` | class; weapon; a text's stats |
 
 Trap met, for the index: `mod-templates.csv` carries a bare CR inside 260 templates; the scripts open
 it with `newline="\n"` and cite a row by its first line.

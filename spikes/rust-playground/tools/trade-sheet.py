@@ -900,6 +900,102 @@ def round_six():
     return out
 
 
+# Round i (before step 9d): the percentile's shapes no capture reaches, and
+# the ranged family's one weapon question. PERCENTILE_CASES was read against
+# the sittings' captures, 543 distinct armour items scored by
+# search/pseudo-stats/scripts/percentile.py: helmets, gloves, shields, uniques,
+# quality above 20 and a defence the base lacks are answered there and not
+# asked again (search/pseudo-stats/data/percentile-shapes.csv, which also names
+# the cases C9 on). What each search here decides is read by percentile.py.
+# The plain ranged pseudos at the version asked, written out.
+ROUND_I_PLAIN = {
+    "adds_physical": 2,
+    "adds_lightning": 2,
+    "adds_cold": 2,
+    "adds_fire": 2,
+    "adds_chaos": 2,
+}
+# The texts a local defence line shares with a global stat: the site lists
+# each under the global stat without `(Local)` (C14 of percentile-shapes.py).
+DEFENCE_TWINS = ["+# to Armour", "+# to Evasion Rating", "+# to maximum Energy Shield",
+                 "#% increased Armour", "#% increased Evasion Rating"]
+
+
+def round_i():
+    """i01–i08: C1, C7, C10 and its mutant, C14, the ranged family on weapons
+    (sound, its mutant and its control), then C2."""
+    ids, texts = table.stats()
+    versions = table.versions()
+    quality = {"misc_filters": {"disabled": False, "filters": {"quality": {"min": 1}}}}
+    armour = category("armour")
+    plain = [versions[name][number - 1] for name, number in ROUND_I_PLAIN.items()]
+    pseudos = [v["pseudo"] for v in plain]
+    global_ids = [i for v in plain for i in table.ids_of(v, ids)]
+    local_ids = [i for name in ROUND_I_PLAIN for i in ids[f"Adds # to # {name[5:].capitalize()} Damage"]
+                 if table.means("local", i)]
+    pinned = ", ".join(f"{name} v{number}" for name, number in ROUND_I_PLAIN.items())
+    rows = [
+        ("i01",
+         "C1, the percentile over three defences: Sacrificial Garb, a base with armour, evasion and energy "
+         "shield (the copy's three-defence items are this base). The site's value against the average of the "
+         "three recovered rolls, and against min, max and the first type, by percentile.py; none captured yet",
+         PERCENTILE_CONTROL,
+         batch_query([], percentile_filter(), "Sacrificial Garb")),
+        ("i02",
+         "C7, `Quality does not increase Defences`, on armour with quality: whether the site recovers the roll "
+         "with the quality term dropped, for its percentile and for its 20%-quality figures (`extended.ar|ev|es`); "
+         "percentile.py reads the enchant as the quality term's zero. None captured yet; the copy holds two",
+         PERCENTILE_CONTROL,
+         batch_query([group("and", ["enchant.stat_2677401098"])], {**armour, **percentile_filter(), **quality})),
+        ("i03",
+         "C10, a roll over the base's maximum: whether the site ever shows a percentile over 100 (the contract "
+         "detail under C101 reads such an item over 100). Any found: the site does not clamp, and percentile.py's "
+         "`beyond_range` names the roll. None found: the site clamps, or lists no such item — i04 says the filter "
+         "finds what it should",
+         "i04, this search at 100, must find items: the captures hold one at 100 (h015)",
+         batch_query([], {**armour, **percentile_filter(101)})),
+        ("i04",
+         "i03's mutant: armour at a percentile of 100 or more. It must find items; each fetched is scored, and "
+         "an item whose display no roll in range gives is a roll over the maximum shown clamped",
+         "the mutant is the control: nothing found means the percentile filter decides nothing",
+         batch_query([], {**armour, **percentile_filter(100)})),
+        ("i05",
+         "C14, a defence line on armour under its global twin — a line a private item shows exactly as the local "
+         f"one: {', '.join('`' + t + '`' for t in DEFENCE_TWINS)}, each under every id displaying the text without "
+         "`(Local)`. Whether the site's value leaves the line out (percentile.py by its ids reproduces it) or reads "
+         "it (only the text reading does). The copy holds one such trace; none captured",
+         PERCENTILE_CONTROL,
+         batch_query([group("count", ids_of(*DEFENCE_TWINS), {"min": 1})], {**armour, **percentile_filter()})),
+        ("i06",
+         f"the ranged family on weapons, sound, at {pinned}: whether any weapon carries the unsuffixed "
+         "`Adds # to # <type> Damage` under the stat without `(Local)` while showing none of the five plain "
+         "pseudos. None found: the site counts that stat toward the plain pseudo on a weapon as anywhere else. "
+         "Any found: a weapon whose global line the site does not count. Asked because 36 of the copy's weapon "
+         "lines on uniques are ones the export cannot say local or global (data/ranged-uniques.csv)",
+         "i07, the mutant, must find items; i08 says whether any weapon carries the stat at all",
+         batch_query([group("count", global_ids, {"min": 1}), group("not", pseudos)], category("weapon"))),
+        ("i07",
+         "i06's mutant: the `(Local)` twins in place of the global ids. It must find weapons, each showing no "
+         "plain pseudo, as round three found (e016, e021, e027, e033)",
+         "the mutant is the control: nothing found means a `not` of the plain pseudos beside a count decides nothing",
+         batch_query([group("count", local_ids, {"min": 1}), group("not", pseudos)], category("weapon"))),
+        ("i08",
+         "i06's control: weapons carrying the unsuffixed line under the stat without `(Local)`, the five plain "
+         "pseudos shown. Any found: the site lists a weapon's line as global, and the build, which reads a weapon's "
+         "line as its own (the plan, 9d), would not count what the site counts; each item names its unique. None "
+         "found: no listed weapon carries the global stat, and the class decides as the site does",
+         "i07: a count beside the weapon category finds weapons",
+         batch_query([group("count", global_ids, {"min": 1}), group("if", pseudos)], category("weapon"))),
+        ("i09",
+         "C2, ward read as the other defences are, on any base with ward (two captured, both reproduced; the copy "
+         "holds thirteen): more rolls against the ward range of base-defences.csv",
+         PERCENTILE_CONTROL,
+         batch_query([], {**armour, "armour_filters": {"disabled": False, "filters": {
+             "ward": {"min": 1}, "base_defence_percentile": {"min": 1}}}})),
+    ]
+    return [{"search": s, "decides": d, "control": c, "query": q} for s, d, c, q in rows]
+
+
 def report():
     """b1, b2: the two searches a report of c3's twin id rests on."""
     twin = "explicit.stat_2543977012"
@@ -980,7 +1076,7 @@ def main():
         print(__doc__)
         return 2
     searches = PILOT + (checks() + round_two() + report() + round_three() + round_four()
-                        + round_five() + OPEN_QUESTION_SEARCHES + round_six()
+                        + round_five() + OPEN_QUESTION_SEARCHES + round_six() + round_i()
                         if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
