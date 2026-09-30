@@ -58,10 +58,17 @@ and commits; your report is what it restores from.
   what a beast is — record what you read in `MANIFEST.md` here).
 - The shipped class table, `crates/acquisition-search/reference/classes-v1.toml`.
 - Awakened PoE Trade at `ce551eb7` (`search/prior-art/MANIFEST.md`):
-  how its parser and its trade-query builder treat a captured beast
-  and the site's categories, cited by file and line.
-- Path of Building at `16de4b82`, only if it says something of beasts
-  or categories the others do not.
+  `renderer/public/data/en/items.ndjson`, the entries carrying
+  `craftable.category` (its own category vocabulary, one per base),
+  and `renderer/src/web/price-check/trade/pathofexile-trade.ts`, the
+  map from that vocabulary to the site's leaf ids; and how its parser
+  treats a captured beast, cited by file and line.
+- Path of Building at `16de4b82`: `src/Data/Bases/*.lua`, every base
+  with its `type`, and `src/Classes/TradeHelpers.lua` (the function
+  near line 347), the map from a type or a slot to the site's leaf id.
+  These two are the leaf-level cross-check below; each is read from
+  the owner's clone as `SURFACES.md`'s rows for them say, and the
+  reviewer notes the read on each row at the close.
 - The copy: every live `pc` item's body (`items.json`, the `json`
   column) — its `baseType`, frame, name, properties (a beast carries
   `Genus`, `Group`, `Family`), `descrText`, and whatever else varies.
@@ -82,6 +89,14 @@ and commits; your report is what it restores from.
   leaves each candidate reading would give it; and `data/beast-facts.csv`,
   one row per body fact that varies across the copy's beasts, with its
   values and counts.
+- `scripts/crosscheck.py` → `data/category-crosscheck.csv`: one row
+  per site leaf id and per source that places bases under it — the
+  export's class and rules, the site's own coarse list at the parent's
+  level, Awakened PoE Trade, Path of Building — the base names each
+  places there, and how many the sources agree and disagree on; and
+  `data/category-disagreements.csv`, one row per base two sources
+  place under different ids, both ids named. A leaf no source but the
+  export reaches is a row saying so.
 - `data/residue.csv`: every live item on the copy that no reading
   places under exactly one id — the base, the count, and why (no base
   in any table, a base under several ids, a class with no id).
@@ -112,15 +127,27 @@ where a fact is not on this machine say which read would settle it.
    shape is visible before any table is written.
 6. The classes with no id on the site (F3 counted 31) and what the copy
    holds of them, by class.
+7. Coverage, apart from use. The copy measures which ids the owner's
+   items exercise; it says nothing about an id no item of his falls
+   under. Coverage is measured against the other surfaces: for every
+   leaf id, whether the export's rule, the site's coarse list, Awakened
+   PoE Trade and Path of Building place the same bases there, with
+   every disagreement listed by base. Say which leaves are checked by
+   all four, which by the site's coarse list alone, and which by the
+   export alone; and which leaves have no item on the copy, since the
+   build must cut a fixture for each of those by hand. Where a leaf's
+   membership is settled by none of the surfaces on this machine, name
+   the one sitting search that would ask the site.
 
 ## Acceptance
 
 `python3 search/category/scripts/categories.py` and
 `python3 search/category/scripts/beasts.py` regenerate `data/`
 byte-for-byte; every count in the README is printed by one of them;
-and every category id of `filters-2026-09-12.json` has a row of
+every category id of `filters-2026-09-12.json` has a row of
 `data/categories.csv` saying how it is produced or that nothing
-produces it.
+produces it; and `scripts/crosscheck.py` regenerates its two files
+byte-for-byte, every leaf id having a row per source that reaches it.
 
 ## The report
 
