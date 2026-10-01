@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows and applied (totals v4); the four pseudos that are no sum built as readings of other totals (step 9c3, totals v5), answered as the site shows them with the captures' mods entered unchanged (step 9c4); before 9d (the brief at `9280f559`) — 2026-09-30, reviewed: round i prepared, not sat; the ranged census over the copy, open question 7 closed; round i sat 2026-10-01 and read: C1, C2, C7 and C14 pinned, C10 in part (the site shows nothing over 100), i07 not opened.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows and applied (totals v4); the four pseudos that are no sum built as readings of other totals (step 9c3, totals v5), answered as the site shows them with the captures' mods entered unchanged (step 9c4); before 9d (the brief at `9280f559`) — 2026-09-30, reviewed: round i prepared, not sat; the ranged census over the copy, open question 7 closed; round i sat 2026-10-01 and read: C1, C2, C7 and C14 pinned, C10 in part (the site shows nothing over 100); i07 sat the same day: no listed weapon carries the unsuffixed line under the global stat.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -135,14 +135,16 @@ Round i (`tools/trade-sheet.py`, `round_i`): the percentile's read by `percentil
 | i02 | C7 | `Quality does not increase Defences`: the percentile, the 20%-quality figure | 2 / 0 | **pinned**: 10 of 10 reproduced with the quality term dropped, the figure 10 of 10; quality read after all, 0 and 0 |
 | i03, i04 | C10 | whether the site shows over 100; i04 at 100 its mutant | 0 / 0 | **in part**: i03 found 0, its mutant i04 10000; i04's 10 rows reproduced, the highest 100, 0 with no roll in range: none shows a roll over the maximum, so whether the site clamps one is not pinned |
 | i05 | C14 | a defence line under its global twin (text cannot tell): read or not | 1 / 0 | **pinned, left out**: 10 of 10 from the ids; 5 carry a twin of a type they read, and read as local, as text reads them, 0 of 5 |
-| i06–i08 | ranged | a weapon under the global twin: sound, mutant, control | below | i06 and i08 found 0, i07 not opened: nothing proved |
+| i06–i08 | ranged | a weapon under the global twin: sound, mutant, control | below | i07 found 10000, its 10 fetched each under a `(Local)` pair in `data/evidence.csv` and showing none of the five plain pseudos, as its row says; so i06's 0 and i08's 0 hold: no listed weapon carries the line under the global stat |
 | i09 | C2 | ward on any ward base | 13 / 2 | **pinned**: 10 rows, 10 reproduced, 9 of them by their ward roll |
 
 J6's shapes: C1, C2, C7 and C14 are pinned; C10 is not. The site shows no armour item over 100, and
 no fetched item needs a roll over its base's maximum: what closes it is such an item, one whose display
-no roll in range gives, fetched at 100 or not found at 101. i06 and i08 found nothing and i07, their
-mutant, was not opened: a search that finds nothing proves nothing until its mutant finds something.
-The page holding i07 alone is `raw/sitting/i-1.html`.
+no roll in range gives, fetched at 100 or not found at 101. i06 and i08 found nothing, and i07, their
+mutant, found weapons: i06's nothing is proved, one row changed. i08's rests on i07 and on the site's
+tip for an `if` group (`../trade-query/README.md`: a stat with no bound restricts nothing), so it
+asks every weapon carrying the global stat. What is proved is of listed weapons, in Standard, that day:
+a weapon the owner holds and no one lists, such as a unique no longer dropped, is not reached.
 
 Left out, answered by the captures (captured / reproduced): C3 shields 23 / 23, C4 helmets 220 / 219,
 C5 gloves 151 / 151, C6 quality over 20 9 / 9, C8 uniques 170 / 170, C9 a defence the base lacks (its
@@ -165,7 +167,8 @@ found, `data/ranged-uniques.csv` (339 lines, 95 uniques).
 | on uniques, export cannot say: the same | 17 / 0 / 19 | 0 / 68 / 17 |
 
 The class decides as the export and the site do wherever either speaks. The limit: 36 weapon lines
-the join cannot place (29 match local and global mods, 7 none), 19 uncaptured; i06–i08 ask.
+the join cannot place (29 match local and global mods, 7 none), 19 uncaptured; i06–i08 found no listed
+weapon carrying the line under the global stat, which says nothing of a weapon no one lists.
 
 ## The searches part 1 counted, by form
 
