@@ -131,6 +131,10 @@ at a time, and the export is every twenty-five links.
   splitter says so loudly if one does.
 - **The site rewrites an id on the way back**, dropping every
   `"disabled":false`: compare queries with those removed, never ids.
+- **The page posts an empty stats group where the sheet has none**:
+  `stats: []` goes out as one `and` group with no filters, so four of
+  round i's eight searches were refused until the splitter read a group
+  of nothing as no group (2026-10-01).
 - **A number in a document is measured by a script after the last
   edit**, never read off the screen or recalled: counts, times, ranges.
 - **A command that commits stops at the first error**: `set -e` on its

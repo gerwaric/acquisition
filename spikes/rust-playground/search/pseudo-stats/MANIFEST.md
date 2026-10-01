@@ -115,3 +115,15 @@ ninth holds h001–h025, the tenth h026–h050, the eleventh h051–h053.
 | `raw/searches/www.pathofexile.com-9.har` | 105630881 | 2026-09-27 10:44 | `3d833ead046947d4bdf50e27aa4e3f1b9cf07f4f5bf4d948dc6bcf17bdec5881` |
 | `raw/searches/www.pathofexile.com-10.har` | 105049007 | 2026-09-27 10:49 | `993205fe9a03e09a5f0efaaad56e0e0a5089e2ee9bc107a49142bc4ee5c8d56f` |
 | `raw/searches/www.pathofexile.com-11.har` | 14815306 | 2026-09-27 10:51 | `5f88ec3362c8be8493558ada4d4f5369a5721851702a9b355feba43d5e3cf3ef` |
+
+Round i (before step 9d), 2026-10-01, 09:07–09:08 US Central (14:07–14:08 UTC),
+by the owner, from the links of `data/search-sheet.csv` at `cb77add0`: one
+recording, exported with its content, every body held, no cookie, eight of the
+round's nine searches — i07, the mutant of i06, was not opened. Four of the
+eight were refused by the splitter until it read an empty stats group as no
+group (the site-sitting skill's traps). `tools/trade-split.py --write` wrote
+their 13 captures.
+
+| File | Bytes | Captured | sha256 |
+| --- | --- | --- | --- |
+| `raw/searches/www.pathofexile.com-12.har` | 36813523 | 2026-10-01 09:08 | `fc9a2e69e19ef235615f077eea883ecb98001af741d37c12576eada20214938e` |
