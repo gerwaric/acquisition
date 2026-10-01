@@ -568,11 +568,15 @@ unresolved, each with the one read that closes it).
   admits both integers as rolls (J5, 2026-10-01: the stated rule
   reproduced 541 of 543 captured items and this reading all 543, each
   one value; `search/pseudo-stats/README.md`, "The percentile's
-  round"). The shapes round i asks of the site — three defence types on
-  one base, the enchant that zeroes quality, a roll over the base's
-  maximum, a defence line under its global twin, ward — are answered by
-  the stated rule and listed in the record as unpinned until the round
-  is read (J6, 2026-10-01). The sockets are `sockets.rs`'s (step 8).
+  round"). Round i pinned four of the shapes J6 named (read
+  2026-10-01, the same section): three defence types on one base are
+  the average of three rolls; under the enchant that zeroes quality the
+  quality term is dropped; ward is a roll as the others are; and a
+  defence line under its global twin the site leaves out, which a
+  private item's text cannot show (J8, the plan's foot). A roll over
+  the base's maximum stays unpinned: the site lists no armour over 100,
+  so "reads over 100 %" above is the stated rule's and no capture's.
+  The sockets are `sockets.rs`'s (step 8).
 - **C106 — what reference data admits, and the test.** Three kinds:
   *data*, what the game files state and a registered surface exports;
   *convention*, a concept the community has published a definition for
