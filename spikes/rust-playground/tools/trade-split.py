@@ -44,6 +44,9 @@ import sys
 import urllib.parse
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from trade_query import bare  # noqa: E402
+
 TRACK = Path(__file__).resolve().parents[1] / "search" / "pseudo-stats"
 RAW = TRACK / "raw" / "searches"
 SHEET = TRACK / "data" / "search-sheet.csv"
@@ -58,21 +61,6 @@ SMALL = 1000
 def decode(search_id):
     padded = search_id + "=" * (-len(search_id) % 4)
     return json.loads(gzip.decompress(base64.urlsafe_b64decode(padded)))
-
-
-def bare(node):
-    """A query with every `"disabled": false` removed (the site drops them) and
-    every stat group with no filters removed: the page posts `stats: []` as one
-    `and` group with no filters (round i, 2026-10-01), and a group of nothing
-    is no group."""
-    if isinstance(node, dict):
-        out = {k: bare(v) for k, v in node.items() if not (k == "disabled" and v is False)}
-        if isinstance(out.get("stats"), list):
-            out["stats"] = [g for g in out["stats"] if not (isinstance(g, dict) and g.get("filters") == [])]
-        return out
-    if isinstance(node, list):
-        return [bare(v) for v in node]
-    return node
 
 
 def body(entry):

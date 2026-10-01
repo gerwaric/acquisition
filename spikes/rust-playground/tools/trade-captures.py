@@ -18,9 +18,10 @@ A file saved empty is a search not yet captured and is passed over. A capture
 whose returned query is not its own row's is left out of the extract and named
 with the row it does answer: a mislabelled capture is no evidence for its name.
 
-The site rewrites an id on the way back: `"disabled":false` is dropped and
-keys are reordered. A returned query is the sheet's when the two are equal
-once every `"disabled": false` is removed from both.
+The site rewrites an id on the way back: `"disabled":false` is dropped,
+keys are reordered, an empty stats group is posted where the sheet has none.
+A returned query is the sheet's when the two are equal once `trade_query.bare`
+has read both — the one reader of a query's shape, shared with the splitter.
 """
 
 import base64
@@ -31,6 +32,9 @@ import json
 import sys
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from trade_query import bare  # noqa: E402
 
 TRACK = Path(__file__).resolve().parents[1] / "search" / "pseudo-stats"
 RAW = TRACK / "raw" / "searches"
@@ -48,15 +52,6 @@ SCRUBBED = ("whisper", "hideout_token", '"account": {', '"icon": "', '"stash": {
 def decode(search_id):
     padded = search_id + "=" * (-len(search_id) % 4)
     return json.loads(gzip.decompress(base64.urlsafe_b64decode(padded)))
-
-
-def bare(node):
-    """A query with every `"disabled": false` removed."""
-    if isinstance(node, dict):
-        return {k: bare(v) for k, v in node.items() if not (k == "disabled" and v is False)}
-    if isinstance(node, list):
-        return [bare(v) for v in node]
-    return node
 
 
 def line(entry):

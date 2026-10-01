@@ -133,8 +133,9 @@ at a time, and the export is every twenty-five links.
   `"disabled":false`: compare queries with those removed, never ids.
 - **The page posts an empty stats group where the sheet has none**:
   `stats: []` goes out as one `and` group with no filters, so four of
-  round i's eight searches were refused until the splitter read a group
-  of nothing as no group (2026-10-01).
+  round i's eight searches were refused by the splitter, and then by the
+  extract after the splitter alone was taught (2026-10-01): a query's
+  shape has one reader, `tools/trade_query.py`, and no tool its own.
 - **A number in a document is measured by a script after the last
   edit**, never read off the screen or recalled: counts, times, ranges.
 - **A command that commits stops at the first error**: `set -e` on its
