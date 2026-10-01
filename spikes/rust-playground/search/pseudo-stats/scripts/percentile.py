@@ -43,13 +43,21 @@ Negative controls, printed: the same recovery with the display floored or
 ceiled instead (how many items then admit no roll at all); the hybrids
 joined by min, max or the first type instead of the average; the average
 rounded half to even instead of half up; the local lines, or the quality,
-not read.
+not read; the global twins of the local defence lines read as local (C14 of
+percentile-shapes.py: a private item shows the two alike, so the text reading
+reads them); and, under `Quality does not increase Defences`, the quality read
+after all, for the value and for the 20%-quality figure.
 
 The quality multiplier both tools state is also checked against the site's
 own figures: `extended.ar|ev|es` "includes base value, local modifiers, and
 maximum quality" (grammar.json filter_groups[3].filters[0-2]), so the
 recovered roll, displayed at quality max(20, q) (APT calc-q20.ts L52-L59),
-should give it exactly.
+should give it exactly; under `Quality does not increase Defences`, at no
+quality (round i, i02: the site drops the term from both figures).
+
+The searches of ROUND are printed one by one: the items each fetched, how
+many the stated rule reproduces, how many the 20%-quality figure, how many
+admit no roll in the base's range, and the highest value shown.
 """
 
 import csv
@@ -102,6 +110,17 @@ ROLES = {
     "local_armour_and_evasion_and_energy_shield_+%": ("inc", ["ar", "ev", "es"]),
 }
 NO_QUALITY = "local_quality_does_not_increase_defences"
+# The global stats whose text a local defence line displays the same
+# (tools/trade-sheet.py, DEFENCE_TWINS), with the role the local one has.
+TWINS = {
+    "base_physical_damage_reduction_rating": ("flat", ["ar"]),
+    "base_evasion_rating": ("flat", ["ev"]),
+    "base_maximum_energy_shield": ("flat", ["es"]),
+    "physical_damage_reduction_rating_+%": ("inc", ["ar"]),
+    "evasion_rating_+%": ("inc", ["ev"]),
+}
+# The round whose searches are printed one by one (tools/trade-sheet.py, round_i).
+ROUND = "i"
 
 
 def read_commented_csv(path):
@@ -217,6 +236,27 @@ def read_item(item, bases, tmap, local):
     return shown, quality, q, flat, inc, ranges, base_row, read
 
 
+def twin_lines(item, tmap):
+    """(flat, inc) of the item's global defence twins, read as if local."""
+    flat = {t: 0.0 for t in TYPES}
+    inc = {t: 0.0 for t in TYPES}
+    for array, lines in item["lines"].items():
+        if array == "pseudoMods":
+            continue
+        for line in lines:
+            for stat in tmap.get(line["hash"].removeprefix("stat."), []):
+                if stat in TWINS:
+                    role, types = TWINS[stat]
+                    for t in types:
+                        (flat if role == "flat" else inc)[t] += number(line["description"])
+    return flat, inc
+
+
+def has_no_quality(item, tmap):
+    return any(NO_QUALITY in tmap.get(line["hash"].removeprefix("stat."), [])
+               for array, lines in item["lines"].items() if array != "pseudoMods" for line in lines)
+
+
 def site_values(shown, q, flat, inc, ranges, display="half-up", join=None, rounding=half_up):
     per = {}
     for t, (lo, hi) in ranges.items():
@@ -253,12 +293,15 @@ def score(locator, item, bases, tmap, local):
     ext = item.get("extended", {})
     value = ext["base_defence_percentile"]
     shown, quality, q, flat, inc, ranges, base_row, read = read_item(item, bases, tmap, local)
+    no_quality = has_no_quality(item, tmap)
     q20_type = next((t for t in ("ar", "ev", "es") if t in shown and t in ext), None)
-    q20_pred = None
+    q20_pred, q20_read = None, None
     if q20_type and q20_type in ranges:
         found = rolls(shown[q20_type], q, inc[q20_type], flat[q20_type], *ranges[q20_type])
         if len(found) == 1:
             q20_pred = half_up((found[0] + flat[q20_type]) * (1 + inc[q20_type] / 100)
+                               * (1 + (0 if no_quality else max(20, q)) / 100))
+            q20_read = half_up((found[0] + flat[q20_type]) * (1 + inc[q20_type] / 100)
                                * (1 + max(20, q) / 100))
     apt_type = next((t for t in TYPES if t in ranges), None)
     apt = (None, None, None)
@@ -280,7 +323,11 @@ def score(locator, item, bases, tmap, local):
         f"{t}={'|'.join(str(b) for b in rolls(shown[t], q, inc[t], flat[t], *ranges[t]))}"
         for t in ranges
     )
-    control = (value, shown, q, flat, inc, ranges, len(ranges) > 1)
+    tflat, tinc = twin_lines(item, tmap)
+    twins = any(tflat[t] or tinc[t] for t in ranges)  # a twin of a type the item reads
+    control = (value, shown, q, flat, inc, ranges, len(ranges) > 1,
+               twins, {t: flat[t] + tflat[t] for t in TYPES}, {t: inc[t] + tinc[t] for t in TYPES},
+               no_quality, quality, q20_read, ext.get(q20_type) if q20_type else None)
     row = [
         locator, item.get("baseType", item["typeLine"]),
         "" if base_row is None else f"base-defences.csv row {base_row}",
@@ -303,7 +350,7 @@ def score(locator, item, bases, tmap, local):
 def unbounded(control):
     """(the types whose display no roll in range gives and a roll outside does,
     with those rolls; the site's rule over rolls from 0 to twice the maximum)."""
-    _, shown, q, flat, inc, ranges, _ = control
+    _, shown, q, flat, inc, ranges, _ = control[:7]
     beyond, per = [], {}
     for t, (lo, hi) in ranges.items():
         inside = rolls(shown[t], q, inc[t], flat[t], lo, hi)
@@ -357,6 +404,16 @@ def summarise(rows, controls, first_line):
     print(f"  local lines not read: {hit} of the {with_lines} items carrying one reproduced")
     hit = sum(1 for c in controls if c[2] and c[0] in site_values(c[1], 0.0, c[3], c[4], c[5])[1])
     print(f"  quality not read: {hit} of the {sum(1 for c in controls if c[2])} items with quality reproduced")
+    twins = [c for c in controls if c[7]]
+    hit = sum(1 for c in twins if c[0] in site_values(c[1], c[2], c[8], c[9], c[5])[1])
+    print(f"  global defence twins read as local: {hit} of the {len(twins)} items carrying one of a type "
+          f"they read reproduced (as from their ids: "
+          f"{sum(1 for c in twins if c[0] in site_values(*c[1:6])[1])})")
+    enchanted = [c for c in controls if c[10]]
+    hit = sum(1 for c in enchanted if c[0] in site_values(c[1], c[11], c[3], c[4], c[5])[1])
+    figures = [c for c in enchanted if c[12] is not None and c[13] is not None]
+    print(f"  `Quality does not increase Defences`, quality read after all: {hit} of {len(enchanted)} "
+          f"reproduced; the 20%-quality figure {sum(1 for c in figures if c[12] == float(c[13]))} of {len(figures)}")
 
 
 def main():
@@ -427,6 +484,30 @@ def main():
               f"rolls {r[col['site_rolls']] or '-'}  base {r[col['base_row']] or 'not in base-defences.csv'}  "
               f"not of base {r[col['shown_not_of_base']] or '-'}  "
               f"beyond {r[col['beyond_range']] or '-'}  unbounded {r[col['site_unbounded']] or '-'}")
+    print(f"round {ROUND}, search by search (fetched rows; the stated rule; the 20%-quality figure; "
+          f"no roll in range; the highest value shown; the items carrying a global defence twin of a type "
+          f"they read, and how many of them the twins read as local reproduce; the hybrids, and how many min, "
+          f"max and the first type each reproduce; the rows whose ward roll is read, and the repeats):")
+    for name in sorted(captures):
+        if not re.fullmatch(rf"{ROUND}\d+", name):
+            continue
+        ks = [k for k, r in enumerate(rows) if r[col["locator"]].startswith(f"searches.{name}.")]
+        mine = [rows[k] for k in ks]
+        twins = [controls[k] for k in ks if controls[k][7]]
+        as_local = sum(1 for c in twins if c[0] in site_values(c[1], c[2], c[8], c[9], c[5])[1])
+        hybrids = [controls[k] for k in ks if controls[k][6]]
+        joins = [sum(1 for c in hybrids if c[0] in site_values(*c[1:6], join=j)[1])
+                 for j in (min, max, lambda xs: xs[0])]
+        figures = [r for r in mine if r[col["site_q20"]] != "" and r[col["q20_predicted"]] != ""]
+        top = max((r[col["site_value"]] for r in mine), default="-")
+        print(f"  {name}: total {captures[name]['search'].get('total')}; {len(mine)} rows; "
+              f"{sum(1 for r in mine if r[col['site_within']] == 'yes')} reproduced; "
+              f"q20 {sum(1 for r in figures if float(r[col['q20_predicted']]) == float(r[col['site_q20']]))}"
+              f" of {len(figures)}; {sum(1 for r in mine if r[col['beyond_range']])} beyond; highest {top}; "
+              f"twins {len(twins)}, read as local {as_local}; hybrids {len(hybrids)}, "
+              f"min {joins[0]}, max {joins[1]}, first {joins[2]}; "
+              f"ward read {sum(1 for k in ks if 'ward' in controls[k][5])}; "
+              f"repeats {sum(1 for r in mine if r[col['same_as']])}")
     print(f"wrote {CAPTURE_OUT.relative_to(SEARCH.parent)}")
     return 0
 

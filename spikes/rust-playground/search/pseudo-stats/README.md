@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows and applied (totals v4); the four pseudos that are no sum built as readings of other totals (step 9c3, totals v5), answered as the site shows them with the captures' mods entered unchanged (step 9c4); before 9d (the brief at `9280f559`) — 2026-09-30, reviewed: round i prepared, not sat; the ranged census over the copy, open question 7 closed.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows and applied (totals v4); the four pseudos that are no sum built as readings of other totals (step 9c3, totals v5), answered as the site shows them with the captures' mods entered unchanged (step 9c4); before 9d (the brief at `9280f559`) — 2026-09-30, reviewed: round i prepared, not sat; the ranged census over the copy, open question 7 closed; round i sat 2026-10-01 and read: C1, C2, C7 and C14 pinned, C10 in part (the site shows nothing over 100), i07 not opened.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -121,30 +121,35 @@ capture has three defence types, ward, a shield, a helmet or gloves, quality abo
 ## The percentile's round
 
 `percentile.py` now scores the sittings' captures too (`data/percentile-captures.csv`, apart, as
-`candidates.py` reads `percentile-check.csv`): of 543 distinct items the stated rule reproduces 541;
-a display at an exact half read as either integer, 543, each one value (half down: 537). Of 250
-hybrids, min, max and first type give 154, 160, 160. Read from text alone, as the build must, all 543
-read as from their ids (`percentile-shapes.py`).
+`candidates.py` reads `percentile-check.csv`): of 592 distinct items the stated rule reproduces 590;
+a display at an exact half read as either integer (J5), 592, each one value (half down: 586). Of 268
+hybrids, min, max and first type give 161, 169, 170. The 20%-quality figure: 546 of 546, the enchant
+read as no quality. Read from text alone, as the build must, the items no longer all read as from
+their ids: 5 of 592 do not, each an i05 item carrying a global defence twin (`percentile-shapes.py`).
 
 Round i (`tools/trade-sheet.py`, `round_i`): the percentile's read by `percentile.py`. The core is i01–i08.
 
-| Search | Shape | Decides | Copy / captured |
-| --- | --- | --- | --- |
-| i01 | C1 | three rolls averaged, Sacrificial Garb (the copy's base) | 3 / 0 |
-| i02 | C7 | `Quality does not increase Defences`: the percentile, the 20%-quality figure | 2 / 0 |
-| i03, i04 | C10 | whether the site shows over 100; i04 at 100 its mutant | 0 / 0 |
-| i05 | C14 | a defence line under its global twin (text cannot tell): read or not | 1 / 0 |
-| i06–i08 | ranged | a weapon under the global twin: sound, mutant, control | below |
-| i09 | C2 | ward on any ward base | 13 / 2 |
+| Search | Shape | Decides | Copy / captured | Read 2026-10-01 (`percentile.py`, round i by search) |
+| --- | --- | --- | --- | --- |
+| i01 | C1 | three rolls averaged, Sacrificial Garb (the copy's base) | 3 / 0 | **pinned**: 10 rows (1 a repeat), 10 reproduced; min 2, max 2, first type 4 |
+| i02 | C7 | `Quality does not increase Defences`: the percentile, the 20%-quality figure | 2 / 0 | **pinned**: 10 of 10 reproduced with the quality term dropped, the figure 10 of 10; quality read after all, 0 and 0 |
+| i03, i04 | C10 | whether the site shows over 100; i04 at 100 its mutant | 0 / 0 | **in part**: i03 found 0, its mutant i04 10000; i04's 10 rows reproduced, the highest 100, 0 with no roll in range: none shows a roll over the maximum, so whether the site clamps one is not pinned |
+| i05 | C14 | a defence line under its global twin (text cannot tell): read or not | 1 / 0 | **pinned, left out**: 10 of 10 from the ids; 5 carry a twin of a type they read, and read as local, as text reads them, 0 of 5 |
+| i06–i08 | ranged | a weapon under the global twin: sound, mutant, control | below | i06 and i08 found 0, i07 not opened: nothing proved |
+| i09 | C2 | ward on any ward base | 13 / 2 | **pinned**: 10 rows, 10 reproduced, 9 of them by their ward roll |
 
-Left out, answered by the captures (captured / reproduced): C3 shields 20 / 20, C4 helmets 214 / 213,
-C5 gloves 146 / 146, C6 quality over 20 6 / 6, C8 uniques 160 / 160, C9 a defence the base lacks (its
-own types read) 34 / 34. Not the site's: C11 poe2, no table (ruled); C12 an exact half, no filter
+J6's shapes: C1, C2, C7 and C14 are pinned; C10 is not. The site shows no armour item over 100, and
+no fetched item needs a roll over its base's maximum: what closes it is such an item, one whose display
+no roll in range gives, fetched at 100 or not found at 101. i06 and i08 found nothing and i07, their
+mutant, was not opened: a search that finds nothing proves nothing until its mutant finds something.
+The page holding i07 alone is `raw/sitting/i-1.html`.
+
+Left out, answered by the captures (captured / reproduced): C3 shields 23 / 23, C4 helmets 220 / 219,
+C5 gloves 151 / 151, C6 quality over 20 9 / 9, C8 uniques 170 / 170, C9 a defence the base lacks (its
+own types read) 35 / 35. Not the site's: C11 poe2, no table (ruled); C12 an exact half, no filter
 selects it; C13 a `reduced` local line, none on the copy or captured. The copy's 2,272 armour items:
 2,240 read to a value, 22 poe2, 9 at an exact half, 1 under its minimum (C14's trace); 20 bases not in
 the class table. Per shape: `data/percentile-shapes.csv`.
-
-Nine searches, one every ten seconds; the first page is `raw/sitting/i-1.html`.
 
 ## The ranged family on the copy
 
@@ -303,6 +308,7 @@ The first pass's full text is this README at `d18fa6dd`.
 | 6 | Are the 63 family rows right per entry? | a trade fetch of one unattested room and one unattested quality |
 | 7 | How many of the owner's unsuffixed `Adds # to #` lines are on weapons? | **Closed 2026-09-30**: 573 of the copy's 703, 129 not (`data/ranged-census.csv`); no weapon line the export or the site calls global (`data/ranged-uniques.csv`) |
 | 8 | Are APT's percentile lines the site's, and the flat hybrids PoB models? | P001–P034, each scored as `percentile.py` does |
+| 9 | i05: the site leaves a defence line under its global twin out, and the text reads it as local. Does anything a private item carries tell the two apart? | the copy's armour items carrying a twin text, read from the copy with their arrays and mods beside the export's local and global mods |
 
 ## Provenance
 
