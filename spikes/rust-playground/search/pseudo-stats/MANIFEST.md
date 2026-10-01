@@ -139,3 +139,13 @@ j26–j38, was not sat. `tools/trade-split.py --write` wrote their 46 captures.
 | --- | --- | --- | --- |
 | `raw/searches/www.pathofexile.com-13.har` | 7347068 | 2026-10-01 16:52 | `f2d660372d86d4773e9a633c7b1c50013b8f97abb68986e3e62e97bf4aa9971a` |
 | `raw/searches/www.pathofexile.com-14.har` | 106648602 | 2026-10-01 18:26 | `10539698d431a8cc6ec7b02df0f1b5800c642c4d9dfbcbffc5223d02cdd03ec5` |
+
+Round j's last page, 2026-10-01, 18:34–18:37 US Central (23:34–23:37 UTC), by
+the owner, from the links of `data/search-sheet.csv` at `763735c1`: one
+recording, exported with its content, every body held, no cookie, nothing
+refused: j26–j40, the round's last fifteen. `tools/trade-split.py --write`
+wrote their 24 captures.
+
+| File | Bytes | Captured | sha256 |
+| --- | --- | --- | --- |
+| `raw/searches/www.pathofexile.com-15.har` | 64578012 | 2026-10-01 18:37 | `719b573a204c01538cfd6e88b716de21dd7679d2171755c394f8321057c96573` |

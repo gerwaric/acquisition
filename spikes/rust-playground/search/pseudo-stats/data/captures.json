@@ -285078,6 +285078,7883 @@
     }
    ]
   },
+  "j26": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Ezomyte Dagger",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "weapon.dagger"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 10000
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "Brimstone Bite",
+     "typeLine": "Ezomyte Dagger",
+     "baseType": "Ezomyte Dagger",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Rune Dagger",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "25-100"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "2-27"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.40"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metre",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 124.6,
+      "pdps": 104.3,
+      "edps": 20.3,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "30% increased Global Critical Strike Chance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_587431675",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+2 to Level of Socketed Melee Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_829382474",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Weaponmaster's",
+          "tier": "P1",
+          "level": 63,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "26% increased Physical Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1509134228",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Reaver's",
+          "tier": "P6",
+          "level": 23,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "34"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 2 to 27 Lightning Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3336890334",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Buzzing",
+          "tier": "P9",
+          "level": 13,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           },
+           {
+            "min": "25",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "33% increased Stun Duration on Enemies",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2517001139",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Staggering",
+          "tier": "S0",
+          "level": 58,
+          "magnitudes": [
+           {
+            "min": "31",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+64 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_691932474",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Reaver's",
+          "tier": "P6",
+          "level": 23,
+          "magnitudes": [
+           {
+            "min": "47",
+            "max": "72"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Grim Skewer",
+     "typeLine": "Ezomyte Dagger",
+     "baseType": "Ezomyte Dagger",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Rune Dagger",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "35-113"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.40"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metre",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 124.6,
+      "pdps": 124.6,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "30% increased Global Critical Strike Chance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_587431675",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Adds 15 to 34 Physical Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1940865751",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Razor-sharp",
+          "tier": "P3",
+          "level": 54,
+          "magnitudes": [
+           {
+            "min": "16",
+            "max": "21"
+           },
+           {
+            "min": "32",
+            "max": "38"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Grants 3 Life per Enemy Hit",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_821021828",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Restoration",
+          "tier": "S7",
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "4",
+            "max": "6"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "26% increased Damage with Poison",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1290399200",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Poison",
+          "tier": "S0",
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "21",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "20% chance to Poison on Hit",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3885634897",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Poison",
+          "tier": "S0",
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Skills used by Mines have 23% increased Area of Effect",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2228913626",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Matatl",
+          "tier": "S0",
+          "level": 50,
+          "magnitudes": [
+           {
+            "min": "22",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Death Sever",
+     "typeLine": "Ezomyte Dagger",
+     "baseType": "Ezomyte Dagger",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Rune Dagger",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "21-82"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.40"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metre",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 86.1,
+      "pdps": 86.1,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "30% increased Global Critical Strike Chance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_587431675",
+        "flags": null,
+        "mods": []
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "18% reduced Attribute Requirements",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3639275092",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Worthy",
+          "tier": "S2",
+          "level": 36,
+          "magnitudes": [
+           {
+            "min": "-18",
+            "max": "-18"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "24% increased Spell Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2974417149",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Adept's",
+          "tier": "P7",
+          "level": 11,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 1 to 3 Physical Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1940865751",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Glinting",
+          "tier": "P9",
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           },
+           {
+            "min": "2",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+30% to Global Critical Strike Multiplier",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3556824919",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Ferocity",
+          "tier": "S2",
+          "level": 59,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "34"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+29 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Azure",
+          "tier": "P0",
+          "level": 17,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Bramble Hunger",
+     "typeLine": "Ezomyte Dagger",
+     "baseType": "Ezomyte Dagger",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Rune Dagger",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "20-79"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "6-133"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.40"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metre",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 180.6,
+      "pdps": 83.3,
+      "edps": 97.3,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "30% increased Global Critical Strike Chance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_587431675",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Lightning Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4043416969",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Thunder Lord's",
+          "tier": "P0",
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "9% increased Spell Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2974417149",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Caster's",
+          "tier": "P7",
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "12"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 6 to 133 Lightning Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3336890334",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Discharging",
+          "tier": "P3",
+          "level": 63,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "14"
+           },
+           {
+            "min": "197",
+            "max": "229"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+9 to maximum Mana",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1050105434",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Caster's",
+          "tier": "P7",
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "17",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+24% to Cold Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_4220027924",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Yeti",
+          "tier": "S0",
+          "level": 38,
+          "magnitudes": [
+           {
+            "min": "24",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Remora's Ezomyte Dagger",
+     "baseType": "Ezomyte Dagger",
+     "rarity": "Magic",
+     "frameType": 1,
+     "properties": [
+      [
+       null,
+       "Rune Dagger",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "20-79"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.40"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metre",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 83.3,
+      "pdps": 83.3,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "30% increased Global Critical Strike Chance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_587431675",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "0.28% of Physical Attack Damage Leeched as Life",
+        "domain": "fractured",
+        "hash": "stat.fractured.stat_55876295",
+        "flags": {
+         "fractured": true
+        },
+        "mods": [
+         {
+          "name": "Remora's",
+          "tier": "P0",
+          "level": 50,
+          "magnitudes": [
+           {
+            "min": "0.2",
+            "max": "0.4"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Brood Stinger",
+     "typeLine": "Ezomyte Dagger",
+     "baseType": "Ezomyte Dagger",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Rune Dagger",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "24-96"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "10.88%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.40"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metre",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 101.5,
+      "pdps": 101.5,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "30% increased Global Critical Strike Chance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_587431675",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Socketed Gems are Supported by Level 20 Increased Critical Strikes",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2259700079",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Shaping",
+          "tier": "S1",
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Socketed Gems are Supported by Level 20 Maim",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3826977109",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Shaping",
+          "tier": "S1",
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "22% increased Physical Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1509134228",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Journeyman's",
+          "tier": "P7",
+          "level": 11,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "24"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "28% increased Critical Strike Chance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2375316951",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Shaping",
+          "tier": "S1",
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "26",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+20 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_691932474",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Journeyman's",
+          "tier": "P7",
+          "level": 11,
+          "magnitudes": [
+           {
+            "min": "21",
+            "max": "46"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "20% chance to Maim on Hit",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2763429652",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Shaping",
+          "tier": "S1",
+          "level": 75,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "20% chance to Poison on Hit",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3885634897",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Toxins",
+          "tier": "S0",
+          "level": 55,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Honour Gutter",
+     "typeLine": "Ezomyte Dagger",
+     "baseType": "Ezomyte Dagger",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Rune Dagger",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "37-145"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "8-99"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.40"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metre",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 227.5,
+      "pdps": 152.6,
+      "edps": 74.9,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "30% increased Global Critical Strike Chance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_587431675",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+2 to Level of Socketed Cold Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1645459191",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Winterbringer's",
+          "tier": "P0",
+          "level": 55,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "84% increased Physical Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1509134228",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Wicked",
+          "tier": "P6",
+          "level": 23,
+          "magnitudes": [
+           {
+            "min": "65",
+            "max": "84"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 8 to 99 Lightning Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3336890334",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Arcing",
+          "tier": "P5",
+          "level": 42,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "8"
+           },
+           {
+            "min": "112",
+            "max": "131"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "90% increased Spell Critical Strike Chance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_737908626",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Ruin",
+          "tier": "S2",
+          "level": 59,
+          "magnitudes": [
+           {
+            "min": "80",
+            "max": "89"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+27% to Lightning Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1671376347",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Thunderhead",
+          "tier": "S0",
+          "level": 37,
+          "magnitudes": [
+           {
+            "min": "24",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+144 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_691932474",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Precision",
+          "tier": "S4",
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "131",
+            "max": "215"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Sol Hunger",
+     "typeLine": "Ezomyte Dagger",
+     "baseType": "Ezomyte Dagger",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Rune Dagger",
+       []
+      ],
+      [
+       6,
+       "Quality",
+       [
+        "+8%"
+       ]
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "30-119"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "36-69",
+        "13-23"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.40"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metre",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 215.6,
+      "pdps": 116.9,
+      "edps": 98.7,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "30% increased Global Critical Strike Chance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_587431675",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "40% increased Physical Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1509134228",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Heavy",
+          "tier": "P8",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "49"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 36 to 69 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Incinerating",
+          "tier": "P4",
+          "level": 51,
+          "magnitudes": [
+           {
+            "min": "46",
+            "max": "62"
+           },
+           {
+            "min": "93",
+            "max": "107"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 13 to 23 Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1037193709",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Icy",
+          "tier": "P8",
+          "level": 19,
+          "magnitudes": [
+           {
+            "min": "11",
+            "max": "15"
+           },
+           {
+            "min": "23",
+            "max": "26"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "68% increased Spell Critical Strike Chance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_737908626",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Calamity",
+          "tier": "S3",
+          "level": 41,
+          "magnitudes": [
+           {
+            "min": "70",
+            "max": "79"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+26% to Fire Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3372524247",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Kiln",
+          "tier": "S0",
+          "level": 36,
+          "magnitudes": [
+           {
+            "min": "24",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+29% to Chaos Resistance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2923486259",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Exile",
+          "tier": "S0",
+          "level": 65,
+          "magnitudes": [
+           {
+            "min": "26",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Grim Skewer",
+     "typeLine": "Ezomyte Dagger",
+     "baseType": "Ezomyte Dagger",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Rune Dagger",
+       []
+      ],
+      [
+       6,
+       "Quality",
+       [
+        "+7%"
+       ]
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "21-85"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "2-42"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.40"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metre",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 114.1,
+      "pdps": 83.3,
+      "edps": 30.8,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "30% increased Global Critical Strike Chance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_587431675",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "45"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+2 to Level of Socketed Melee Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_829382474",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Weaponmaster's",
+          "tier": "P1",
+          "level": 63,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 2 to 42 Lightning Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3336890334",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Snapping",
+          "tier": "P8",
+          "level": 19,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           },
+           {
+            "min": "41",
+            "max": "48"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 5 to 59 Lightning Damage to Spells",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2831165374",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Sparking",
+          "tier": "P5",
+          "level": 33,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "6"
+           },
+           {
+            "min": "74",
+            "max": "78"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Gain 6 Life per Enemy Killed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3695891184",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Success",
+          "tier": "S6",
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "7",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Sorrow Impaler",
+     "typeLine": "Ezomyte Dagger",
+     "baseType": "Ezomyte Dagger",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Rune Dagger",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "41-163"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "47-81"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.50%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.40"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metre",
+       [
+        "1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 260.4,
+      "pdps": 170.8,
+      "edps": 89.6,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "30% increased Global Critical Strike Chance",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_587431675",
+        "flags": null,
+        "mods": []
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Fire Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_339179093",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Flame Spinner's",
+          "tier": "P0",
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+30 to Dexterity",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3261801346",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Panther",
+          "tier": "S5",
+          "level": 44,
+          "magnitudes": [
+           {
+            "min": "28",
+            "max": "32"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "106% increased Physical Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1509134228",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Vicious",
+          "tier": "P5",
+          "level": 35,
+          "magnitudes": [
+           {
+            "min": "85",
+            "max": "109"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 47 to 81 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Blasting",
+          "tier": "P3",
+          "level": 62,
+          "magnitudes": [
+           {
+            "min": "59",
+            "max": "81"
+           },
+           {
+            "min": "120",
+            "max": "140"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Grants 4 Life per Enemy Hit",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_821021828",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Regrowth",
+          "tier": "S6",
+          "level": 30,
+          "magnitudes": [
+           {
+            "min": "7",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+186 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_691932474",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Marksman",
+          "tier": "S0",
+          "level": 41,
+          "magnitudes": [
+           {
+            "min": "166",
+            "max": "200"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "j27": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Opal Sceptre",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "weapon.onemace"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 10000
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "Agony Smasher",
+     "typeLine": "Opal Sceptre",
+     "baseType": "Opal Sceptre",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Sceptre",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "49-73"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "10.32%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.45"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 106.58,
+      "pdps": 106.58,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "40% increased Elemental Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+9% to Damage over Time Multiplier",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3988349707",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Acrimony",
+          "tier": "S5",
+          "level": 44,
+          "magnitudes": [
+           {
+            "min": "7",
+            "max": "11"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "16% increased Attack Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_210067635",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Renown",
+          "tier": "S5",
+          "level": 30,
+          "magnitudes": [
+           {
+            "min": "14",
+            "max": "16"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "29% increased Critical Strike Chance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2375316951",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Puncturing",
+          "tier": "S3",
+          "level": 44,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "26% increased Elemental Damage with Attack Skills",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_387439868",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Infusing",
+          "tier": "P5",
+          "level": 15,
+          "magnitudes": [
+           {
+            "min": "21",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Balefire",
+     "typeLine": "Opal Sceptre",
+     "baseType": "Opal Sceptre",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Sceptre",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "49-73"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.00%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.25"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 91.88,
+      "pdps": 91.88,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "40% increased Elemental Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Grants Level 25 Scorching Ray Skill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1540840",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "14% increased Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2891184298",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 1% of Life on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2023107756",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 1% of Mana on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1030153674",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Scorching Ray beam length",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_702909553",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Balefire",
+     "typeLine": "Opal Sceptre",
+     "baseType": "Opal Sceptre",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Sceptre",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "49-73"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.00%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.25"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 91.88,
+      "pdps": 91.88,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "40% increased Elemental Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Grants Level 25 Scorching Ray Skill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1540840",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "17% increased Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2891184298",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 1% of Life on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2023107756",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 1% of Mana on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1030153674",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Scorching Ray beam length",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_702909553",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Balefire",
+     "typeLine": "Opal Sceptre",
+     "baseType": "Opal Sceptre",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Sceptre",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "49-73"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.00%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.25"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 91.88,
+      "pdps": 91.88,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "40% increased Elemental Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Grants Level 25 Scorching Ray Skill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1540840",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "20% increased Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2891184298",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 2% of Life on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2023107756",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 2% of Mana on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1030153674",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Scorching Ray beam length",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_702909553",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Torment Cry",
+     "typeLine": "Opal Sceptre",
+     "baseType": "Opal Sceptre",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Sceptre",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "49-73"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "55-107"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "10.16%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.25"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 193.13,
+      "pdps": 91.88,
+      "edps": 101.25,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "40% increased Elemental Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Adds 55 to 107 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Incinerating",
+          "tier": "P4",
+          "level": 51,
+          "magnitudes": [
+           {
+            "min": "46",
+            "max": "62"
+           },
+           {
+            "min": "93",
+            "max": "107"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "27% increased Critical Strike Chance",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2375316951",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Puncturing",
+          "tier": "S3",
+          "level": 44,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "29"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "33% increased Stun Duration on Enemies",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2517001139",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Staggering",
+          "tier": "S0",
+          "level": 58,
+          "magnitudes": [
+           {
+            "min": "31",
+            "max": "35"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "15% chance to Ignite",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1335054179",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Combustion",
+          "tier": "S2",
+          "level": 45,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "30"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Balefire",
+     "typeLine": "Opal Sceptre",
+     "baseType": "Opal Sceptre",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Sceptre",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "49-73"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.00%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.25"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 91.88,
+      "pdps": 91.88,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "40% increased Elemental Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Grants Level 25 Scorching Ray Skill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1540840",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "20% increased Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2891184298",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 3% of Life on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2023107756",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 1% of Mana on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1030153674",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Scorching Ray beam length",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_702909553",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Balefire",
+     "typeLine": "Opal Sceptre",
+     "baseType": "Opal Sceptre",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Sceptre",
+       []
+      ],
+      [
+       6,
+       "Quality",
+       [
+        "+20%"
+       ]
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "59-88"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.00%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.25"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 91.88,
+      "pdps": 91.88,
+      "edps": 0
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "5% chance to gain an Endurance Charge when you Stun an Enemy",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1582887649",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "7"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Grants Level 25 Scorching Ray Skill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1540840",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "17% increased Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2891184298",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 1% of Life on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2023107756",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 3% of Mana on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1030153674",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Scorching Ray beam length",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_702909553",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Eagle Ram",
+     "typeLine": "Opal Sceptre",
+     "baseType": "Opal Sceptre",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Sceptre",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "49-73"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.00%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.25"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 91.88,
+      "pdps": 91.88,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "40% increased Elemental Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Cold Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1645459191",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Frost Weaver's",
+          "tier": "P0",
+          "level": 2,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "18% increased Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3291658075",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Rime",
+          "tier": "S0",
+          "level": 50,
+          "magnitudes": [
+           {
+            "min": "19",
+            "max": "22"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "0.35% of Physical Attack Damage Leeched as Life",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_55876295",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Remora's",
+          "tier": "P0",
+          "level": 50,
+          "magnitudes": [
+           {
+            "min": "0.2",
+            "max": "0.4"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "33% increased Elemental Damage with Attack Skills",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_387439868",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Unleashed",
+          "tier": "P3",
+          "level": 60,
+          "magnitudes": [
+           {
+            "min": "37",
+            "max": "42"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Pain Grinder",
+     "typeLine": "Opal Sceptre",
+     "baseType": "Opal Sceptre",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       null,
+       "Sceptre",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "49-73"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "6-134"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.00%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.25"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 179.38,
+      "pdps": 91.88,
+      "edps": 87.5,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "40% increased Elemental Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Adds 6 to 134 Lightning Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3336890334",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Discharging",
+          "tier": "P3",
+          "level": 63,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "14"
+           },
+           {
+            "min": "197",
+            "max": "229"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 4 to 58 Lightning Damage to Spells",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2831165374",
+        "flags": null,
+        "mods": [
+         {
+          "name": "Sparking",
+          "tier": "P5",
+          "level": 33,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "6"
+           },
+           {
+            "min": "74",
+            "max": "78"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "8% reduced Enemy Stun Threshold",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1443060084",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of the Brawler",
+          "tier": "S0",
+          "level": 20,
+          "magnitudes": [
+           {
+            "min": "8",
+            "max": "9"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+103 to Accuracy Rating",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_691932474",
+        "flags": null,
+        "mods": [
+         {
+          "name": "of Precision",
+          "tier": "S0",
+          "level": 26,
+          "magnitudes": [
+           {
+            "min": "101",
+            "max": "130"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Balefire",
+     "typeLine": "Opal Sceptre",
+     "baseType": "Opal Sceptre",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Sceptre",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "49-73"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "8.00%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.25"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.1"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 91.88,
+      "pdps": 91.88,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "40% increased Elemental Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "40",
+            "max": "40"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "Grants Level 25 Scorching Ray Skill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1540840",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "25",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "14% increased Cast Speed",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2891184298",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "12",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 1% of Life on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2023107756",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Recover 1% of Mana on Kill",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1030153674",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "3"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "10% increased Scorching Ray beam length",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_702909553",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "10"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "j28": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Iron Staff",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "weapon.staff"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 10000
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "Realmshaper",
+     "typeLine": "Iron Staff",
+     "baseType": "Iron Staff",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Warstaff",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "14-42"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "10-23",
+        "13-21"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.60%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 87.1,
+      "pdps": 43.55,
+      "edps": 43.55,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+18% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Fire Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_339179093",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+1 to Level of Socketed Cold Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1645459191",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Socketed Gems are Supported by Level 5 Cold to Fire",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_550444281",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 10 to 23 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 13 to 21 Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1037193709",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "46% increased Elemental Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Realmshaper",
+     "typeLine": "Iron Staff",
+     "baseType": "Iron Staff",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Warstaff",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "14-42"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "13-23",
+        "13-24"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.60%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 91,
+      "pdps": 43.55,
+      "edps": 47.45,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+18% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Fire Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_339179093",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+1 to Level of Socketed Cold Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1645459191",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Socketed Gems are Supported by Level 5 Cold to Fire",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_550444281",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 13 to 23 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 13 to 24 Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1037193709",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "42% increased Elemental Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Pillar of the Caged God",
+     "typeLine": "Iron Staff",
+     "baseType": "Iron Staff",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Warstaff",
+       []
+      ],
+      [
+       6,
+       "Quality",
+       [
+        "+8%"
+       ]
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "15-45"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.60%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 43.55,
+      "pdps": 43.55,
+      "edps": 0,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+18% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "1% increased Area of Effect per 20 Intelligence",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1307972622",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "1% increased Attack Speed per 10 Dexterity",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_889691035",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "1",
+            "max": "1"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "16% increased Physical Weapon Damage per 10 Strength",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_2594215131",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "16",
+            "max": "16"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Realmshaper",
+     "typeLine": "Iron Staff",
+     "baseType": "Iron Staff",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Warstaff",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "14-42"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "12-25",
+        "11-24"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.60%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 90.35,
+      "pdps": 43.55,
+      "edps": 46.8,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+18% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Fire Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_339179093",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+1 to Level of Socketed Cold Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1645459191",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Socketed Gems are Supported by Level 5 Cold to Fire",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_550444281",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 12 to 25 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 11 to 24 Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1037193709",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "49% increased Elemental Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Realmshaper",
+     "typeLine": "Iron Staff",
+     "baseType": "Iron Staff",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Warstaff",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "14-42"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "13-23",
+        "11-21"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.60%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 87.75,
+      "pdps": 43.55,
+      "edps": 44.2,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+18% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Fire Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_339179093",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+1 to Level of Socketed Cold Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1645459191",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Socketed Gems are Supported by Level 5 Cold to Fire",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_550444281",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 13 to 23 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 11 to 21 Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1037193709",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "48% increased Elemental Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Realmshaper",
+     "typeLine": "Iron Staff",
+     "baseType": "Iron Staff",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Warstaff",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "14-42"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "11-20",
+        "12-20"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.60%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 84.5,
+      "pdps": 43.55,
+      "edps": 40.95,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+18% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Fire Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_339179093",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+1 to Level of Socketed Cold Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1645459191",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Socketed Gems are Supported by Level 5 Cold to Fire",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_550444281",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 11 to 20 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 12 to 20 Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1037193709",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "40% increased Elemental Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Realmshaper",
+     "typeLine": "Iron Staff",
+     "baseType": "Iron Staff",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Warstaff",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "14-42"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "12-21",
+        "14-21"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.60%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 87.75,
+      "pdps": 43.55,
+      "edps": 44.2,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+18% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Fire Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_339179093",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+1 to Level of Socketed Cold Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1645459191",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Socketed Gems are Supported by Level 5 Cold to Fire",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_550444281",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 12 to 21 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 14 to 21 Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1037193709",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "35% increased Elemental Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Realmshaper",
+     "typeLine": "Iron Staff",
+     "baseType": "Iron Staff",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Warstaff",
+       []
+      ],
+      [
+       6,
+       "Quality",
+       [
+        "+17%"
+       ]
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "16-49"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "11-22",
+        "14-25"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.60%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 90.35,
+      "pdps": 43.55,
+      "edps": 46.8,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+18% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Fire Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_339179093",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+1 to Level of Socketed Cold Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1645459191",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Socketed Gems are Supported by Level 5 Cold to Fire",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_550444281",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 11 to 22 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 14 to 25 Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1037193709",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "32% increased Elemental Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Realmshaper",
+     "typeLine": "Iron Staff",
+     "baseType": "Iron Staff",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Warstaff",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "14-42"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "14-21",
+        "15-21"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.60%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 89.7,
+      "pdps": 43.55,
+      "edps": 46.15,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+18% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Fire Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_339179093",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+1 to Level of Socketed Cold Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1645459191",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Socketed Gems are Supported by Level 5 Cold to Fire",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_550444281",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 14 to 21 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 15 to 21 Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1037193709",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "31% increased Elemental Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    {
+     "name": "Realmshaper",
+     "typeLine": "Iron Staff",
+     "baseType": "Iron Staff",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       null,
+       "Warstaff",
+       []
+      ],
+      [
+       9,
+       "Physical Damage",
+       [
+        "14-42"
+       ]
+      ],
+      [
+       10,
+       "Elemental Damage",
+       [
+        "12-24",
+        "11-25"
+       ]
+      ],
+      [
+       12,
+       "Critical Strike Chance",
+       [
+        "7.60%"
+       ]
+      ],
+      [
+       13,
+       "Attacks per Second",
+       [
+        "1.30"
+       ]
+      ],
+      [
+       14,
+       "Weapon Range: {0} metres",
+       [
+        "1.3"
+       ]
+      ]
+     ],
+     "extended": {
+      "dps": 90.35,
+      "pdps": 43.55,
+      "edps": 46.8,
+      "dps_aug": true,
+      "pdps_aug": true
+     },
+     "lines": {
+      "implicitMods": [
+       {
+        "description": "+20% Chance to Block Attack Damage",
+        "domain": "implicit",
+        "hash": "stat.implicit.stat_1702195217",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "20",
+            "max": "20"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "explicitMods": [
+       {
+        "description": "+1 to Level of Socketed Fire Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_339179093",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "+1 to Level of Socketed Cold Gems",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1645459191",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "2",
+            "max": "2"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Socketed Gems are Supported by Level 5 Cold to Fire",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_550444281",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "5",
+            "max": "5"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 12 to 24 Fire Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_709508406",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "Adds 11 to 25 Cold Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_1037193709",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "10",
+            "max": "15"
+           },
+           {
+            "min": "20",
+            "max": "25"
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "description": "34% increased Elemental Damage",
+        "domain": "explicit",
+        "hash": "stat.explicit.stat_3141070085",
+        "flags": null,
+        "mods": [
+         {
+          "name": null,
+          "tier": null,
+          "level": null,
+          "magnitudes": [
+           {
+            "min": "30",
+            "max": "50"
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "j29": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Xoph's Breachstone",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "map.breachstone"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 5610
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    }
+   ]
+  },
+  "j30": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Xoph's Breachstone",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "map"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 5610
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    },
+    {
+     "name": "",
+     "typeLine": "Xoph's Breachstone",
+     "baseType": "Xoph's Breachstone",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [],
+     "extended": {},
+     "lines": {}
+    }
+   ]
+  },
+  "j31": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Growing Wombgift",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "wombgift"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 0
+   },
+   "ids_returned": 0,
+   "fetched": []
+  },
+  "j32": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Growing Wombgift",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "graft"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 0
+   },
+   "ids_returned": 0,
+   "fetched": []
+  },
+  "j33": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "memoryline"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 7,
+    "total": 0
+   },
+   "ids_returned": 0,
+   "fetched": []
+  },
+  "j34": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Alva's Memory",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 6,
+    "total": 0
+   },
+   "ids_returned": 0,
+   "fetched": []
+  },
+  "j35": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Black Mórrigan",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "monster.redbeast"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 10000
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "Paintalons the Tyrant",
+     "typeLine": "Black Mórrigan",
+     "baseType": "Black Mórrigan",
+     "rarity": "Rare",
+     "frameType": 2,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Goliaths"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Unnaturals"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Wilds"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Tiger Prey",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Farric Presence",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Aspect of the Hellion",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Life Regen",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Heals Allies and Suppresses Foe Recovery",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Accurate",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Extra Cold Damage and Exposure",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "10% chance not to be consumed when sacrificed at the Blood Altar",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Black Mórrigan",
+     "baseType": "Black Mórrigan",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Goliaths"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Unnaturals"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Wilds"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Tiger Prey",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Satyr Storm",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Spectral Swipe",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Black Mórrigan",
+     "baseType": "Black Mórrigan",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Goliaths"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Unnaturals"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Wilds"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Satyr Storm",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Fertile Presence",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Spectral Swipe",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Black Mórrigan",
+     "baseType": "Black Mórrigan",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Goliaths"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Unnaturals"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Wilds"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Fertile Presence",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Aspect of the Hellion",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Farric Presence",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Black Mórrigan",
+     "baseType": "Black Mórrigan",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Goliaths"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Unnaturals"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Wilds"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Aspect of the Hellion",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Fertile Presence",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Spectral Swipe",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Black Mórrigan",
+     "baseType": "Black Mórrigan",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Goliaths"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Unnaturals"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Wilds"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Aspect of the Hellion",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Fertile Presence",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Tiger Prey",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Black Mórrigan",
+     "baseType": "Black Mórrigan",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Goliaths"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Unnaturals"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Wilds"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Spectral Swipe",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Tiger Prey",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Farric Presence",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Black Mórrigan",
+     "baseType": "Black Mórrigan",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Goliaths"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Unnaturals"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Wilds"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Satyr Storm",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Tiger Prey",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Aspect of the Hellion",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Black Mórrigan",
+     "baseType": "Black Mórrigan",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Goliaths"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Unnaturals"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Wilds"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Satyr Storm",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Tiger Prey",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Aspect of the Hellion",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Black Mórrigan",
+     "baseType": "Black Mórrigan",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Goliaths"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Unnaturals"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Wilds"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Fertile Presence",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Satyr Storm",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       },
+       {
+        "description": "Spectral Swipe",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "j36": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Black Mórrigan",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "monster.yellowbeast"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 0
+   },
+   "ids_returned": 0,
+   "fetched": []
+  },
+  "j37": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Craiceann, First of the Deep",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "monster.redbeast"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 1470
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "",
+     "typeLine": "Craiceann, First of the Deep",
+     "baseType": "Craiceann, First of the Deep",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Lurchers"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Crustaceans"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Deep"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Cannot be fully Slowed",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Craiceann, First of the Deep",
+     "baseType": "Craiceann, First of the Deep",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Lurchers"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Crustaceans"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Deep"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Cannot be fully Slowed",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Craiceann, First of the Deep",
+     "baseType": "Craiceann, First of the Deep",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Lurchers"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Crustaceans"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Deep"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Cannot be fully Slowed",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Craiceann, First of the Deep",
+     "baseType": "Craiceann, First of the Deep",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Lurchers"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Crustaceans"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Deep"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Cannot be fully Slowed",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Craiceann, First of the Deep",
+     "baseType": "Craiceann, First of the Deep",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Lurchers"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Crustaceans"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Deep"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Cannot be fully Slowed",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Craiceann, First of the Deep",
+     "baseType": "Craiceann, First of the Deep",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Lurchers"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Crustaceans"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Deep"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Cannot be fully Slowed",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Craiceann, First of the Deep",
+     "baseType": "Craiceann, First of the Deep",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Lurchers"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Crustaceans"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Deep"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Cannot be fully Slowed",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Craiceann, First of the Deep",
+     "baseType": "Craiceann, First of the Deep",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Lurchers"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Crustaceans"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Deep"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Cannot be fully Slowed",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Craiceann, First of the Deep",
+     "baseType": "Craiceann, First of the Deep",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Lurchers"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Crustaceans"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Deep"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Cannot be fully Slowed",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Craiceann, First of the Deep",
+     "baseType": "Craiceann, First of the Deep",
+     "rarity": "Unique",
+     "frameType": 3,
+     "properties": [
+      [
+       21,
+       "Genus",
+       [
+        "Lurchers"
+       ]
+      ],
+      [
+       22,
+       "Group",
+       [
+        "Crustaceans"
+       ]
+      ],
+      [
+       23,
+       "Family",
+       [
+        "The Deep"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Cannot be fully Slowed",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "j38": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Craiceann, First of the Deep",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "monster.yellowbeast"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 0
+   },
+   "ids_returned": 0,
+   "fetched": []
+  },
+  "j39": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Anarchy Scarab",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "map"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 684
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "1/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "3/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "3/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "51/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "1/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "3/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "3/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "12/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "1/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "25/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "j40": {
+   "returned_query": {
+    "status": {
+     "option": "any"
+    },
+    "type": "Anarchy Scarab",
+    "stats": [
+     {
+      "type": "and",
+      "filters": []
+     }
+    ],
+    "filters": {
+     "type_filters": {
+      "filters": {
+       "category": {
+        "option": "map.scarab"
+       }
+      }
+     },
+     "trade_filters": {
+      "filters": {
+       "sale_type": {
+        "option": "any"
+       }
+      },
+      "disabled": true
+     }
+    }
+   },
+   "sheet_query": "the same",
+   "search": {
+    "complexity": 8,
+    "total": 684
+   },
+   "ids_returned": 100,
+   "fetched": [
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "1/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "3/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "10/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "1/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "9/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "3/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "1/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "1/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "14/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    },
+    {
+     "name": "",
+     "typeLine": "Anarchy Scarab",
+     "baseType": "Anarchy Scarab",
+     "rarity": null,
+     "frameType": 0,
+     "properties": [
+      [
+       32,
+       "Stack Size",
+       [
+        "1/20"
+       ]
+      ],
+      [
+       87,
+       "Limit",
+       [
+        "5"
+       ]
+      ]
+     ],
+     "extended": {},
+     "lines": {
+      "explicitMods": [
+       {
+        "description": "Area contains 5 additional Rogue Exiles",
+        "domain": null,
+        "hash": null,
+        "flags": null,
+        "mods": []
+       }
+      ]
+     }
+    }
+   ]
+  },
   "p1": {
    "returned_query": {
     "status": {
