@@ -1135,6 +1135,16 @@ def round_j():
                 "has no listing under either and both answers say nothing",
                 at(leaf, base))
         first += 2
+    # J2, j39-j40: j12 and j13 found nothing on both sides (the site lists no Winged Bestiary Scarab), so
+    # that pair said nothing; the same two categories ask again with a scarab the site's `map` list and
+    # the copy both hold, chosen by search/category/scripts/round-j-read.py (the copy's most held, ties by name).
+    j = add("J2, open question 3, j12 again: whether `map` holds `Anarchy Scarab`, a `map.scarab` base — whether "
+            "a parent holds what sits under it by the dot. j12 and j13 found nothing on both sides",
+            "the pair, the next search: the type under `map.scarab`",
+            at("map", "Anarchy Scarab"))
+    add(f"{j}'s pair, j13 again: `Anarchy Scarab` under `map.scarab`, the export's leaf for it",
+        f"the pair is the control: nothing found means the type has no listing and {j} says nothing",
+        at("map.scarab", "Anarchy Scarab"))
     return rows
 
 

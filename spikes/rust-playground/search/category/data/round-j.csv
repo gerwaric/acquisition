@@ -38,3 +38,5 @@ j35,monster.redbeast,Black Mórrigan,,,monster,0,"the other leaf with `Black Mó
 j36,monster.yellowbeast,Black Mórrigan,,,monster,0,"the other leaf with `Black Mórrigan`, j35 and j36: one of the two finds it, or the type has no listing under either and both answers say nothing"
 j37,monster.redbeast,"Craiceann, First of the Deep",,,monster,0,"the other leaf with `Craiceann, First of the Deep`, j37 and j38: one of the two finds it, or the type has no listing under either and both answers say nothing"
 j38,monster.yellowbeast,"Craiceann, First of the Deep",,,monster,0,"the other leaf with `Craiceann, First of the Deep`, j37 and j38: one of the two finds it, or the type has no listing under either and both answers say nothing"
+j39,map,Anarchy Scarab,MapFragment,map.scarab,map,3,"the pair, the next search: the type under `map.scarab`"
+j40,map.scarab,Anarchy Scarab,MapFragment,map.scarab,map,3,the pair is the control: nothing found means the type has no listing and j39 says nothing
