@@ -25,3 +25,18 @@ j22,weapon.twomelee,Imperial Staff,10000,no,100,10,Imperial Staff:10,Staves:10,R
 j23,weapon.twomelee,Iron Staff,10000,no,100,10,Iron Staff:10,Warstaves:10,Unique:10,,,,j17
 j24,weapon.twomelee,Fishing Rod,0,no,0,0,,,,,,,j18
 j25,weapon.one,Imbued Wand,10000,yes,100,10,Imbued Wand:10,Wands:10,Rare:5; Unique:5,,,,j19
+j26,weapon.dagger,Ezomyte Dagger,10000,no,100,10,Ezomyte Dagger:10,Rune Daggers:10,Rare:9; Magic:1,,,,j15
+j27,weapon.onemace,Opal Sceptre,10000,no,100,10,Opal Sceptre:10,Sceptres:10,Unique:6; Rare:4,,,,j14
+j28,weapon.staff,Iron Staff,10000,no,100,10,Iron Staff:10,Warstaves:10,Unique:10,,,,j17
+j29,map.breachstone,Xoph's Breachstone,5610,no,100,10,Xoph's Breachstone:10,Breachstones:10,None:10,,,,j30
+j30,map,Xoph's Breachstone,5610,no,100,10,Xoph's Breachstone:10,Breachstones:10,None:10,,,,j29
+j31,wombgift,Growing Wombgift,0,no,0,0,,,,,,,j32
+j32,graft,Growing Wombgift,0,no,0,0,,,,,,,j31
+j33,memoryline,(none),0,no,0,0,,,,,,,j34
+j34,(none),Alva's Memory,0,no,0,0,,,,,,,j33
+j35,monster.redbeast,Black Mórrigan,10000,no,100,10,Black Mórrigan:10,Stackable Currency:10,Unique:9; Rare:1,yellow:10,3:10,none:10,j36
+j36,monster.yellowbeast,Black Mórrigan,0,no,0,0,,,,,,,j35
+j37,monster.redbeast,"Craiceann, First of the Deep",1470,no,100,10,"Craiceann, First of the Deep:10",Stackable Currency:10,Unique:10,yellow:10,0:10,none:10,j38
+j38,monster.yellowbeast,"Craiceann, First of the Deep",0,no,0,0,,,,,,,j37
+j39,map,Anarchy Scarab,684,no,100,10,Anarchy Scarab:10,Map Fragments:10,None:10,,,,j40
+j40,map.scarab,Anarchy Scarab,684,no,100,10,Anarchy Scarab:10,Map Fragments:10,None:10,,,,j39

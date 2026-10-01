@@ -69,6 +69,60 @@ def item_classes(row):
     return out
 
 
+def beasts_table(captures, bestiary, lures):
+    """J1 over every fetched beast of round j: the leaf searched against the count of the export's
+    bestiary mods, the lure reading and the wiki's reading as the owner quoted it (1 yellow, 2 red,
+    any other count no colour). Measured, not read: which body fact sorts the items found under a
+    coloured leaf, each fact's values against the leaves. Writes data/round-j-beasts.csv."""
+    leaf_of = {"monster.yellowbeast": "yellow", "monster.redbeast": "red", "monster.beast": "Captured Beast (leaf not asked)"}
+    table = collections.Counter()
+    facts = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))  # fact -> value -> leaf -> n
+    for name in sorted(n for n in captures if re.fullmatch(r"j\d+", n)):
+        q = captures[name]["returned_query"]
+        cat = (((q.get("filters") or {}).get("type_filters") or {}).get("filters") or {}).get("category", {}).get("option", "")
+        if cat not in leaf_of:
+            continue
+        for i in captures[name].get("fetched") or []:
+            n = sum(1 for m in (i.get("lines") or {}).get("explicitMods") or [] if m.get("description") in bestiary)
+            lure = "red" if i["baseType"].split(" ")[0] in lures else "yellow"
+            wiki = {1: "yellow", 2: "red"}.get(n, "no colour")
+            table[(name, leaf_of[cat], i["baseType"], i.get("rarity"), n, lure, wiki)] += 1
+            if cat == "monster.beast":
+                continue
+            props = {p[1]: p[2][0] for p in i.get("properties") or []}
+            for fact, value in (("bestiary mods (count)", n), ("rarity", i.get("rarity")), ("lure word on the base", lure),
+                                ("Family", props.get("Family")), ("Group", props.get("Group")),
+                                ("Genus", props.get("Genus")), ("baseType", i["baseType"]),
+                                ("explicitMods (count)", len((i.get("lines") or {}).get("explicitMods") or []))):
+                facts[fact][value][leaf_of[cat]] += 1
+    rows = [list(k) + [v] for k, v in sorted(table.items())]
+    common.write_csv("round-j-beasts.csv", HEADER, ["search", "leaf", "base", "rarity", "bestiary_mods", "lure_reading",
+                                                   "wiki_reading_as_quoted", "items"], rows)
+    coloured = [r for r in rows if r[1] in ("yellow", "red")]
+    by_leaf = collections.Counter()
+    for r in coloured:
+        by_leaf[r[1]] += r[7]
+    print(f"J1 fetched beasts under a coloured leaf: {dict(sorted(by_leaf.items()))}; bases "
+          f"{sorted({r[2] for r in coloured})}; under monster.beast (leaf not asked): {sum(r[7] for r in rows if r not in coloured)}")
+    for label, col in (("bestiary mods", 4), ("rarity", 3)):
+        tab = collections.Counter()
+        for r in coloured:
+            tab[(r[1], r[col])] += r[7]
+        print(f"J1 leaf x {label}: {dict(sorted(tab.items(), key=str))}")
+    for label, col in (("lure reading", 5), ("wiki reading as quoted", 6)):
+        agree = sum(r[7] for r in coloured if r[col] == r[1])
+        print(f"J1 {label} against the leaf: agrees {agree}, disagrees {sum(by_leaf.values()) - agree}; disagreeing: "
+              f"{sorted({(r[2], r[1], r[col]) for r in coloured if r[col] != r[1]})}")
+    for fact, values in facts.items():
+        mixed = sorted(str(v) for v, leaves in values.items() if len(leaves) > 1)
+        print(f"J1 sorts every item under a coloured leaf: {fact}: {'yes' if not mixed else 'no'} "
+              f"({len(values)} values; on both leaves {mixed or 'none'}; values by leaf "
+              f"{ {str(v): dict(l) for v, l in sorted(values.items(), key=lambda kv: str(kv[0]))} })")
+    within = sorted({b for b in {r[2] for r in coloured}
+                     if len({r[4] for r in coloured if r[2] == b}) > 1})
+    print(f"J1 bases whose bestiary mod count varies among fetched items: {within}")
+
+
 def main():
     ex = common.Export()
     lures = {b["name"][: -len(" Lure")] for b in ex.bases.values() if b["name"] and b["name"].endswith(" Lure")}
@@ -102,16 +156,18 @@ def main():
                      fmt(collections.Counter(i.get("rarity") for i in items)),
                      fmt(lure) if beast else "", fmt(counts) if beast else "", fmt(mods) if beast else ""])
     # a row's pair: the rows its control names and the rows whose control names it, of the same type
-    # when the row has one (j01–j06 name each other across two types; j07 and j33 have none)
+    # when the row has one and any is (j01–j06 name each other across two types; j07, j33 have none)
     types = {r[0]: r[2] for r in rows}
     sheet_type = {n: json.loads(sheet[n]["query"]).get("type", "") or "(none)" for n in sheet}
     for r in rows:
         linked = set(named(sheet[r[0]]["control"])) | {n for n in sheet if r[0] in named(sheet[n]["control"])}
         linked.discard(r[0])
-        if types[r[0]] != "(none)":
-            linked = {n for n in linked if sheet_type[n] == types[r[0]]}
+        same = {n for n in linked if sheet_type[n] == types[r[0]]}
+        if types[r[0]] != "(none)" and same:
+            linked = same
         r.append(" ".join(sorted(linked)))
-    print(f"round j captured: {len(rows)} of {len(sheet)} rows; not yet: {len(pending)} ({pending[0]}–{pending[-1]})")
+    print(f"round j captured: {len(rows)} of {len(sheet)} rows; not yet: {len(pending)}"
+          + (f" ({pending[0]}–{pending[-1]})" if pending else ""))
     print(f"to sit: {len(pending)} searches, {len(pending) * 10 // 60} min {len(pending) * 10 % 60} s at one link every 10 s "
           f"(tools/trade-pages.py's PACE), {-(-len(pending) // 25)} page(s) of 25")
     for r in rows:
@@ -133,6 +189,7 @@ def main():
                       and "map" in coarse.get(n, ())}, key=lambda n: (-held[n], n))
     print(f"scarab bases at map.scarab by the rule, on the site's map list: {len(scarabs)}; held on the copy: "
           f"{sum(1 for n in scarabs if held[n])}; the most held: {[(n, held[n]) for n in scarabs[:3]]}")
+    beasts_table(captures, bestiary, lures)
     if missing_raw:
         print(f"raw fetches absent for {missing_raw}: data/round-j-read.csv not written")
         return 1

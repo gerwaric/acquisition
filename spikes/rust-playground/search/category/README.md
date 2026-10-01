@@ -1,8 +1,8 @@
 # category — the trade site's grouping above class, and what a captured beast is
 
-Status: first pass complete — 2026-09-30; reviewed 2026-09-30: the three scripts regenerate `data/` byte for byte and every category id of the site's filter has its row (the brief, `9280f559`, `1cbb1db7`); second run — 2026-10-01, reviewed: the `mods` reading measured, agreeing with the lure reading on every beast of the copy; round j composed, 38 searches, its checks run again at the review (the brief, `2e712e60`); page 1 (j01–j25) sat and read 2026-10-01, j39–j40 replacing j12–j13
+Status: first pass complete — 2026-09-30; reviewed 2026-09-30: the three scripts regenerate `data/` byte for byte and every category id of the site's filter has its row (the brief, `9280f559`, `1cbb1db7`); second run — 2026-10-01, reviewed: the `mods` reading measured, agreeing with the lure reading on every beast of the copy; round j composed, 38 searches, its checks run again at the review (the brief, `2e712e60`); round j sat 2026-10-01 and read, 40 of 40 (j39–j40 replacing j12–j13): open questions 1–5 closed but Growing Wombgift, 6 kept
 
-- 65 of the site's 68 leaf ids are a function of the export's class (58) or class plus a name rule on the base (7); the three beast leaves are not, and nothing on this machine says which beast is under which (F1, F3).
+- 65 of the site's 68 leaf ids are a function of the export's class (58) or class plus a name rule on the base (7); the three beast leaves are not; the site put 30 fetched beasts under Red Beast and 10 under Yellow, and the count of the export's bestiary mods sorts all 40, the lure word agreeing on 20 (F1, F3).
 - The copy's 22,623 live pc items: one id 22,455, several 167 (158 beasts, 9 breachstones), none 1 (a quest-item contract) — C105's buckets sum to the copy (F5).
 - A captured beast has no base and no class in the game's data: none of its 70 base names appears in any of the export's 30 files. On the body the frame is Rare on all 158; Genus, Group, Family and the name sort nothing; the count of bestiary mods splits them 122/36 exactly as the lure word does, base by base (F3, F4).
 - The site's data states membership by the dot alone: 9 prefix parents; 7 groupings (`weapon.one`, `weapon.dagger`, …) whose members nothing captured names; `map` and `currency` are both a parent and a class's own id (F2).
@@ -54,7 +54,19 @@ No leaf sits under two prefix parents: the prefix is the first token. Whether a 
 | lure: base begins with a word the export names a lure for (Craicic, Farric, Fenumal, Saqawine) | 0 | 122 (52 bases) | 36 (18 bases) |
 | mods: the wiki, quoted by the owner (`MANIFEST.md`): one bestiary mod of the export yellow, two red | 0 | 122 (52 bases) | 36 (18 bases) |
 
-The two splitting readings agree on 158 of 158 items and 70 of 70 bases; no beast carries none or more than two bestiary mods. Against the lure reading, 3 of 4 Families, 7 of 12 Groups and 8 of 32 Genera hold both kinds. A `<lure word> Presence` mod sits on 11 of the 36 lure-word beasts and on 17 of the others. All 158 carry at least one of the export's 24 bestiary mods. The wiki's named red beasts are not on the copy: of the site's names, `Black Mórrigan` and four holding ", First of the " (the quote's "First Ones"; the owner's to confirm), all five yellow under the lure reading; no input names the Harvest beasts. Every reading agrees with the site at the coarse level, since all 70 bases are on its `monster` list; none can be checked at the leaf, because nothing on this machine places a beast under a leaf. Awakened PoE Trade sends no category for a beast at all: it searches the exact base (`create-item-filters.ts`, lines 59–65).
+The two splitting readings agree on 158 of 158 items and 70 of 70 bases; no beast carries none or more than two bestiary mods. Against the lure reading, 3 of 4 Families, 7 of 12 Groups and 8 of 32 Genera hold both kinds. A `<lure word> Presence` mod sits on 11 of the 36 lure-word beasts and on 17 of the others. All 158 carry at least one of the export's 24 bestiary mods. The wiki's named red beasts are not on the copy: of the site's names, `Black Mórrigan` and four holding ", First of the " (the quote's "First Ones"; the owner's to confirm), all five yellow under the lure reading; no input names the Harvest beasts. Every reading agrees with the site at the coarse level, since all 70 bases are on its `monster` list; the site's answer at the leaf is round j's, below. Awakened PoE Trade sends no category for a beast at all: it searches the exact base (`create-item-filters.ts`, lines 59–65).
+
+What the site said (round j; `data/round-j-beasts.csv`, one row per search, base, rarity and count; measured, no reading adopted — that is the owner's). Of 70 beasts fetched, 40 were found under a coloured leaf, of four bases: Farric Ursa, Black Mórrigan and Craiceann, First of the Deep under Red Beast (30), Dune Hellion under Yellow (10); none of the four under the other colour.
+
+| Fact on the body | Red Beast (30) | Yellow Beast (10) | Sorts all 40 |
+| --- | --- | --- | --- |
+| the export's bestiary mods, count | 0: 10, 2: 2, 3: 18 | 1: 10 | yes |
+| rarity | Rare 11, Unique 19 | Rare 10 | no |
+| lure word on the base | yes 10, no 20 | no 10 | no (agrees on 20) |
+| the wiki as quoted (1 yellow, 2 red) | red 2, no colour 28 | yellow 10 | no (agrees on 12) |
+| Family | The Deep 10, The Wilds 20 | The Wilds 10 | no |
+
+Genus, Group and the base also sort all 40, as any fact constant on a base does with four bases; the count varies within a base (Farric Ursa, 2 and 3) and still sorts. What would break it: a beast under Yellow with other than one of the export's bestiary mods, or under Red with exactly one; Yellow is one base here. The 30 found under Captured Beast alone carry 1 (Dune Hellion, 10), 2 (13) or 3 (Farric Ursa, 7), every base with 2 or 3 a lure-word base; every fetched beast's clipboard says `Item Class: Stackable Currency`.
 
 **F4 — The game's data gives a beast no base and no class.** No beast base is an export base name (0 of 70). No top-level file of `poe1/data` (30 files) holds any of the 70 names as a string. The only class whose id, name or category says beast, bestiary, monster or captured is `PantheonSoul`, which it matches as "Captured Soul". What the export does carry is the beasts' mods: 24 `bestiary` mods by display name, the texts the body's `explicitMods` print (for example `Farric Presence`).
 
@@ -85,47 +97,26 @@ The site's coarse list checks only at the parent's level, so no leaf under a pre
 
 ## Round j
 
-Open questions 1–6 as `tools/trade-sheet.py`'s `round_j`, read back by `scripts/round-j.py` (`data/round-j.csv`): 40 searches. A category search finding nothing proves nothing until its pair (the type under another id or none) finds it.
+Open questions 1–6 as `tools/trade-sheet.py`'s `round_j`, 40 searches, each with its pair (`data/round-j.csv`; what each decides is its sheet row). Sat 2026-10-01. `scripts/round-j-read.py` reads every capture (`data/round-j-read.csv`: totals, fetched bases and clipboard classes, the pair) from `../pseudo-stats/data/captures.json`, the class line from the raw fetches. A zero is read only beside a pair that finds the type.
 
-| Searches | Category, type | Decides | Pair (control) |
-| --- | --- | --- | --- |
-| j01–j06 | the three beast leaves × `Farric Ursa`, `Dune Hellion` | J1: which leaf holds a red and a yellow beast | each other |
-| j07 | `monster.beast` alone | J1: whether Captured Beast holds both colours | j01, j04 |
-| j35–j38 | `monster.redbeast`, `monster.yellowbeast` × `Black Mórrigan`, `Craiceann, First of the Deep` | J1: lure against mods — yellow by the lure word, red by the wiki, none on the copy | each other |
-| j08 | `map.invitation`, `Polaric Invitation` | J3: the name rule for invitations not Maven's | j09, no category |
-| j10, j12, j39 | `map`, `Inscribed Ultimatum` / `Winged Bestiary Scarab` / `Anarchy Scarab` | J2: a parent's own items, and its children | j11 no category, j13 and j40 `map.scarab` |
-| j20–j28 | a grouping × a base of a class in doubt | J4: the groupings' members | j14–j19, the type at its leaf |
-| j29, j31 | `map.breachstone`, `Xoph's Breachstone`; `wombgift`, `Growing Wombgift` | open question 5 | j30 `map`, j32 `graft` |
-| j33 | `memoryline` alone | open question 6: what it holds | j34, `Alva's Memory`, no category |
-
-The core is j01–j13 and j35–j38. To sit: j26–j40, 15 searches, 2 min 30 s, one page: `../pseudo-stats/raw/sitting/j-1.html` (local).
-
-## Round j, read
-
-`scripts/round-j-read.py` (`data/round-j-read.csv`): totals and fetched items from `../pseudo-stats/data/captures.json`, the clipboard's `Item Class:` from the raw fetches. A zero is read only beside a pair that finds the type.
-
-| Searches | Totals | Decides |
+| Question | Searches | Decided |
 | --- | --- | --- |
-| j01–j03 | 3595, 0, 3595 | J1: `Farric Ursa` is under `monster.beast` and `monster.redbeast`, not yellow |
-| j04–j06 | 712, 712, 0 | J1: `Dune Hellion` under `monster.beast` and `monster.yellowbeast`, not red. The lure reading stands and the frame reading falls (every fetched beast Rare). The mods reading as quoted fails: 7 of j01's 10 and 8 of j03's 10 carry 3 bestiary mods, a count it names no colour for |
-| j07 | 10000, inexact | J1: Captured Beast holds red beasts (10 of 10 fetched, by lure word) and, with j04, yellow; a union by count is not readable |
-| j08–j09 | 0, 5197 | J3: `map.invitation` does not hold `Polaric Invitation`; the name rule is wrong for it |
-| j10–j11 | 10000, 10000 | J2: `map` holds `Inscribed Ultimatum` itself |
-| j12–j13 | 0, 0 | nothing: no `Winged Bestiary Scarab` is listed; j39–j40 ask again |
-| j14–j19 | each finds | each type at its leaf; the class lines are the export's (Sceptres, Rune Daggers, Staves, Warstaves, Fishing Rods, Wands) |
-| j20–j23, j25 | each finds | J4: `weapon.onemelee` holds Sceptres and Rune Daggers, `weapon.twomelee` Staves and Warstaves, `weapon.one` Wands |
-| j24 | 0 beside j18's 2832 | J4: `weapon.twomelee` does not hold Fishing Rods |
+| J1 | j01–j07, j35–j38 | each of four bases under one colour only and under Captured Beast (F3); the lure reading fails on Black Mórrigan and Craiceann (j35–j38), the wiki as quoted on 3-mod Farric Ursa |
+| J3 | j08–j09 | `map.invitation` does not hold `Polaric Invitation` |
+| J2 | j10–j11, j39–j40 | `map` holds `Inscribed Ultimatum` and `Anarchy Scarab` (684 under `map` and `map.scarab` alike) |
+| J4 | j14–j28 | every member asked is in, but Fishing Rods under `weapon.twomelee` (j24 0, j18 2832) |
+| 5 | j29–j30 | `map.breachstone` and `map` each find `Xoph's Breachstone` (5610 and 5610) |
 
-Every fetched beast's clipboard says `Item Class: Stackable Currency`, a class the body does not carry (F4). Waiting on the second page: J4's j26–j28, open questions 5 and 6, lure against mods (j35–j38), and J2's children (j39–j40).
+Pairs that decided nothing, both sides empty: j12–j13 (`Winged Bestiary Scarab`), j31–j32 (`Growing Wombgift`), j33–j34 (`memoryline`, `Alva's Memory`). Totals of 10000 are the site's cap, three marked inexact: no union is read by count.
 
 ## Open questions
 
 Each is closed by a sitting under the site-sitting skill (the owner runs the searches in a browser; Standard, status any) or by the read named.
 
-1. **Which leaf a beast is under, and whether `monster.beast` is the union of the other two.** Nothing on this machine says. Page 1 answered the leaves for one red and one yellow base and that Captured Beast holds both (Round j, read); the union by count is unread. Lure against mods waits on j35–j38: `Black Mórrigan` and `Craiceann, First of the Deep` (the first by name of the four ", First of the " names, the owner's to confirm as Spirit Beasts) under the red and yellow leaves.
-2. **The seven groupings' members.** One search per member in doubt, `type` set to a base of the class: under `weapon.onemelee` a Sceptre and a Rune Dagger; under `weapon.twomelee` a Staff, a Warstaff and a Fishing Rod; under `weapon.one` a Wand; under `weapon.dagger` a Rune Dagger; under `weapon.onemace` a Sceptre; under `weapon.staff` a Warstaff. `weapon.onesword` is answered (F2). Page 1 answered `weapon.onemelee`, `weapon.twomelee` and `weapon.one` (Round j, read); `weapon.dagger`, `weapon.onemace` and `weapon.staff` wait on j26–j28.
-3. **What `map` ("Map") holds.** `category=map`, `type="Inscribed Ultimatum"`: a count settles whether 542 Misc Map Items belong there. Page 1: `map` holds `Inscribed Ultimatum` (j10–j11). Whether it holds its children waits on j39–j40 (`Anarchy Scarab`), since no Winged Bestiary Scarab is listed.
-4. **What `map.invitation` ("Maven's Invitation") holds.** Closed by page 1: not `Polaric Invitation` (j08 0, j09 5197); which invitations it does hold is unread.
-5. **Breachstones and Growing Wombgift.** `category=map.breachstone`, `type="Xoph's Breachstone"`; `category=wombgift`, `type="Growing Wombgift"`. Round j, j29–j32.
-6. **`memoryline`, checked by the export alone.** `category=memoryline`, its fetch read for base types. Round j, j33–j34.
+1. **A beast's leaf** — closed for the four bases asked (round j; F3); which body fact the search reads is the owner's. Whether `monster.beast` is exactly the union is unread: its totals are capped.
+2. **The groupings' members** — closed: `weapon.onemelee` holds Sceptres and Rune Daggers, `weapon.twomelee` Staves and Warstaves and not Fishing Rods, `weapon.one` Wands, `weapon.dagger` Rune Daggers, `weapon.onemace` Sceptres, `weapon.staff` Warstaves.
+3. **What `map` holds** — closed: a Misc Map Item of its own and a child's base.
+4. **`map.invitation`** — closed: not `Polaric Invitation`; which invitations it does hold is unread.
+5. **Breachstones and Growing Wombgift** — breachstones closed (both ids). Growing Wombgift kept: no listing under either id, none on the copy; a listing closes it.
+6. **`memoryline`** — kept: nothing listed under it, and no `Alva's Memory` at all; a listed Memory's search under it closes it.
 7. **`azmeri.charm`.** It is absent from the 2026-09-12 filter and sent by Awakened PoE Trade; the export's Charms have no id. The next capture of `/api/trade/data/filters` closes it.
