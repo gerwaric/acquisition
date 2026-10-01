@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows and applied (totals v4); the four pseudos that are no sum built as readings of other totals (step 9c3, totals v5), answered as the site shows them with the captures' mods entered unchanged (step 9c4); before 9d (the brief at `9280f559`) — 2026-09-30, reviewed: round i prepared, not sat; the ranged census over the copy, open question 7 closed; round i sat 2026-10-01 and read: C1, C2, C7 and C14 pinned, C10 in part (the site shows nothing over 100); i07 sat the same day: no listed weapon carries the unsuffixed line under the global stat.
+Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows and applied (totals v4); the four pseudos that are no sum built as readings of other totals (step 9c3, totals v5), answered as the site shows them with the captures' mods entered unchanged (step 9c4); before 9d (the brief at `9280f559`) — 2026-09-30, reviewed: round i prepared, not sat; the ranged census over the copy, open question 7 closed; round i sat 2026-10-01 and read: C1, C2, C7 and C14 pinned, C10 in part (the site shows nothing over 100); i07 sat the same day: no listed weapon carries the unsuffixed line under the global stat; open question 9 read (`scripts/defence-twins.py`): a candidate, not a rule.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -145,6 +145,16 @@ mutant, found weapons: i06's nothing is proved, one row changed. i08's rests on 
 tip for an `if` group (`../trade-query/README.md`: a stat with no bound restricts nothing), so it
 asks every weapon carrying the global stat. What is proved is of listed weapons, in Standard, that day:
 a weapon the owner holds and no one lists, such as a unique no longer dropped, is not reached.
+
+The defence twin on a private item (open question 9, `scripts/defence-twins.py`,
+`data/defence-twins.csv`): over the captures, 10 twin lines the site lists under the global stat sit on
+10 items, 405 under the local one on 299. The array alone separates them: every global twin is an
+implicit on an item marked `tangled` (two also `searing`), joined by its text to the export's eater of
+worlds implicits, whose 36 mods of a twin text are all global; every local line is an explicit. No
+captured item has a twin text as a local implicit, so the candidate — an implicit twin on an eldritch
+item is global, any other is local — rests on the 10 alone. On the copy it touches 1 item (Destiny
+Leather, C14's trace); 9 implicit twin lines on 8 synthesised items are held by no synthesis mod and are
+not decided; 3 explicit lines the export's text join holds only as global.
 
 Left out, answered by the captures (captured / reproduced): C3 shields 23 / 23, C4 helmets 220 / 219,
 C5 gloves 151 / 151, C6 quality over 20 9 / 9, C8 uniques 170 / 170, C9 a defence the base lacks (its
@@ -311,7 +321,7 @@ The first pass's full text is this README at `d18fa6dd`.
 | 6 | Are the 63 family rows right per entry? | a trade fetch of one unattested room and one unattested quality |
 | 7 | How many of the owner's unsuffixed `Adds # to #` lines are on weapons? | **Closed 2026-09-30**: 573 of the copy's 703, 129 not (`data/ranged-census.csv`); no weapon line the export or the site calls global (`data/ranged-uniques.csv`) |
 | 8 | Are APT's percentile lines the site's, and the flat hybrids PoB models? | P001–P034, each scored as `percentile.py` does |
-| 9 | i05: the site leaves a defence line under its global twin out, and the text reads it as local. Does anything a private item carries tell the two apart? | the copy's armour items carrying a twin text, read from the copy with their arrays and mods beside the export's local and global mods |
+| 9 | i05: the site leaves a defence line under its global twin out, and the text reads it as local. Does anything a private item carries tell the two apart? | read 2026-10-01 (`scripts/defence-twins.py`): the array separates on 10 global items, a candidate. Closed by one sitting search: armour carrying a twin text as an implicit under the `(Local)` stat, its mutant the global id (i05). None found: an implicit twin on an eldritch item is global; synthesised implicits are then the limit |
 
 ## Provenance
 
