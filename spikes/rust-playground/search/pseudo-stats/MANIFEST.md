@@ -127,3 +127,15 @@ their 13 captures.
 | File | Bytes | Captured | sha256 |
 | --- | --- | --- | --- |
 | `raw/searches/www.pathofexile.com-12.har` | 36813523 | 2026-10-01 09:08 | `fc9a2e69e19ef235615f077eea883ecb98001af741d37c12576eada20214938e` |
+
+Round i's last search and round j's first page, 2026-10-01, by the owner, from
+the links of `data/search-sheet.csv` at `73ab88ce`: two recordings, each
+exported with its content, every body held, no cookie, nothing refused. The
+thirteenth holds i07 alone, 16:52 US Central (21:52 UTC); the fourteenth holds
+j01–j25, 18:22–18:26 US Central (23:22–23:26 UTC). Round j's second page,
+j26–j38, was not sat. `tools/trade-split.py --write` wrote their 46 captures.
+
+| File | Bytes | Captured | sha256 |
+| --- | --- | --- | --- |
+| `raw/searches/www.pathofexile.com-13.har` | 7347068 | 2026-10-01 16:52 | `f2d660372d86d4773e9a633c7b1c50013b8f97abb68986e3e62e97bf4aa9971a` |
+| `raw/searches/www.pathofexile.com-14.har` | 106648602 | 2026-10-01 18:26 | `10539698d431a8cc6ec7b02df0f1b5800c642c4d9dfbcbffc5223d02cdd03ec5` |
