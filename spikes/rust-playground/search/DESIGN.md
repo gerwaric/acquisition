@@ -540,8 +540,8 @@ since none has a trigger yet. Meeting one is a listed limit (C102).
 ## Contract detail, by decision
 
 What remains is detail no module carries yet: the derived fields not
-yet built, what reference data admits (every table to come), the trade
-translation (not in this plan). The
+yet built, the ranged family's twin, what reference data admits (every
+table to come), the trade translation (not in this plan). The
 paragraphs the crate took on 2026-09-23 — C89/C103, C90/C102, C92,
 C93, C95, C105, C96, C97, C98, C100, the derivation's shape, and C94
 with C101's DPS at step 7 — are their module docs' now (`eval.rs`,
@@ -577,6 +577,15 @@ unresolved, each with the one read that closes it).
   the base's maximum stays unpinned: the site lists no armour over 100,
   so "reads over 100 %" above is the stated rule's and no capture's.
   The sockets are `sockets.rs`'s (step 8).
+- **C94 — the ranged family (9d).** The unsuffixed `Adds # to # <type>
+  Damage` displays one of two stats: a weapon's own line feeds the
+  attacks' total alone, the other twin the plain, the attacks' and the
+  spells' (`search/pseudo-stats/README.md`, rounds two to four). Which
+  it is the item's category decides: on a weapon the line is the
+  weapon's own (J7, ruled 2026-10-01). Every ranged total prints the
+  limit — a global line on a weapon is read as the weapon's own — with
+  what the site showed: no listed weapon was found to carry one (round
+  i, i06–i08).
 - **C106 — what reference data admits, and the test.** Three kinds:
   *data*, what the game files state and a registered surface exports;
   *convention*, a concept the community has published a definition for
