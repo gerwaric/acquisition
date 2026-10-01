@@ -996,6 +996,148 @@ def round_i():
     return [{"search": s, "decides": d, "control": c, "query": q} for s, d, c, q in rows]
 
 
+# Round j (before step 9d): the category track's open questions 1 to 6
+# (search/category/README.md), holes J1-J4 of the build plan. Each type is
+# written out; search/category/scripts/round-j.py reads the rows back and says
+# what the export and the owner's copy hold of each. A category search finding
+# nothing proves nothing until the same type under another id finds something:
+# each such search names its pair, the pair being its control.
+ROUND_J_BEASTS = {  # one red, one yellow under the lure and the mods readings (category F3)
+    "Farric Ursa": "red",
+    "Dune Hellion": "yellow",
+}
+BEAST_LEAVES = ["monster.beast", "monster.yellowbeast", "monster.redbeast"]
+# Open question 2: a grouping, a base of a class in doubt (the copy's most
+# held base of the class; the export's one Fishing Rod), and the class's own leaf.
+ROUND_J_MEMBERS = [
+    ("weapon.onemelee", "Opal Sceptre", "weapon.sceptre"),
+    ("weapon.onemelee", "Ezomyte Dagger", "weapon.runedagger"),
+    ("weapon.twomelee", "Imperial Staff", "weapon.basestaff"),
+    ("weapon.twomelee", "Iron Staff", "weapon.warstaff"),
+    ("weapon.twomelee", "Fishing Rod", "weapon.rod"),
+    ("weapon.one", "Imbued Wand", "weapon.wand"),
+    ("weapon.dagger", "Ezomyte Dagger", "weapon.runedagger"),
+    ("weapon.onemace", "Opal Sceptre", "weapon.sceptre"),
+    ("weapon.staff", "Iron Staff", "weapon.warstaff"),
+]
+
+
+def round_j():
+    """j01–j07 a beast's leaf (J1), j08–j09 invitations (J3), j10–j13 what `map`
+    holds (J2), j14–j28 the groupings' members (J4), j29–j32 breachstones and
+    Growing Wombgift, j33–j34 `memoryline`, j35–j38 the wiki's named red
+    beasts under the two colour leaves, which separate the lure reading from
+    the mods reading (J1; the copy cannot)."""
+    def at(option, item_type=None):
+        return batch_query([], category(option) if option else None, item_type)
+
+    rows = []
+    n = 0
+
+    def add(decides, control, query):
+        nonlocal n
+        n += 1
+        rows.append({"search": f"j{n:02d}", "decides": decides, "control": control, "query": query})
+        return f"j{n:02d}"
+
+    # J1: the six searches of open question 1, then the seventh
+    first = n + 1
+    for base, colour in ROUND_J_BEASTS.items():
+        for leaf in BEAST_LEAVES:
+            add(f"J1, open question 1: whether `{leaf}` holds `{base}`, {colour} under the lure and the mods readings "
+                "(the wiki's account, the owner's quote). Found under its colour's leaf and not the other: the two "
+                "readings stand against the frame reading, which calls every beast yellow; found under `monster.beast`: "
+                "Captured Beast holds that colour",
+                f"the other two leaves with `{base}`, j{first:02d}–j{first + 5:02d}: one of the three finds it, or the type "
+                "has no listing and its three answers say nothing",
+                at(leaf, base))
+    add("J1, the seventh: `monster.beast` alone — whether Captured Beast holds both colours: its fetched items' bases "
+        "read by the lure and mods readings (both colours among them: it holds both), its total beside j01–j06",
+        f"j{first:02d} and j{first + 3:02d}: `monster.beast` with a red and with a yellow base",
+        at("monster.beast"))
+    # J3: open question 4
+    j = add("J3, open question 4: whether `map.invitation` (\"Maven's Invitation\") holds `Polaric Invitation`, on "
+            "which the copy's 165 invitations hang. Found: the export's name rule stands. Not found, its pair finding "
+            "it: the rule is wrong for every invitation not Maven's",
+            "the pair, the next search: the type with no category",
+            at("map.invitation", "Polaric Invitation"))
+    add(f"{j}'s pair: `Polaric Invitation` with no category — that it is listed at all",
+        f"the pair is the control: nothing found means the type has no listing and {j} says nothing",
+        at(None, "Polaric Invitation"))
+    # J2: open question 3
+    j = add("J2, open question 3: whether `map` (\"Map\") holds `Inscribed Ultimatum` itself — a Misc Map Item under "
+            "no child of `map`, so a parent holding items of its own and not only the union of its leaves",
+            "the pair, the next search: the type with no category (the export puts it under no other id)",
+            at("map", "Inscribed Ultimatum"))
+    add(f"{j}'s pair: `Inscribed Ultimatum` with no category — that it is listed at all",
+        f"the pair is the control: nothing found means the type has no listing and {j} says nothing",
+        at(None, "Inscribed Ultimatum"))
+    j = add("J2, open question 3: whether `map` holds `Winged Bestiary Scarab`, a `map.scarab` base — whether a "
+            "parent holds what sits under it by the dot",
+            "the pair, the next search: the type under `map.scarab`",
+            at("map", "Winged Bestiary Scarab"))
+    add(f"{j}'s pair: `Winged Bestiary Scarab` under `map.scarab`, the export's leaf for it",
+        f"the pair is the control: nothing found means the type has no listing and {j} says nothing",
+        at("map.scarab", "Winged Bestiary Scarab"))
+    # J4: open question 2 — the leaves first, each the pair of the groupings' searches of its type
+    leaf_row = {}
+    for grouping, base, leaf in ROUND_J_MEMBERS:
+        if (leaf, base) not in leaf_row:
+            leaf_row[(leaf, base)] = add(
+                f"J4's pair: `{base}` under `{leaf}`, the export's leaf for its class — that it is listed there "
+                "(also the site's leaf-level answer for that class, which only the coarse list checked)",
+                "the pair is the control of the groupings' searches of this type: nothing found means they say nothing",
+                at(leaf, base))
+    for grouping, base, leaf in ROUND_J_MEMBERS:
+        add(f"J4, open question 2: whether the grouping `{grouping}` holds `{leaf}`, asked by `{base}`. Found: "
+            f"a member; not found, its pair finding it: not a member",
+            f"the pair, {leaf_row[(leaf, base)]}: `{base}` under `{leaf}`",
+            at(grouping, base))
+    # open question 5
+    j = add("Open question 5: whether `map.breachstone` holds `Xoph's Breachstone` (the export puts the five "
+            "breachstones under `map` and `map.breachstone` both)",
+            "the pair, the next search: the type under `map`",
+            at("map.breachstone", "Xoph's Breachstone"))
+    add(f"{j}'s pair: `Xoph's Breachstone` under `map` — whether `map` holds it too (nested by the dot, or the "
+        "export's second id)",
+        f"{j}: nothing under both means the type has no listing and neither says anything",
+        at("map", "Xoph's Breachstone"))
+    j = add("Open question 5: whether `wombgift` holds `Growing Wombgift`, as the site's coarse list says, against the "
+            "export's class, which puts it under `graft`",
+            "the pair, the next search: the type under `graft`",
+            at("wombgift", "Growing Wombgift"))
+    add(f"{j}'s pair: `Growing Wombgift` under `graft`, the export's id for it",
+        f"{j}: nothing under both means the type has no listing and neither says anything",
+        at("graft", "Growing Wombgift"))
+    # open question 6
+    j = add("Open question 6: what `memoryline` (\"Memory Line\") holds, checked by the export alone: its fetched "
+            "items' base types against the export's four Memories. None found: the leaf holds no listing",
+            "the next search: a Memory with no category; nothing under both means no Memory is listed",
+            at("memoryline"))
+    add(f"{j}'s mutant: `Alva's Memory`, the first of the export's four Memories by name, with no category — whether "
+        "a Memory is listed at all (none of the four is on the site's coarse list)",
+        f"{j}: a Memory found here and nothing there says the leaf does not hold it",
+        at(None, "Alva's Memory"))
+    # J1, j35-j38: the wiki's named red beasts, which separate the lure reading from the mods reading
+    # where the copy cannot (category F3: the two agree on all 158 of its beasts). The four ", First of
+    # the " names are matched to the Spirit Beasts by the quote's "First Ones" only — the owner's to
+    # confirm; the first of them by name is asked.
+    first = n + 1
+    for base, why in (("Black Mórrigan", "named by the wiki (\"The Black Mórrigan\")"),
+                      ("Craiceann, First of the Deep", "the first by name of the site's four \", First of the \" "
+                       "names, matched to the wiki's Spirit Beasts by the quote's \"First Ones\" (the owner's to confirm)")):
+        for leaf in ("monster.redbeast", "monster.yellowbeast"):
+            add(f"J1, lure against mods: whether `{leaf}` holds `{base}`, {why}. The lure reading calls it yellow; "
+                "the mods reading cannot be measured for it on the copy, which holds none; the wiki names it red. "
+                "Found under red and not yellow: the lure reading is wrong for it and the wiki's account stands; "
+                "under yellow and not red: the lure reading stands against the wiki",
+                f"the other leaf with `{base}`, j{first:02d} and j{first + 1:02d}: one of the two finds it, or the type "
+                "has no listing under either and both answers say nothing",
+                at(leaf, base))
+        first += 2
+    return rows
+
+
 def report():
     """b1, b2: the two searches a report of c3's twin id rests on."""
     twin = "explicit.stat_2543977012"
@@ -1076,7 +1218,7 @@ def main():
         print(__doc__)
         return 2
     searches = PILOT + (checks() + round_two() + report() + round_three() + round_four()
-                        + round_five() + OPEN_QUESTION_SEARCHES + round_six() + round_i()
+                        + round_five() + OPEN_QUESTION_SEARCHES + round_six() + round_i() + round_j()
                         if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
