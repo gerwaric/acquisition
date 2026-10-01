@@ -561,8 +561,18 @@ unresolved, each with the one read that closes it).
   a quality-normalised defence follows S26; each is a named pure
   function in the search crate, listed with the totals under `pseudo.`
   by `--describe` (C97; the reference), as `pseudo.dps` and
-  `pseudo.pdps` are (`pseudo.rs`). The sockets are `sockets.rs`'s
-  (step 8).
+  `pseudo.pdps` are (`pseudo.rs`). The percentile is the site's own
+  stated rule — each base defence roll's percentile, averaged, rounded
+  half up, a roll being any integer whose display is the item's — with
+  one departure the definition prints: a display at an exact half
+  admits both integers as rolls (J5, 2026-10-01: the stated rule
+  reproduced 541 of 543 captured items and this reading all 543, each
+  one value; `search/pseudo-stats/README.md`, "The percentile's
+  round"). The shapes round i asks of the site — three defence types on
+  one base, the enchant that zeroes quality, a roll over the base's
+  maximum, a defence line under its global twin, ward — are answered by
+  the stated rule and listed in the record as unpinned until the round
+  is read (J6, 2026-10-01). The sockets are `sockets.rs`'s (step 8).
 - **C106 — what reference data admits, and the test.** Three kinds:
   *data*, what the game files state and a registered surface exports;
   *convention*, a concept the community has published a definition for
