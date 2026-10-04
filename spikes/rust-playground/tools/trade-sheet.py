@@ -1148,6 +1148,80 @@ def round_j():
     return rows
 
 
+# Round k (before step 9d): J8's one search and its mutant, then every beast's
+# colour from the site (search/category/BRIEF.md at 213578b1). No published list
+# gives a beast's colour, so each name of the site's `monster` list is asked
+# under `monster.yellowbeast`; a name not found is asked under
+# `monster.redbeast` in the round composed after this sitting. The copy's
+# bases come first, written out; search/category/scripts/round-k.py reads the
+# rows back and fails when this list is not beasts.csv's.
+ROUND_K_COPY_BEASTS = [  # search/category/data/beasts.csv's bases, in its order (the copy's 70)
+    'Alpine Devil', 'Barrow Ape', 'Bearded Devil', 'Blood Ape', 'Bone Cruncher', 'Brine Vassal',
+    'Carnage Ape', 'Cave Beast', 'Chimeric Croaker', 'Colossus Crusher', 'Craicic Maw',
+    'Craicic Sand Spitter', 'Craicic Savage Crab', 'Craicic Shield Crab', 'Craicic Squid', 'Craicic Watcher',
+    'Crustacean Sniper', 'Cursed Spawn', 'Dread Primate', 'Dune Hellion', 'Enraptured Beast',
+    'Enslaved Hellion', 'Farric Frost Hellion Alpha', 'Farric Goatman', 'Farric Goliath', 'Farric Lynx Alpha',
+    'Farric Ursa', 'Fenumal Devourer', 'Fenumal Scorpion', 'Fenumal Scrabbler', 'Fenumal Widow',
+    'Fighting Bull', 'Flame Hellion', 'Forest Beast', 'Freezing Wolf', 'Fury Hound', 'Gluttonous Gull',
+    'Goatman', 'Goatman Fire-raiser', 'Goatman Shaman', 'Granite Eater', 'Gravel Eater', 'Host Chieftain',
+    'Infested Crawler', "Merveil's Attendant", "Merveil's Blessed", "Merveil's Chosen", "Merveil's Favoured",
+    "Merveil's Retainer", 'Mindless Scavenger', 'Mountain Hellion', 'Mountain Lynx', 'Pitbull Demon',
+    'Porcupine Goliath', 'Rock Spitter', 'Rooster Fiend', 'Rotting Vulture', 'Saqawine Blood Viper',
+    'Saqawine Chimeral', 'Saqawine Cobra', 'Scavenging Vulture', 'Sewage Crawler', 'Shackled Hellion',
+    'Singing Siren', 'Skeletal Beast', 'Snow Wolf', 'Soulless Watcher', 'Vaulting Croaker', 'Venomous Spawn',
+    'Waste Lurcher',
+]
+MONSTERS = TRACK.parent / "trade-query" / "data" / "items-2026-09-12.json"
+
+
+def round_k():
+    """k001–k002 J8: a defence twin text as an implicit under the `(Local)` stat
+    on armour, and its mutant under the global stat; k003 on, one search per
+    name of the site's `monster` list under `monster.yellowbeast`, the copy's
+    bases first, then the rest by name."""
+    implicit = {}
+    for g in json.loads(STATS.read_text())["result"]:
+        if g["id"] == "implicit":
+            for e in g["entries"]:
+                implicit.setdefault(e["text"], []).append(e["id"])
+    local_ids = [i for t in DEFENCE_TWINS for i in implicit.get(t + " (Local)", [])]
+    global_ids = [i for t in DEFENCE_TWINS for i in implicit.get(t, [])]
+    if len(local_ids) != len(DEFENCE_TWINS) or not global_ids:
+        raise SystemExit("round k: the implicit twin ids are not what stats-2026-09-12.json listed when it was written")
+    twins = ", ".join("`" + t + "`" for t in DEFENCE_TWINS)
+    armour = {**category("armour"), **percentile_filter()}
+    rows = [
+        ("k001",
+         f"J8 (pseudo-stats open question 9): armour carrying a defence twin text — {twins} — as an implicit under "
+         f"the `(Local)` stat ({len(local_ids)} implicit ids), the percentile required. Found: a local defence line "
+         "sits as an implicit, and the array alone does not separate the twins. None found, beside k002 finding "
+         "items: on listed armour an implicit twin is the global stat, and synthesised implicits stay the limit",
+         f"k002, the mutant, must find items; and {PERCENTILE_CONTROL}",
+         batch_query([group("count", local_ids, {"min": 1})], armour)),
+        ("k002",
+         f"k001's mutant: the same texts as an implicit under the global stat ({len(global_ids)} implicit ids), the "
+         "percentile required. It must find the ten i05 found, each an eldritch implicit",
+         "i05: its ten items carry the twin as an eldritch implicit under these global ids "
+         "(search/pseudo-stats/data/defence-twins.csv); nothing found here means an implicit `count` beside the "
+         "percentile decides nothing, and k001 with it",
+         batch_query([group("count", global_ids, {"min": 1})], armour)),
+    ]
+    site = [e["type"] for c in json.loads(MONSTERS.read_text())["result"] if c["id"] == "monster" for e in c["entries"]]
+    if len(set(site)) != len(site) or not set(ROUND_K_COPY_BEASTS) <= set(site):
+        raise SystemExit("round k: the site's monster list has a name twice, or lacks one of the copy's bases")
+    order = ROUND_K_COPY_BEASTS + sorted(n for n in site if n not in set(ROUND_K_COPY_BEASTS))
+    for number, name in enumerate(order, start=3):
+        held = "a base of the copy" if name in ROUND_K_COPY_BEASTS else "on no beast of the copy"
+        rows.append((
+            f"k{number:03d}",
+            f"J1, the colour table: whether the site lists `{name}` ({held}) as a Yellow Beast. Found: yellow by the "
+            "site's own word (C106, clause (a)), this capture its row's citation. None found: its pair decides",
+            f"its pair, by rule: `{name}` under `monster.redbeast`, in the round composed after this sitting for "
+            "every name this round does not find; nothing under both means the name has no listing",
+            batch_query([], category("monster.yellowbeast"), name)))
+    return [{"search": s, "decides": d, "control": c, "query": q} for s, d, c, q in rows]
+
+
 def report():
     """b1, b2: the two searches a report of c3's twin id rests on."""
     twin = "explicit.stat_2543977012"
@@ -1228,7 +1302,7 @@ def main():
         print(__doc__)
         return 2
     searches = PILOT + (checks() + round_two() + report() + round_three() + round_four()
-                        + round_five() + OPEN_QUESTION_SEARCHES + round_six() + round_i() + round_j()
+                        + round_five() + OPEN_QUESTION_SEARCHES + round_six() + round_i() + round_j() + round_k()
                         if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:

@@ -1,6 +1,6 @@
 # category — the trade site's grouping above class, and what a captured beast is
 
-Status: first pass complete — 2026-09-30; reviewed 2026-09-30: the three scripts regenerate `data/` byte for byte and every category id of the site's filter has its row (the brief, `9280f559`, `1cbb1db7`); second run — 2026-10-01, reviewed: the `mods` reading measured, agreeing with the lure reading on every beast of the copy; round j composed, 38 searches, its checks run again at the review (the brief, `2e712e60`); round j sat 2026-10-01 and read, 40 of 40 (j39–j40 replacing j12–j13): open questions 1–5 closed but Growing Wombgift, 6 kept
+Status: first pass complete — 2026-09-30; reviewed 2026-09-30: the three scripts regenerate `data/` byte for byte and every category id of the site's filter has its row (the brief, `9280f559`, `1cbb1db7`); second run — 2026-10-01, reviewed: the `mods` reading measured, agreeing with the lure reading on every beast of the copy; round j composed, 38 searches, its checks run again at the review (the brief, `2e712e60`); round j sat 2026-10-01 and read, 40 of 40 (j39–j40 replacing j12–j13): open questions 1–5 closed but Growing Wombgift, 6 kept; round k composed 2026-10-04, 363 searches for the owner's sitting (the brief, `213578b1`)
 
 - 65 of the site's 68 leaf ids are a function of the export's class (58) or class plus a name rule on the base (7); the three beast leaves are not; the site put 30 fetched beasts under Red Beast and 10 under Yellow, and the count of the export's bestiary mods sorts all 40, the lure word agreeing on 20 (F1, F3).
 - The copy's 22,623 live pc items: one id 22,455, several 167 (158 beasts, 9 breachstones), none 1 (a quest-item contract) — C105's buckets sum to the copy (F5).
@@ -108,6 +108,10 @@ Open questions 1–6 as `tools/trade-sheet.py`'s `round_j`, 40 searches, each wi
 | 5 | j29–j30 | `map.breachstone` and `map` each find `Xoph's Breachstone` (5610 and 5610) |
 
 Pairs that decided nothing, both sides empty: j12–j13 (`Winged Bestiary Scarab`), j31–j32 (`Growing Wombgift`), j33–j34 (`memoryline`, `Alva's Memory`). Totals of 10000 are the site's cap, three marked inexact: no union is read by count.
+
+## Round k
+
+No published list gives a beast's colour, so the site is asked (C106, clause (a)): `tools/trade-sheet.py`'s `round_k`, read back by `scripts/round-k.py` (`data/round-k.csv`). k001–k002 are J8's pair: armour with a defence twin text as an implicit under the `(Local)` stat (5 ids), the percentile required; its mutant the global implicit ids (3), which must find i05's ten. k003–k363 ask each of the site's 361 `monster` names under `monster.yellowbeast`: the copy's 70 bases first (k003–k072), the rest by name (k073–k363). A name found is yellow by the site's word; one not found is asked under `monster.redbeast` in the next round, its pair by rule. Each row records what round j's mod count would say (yellow 52, red 18, no item on the copy 291), to hold against the answer, never as it. 363 searches, 15 pages, 1 h 0 min 30 s at one link every 10 s; first page `../pseudo-stats/raw/sitting/k-1.html` (local).
 
 ## Open questions
 
