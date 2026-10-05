@@ -572,8 +572,14 @@ unresolved, each with the one read that closes it).
   2026-10-01, the same section): three defence types on one base are
   the average of three rolls; under the enchant that zeroes quality the
   quality term is dropped; ward is a roll as the others are; and a
-  defence line under its global twin the site leaves out, which a
-  private item's text cannot show (J8, the plan's foot). A roll over
+  defence line under its global twin the site leaves out, which the
+  item's mark tells (J8, ruled 2026-10-05): an implicit twin on an
+  eldritch item is the global stat and left out, 17 of 17 captured; an
+  explicit twin, and an implicit twin on a synthesised item, are the
+  item's own, 421 of 421 and 10 of 10; an implicit twin on an item of
+  neither mark, seen nowhere, cannot be established and the field is
+  undecided there with that reason (C93); the definition prints the
+  counts each part rests on. A roll over
   the base's maximum stays unpinned: the site lists no armour over 100,
   so "reads over 100 %" above is the stated rule's and no capture's.
   The sockets are `sockets.rs`'s (step 8).
@@ -586,6 +592,28 @@ unresolved, each with the one read that closes it).
   limit — a global line on a weapon is read as the weapon's own — with
   what the site showed: no listed weapon was found to carry one (round
   i, i06–i08).
+- **C106 — category (9d).** A term names the trade site's category id
+  as spelled; a parent matches the classes the site puts at it and
+  every id under it by the dot (`map` holds Inscribed Ultimatums of its
+  own and its children's scarabs and breachstones alike; J2, ruled
+  2026-10-05); a grouping (`weapon.one` and the six others) is a term
+  over reviewed members, each row citing the capture that answered it,
+  Fishing Rods outside two-handed melee (J4). A leaf is a class's, or a
+  class's with a rule on the base name: the Maven's Invitation leaf
+  holds a base named for the Maven and every other invitation takes
+  `map`, the second half not asked of the site (J3). A captured beast,
+  known by its bestiary line, is `monster.beast`, and its colour leaf
+  is the row of the colour table — reference data under clause (a)
+  below, generated from the sittings' captures by a committed script,
+  reviewed as a diff, 250 yellow, 79 red, 32 unknown, each row citing
+  its capture — a name the table lacks or marks unknown being undecided
+  with that reason and the hint that the site may list it; the count of
+  bestiary mods is the generator's check and reads nothing at run time
+  (J1). A beast's class is the game's own word for it, `Stackable
+  Currency`, read by the same line (J9, revising V1, which was ruled
+  when a beast was thought to have no class). Computed from class and
+  these rules in one place (rule 10 of the plan), never a second
+  classifier; the table and the rules are `category.rs`'s when built.
 - **C106 — what reference data admits, and the test.** Three kinds:
   *data*, what the game files state and a registered surface exports;
   *convention*, a concept the community has published a definition for
