@@ -149,3 +149,18 @@ wrote their 24 captures.
 | File | Bytes | Captured | sha256 |
 | --- | --- | --- | --- |
 | `raw/searches/www.pathofexile.com-15.har` | 64578012 | 2026-10-01 18:37 | `719b573a204c01538cfd6e88b716de21dd7679d2171755c394f8321057c96573` |
+
+Round k, 2026-10-04 to 2026-10-05, 16:56 to 21:47 US Central (21:56 to 02:47
+UTC), by the owner, from the links of `data/search-sheet.csv` at `726362fc`,
+over several sittings: saved not as one recording but as one HAR fragment per
+call, 615 files, each named by its search and its kind
+(`k001_<time>-search.json`, `-fetch.json`), under `raw/searches/k-fragments/`
+— the splitter reads the folder as one recording in the order of its calls.
+Every body held, no cookie, nothing refused, all 363 searches. Four re-asked
+round j's queries (k022, k029, k094, k131 — j05, j02, j36, j38) and are kept
+under their own names, the splitter naming a repeated query for the first row
+without a capture. `tools/trade-split.py --write` wrote their 615 captures.
+
+| File | Bytes | Captured | sha256 |
+| --- | --- | --- | --- |
+| `raw/searches/k-fragments/` (615 files; the hash is of the sorted files' sha256s, one a line) | 6121549 | 2026-10-04 16:56 – 2026-10-05 21:47 | `ff4cb5940b2bae2c581998bac88281c5e1089930587938ace78acbe35eb1d04e` |

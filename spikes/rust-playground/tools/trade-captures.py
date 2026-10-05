@@ -46,7 +46,9 @@ ARRAYS = [
     "scourgeMods", "crucibleMods", "utilityMods", "veiledMods", "mutatedMods",
     "pseudoMods",
 ]
-SCRUBBED = ("whisper", "hideout_token", '"account": {', '"icon": "', '"stash": {', '"price": {')
+# Value patterns, never a bare word (search/README.md, "Traps"): a beast named
+# Meatwhisper tripped the bare word on 2026-10-05 and was no seller's data.
+SCRUBBED = ('"whisper": "', '"hideout_token": "', '"account": {', '"icon": "', '"stash": {', '"price": {')
 
 
 def decode(search_id):

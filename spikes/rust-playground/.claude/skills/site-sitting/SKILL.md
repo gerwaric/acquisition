@@ -63,11 +63,23 @@ is not this: part 1 of 9c counted 264 of them and none was run.
 Signed in. Open the round's first page, `raw/sitting/<round>-1.html`.
 Its first link opens the sitting tab, blank: drag that tab to a window
 of its own, open its network panel there, keeping its log across pages.
-Then one search at a time, a plain click each, at the pace the page
-counts. When a page's links are opened, export the panel as a HAR file
-**with its content** into `search/pseudo-stats/raw/searches/`, clear the
-log, and follow the page's link to the next; the sitting tab stays as it
-is. Order does not matter; a link opened twice does no harm.
+Then one search at a time, a plain click each or the space bar for the
+next, at the pace the page counts: it refuses a link opened early and
+sounds when the pace is up. When a page's links are opened, export the
+panel as a HAR file **with its content** into
+`search/pseudo-stats/raw/searches/`, clear the log, and follow the page's
+link to the next; the sitting tab stays as it is. Order does not matter;
+a link opened twice does no harm.
+
+With `tools/sitting-recorder` loaded in the browser (an unpacked
+extension; its files say what it copies) nothing is exported: while the
+sitting tab's developer tools are open it saves each search and fetch as
+answered, cookie-free, under the downloads folder's `acq-sitting/`, and
+its badge counts the searches, red at a refusal, a lost body or a
+request to slow down. Allowed access to file URLs, it marks each search
+on the page: green when its files are saved, amber when nothing was.
+`tools/trade-split.py <that folder>` reads it as one recording, and is
+still what says a capture answers its row.
 
 Without the pages, the sheet's links go into the tab's address bar one
 at a time, and the export is every twenty-five links.
@@ -131,6 +143,11 @@ at a time, and the export is every twenty-five links.
   splitter says so loudly if one does.
 - **The site rewrites an id on the way back**, dropping every
   `"disabled":false`: compare queries with those removed, never ids.
+- **A round that re-asks a captured query gets it filed under the
+  earlier row.** Round k asked four of round j's queries again under
+  new names (2026-10-04); the splitter now names such a capture for
+  the first row still without one, so each day's answer is kept, but
+  a composer checks the new round's queries against the sheet first.
 - **The page posts an empty stats group where the sheet has none**:
   `stats: []` goes out as one `and` group with no filters, so four of
   round i's eight searches were refused by the splitter, and then by the

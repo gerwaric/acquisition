@@ -15,6 +15,13 @@ each link).
     tools/trade-split.py <file.har> --write    # write the captures
     tools/trade-split.py <file.har> --write --replace   # and overwrite a capture that differs
     tools/trade-split.py <file.har> --shape    # write search/pseudo-stats/data/recording-shape.csv
+    tools/trade-split.py <folder>              # the recorder's files, read as one recording
+
+**The recorder's folder is one recording.** `tools/sitting-recorder`, loaded
+in the browser, saves each search and each fetch as it is answered, a file of
+one entry each, holding what this script reads and no cookie. Given a folder,
+this script reads every `.har` and `.json` file in it as one recording, in
+the order the calls were made.
 
 **A recording may hold no bodies.** The browser can drop a response's body
 and keep its request, its size and its headers (the first recording, 2026-09-26:
@@ -169,7 +176,13 @@ def read(har, sheet):
         if "/api/trade/search/" in url:
             query = decode(answer["id"])
             names = [n for n, q in sheet.items() if bare(q) == bare(query)]
-            record.update(name=names[0] if names else None, ids=set(answer.get("result", [])),
+            # One query asked by several rows (round k re-asked four of round j's,
+            # 2026-10-04): the capture is named for the first row that has none yet,
+            # on disk or in this recording, so every sitting's answer is kept under
+            # the row that asked it that day; a query no row asks is refused.
+            taken = {s["name"] for s in found}
+            free = [n for n in names if n not in taken and not (RAW / f"{n}-search.json").exists()]
+            record.update(name=(free or names or [None])[0], ids=set(answer.get("result", [])),
                           total=answer.get("total"), fetches=[])
             found.append(record)
         else:
@@ -179,6 +192,16 @@ def read(har, sheet):
     return found, strays, problems
 
 
+def recording(path):
+    """A HAR file, or a folder of them as one recording in the order of its calls."""
+    if not path.is_dir():
+        return json.loads(path.read_text())
+    # The browser names a saved file by its type: the recorder's arrive as .json.
+    entries = [e for part in sorted(path.iterdir()) if part.suffix in (".har", ".json")
+               for e in json.loads(part.read_text())["log"]["entries"]]
+    return {"log": {"entries": sorted(entries, key=lambda e: e.get("startedDateTime") or "")}}
+
+
 def main():
     args = sys.argv[1:]
     flags = {a for a in args if a.startswith("--")}
@@ -186,7 +209,7 @@ def main():
     if len(files) != 1 or flags - {"--write", "--replace", "--shape"}:
         print(__doc__)
         return 2
-    har = json.loads(Path(files[0]).read_text())
+    har = recording(Path(files[0]))
     with SHEET.open(newline="\n") as f:
         sheet = {r["search"]: json.loads(r["query"]) for r in csv.DictReader(f)}
     found, strays, problems = read(har, sheet)
