@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Acquisition sitting recorder",
+  "version": "2",
+  "description": "Saves what the trade site answered each search of a sitting. Sends nothing.",
+  "devtools_page": "devtools.html",
+  "background": { "service_worker": "worker.js" },
+  "content_scripts": [
+    { "matches": ["file:///*/raw/sitting/*.html"], "js": ["page.js"], "run_at": "document_idle" }
+  ],
+  "action": { "default_title": "Searches saved this sitting" },
+  "permissions": ["downloads", "downloads.ui", "storage"]
+}

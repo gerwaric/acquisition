@@ -2,3 +2,4 @@ target/
 runs/
 pricing-info/
 search/*/raw/
+tools/sitting-recorder/rows.json
