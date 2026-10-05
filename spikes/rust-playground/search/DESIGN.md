@@ -588,7 +588,9 @@ unresolved, each with the one read that closes it).
   attacks' total alone, the other twin the plain, the attacks' and the
   spells' (`search/pseudo-stats/README.md`, rounds two to four). Which
   it is the item's category decides: on a weapon the line is the
-  weapon's own (J7, ruled 2026-10-01). Every ranged total prints the
+  weapon's own (J7, ruled 2026-10-01). A ranged total asked with no slot
+  word is its `avg`, the one number the site shows (owner, 2026-09-26:
+  "yes, bare means average"). Every ranged total prints the
   limit — a global line on a weapon is read as the weapon's own — with
   what the site showed: no listed weapon was found to carry one (round
   i, i06–i08).
