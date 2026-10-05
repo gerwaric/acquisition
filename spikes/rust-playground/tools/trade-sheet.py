@@ -1222,6 +1222,67 @@ def round_k():
     return [{"search": s, "decides": d, "control": c, "query": q} for s, d, c, q in rows]
 
 
+# Round l (before step 9d): the second pass of every beast's colour
+# (search/category/BRIEF.md at 213578b1). Each name round k did not find under
+# Yellow Beast is asked under `monster.redbeast`, the same type, in round k's
+# order (the copy's bases first); its round k search is its pair. Written out
+# from search/category/scripts/round-k-read.py's beast-colours.csv.
+ROUND_L_NAMES = [  # search/category/data/beast-colours.csv's `unknown` names, each with its round k search, in round k's order
+    ('Craicic Maw', 'k013'), ('Craicic Sand Spitter', 'k014'), ('Craicic Savage Crab', 'k015'),
+    ('Craicic Shield Crab', 'k016'), ('Craicic Squid', 'k017'), ('Craicic Watcher', 'k018'),
+    ('Farric Frost Hellion Alpha', 'k025'), ('Farric Goatman', 'k026'), ('Farric Goliath', 'k027'),
+    ('Farric Lynx Alpha', 'k028'), ('Farric Ursa', 'k029'), ('Fenumal Devourer', 'k030'),
+    ('Fenumal Scorpion', 'k031'), ('Fenumal Scrabbler', 'k032'), ('Fenumal Widow', 'k033'),
+    ('Saqawine Blood Viper', 'k060'), ('Saqawine Chimeral', 'k061'), ('Saqawine Cobra', 'k062'),
+    ('Aidan the Frenzied', 'k076'), ('Albino Rhoa', 'k077'), ('Amarissa, Daughter of Merveil', 'k080'),
+    ('Ambrosia, Daughter of Merveil', 'k081'), ('Black Death', 'k093'), ('Black Mórrigan', 'k094'),
+    ('Bleached Crustacean', 'k099'), ('Blood Morpher', 'k101'), ('Boulderback', 'k105'),
+    ('Brinecrack', 'k107'), ('Brood Princess', 'k108'), ('Carrion Minion', 'k113'),
+    ('Cave Crustacean', 'k116'), ('Common Frog', 'k126'), ('Corrupted Spitter', 'k130'),
+    ('Craiceann, First of the Deep', 'k131'), ('Craicic Croaker', 'k132'), ('Craicic Spider Crab', 'k133'),
+    ('Craicic Vassal', 'k134'), ('Crazed Flamebeast', 'k136'), ('Drifting Eye', 'k145'),
+    ('Eyepecker', 'k156'), ('Farric Ape', 'k157'), ('Farric Chieftain', 'k158'),
+    ('Farric Flame Hellion Alpha', 'k159'), ('Farric Gargantuan', 'k160'), ('Farric Magma Hound', 'k161'),
+    ('Farric Pit Hound', 'k162'), ('Farric Taurus', 'k163'), ('Farric Tiger Alpha', 'k164'),
+    ('Farric Wolf Alpha', 'k165'), ('Farrul, First of the Plains', 'k166'), ('Fathom Screamer', 'k168'),
+    ('Fenumal Hybrid Arachnid', 'k169'), ('Fenumal Plagued Arachnid', 'k170'), ('Fenumal Queen', 'k171'),
+    ('Fenumus, First of the Night', 'k172'), ('Fused Crawler', 'k179'),
+    ('Hollowskull, the Willing Host', 'k188'), ('Infected Adder', 'k192'), ('Infected Ambusher', 'k193'),
+    ('Infected Beast', 'k194'), ('Infected Watcher', 'k196'), ('Infested Sniper', 'k204'),
+    ('Invading Crustacean', 'k210'), ('Lowlands Hopper', 'k216'), ("Maligaro's Inspiration", 'k218'),
+    ("Maligaro's Muse", 'k219'), ('Nadia the Soothing', 'k244'), ('Oozeback Bloom', 'k249'),
+    ('Paradisae Venenum', 'k250'), ('Primal Crushclaw', 'k260'), ('Primal Cystcaller', 'k261'),
+    ('Primal Rhex Matriarch', 'k262'), ('Putrid Chimeral', 'k266'), ('Putrid Serpent', 'k267'),
+    ('Putrid Weaver', 'k268'), ("Q'uru", 'k269'), ('Rabid Broodqueen', 'k271'), ('Rabid Minion', 'k273'),
+    ('Rabid Rhoa', 'k274'), ("Raihara, Tukohama's Loyal", 'k275'), ('Rocco, the Bloodthirsty', 'k280'),
+    ('Saqawal, First of the Sky', 'k287'), ('Saqawine Retch', 'k288'), ('Saqawine Rhex', 'k289'),
+    ('Saqawine Rhoa', 'k290'), ('Saqawine Vulture', 'k291'), ('Scrabbling Spitter', 'k295'),
+    ('Sickly Spinner', 'k301'), ('Steelchaw', 'k312'), ('The Basilisk', 'k324'),
+    ('The Burning Menace', 'k325'), ('The Cadaver Bull', 'k326'), ('The Conqueror Wurm', 'k327'),
+    ('The Dweller of the Deep', 'k329'), ('The Faun', 'k331'), ('The Great White Beast', 'k332'),
+    ('The Great White Bones', 'k333'), ('The Hundred Foot Shadow', 'k334'), ('The Weaver', 'k336'),
+    ('Thistlesage', 'k338'), ('Tunnelworm', 'k342'), ('Ungulath', 'k345'), ('Unstable Larva', 'k346'),
+    ('Ventarus', 'k348'), ('Vivid Abberarach', 'k352'), ('Vivid Vulture', 'k353'), ('Vivid Watcher', 'k354'),
+    ('Wild Brambleback', 'k357'), ('Wild Bristle Matron', 'k358'), ('Wild Hellion Alpha', 'k360'),
+    ('Zombie Rhoa', 'k363'),
+]
+
+def round_l():
+    """l001 on: one search per name of ROUND_L_NAMES under `monster.redbeast`."""
+    rows = []
+    for number, (name, pair) in enumerate(ROUND_L_NAMES, start=1):
+        rows.append({
+            "search": f"l{number:03d}",
+            "decides": (f"J1, the colour table: whether the site lists `{name}` as a Red Beast, {pair} having found it "
+                        "under no Yellow Beast. Found: red by the site's own word (C106, clause (a)), this capture its "
+                        "row's citation. None found, beside its pair's nothing: the name has no listing and its colour "
+                        "stays unknown"),
+            "control": f"its pair, {pair}: `{name}` under `monster.yellowbeast`, found nothing",
+            "query": batch_query([], category("monster.redbeast"), name),
+        })
+    return rows
+
+
 def report():
     """b1, b2: the two searches a report of c3's twin id rests on."""
     twin = "explicit.stat_2543977012"
@@ -1302,7 +1363,7 @@ def main():
         print(__doc__)
         return 2
     searches = PILOT + (checks() + round_two() + report() + round_three() + round_four()
-                        + round_five() + OPEN_QUESTION_SEARCHES + round_six() + round_i() + round_j() + round_k()
+                        + round_five() + OPEN_QUESTION_SEARCHES + round_six() + round_i() + round_j() + round_k() + round_l()
                         if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
