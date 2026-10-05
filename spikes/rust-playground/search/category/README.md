@@ -1,6 +1,6 @@
 # category — the trade site's grouping above class, and what a captured beast is
 
-Status: first pass complete — 2026-09-30; reviewed 2026-09-30: the three scripts regenerate `data/` byte for byte and every category id of the site's filter has its row (the brief, `9280f559`, `1cbb1db7`); second run — 2026-10-01, reviewed: the `mods` reading measured, agreeing with the lure reading on every beast of the copy; round j composed, 38 searches, its checks run again at the review (the brief, `2e712e60`); round j sat 2026-10-01 and read, 40 of 40 (j39–j40 replacing j12–j13): open questions 1–5 closed but Growing Wombgift, 6 kept; round k composed 2026-10-04, sat and read: 250 of the site's 361 `monster` names yellow; round l composed, 111 searches for the owner's sitting (the brief, `213578b1`)
+Status: first pass complete — 2026-09-30; reviewed 2026-09-30: the three scripts regenerate `data/` byte for byte and every category id of the site's filter has its row (the brief, `9280f559`, `1cbb1db7`); second run — 2026-10-01, reviewed: the `mods` reading measured, agreeing with the lure reading on every beast of the copy; round j composed, 38 searches, its checks run again at the review (the brief, `2e712e60`); round j sat 2026-10-01 and read, 40 of 40 (j39–j40 replacing j12–j13): open questions 1–5 closed but Growing Wombgift, 6 kept; round k composed 2026-10-04, sat and read: 250 of the site's 361 `monster` names yellow; round l sat and read: the colour table candidate holds 250 yellow, 79 red, 32 unknown (the brief, `213578b1`)
 
 - 65 of the site's 68 leaf ids are a function of the export's class (58) or class plus a name rule on the base (7); the three beast leaves are not; the site put 30 fetched beasts under Red Beast and 10 under Yellow, and the count of the export's bestiary mods sorts all 40, the lure word agreeing on 20 (F1, F3).
 - The copy's 22,623 live pc items: one id 22,455, several 167 (158 beasts, 9 breachstones), none 1 (a quest-item contract) — C105's buckets sum to the copy (F5).
@@ -56,7 +56,7 @@ No leaf sits under two prefix parents: the prefix is the first token. Whether a 
 
 The two splitting readings agree on 158 of 158 items and 70 of 70 bases; no beast carries none or more than two bestiary mods. Against the lure reading, 3 of 4 Families, 7 of 12 Groups and 8 of 32 Genera hold both kinds. A `<lure word> Presence` mod sits on 11 of the 36 lure-word beasts and on 17 of the others. All 158 carry at least one of the export's 24 bestiary mods. The wiki's named red beasts are not on the copy: of the site's names, `Black Mórrigan` and four holding ", First of the " (the quote's "First Ones"; the owner's to confirm), all five yellow under the lure reading; no input names the Harvest beasts. Every reading agrees with the site at the coarse level, since all 70 bases are on its `monster` list; the site's answer at the leaf is round j's, below. Awakened PoE Trade sends no category for a beast at all: it searches the exact base (`create-item-filters.ts`, lines 59–65).
 
-What the site said (round j; `data/round-j-beasts.csv`, one row per search, base, rarity and count; measured, no reading adopted — that is the owner's). Of 70 beasts fetched, 40 were found under a coloured leaf, of four bases: Farric Ursa, Black Mórrigan and Craiceann, First of the Deep under Red Beast (30), Dune Hellion under Yellow (10); none of the four under the other colour.
+Rounds k and l asked every one of the site's 361 names: 250 yellow, 79 red, 32 under neither; the copy's 70 bases split 52 and 18, as the mod count on the copy said (Round l). What the site said (round j; `data/round-j-beasts.csv`, one row per search, base, rarity and count; measured, no reading adopted — that is the owner's). Of 70 beasts fetched, 40 were found under a coloured leaf, of four bases: Farric Ursa, Black Mórrigan and Craiceann, First of the Deep under Red Beast (30), Dune Hellion under Yellow (10); none of the four under the other colour.
 
 | Fact on the body | Red Beast (30) | Yellow Beast (10) | Sorts all 40 |
 | --- | --- | --- | --- |
@@ -123,13 +123,21 @@ No published list gives a beast's colour, so the site is asked (C106, clause (a)
 
 ## Round l
 
-Each `unknown` name under `monster.redbeast`, the same type, in round k's order (the copy's 18 first), its round k search its pair: `round_l`, checked by `round-k-read.py`. 111 searches, 5 pages of 25, 18 min 30 s at one link every 10 s; first page `../pseudo-stats/raw/sitting/l-1.html` (local). l011, l024 and l034 repeat j03, j35 and j37, which hold their captures, so the splitter files the new answers under the l rows.
+Each name round k did not find, under `monster.redbeast`, its round k search its pair (`round_l`; 111 searches). Sat 2026-10-04; `round-k-read.py` reads it from the extract (`data/round-l-read.csv`) and finishes `data/beast-colours.csv`: each name's colour and the search that evidences it.
+
+| Colour | Names | Of them the copy's bases | The mod count on the copy said |
+| --- | ---: | ---: | --- |
+| yellow (found under Yellow Beast, round k) | 250 | 52 | yellow on all 52 |
+| red (found under Red Beast, round l) | 79 | 18 | red on all 18 |
+| unknown (found under neither) | 32 | 0 | — |
+
+The regularity disagrees with the table on no name the copy holds. The 32 unknown names hold no item on the copy and no listing under either colour; whether the site lists them at all is unasked. l011, l024 and l034 re-ask j03, j35 and j37 and find red again (3655, 10000, 1468 against 3595, 10000, 1470).
 
 ## Open questions
 
 Each is closed by a sitting under the site-sitting skill (the owner runs the searches in a browser; Standard, status any) or by the read named.
 
-1. **A beast's leaf** — closed for the four bases asked (round j; F3); which body fact the search reads is the owner's. Whether `monster.beast` is exactly the union is unread: its totals are capped.
+1. **A beast's leaf** — closed by the site's word for 250 yellow and 79 red of its 361 names, all 70 of the copy's bases among them (rounds k and l, `data/beast-colours.csv`); 32 are listed under neither colour. Which source the search reads — the table, the mod count — is the owner's. Whether `monster.beast` is exactly the union is unread: its totals are capped.
 2. **The groupings' members** — closed: `weapon.onemelee` holds Sceptres and Rune Daggers, `weapon.twomelee` Staves and Warstaves and not Fishing Rods, `weapon.one` Wands, `weapon.dagger` Rune Daggers, `weapon.onemace` Sceptres, `weapon.staff` Warstaves.
 3. **What `map` holds** — closed: a Misc Map Item of its own and a child's base.
 4. **`map.invitation`** — closed: not `Polaric Invitation`; which invitations it does hold is unread.
