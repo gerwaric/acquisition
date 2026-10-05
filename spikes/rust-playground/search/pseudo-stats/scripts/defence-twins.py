@@ -76,9 +76,11 @@ GENERATION = {
     "crucibleMods": ("crucible_tree", "crucible_unique_tree"),
 }
 TYPE_OF = [("Energy Shield", "es"), ("Evasion", "ev"), ("Armour", "ar"), ("Ward", "ward")]
-FACTS = ["array", "flags", "rarity", "frame", "unique", "class", "base", "position", "beside",
+FACTS = ["kind", "array", "flags", "rarity", "frame", "unique", "class", "base", "position", "beside",
          "type_shown", "marks", "export_says"]
-SEPARATORS = ["array", "flags", "rarity", "frame", "unique", "class", "base", "position", "type_shown",
+# The searches that asked the question (i05; J8's k001 and its mutant k002), printed one by one.
+ASKED = ("i05", "k001", "k002")
+SEPARATORS = ["kind", "array", "flags", "rarity", "frame", "unique", "class", "base", "position", "type_shown",
               "marks", "export_says", "array+marks", "array+export_says"]
 
 
@@ -214,6 +216,7 @@ def main():
 
     rows = []
     seen = set()
+    tally = defaultdict(Counter)  # search -> fetched, showing a defence, a repeat of an earlier item
     captures = json.loads(P.CAPTURES.read_text())["searches"]
     for name, capture in captures.items():
         raw_items = []
@@ -222,12 +225,15 @@ def main():
             if fetch.exists() and fetch.stat().st_size:
                 raw_items += [r["item"] for r in json.loads(fetch.read_text())["result"]]
         for i, item in enumerate(capture["fetched"] or []):
+            tally[name]["fetched"] += 1
             shown = {P.PROPERTY[p[1]] for p in item.get("properties", []) if p[1] in P.PROPERTY}
             if not shown:
                 continue
+            tally[name]["showing a defence"] += 1
             key = json.dumps({k: (dict(v, pseudoMods=None) if k == "lines" else v)
                               for k, v in item.items() if k != "extended"}, sort_keys=True)
             if key in seen:
+                tally[name]["a repeat, read where first fetched"] += 1
                 continue
             seen.add(key)
             raw = raw_items[i] if i < len(raw_items) else None
@@ -257,6 +263,13 @@ def main():
             rows.append(r)
 
     for r in rows:
+        marks = set(r["marks"].split(";"))
+        if r["array"] != "implicitMods":
+            r["kind"] = r["array"]
+        else:
+            r["kind"] = "implicit, " + (" and ".join(k for k, hit in (
+                ("eldritch", bool({"searing", "tangled"} & marks)), ("synthesised", "synthesised" in marks))
+                if hit) or "neither")
         r["array+marks"] = f"{r['array']} / {r['marks']}"
         r["array+export_says"] = f"{r['array']} / {r['export_says']}"
     header = ["source", "locator", "line", "site_says"] + FACTS + ["export_by_generation", "template"]
@@ -305,6 +318,21 @@ def main():
         print(f"  {fact}: {len(called)} lines on {items(called)} items ({len(shown_called)} lines on "
               f"{items(shown_called)} items); a value the captures never saw: {len(unseen)} lines on "
               f"{items(unseen)} items")
+    print("the searches that asked, by side, kind and base (lines/items):")
+    for name in ASKED:
+        mine = [r for r in rows if r["source"] == "captures" and r["locator"].startswith(f"{name}[")]
+        print(f"  {name}: total {captures[name]['search'].get('total')}; "
+              + "; ".join(f"{k} {tally[name][k]}" for k in ("fetched", "showing a defence",
+                                                              "a repeat, read where first fetched")))
+        for (sd, kd), n in sorted(Counter((r["site_says"], r["kind"]) for r in mine).items()):
+            rs = [r for r in mine if (r["site_says"], r["kind"]) == (sd, kd)]
+            print(f"  {name}: {sd}, {kd}: {n}/{items(rs)}; "
+                  + ", ".join(f"{b} {c}" for b, c in sorted(Counter(r["base"] for r in rs).items())))
+    print("the copy by kind (lines/items; of a type the item shows):")
+    for kd, n in sorted(Counter(r["kind"] for r in copy).items()):
+        rs = [r for r in copy if r["kind"] == kd]
+        sh = [r for r in rs if r["type_shown"] == "yes"]
+        print(f"  {kd}: {n}/{items(rs)}; {len(sh)}/{items(sh)}")
     print("every twin line outside explicitMods, by source, site, item marks and the export's word "
           "by generation type (lines/items):")
     other = Counter((r["source"], r["site_says"], r["array"], r["rarity"], r["marks"], r["export_by_generation"])
