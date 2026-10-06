@@ -130,6 +130,28 @@ it could ask and what it refused by name: this file at `880d9387`.
 
 ## The steps left — provisional, his to reorder
 
+9d is built one piece at a time — B, then C, then A — each closed
+before the next is briefed. Within a piece one agent writes at a time,
+in this checkout, the tree its alone while it runs and the session
+waiting:
+
+1. **The expected answers first**: a committed table in the piece's
+   track, generated from the captures by a script
+   (`.claude/skills/research-track/SKILL.md`), or worked by hand where
+   the row closes on a fixture (rule 3). The owner reads it before
+   anything is built.
+2. **One builder**, under `search/BRIEF.md`, committed before it runs
+   and removed at the piece's close. It writes the tests from the
+   table, then the code. It changes no expected value and commits
+   nothing: the session commits.
+3. **One look**, by an agent that has not read the builder's report;
+   then the owner's.
+
+Two checks are the session's and no brief carries them: the piece's
+diff of `--describe --json` is the surface its brief listed, and two
+looks in a row whose findings are of the previous fix's making stop
+the piece and bring it to the owner.
+
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
 | 9d-B · category | category as a grouping above class (V1: the beasts are its first case), from the trade site's categories and/or RePoE under C106's admission test (owner, 2026-09-26), computed from class and reviewed base rules in one place (rule 10), never a second classifier; the colour table as reference data | 9c | C106, C105, C93; the contract detail, *C106 — category (9d)* and *what reference data admits*; `class.rs`; `search/category/data/beast-colours.csv`, `categories.csv` | OQ5 by category; a beast found by its category |
