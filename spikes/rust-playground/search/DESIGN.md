@@ -619,7 +619,14 @@ unresolved, each with the one read that closes it).
   either "Red Beast" or "Yellow Beast" or neither."). A count by
   category lists an item under its most specific id (J11: "under the
   most specific. consumers can roll up these counts as needed.").
-  Computed from class and
+  Ruled 2026-10-06 (J12–J19): a grouping holds its reviewed members
+  alone, a leaf nothing places being out; a base whose class the export
+  prints no name for (the grafts) is undecided; Growing Wombgift is
+  `wombgift`; a count lists a beast of undecided colour under
+  `monster.beast`, and an item of two leaves not nested under each; an
+  id every candidate class gives holds while the class is open; a beast
+  in a realm with no table is undecided; a quest-frame invitation has
+  no id. Computed from class and
   these rules in one place (rule 10 of the plan), never a second
   classifier; the table and the rules are `category.rs`'s when built.
 - **C106 — what reference data admits, and the test.** Three kinds:
