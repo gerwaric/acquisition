@@ -613,7 +613,13 @@ unresolved, each with the one read that closes it).
   bestiary mods is the generator's check and reads nothing at run time
   (J1). A beast's class is the game's own word for it, `Stackable
   Currency`, read by the same line (J9, revising V1, which was ruled
-  when a beast was thought to have no class). Computed from class and
+  when a beast was thought to have no class). That class gives a beast
+  no id: it is under `monster.beast` and its colour leaf, never
+  `currency` (J10; owner, 2026-10-06: "They are "Captured Beast" and
+  either "Red Beast" or "Yellow Beast" or neither."). A count by
+  category lists an item under its most specific id (J11: "under the
+  most specific. consumers can roll up these counts as needed.").
+  Computed from class and
   these rules in one place (rule 10 of the plan), never a second
   classifier; the table and the rules are `category.rs`'s when built.
 - **C106 — what reference data admits, and the test.** Three kinds:
