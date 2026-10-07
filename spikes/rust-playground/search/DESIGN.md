@@ -626,7 +626,12 @@ unresolved, each with the one read that closes it).
   `monster.beast`, and an item of two leaves not nested under each; an
   id every candidate class gives holds while the class is open; a beast
   in a realm with no table is undecided; a quest-frame invitation has
-  no id. Computed from class and
+  no id. J20–J22: Growing Wombgift's class is Wombgifts, the item as
+  any wombgift is ("I want growing wombgift to behave like other
+  wombgift items, however they are handled."); a count lists an item
+  whose class is open under the most specific id that holds; in a realm
+  with no table every id is undecided on every item. Computed from
+  class and
   these rules in one place (rule 10 of the plan), never a second
   classifier; the table and the rules are `category.rs`'s when built.
 - **C106 — what reference data admits, and the test.** Three kinds:

@@ -68,7 +68,7 @@ budget README.md       15000
 budget LIVE-TESTING.md 15000
 budget search/BUILD-PLAN.md 28000  # the brief; its history is SEARCH-SLICE.md
 budget SEARCH-SLICE.md 24000  # the record, what every step reads whole: the shapes of fault, a standing verdict per measurement, the observations; set to hold to the slice's close (owner, 2026-09-27). Its rows are search/LEDGER.md and its tables search/MEASUREMENTS.md, neither budgeted: a line per step and per hole, a block per measurement and a row per build, by construction, each looked up and never loaded whole
-budget search/DESIGN.md 46000  # the reference whole until the seat; the contract detail empties as modules take it
+budget search/DESIGN.md 48000  # the reference whole until the seat; the contract detail empties as modules take it. 46000 until 2026-10-06, raised for 9d alone: the rulings met before a piece is built land in its paragraph, and the paragraph leaves for the module doc at the piece's close — back to 46000 when 9d-A closes
 budget decisions/search.md 28000
 # RUN-LEDGER.md has no budget: one row per live run, append-only by
 # construction, read by its tail. Its rows cite decision ids (scanned
