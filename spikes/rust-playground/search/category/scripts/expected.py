@@ -9,9 +9,9 @@
 Written before anything is built (BRIEF.md): from what the trade site answered in recorded searches
 and from the owner's rulings, never from the build. One function, `reading`, goes from an item's
 facts - realm, base as shown, frame, whether it carries the bestiary line - to its class, the ids
-that answer yes, the ids undecided and why, the ids no ruling answers (`unruled`, the cells U9-U11
-below), and the one id a count lists it under. Each step cites the sentence it carries out: the
-contract detail's paragraph *C106 - category (9d)* (search/DESIGN.md), J1-J4 and J9-J19
+that answer yes, the ids undecided and why, the ids no ruling answers (`unruled`; none
+is left), and the one id a count lists it under. Each step cites the sentence it carries out: the
+contract detail's paragraph *C106 - category (9d)* (search/DESIGN.md), J1-J4 and J9-J22
 (search/LEDGER.md, "Holes ruled"), C93 and C105 (decisions/search.md), and the class table's
 reader (crates/acquisition-search/src/class.rs, lines 361-466, mirrored in common.py).
 
@@ -39,13 +39,12 @@ Ruled 2026-10-06 (J12-J19, the cells this script first left open as U1-U8), each
   J18  a beast in a realm with no table is undecided.
   J19  a quest-frame invitation has no id: its class decides.
 
-The cells no ruling answers. Each is `unruled` wherever it occurs; none is filled here.
-  U9   Growing Wombgift's class, and every id but `wombgift` on it: J14 names its category only,
-       and J13 leaves the class of a base the export prints no class name for undecided.
-  U10  what a count lists an item under when its class is open, an id every candidate gives holds
-       (J17) and a more specific id is undecided: J15 answers this of a beast alone.
-  U11  the three beast ids on an item WITHOUT the bestiary line in a realm with no table: J18
-       speaks of a beast.
+Ruled after them (J20-J22, the cells J14, J17 and J18 left open, U9-U11 here), each a named step:
+  J20  Growing Wombgift's class is Wombgifts, and the item is as any other wombgift is.
+  J21  a count lists an item whose class is open under the most specific id that holds.
+  J22  in a realm with no table every id is undecided on every item, the beast ids among them.
+
+No cell is left `unruled`. The word stays in the reading and the files for a cell a later rule opens.
 """
 
 import base64
@@ -83,17 +82,7 @@ SET_GROUPINGS = {  # the grouping's text beside the set of meta.ts read for it (
     "weapon.twomelee": "WEAPONE_TWO_HANDED_MELEE",  # "Two-Handed Melee Weapon" (the file's spelling)
 }
 
-UNRULED = {  # cell -> (what is not ruled, [reading: what it would change, ...])
-    "U9": ("Growing Wombgift's class, and every id but `wombgift` on it (J14 names its category only; J13 leaves such a base's class undecided)",
-           ["the class stays undecided (J13) and `wombgift` is the one id established: every other id that needs the class is undecided on it",
-            "the name rule establishes the item: its class is Wombgifts, the class whose id it takes, and every other id answers no"]),
-    "U10": ("what a count lists an item under when its class is open, an id every candidate gives holds (J17) and a more specific id is undecided",
-            ["the most specific id that answers yes, as J15 rules of a beast",
-             "the count's undecided bucket: a more specific id is not established (C105)"]),
-    "U11": ("the three beast ids on an item without the bestiary line, in a realm with no table (J18 speaks of a beast)",
-            ["no: the line is absent, and reading it needs no class table",
-             "undecided with the realm's reason, as J18 rules of a beast: nothing is known of the realm"]),
-}
+UNRULED = {}  # cell -> (what is not ruled, [reading: what it would change, ...]); U1-U11 are ruled, J12-J22
 
 BREAKS = collections.OrderedDict([
     ("J1-line", "J1: the bestiary line makes a beast (broken: the line is not read)"),
@@ -126,6 +115,9 @@ BREAKS = collections.OrderedDict([
     ("J17", "J17: an id every candidate class gives holds while the class is open (broken: undecided)"),
     ("J18", "J18: a beast in a realm with no table is undecided (broken: read by its bestiary line)"),
     ("J19", "J19: a quest-frame invitation has no id (broken: it takes the id J3 gives its base)"),
+    ("J20", "J20: Growing Wombgift's class is Wombgifts (broken: its class stays undecided, `wombgift` alone holding)"),
+    ("J21", "J21: a count lists an item whose class is open under the most specific id that holds (broken: the undecided bucket)"),
+    ("J22", "J22: in a realm with no table the beast ids are undecided on an item without the bestiary line (broken: they answer no)"),
     ("C93-realm", "C93: a realm with no table leaves the class undecided (broken: read as pc)"),
     ("C105-none", "C105: a class with no id is known absence, `none` (broken: undecided)"),
 ])
@@ -267,10 +259,12 @@ def reading(ctx, realm, base, frame, bestiary, broken=frozenset()):
         a.class_open = "the class: no table for the realm"
         a.all_open = ("undecided", a.class_open)  # C93: only the terms that needed the class
         for i in MONSTER:
-            # J18: "a beast in a realm with no table is undecided"; of an item without the line J18 says nothing (U11)
-            a.status[i] = ("undecided", a.class_open) if bestiary else ("unruled", "U11")
+            # J18: "a beast in a realm with no table is undecided"
+            # J22: "in a realm with no table every id is undecided on every item", an item without the line too
+            if bestiary or "J22" not in broken:
+                a.status[i] = ("undecided", a.class_open)
         a.listed = "undecided"  # C105: a key not established
-        a.rest("C93", *(["J18"] if bestiary else []))
+        a.rest("C93", "J18" if bestiary else "J22")
         return a
     # J1: "A captured beast, known by its bestiary line, is `monster.beast`"
     if bestiary and "J1-line" not in broken:
@@ -335,12 +329,18 @@ def reading(ctx, realm, base, frame, bestiary, broken=frozenset()):
     named = sorted(c for c in internals if display[c])
     # J14: "Growing Wombgift is `wombgift`" - the site's list over the export's class, a rule on that one base name
     if base == "Growing Wombgift" and "J14" not in broken:
-        a.status["wombgift"] = ("yes", "")
-        a.class_open = "unruled:U9"       # J14 names its category only
-        a.all_open = ("unruled", "U9")    # how it sits with J13: every other id undecided, or no
-        a.listed = "wombgift"             # J11: the one id that answers yes, a leaf under both readings
-        a.rest("J14", "J11")
-        return a
+        a.rest("J14")
+        if "J20" in broken:
+            a.status["wombgift"] = ("yes", "")
+            a.class_open = "the class: the export prints no name for the base's class"
+            a.all_open = ("undecided", a.class_open)
+            a.listed = "wombgift"
+            return a
+        # J20: "Growing Wombgift's class is Wombgifts, the item as any wombgift is" - read on as one
+        internals = {c for c, t in ctx.tax.CLASS_TO_TRADE.items() if t == "wombgift"}
+        display = {c: ctx.ex.display(c) for c in internals}
+        named = sorted(c for c in internals if display[c])
+        a.rest("J20")
     # J13: "a base whose class the export prints no name for (the grafts) is undecided"
     if not named and "J13" not in broken:
         a.class_open = "the class: the export prints no name for the base's class"
@@ -393,11 +393,12 @@ def reading(ctx, realm, base, frame, bestiary, broken=frozenset()):
         else:
             most = [y for y in yes if not any(contains(ctx, y, z) for z in yes if z != y)]
             below = [u for u in a.undecided(ctx) if any(contains(ctx, y, u) for y in yes)]
-            if below:
-                a.listed = "unruled:U10"
+            if below and "J21" in broken:
+                a.listed = "undecided"
             else:
+                # J21: "a count lists an item whose class is open under the most specific id that holds"
                 a.listed = " ".join(most)  # J11, and J16 where two are not nested
-                a.rest("J11")
+                a.rest("J21" if below else "J11")
         return a
     if len(names) > 1 and "all" in broken:
         names = names[:1]
@@ -797,19 +798,19 @@ def ruled_cases(ctx, ev, copy_keys):
         add("C93, C105: a class with no id is known absence", k, "the copy")
     out.append(("ruled", "C93: a base the class table lacks", "pc", "A Base The Table Lacks", "Normal", False, "constructed: no source names such a base"))
     out.append(("ruled", "C93: an item with no base", "pc", "", "Normal", False, "constructed"))
-    out.append(("ruled", "C93: a realm with no table", "poe2", "Chaos Orb", "Currency", False, "constructed: the fixture's base in another realm"))
+    out.append(("ruled", "C93, J22: a realm with no table, every id undecided", "poe2", "Chaos Orb", "Currency", False, "constructed: the fixture's base in another realm"))
     out.append(("ruled", "J18: a beast in a realm with no table", "poe2", unknown[0] if unknown else "A Beast", "Rare", True, "constructed"))
     n = from_export(lambda n, cs: sorted(cs) == ["DelveSocketableCurrency", "DelveStackableSocketableCurrency"])
     if n:
         add("J17: a resonator with no frame, its class open among two that give one id", (n, "", False), "constructed: the export's name, no frame")
     k = sorted(n for n, cs in ctx.ex.by_name.items() if sorted(cs) == ["Breachstone", "MiscMapItem"] and n not in captured and n not in used)
     if k:
-        add("U10: a breachstone with no frame, `map` holding by J17 and its leaf undecided", (k[0], "", False), "constructed: the export's name, no frame")
+        add("J21: a breachstone with no frame, `map` holding by J17 and its leaf undecided", (k[0], "", False), "constructed: the export's name, no frame")
     # J13, J14
     n = from_export(lambda n, cs: n != "Growing Wombgift" and all(not ctx.ex.display(c) for c in cs) and any(ctx.tax.CLASS_TO_TRADE.get(c) for c in cs))
     if n:
         add("J13: a graft, whose class the export prints no name for", (n, "", False), "the export's name; no frame")
-    out.append(("ruled", "J14: Growing Wombgift is `wombgift`", "pc", "Growing Wombgift", "", False, "the export's name; no frame"))
+    out.append(("ruled", "J14, J20: Growing Wombgift is `wombgift`, its class Wombgifts", "pc", "Growing Wombgift", "", False, "the export's name; no frame"))
     return out, nothing
 
 
@@ -944,7 +945,7 @@ def main():
     for n in multi:
         for f in ("", "Normal", "Gem", "Quest"):
             got = reading(ctx, "pc", n, f, False)
-            reach[(f or "no frame", "U10" if got.listed == "unruled:U10" else "J17" if "J17" in got.rests else
+            reach[(f or "no frame", "J21" if "J21" in got.rests else "J17" if "J17" in got.rests else
                    "J16" if "J16" in got.rests else "other")] += 1
     print(f"  export names under several classes the game names: {len(multi)}; each read with no frame and with a Normal, Gem and Quest frame: "
           f"{dict(sorted(reach.items()))}")
