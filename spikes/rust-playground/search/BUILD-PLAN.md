@@ -241,6 +241,6 @@ submit the job (C98) — a resident client's question, the GUI's.
 Each under rule 4, with the builder's recommendation, which is no
 ruling (an outside audit's finding, 2026-09-20); a ruled one becomes a
 line in `search/LEDGER.md`, "Holes ruled", its rule in `search/DESIGN.md`.
-T3 and J1–J28, what the two tracks run before 9d and piece B
-surfaced (2026-09-30 to 2026-10-07), are all ruled: `search/LEDGER.md`, "Holes ruled", the
+T3 and J1–J31, what the two tracks run before 9d, piece B and piece
+C's expected answers surfaced (2026-09-30 to 2026-10-08), are all ruled: `search/LEDGER.md`, "Holes ruled", the
 seat, 9c and 9d rows. None is unruled today.

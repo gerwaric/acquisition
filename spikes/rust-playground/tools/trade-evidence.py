@@ -15,6 +15,13 @@ nothing. **A sum of nothing is no value**: the site shows no total
 where the lines cancel (c3), so the rows give none there either.
 
     tools/trade-evidence.py    # write search/pseudo-stats/data/evidence.csv, print what disagrees
+    tools/trade-evidence.py --count crucibleMods    # a mutant: that array counted; print what
+    tools/trade-evidence.py --count utilityMods     # then disagrees, write nothing
+
+**A total leaves out a crucible node's lines and a flask's own lines**, as the
+site does (round n, n01–n09; the owner, 2026-10-08, of both: "Leave both
+out."): the arrays `crucibleMods` and `utilityMods` are read by no pseudo. It
+is a rule of every total, by the array, and of no other array.
 
 A row is tested by the items that carry its line; a line the rows leave out
 is tested at weight 0 the same way, for every pair search/pseudo-stats/data/candidates.csv
@@ -46,6 +53,10 @@ OUT = TRACK / "data" / "evidence.csv"
 CAVEATS = {}
 
 NUMBER = r"[+-]?\d+(?:\.\d+)?"
+
+# The arrays no total reads: a crucible node's lines, a flask's own lines. A
+# mutant (`--count`) takes one out of this set.
+LEFT_OUT = {"crucibleMods", "utilityMods"}
 
 
 def template(description):
@@ -81,9 +92,11 @@ def stat_of(entry):
 
 def displayed(item):
     """Every line an item displays, with the entry it is part of: a modifier of
-    several lines is one entry whose description holds them all."""
+    several lines is one entry whose description holds them all. A line in an
+    array of LEFT_OUT is counted by no pseudo and is not displayed here: this is
+    the one place a line is read."""
     for array, entries in item["lines"].items():
-        if array == "pseudoMods":
+        if array == "pseudoMods" or array in LEFT_OUT:
             continue
         for e in entries:
             for line in e["description"].split("\n"):
@@ -136,7 +149,11 @@ def key(version, entry):
 
 
 def main():
-    if sys.argv[1:]:
+    mutant = None
+    if len(sys.argv) == 3 and sys.argv[1] == "--count" and sys.argv[2] in LEFT_OUT:
+        mutant = sys.argv[2]
+        LEFT_OUT.discard(mutant)
+    elif sys.argv[1:]:
         print(__doc__)
         return 2
     captures = json.loads(CAPTURES.read_text())["searches"]
@@ -198,6 +215,10 @@ def main():
                         weight = table.weight_of(version, t, stat_of(e))
                         pairs[k]["weight"] = Fraction(0) if weight is None else weight
 
+    if mutant:
+        print(f"mutant, {mutant} counted: {readings} readings of an item under a pseudo, "
+              f"{disagreeing} disagree; nothing written")
+        return 0
     with OUT.open("w", newline="") as out:
         sheet = csv.writer(out, lineterminator="\n")
         sheet.writerow(["pseudo", "pseudo_text", "template", "weight_tested", "agree",

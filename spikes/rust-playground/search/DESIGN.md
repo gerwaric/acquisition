@@ -598,7 +598,14 @@ unresolved, each with the one read that closes it).
   "yes, bare means average"). Every ranged total prints the
   limit — a global line on a weapon is read as the weapon's own — with
   what the site showed: no listed weapon was found to carry one (round
-  i, i06–i08).
+  i, i06–i08). A total leaves out a crucible node's lines and a
+  flask's own, the arrays `crucibleMods` and `utilityMods` and no
+  other: the site files them under no stat and counts neither (J29,
+  ruled 2026-10-08; round n). Where both twins count toward a total at
+  one weight its row asks nothing of the item, so only the plain and
+  the spells' rows read its category, and an item whose category is
+  not established is undecided there alone (J30). A ranged total is
+  nothing only where its low and its high both are (J31).
 - **C106 — what reference data admits, and the test.** Three kinds:
   *data*, what the game files state and a registered surface exports;
   *convention*, a concept the community has published a definition for

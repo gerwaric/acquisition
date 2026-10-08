@@ -378,6 +378,33 @@ def ranged_changes():
     return out
 
 
+# The seven attacks' totals of the ranged family: where both twins of the
+# unsuffixed line count toward a total at one weight, the total's row is the
+# line whatever the item is. The session's recommendation, put to the owner
+# 2026-10-08 and not objected to.
+ATTACKS = [f"adds_{kind}_to_attacks" for kind in TYPES + ["elemental", "damage"]]
+
+
+def pair_changes(name, rows):
+    """The version that makes each `local` and `global` pair of one weight one
+    row of `any` twin, after a pseudo's others."""
+    if name not in ATTACKS:
+        return []
+    pairs = [(t, plain(w)) for (t, which), w in rows.items()
+             if which == "local" and rows.get((t, "global")) == w]
+    if not pairs:
+        return []
+    return [{
+        "remove": [(t, w, which) for t, w in pairs for which in ("local", "global")],
+        "add": [(t, w, "any") for t, w in pairs],
+        "why": "the pair is the line whatever the item is: both twins of the unsuffixed line count "
+               "toward this total at one weight, so the row asks no side (the session's "
+               "recommendation, put to the owner 2026-10-08 and not objected to). No capture asks "
+               "for it: the site's answers are the same under both, every reading of "
+               "tools/trade-evidence.py agreeing before the version and after",
+    }]
+
+
 def norm(text):
     """A stat's text as a template: the twin's suffix and the sign dropped."""
     text = re.sub(r" \((Local|Global)\)$", "", text)
@@ -526,6 +553,8 @@ def versions():
         for change in ROUND_SIX_CHANGES.get(name, []):
             apply(change)
         for change in reduced_changes(name, dict(rows)):
+            apply(change)
+        for change in pair_changes(name, dict(rows)):
             apply(change)
         out[name] = history
     return out

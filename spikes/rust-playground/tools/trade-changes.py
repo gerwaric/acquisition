@@ -58,6 +58,14 @@ RULES = [
      "other a sum of nothing (g034); left out, 59 readings of round six disagree. The owner, "
      "2026-09-27: \"yes, we need to be able to find reduced lines and totals. There are "
      "occasionally niche builds for which this is critically important.\""),
+    ("a total leaves out a crucible node's lines and a flask's own lines: the arrays `crucibleMods` "
+     "and `utilityMods`, and no other array",
+     "n01, n02: a crucible `#% increased Spell Damage` node, the ten fetched showing no pseudo; "
+     "n03, n04, n05: a weapon's crucible `Adds # to # Fire Damage`, the ten showing neither the "
+     "attacks' pseudo nor the plain; n06, n07, n08, n09: no flask shows the movement speed or the "
+     "chaos resistance total over its own line. Each line is under no stat. Counted, either array's "
+     "readings disagree (tools/trade-evidence.py --count). The owner, 2026-10-08, of both: "
+     "\"Leave both out.\""),
 ]
 # Rows the site leaves out and the table keeps, by the owner's ruling.
 KEPT = {
@@ -191,6 +199,19 @@ def main():
     print(f"{len(out)} rows written to {OUT.relative_to(ROOT)}: "
           + ", ".join(f"{n} {k}" for k, n in sorted(by.items())))
     print("totals by status: " + ", ".join(f"{n} {k}" for k, n in sorted(counts.items())))
+    # The ranged family, the 21 totals named `adds_…`, beside what its rows were
+    # before the attacks' pairs became rows of `any` twin (trade_rows.py, PAIRS).
+    family = [r for r in out if r[0].startswith("adds_")]
+    kinds = defaultdict(int)
+    for r in family:
+        if r[3] in ("add row", "twin"):
+            kinds[(r[3], r[6])] += 1
+    add, twin = kinds[("add row", "any")], kinds[("twin", "global")] + kinds[("twin", "local")]
+    print(f"the {len({r[0] for r in family})} totals named adds_…, rows by change and twin: "
+          + ", ".join(f"{n} {c} ({w})" for (c, w), n in sorted(kinds.items()) if n)
+          + f" — {add} `add row`, {twin} `twin` ({kinds[('twin', 'global')]} `global`, "
+          f"{kinds[('twin', 'local')]} `local`), {add + twin} rows; they were 96 `add row`, 52 `twin` "
+          "(39 `global`, 13 `local`), 148 rows")
     unchanged = [n for n in table.versions() if n not in {r[0] for r in out}]
     print(f"{len(unchanged)} shipped totals need no change")
     return 0

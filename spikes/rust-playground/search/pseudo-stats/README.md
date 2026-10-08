@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: round n sat and read: the site counts no crucible node's line and no flask's own line under any pseudo asked, counts the implicit twin off a weapon, and counts fractured, enchant, scourge and crafted lines; 80 readings disagree with the rows until the two arrays are ruled — 2026-10-08. The states before it, each by its commit: round n composed `2b86eef4`; before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
+Status: 9d-C's expected answers final, reviewed: the two arrays left out of every total by the owner's ruling, the rows agreeing with all 1648 readings; the ranged family's 135 rows, 26 reading what the item is; the site disagreeing on none of 619 captured cells, no cell unruled — 2026-10-08. The states before it, each by its commit: round n sat and read `22380d71`; round n composed `2b86eef4`; before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -136,35 +136,30 @@ i06–i08 by search: `data/sittings-detail.md`.
 
 `scripts/ranged-expected.py` (the brief, `BRIEF.md`): one function from a private item's realm, base,
 rarity and lines — text, array, flags, never an id — to what each of the 21 totals answers; the rows are
-`data/table-changes.csv`'s, 96 `add row` and 52 `twin`. `data/ranged-expected.csv`, a row a case and a
-total; `data/ranged-expected-copy.csv`, the function over the copy's 22623 live pc items and its lines by
-template, side, array and flags.
+`data/table-changes.csv`'s, 109 `add row` and 26 `twin`, each `global` (96 and 52 before ruling 2).
+`data/ranged-expected.csv`, a row a case and a total; `data/ranged-expected-copy.csv`, the function over the
+copy's 22623 live pc items.
 
-- **Cases**: captured 519 (420 distinct items, 99 repeats; 52 searches read, 51 left out as fetching no
-  item), ruled 25 (14 items of the copy, 11 composed), worked 3 (composed; the function gave what the hand
-  did on 21 cells of 21, each). Every one of the 148 rows is counted by a case.
-- **Disagreements**: 0 of 559 captured cells (the site a value on 439, none on 120); 0 not comparable.
-- **`unruled`**, 14 cells under 2 questions, each on composed items alone. `side-open-attacks`, 5 cells
-  (`r-side-open-unsuffixed`, `r-side-open-no-base`): an unsuffixed line on an item the class table cannot
-  class, under an attacks' total — A: complete, both twins' rows counting it at one weight; B: undecided, the
-  row that names it unknown. `range-cancels`, 9 cells (`r-nothing-cancels`, `Adds -5 to 5`; lines holding a
-  number below nothing: 0 on the copy, 0 captured) — A: lacked, the average being nothing; B: a value,
-  `low` and `high` not nothing.
-- **Broken once for each rule**, the captured cells that then disagree, of 559: `realm` 0,
-  `weapon-own-as-other` 87, `other-as-weapon-own` 41, `side-open-as-other` 0, `frame-picks-none` 0,
-  `low-for-avg` 439, `nothing-is-zero` 120, `first-line-only` 13, `explicit-only` 280, `unflagged-only` 3,
-  `whole-text` 0, `unread-ignored` 0, `no-local-row` 54, `no-eldritch-rows` 279,
-  `no-spells-and-attacks-rows` 37, `no-aggregate-rows` 140. **On the ruling alone**, 5: a realm with no
-  recipe; a side left open; the frame picking among a base's classes; a mod of several rows read by a row;
-  an unread array or flag.
-- **Not asked**: of the copy's 71 groups 50, holding 279 lines of 1831 (each with its question in the copy
-  file). By rule: J7, a weapon's own line in an array or under a flag no capture asked, 15 groups, 61 lines
-  — `crucibleMods` 43, fractured 8, `implicitMods` 6, crafted 3, `enchantMods` 1 — does the plain pseudo of
-  the line's type show on a weapon carrying the unsuffixed line there? The reading: none, the attacks'
-  pseudo showing its average. The other twin as an implicit, 2 groups, 8 lines: the same pseudo on an item
-  that is no weapon; the reading: the average. A row of `any` twin, 33 groups, 210 lines — `to Attacks` as
-  an implicit off a weapon 78, `to Spells and Attacks` as a weapon's implicit 50, `to Spells` off a weapon
-  34: does the pseudo of the line's own scope and type show its average there? The reading: yes.
+- **The rulings**, 2026-10-08; no cell is `unruled`. 1: a total leaves out a crucible node's lines and a
+  flask's own, the arrays `crucibleMods` and `utilityMods` and no other — the owner, of both: "Leave both out."
+  2: where both twins of the unsuffixed line count toward a total at one weight, its row is the line whatever
+  the item is; a side left open answers the attacks' totals, undecided under the plain and the spells'.
+  3: a ranged total is nothing only where its low and its high both are. 2 and 3: the session's
+  recommendations, not objected to.
+- **Cases**: captured 569 (458 distinct items, 111 repeats; of 112 searches, 9 of them round n's, 57 read
+  and 55 left out as fetching no item), ruled 26 (15 items of the copy, 11 composed), worked 3 (the function gave what
+  the hand did on 21 cells of 21, each). Every one of the 135 rows is counted by a case.
+- **Disagreements**: 0 of 619 captured cells (the site a value on 459, none on 160); 0 not comparable.
+- **Broken once for each rule**, the captured cells that then disagree, of 619: `weapon-own-as-other` 87,
+  `other-as-weapon-own` 61, `low-for-avg` 459, `nothing-is-zero` 160, `first-line-only` 15, `explicit-only`
+  300, `unflagged-only` 3, `no-local-row` 54, `no-eldritch-rows` 279, `no-spells-and-attacks-rows` 37,
+  `no-aggregate-rows` 140, `crucible-counted` 20. **On the ruling alone**, 8, each 0: `realm`,
+  `side-open-as-other`, `frame-picks-none`, `whole-text`, `unread-ignored`, `utility-counted` (the copy's
+  2337 flasks hold 0 lines a row names), `pair-asks-side`, `cancels-is-lacked`.
+- **Not asked**: of the copy's 71 groups 48, holding 258 lines of 1831 (each with its question in the copy
+  file). Ruling 1, a type no capture asked, 8 groups, 35 lines, `crucibleMods`: the reading, none. J7, a
+  weapon's own line, 10 groups, 18 lines — fractured 8, `implicitMods` 6, crafted 3, `enchantMods` 1. The
+  other twin as an implicit, 1 group, 1 line. A row of `any` twin, 29 groups, 204 lines.
 
 ## Before the sitting: the domain, and the twin from the export
 
@@ -225,9 +220,9 @@ All 23 captured, each the sheet's query. Found, a search beside its mutant:
 | 5: fractured, enchant | n16 0, n17 10000; n18 0, n19 920 | counted |
 | 5: scourge, crafted | n20 2, n21 3947; n22 3, n23 10000 | counted: the five found are each a sum of nothing, the domain's lines cancelled by another's |
 
-Against the rows as they stand, which count a line by its text wherever it sits, 80 of 1648 readings
-disagree, every one a crucible node's line or a flask's own (`data/evidence.csv`): the rows wait for the
-owner's ruling on the two arrays.
+The rows leave out both arrays, `crucibleMods` and `utilityMods`, by the owner's ruling, 2026-10-08: "Leave
+both out." 0 of 1648 readings disagree (`data/evidence.csv`); they were 80. A mutant each: `--count
+crucibleMods` 60 disagree, `--count utilityMods` 20.
 
 ## The captures, and what the site said
 

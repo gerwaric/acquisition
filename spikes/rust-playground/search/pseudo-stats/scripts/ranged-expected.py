@@ -11,8 +11,8 @@ prints every count the track's README states of them.
 One function, `read`, goes from what a private item carries — its realm, its
 base, its rarity, each line's text, array and flags — to what each of the 21
 totals named `adds_…` answers of it: `lacked`, a value (`low`, `high`, `avg`),
-`undecided` with its cause, or `unruled` where the rulings give two readings
-and the choice is the owner's. It never reads a line's `hash` or `mods`: the
+or `undecided` with its cause; `unruled` is kept for a cell the rulings give
+two readings of, and no cell is one. It never reads a line's `hash` or `mods`: the
 site's id is read beside it (`site_twin`), to say which twin the site filed a
 captured line under, and nothing in `read` takes it.
 
@@ -21,6 +21,13 @@ read here and never typed. What the item is comes from the shipped class and
 category tables (crates/acquisition-search/reference/classes-v1.toml,
 categories-v1.toml): a weapon is an item whose class's id is `weapon` or under
 it by the dot (category.rs, J2).
+
+Three rulings of 2026-10-08 are in the reading, each cited by the cells it
+decides (CITES: `left-out`, `pair`, `cancels`): a total leaves out the arrays
+`crucibleMods` and `utilityMods`, and no other array; where both twins of the
+unsuffixed line count toward a total at one weight the row is the line whatever
+the item is, as the table of changes now holds the seven attacks' rows; a
+ranged total is nothing only where its low and its high are both nothing.
 
 Not carried from class.rs, since no item of the family needs them: a blighted
 map's prefix, Growing Wombgift, a captured beast. The script prints how many
@@ -92,21 +99,26 @@ CITES = {
              "category.rs, J17: an id every candidate class gives holds",
     "rows-of-a-mod": "LEDGER 9c4: a mod displayed over several rows is named by a row of it and reads that "
                      "row's number",
+    "left-out": "ruling 1, 2026-10-08; table-changes.csv, rule: a total leaves out a crucible node's lines and "
+                "a flask's own lines, as the site does (n01–n09) — the arrays `crucibleMods` and `utilityMods`, "
+                "and no other array. The owner, of both: \"Leave both out.\"",
+    "pair": "ruling 2, 2026-10-08, the session's recommendation, not objected to: where both twins of the "
+            "unsuffixed line count toward a total at one weight, the total's row is the line whatever the item "
+            "is — an item whose side cannot be established answers its attacks' totals, and is undecided "
+            "under the plain and the spells'",
+    "cancels": "ruling 3, 2026-10-08, the session's recommendation, not objected to: a ranged total is nothing "
+               "only where its low and its high are both nothing, as pseudo.rs reads it — a range that cancels "
+               "in its average alone is a value",
     "limit": "DESIGN.md, C94 — the ranged family: every ranged total prints the limit — a global line on a "
              "weapon is read as the weapon's own (round i, i06–i08)",
 }
 
-# Where the rulings give two readings: the cell is `unruled` and carries both.
-UNRULED = {
-    "side-open-attacks":
-        "A: complete — both twins' rows count the line at one weight, so the value needs no side (C93: only the "
-        "terms that needed it; J17's shape): the attacks' total answers on an item the class table cannot class"
-        " || B: undecided, a subtotal incomplete — which row names the line cannot be said (C93; totals.rs, an "
-        "unread contributor): the item matches no comparison on the attacks' totals and is counted undecided",
-    "range-cancels":
-        "A: lacked — the average, the one number the site shows, is nothing (totals.rs: lines that cancel)"
-        " || B: a value — `low` and `high` are not nothing though `avg` is 0: `has:` holds and `low` compares",
-}
+# Where the rulings give two readings: the cell is `unruled` and carries both. None is: the two
+# questions held here until 2026-10-08, `side-open-attacks` and `range-cancels`, are rulings 2 and 3.
+UNRULED = {}
+
+# Ruling 1: the arrays no total reads, each beside the break that counts it.
+LEFT_OUT = {"crucibleMods": "crucible-counted", "utilityMods": "utility-counted"}
 
 # One break for each rule of the reading (step 4): the rule, and what the break does.
 BREAKS = {
@@ -122,10 +134,15 @@ BREAKS = {
     "unflagged-only": "a line under a flag (crafted, fractured) is not read",
     "whole-text": "a mod displayed over several rows is read by its whole text, not by a row",
     "unread-ignored": "an unread array or flag is read as absent",
-    "no-local-row": "the table's `local` rows are dropped: a weapon's own line feeds nothing",
+    "no-local-row": "a weapon's own line feeds nothing: no row counts the unsuffixed line on a weapon (the "
+                    "table's `local` rows until ruling 2, since then the attacks' rows of `any` twin)",
     "no-eldritch-rows": "the table's rows of the two eldritch forms are dropped",
     "no-spells-and-attacks-rows": "the table's `to Spells and Attacks` rows are dropped",
     "no-aggregate-rows": "the rows of the elemental and the all-damage totals are dropped",
+    "crucible-counted": "a crucible node's line is counted: `crucibleMods` is read as any other array",
+    "utility-counted": "a flask's own line is counted: `utilityMods` is read as any other array",
+    "pair-asks-side": "an attacks' row of the unsuffixed line asks the side: open, the total is undecided",
+    "cancels-is-lacked": "a range that cancels in its average alone is lacked",
 }
 
 
@@ -257,8 +274,17 @@ def read(tables, item, broken=None):
     # The plan, rule 8: what could not be read is unread at its grain — the array, the flag.
     unread_arrays = []
     occurrences = []  # (index, array, flags, row text, template, numbers, flag unread, of several rows)
+    left_out = set()  # the templates of lines in an array no total reads
     index = 0
     for array, entries in item["lines"].items():
+        # Ruling 1: a total leaves out a crucible node's lines and a flask's own lines — by the array,
+        # read or unread, and no other array.
+        if array in LEFT_OUT and broken != LEFT_OUT[array]:
+            if isinstance(entries, list):
+                index += len(entries)
+                left_out.update(template(row) for text, _ in entries if isinstance(text, str)
+                                for row in text.split("\n"))
+            continue
         if not isinstance(entries, list):
             if broken != "unread-ignored":
                 unread_arrays.append(array)
@@ -282,8 +308,6 @@ def read(tables, item, broken=None):
 
     for total, (_, _) in tables.totals.items():
         rows = tables.rows[total]
-        if broken == "no-local-row":
-            rows = [r for r in rows if r[1] != "local"]
         if broken == "no-eldritch-rows":
             rows = [r for r in rows if not r[0].startswith("While a ")]
         if broken == "no-spells-and-attacks-rows":
@@ -296,14 +320,24 @@ def read(tables, item, broken=None):
         low = high = Fraction(0)
         counted, cites, marks = [], set(), set()
         open_side = False      # a line whose row this total cannot name without the side
-        either_twin = False    # a line both twins' rows count at one weight, the side open
         flag_open = False
+        if left_out & set(by_template):
+            cites.add("left-out")
         for (i, array, flags, row, t, nums, flag_unread, several) in occurrences:
             whiches = by_template.get(t)
             if not whiches:
                 continue  # totals.rs: a readable line absent from every row is not a contributor
+            if broken == "no-local-row" and twin == "local" and t in tables.twinned:
+                continue
             if "any" in whiches:
                 which, weight = "any", whiches["any"]
+                if twin is None and t in tables.twinned:
+                    # Ruling 2: the pair is one row, the line whatever the item is.
+                    cites.add("pair")
+                    cites.update(side_cites)
+                    if broken == "pair-asks-side":
+                        open_side = True
+                        continue
             elif twin is not None:
                 if twin not in whiches:
                     cites.add("own" if twin == "local" else "other")
@@ -314,9 +348,10 @@ def read(tables, item, broken=None):
                 cites.update(side_cites)
             else:
                 cites.update(side_cites)
-                if set(whiches) == {"local", "global"} and whiches["local"] == whiches["global"]:
-                    which, weight = "local or global", whiches["local"]
-                    either_twin = True
+                if (set(whiches) == {"local", "global"} and whiches["local"] == whiches["global"]
+                        and broken != "pair-asks-side"):
+                    which, weight = "local or global", whiches["local"]  # ruling 2, a table that holds the pair
+                    cites.add("pair")
                 else:
                     open_side = True
                     continue
@@ -345,21 +380,18 @@ def read(tables, item, broken=None):
             answer.update(status="undecided", cause="unread: a flag of a line a row names is no yes or no")
         elif open_side:
             answer.update(status="undecided", cause=f"side: {side_cause}")
-        elif either_twin:
-            answer.update(status="unruled", cause=f"side-open-attacks (side: {side_cause})")
-        elif not counted or (low == 0 and high == 0):
+        elif not counted or (low == 0 and high == 0) or (broken == "cancels-is-lacked" and low + high == 0):
             if broken == "nothing-is-zero":
                 answer.update(status="value", low=Fraction(0), high=Fraction(0), avg=Fraction(0))
             else:
                 answer.update(status="lacked")
             cites.add("nothing")
-        elif low + high == 0:
-            answer.update(status="unruled", cause="range-cancels")
-            cites.add("nothing")
         else:
             # C94: summed slot-wise; `avg` the mean of the two totals, exact (pseudo.rs).
             answer.update(status="value", low=low, high=high, avg=(low + high) / 2)
             cites.add("range")
+            if low + high == 0:
+                cites.add("cancels")  # ruling 3: nothing only where low and high are both nothing
             if broken == "low-for-avg":
                 answer["avg"] = low
         if answer["status"] in ("undecided", "unruled") and counted:
@@ -383,6 +415,13 @@ def site_twin(entry, local):
     if local is None or not entry.get("hash"):
         return "unknown"
     return "local" if entry["hash"].removeprefix("stat.") in local else "global"
+
+
+def twin_taken(tables, item, array):
+    """What the reading takes an unsuffixed line for, by the item's side and the line's array."""
+    if array in LEFT_OUT:
+        return "left out"
+    return {"weapon": "local", "not a weapon": "global", None: "open"}[tables.side(item)[0]]
 
 
 def shown(text, description):
@@ -511,8 +550,8 @@ RULED_COMPOSED = [
      "totals.rs, C94; table-changes.csv, rule: a total whose lines sum to nothing is absent, never 0",
      composed("pc", "Ruby Ring", "Rare", line("Adds 0 to 0 Fire Damage")), ""),
     ("r-nothing-cancels",
-     "totals.rs, C94: a total of nothing is lacked — lines that cancel — said of a range whose two numbers "
-     "cancel in the average alone",
+     "ruling 3: a range whose two numbers cancel in the average alone is a value, `low` and `high` not "
+     "nothing and `avg` 0",
      composed("pc", "Ruby Ring", "Rare", line("Adds -5 to 5 Fire Damage")), ""),
     ("r-unread-array",
      "totals.rs, C94: a source a row admits, unread, leaves a subtotal marked incomplete, never a total",
@@ -534,8 +573,8 @@ RULED_COMPOSED = [
      composed("pc", "Ruby Ring", "Rare", line("Adds 10 to 20 Fire Damage\n25% chance to Ignite")),
      "line break"),
     ("r-side-open-unsuffixed",
-     "decisions/search.md, C93: what cannot be established — a base the class table lacks — makes only the "
-     "terms that needed it undecided",
+     "ruling 2; decisions/search.md, C93: what cannot be established — a base the class table lacks — makes "
+     "only the terms that needed it undecided: the attacks' totals answer, the plain and the spells' do not",
      composed("pc", ABSENT_BASE, "Rare", line("Adds 5 to 10 Fire Damage"),
               line("Adds 1 to 2 Cold Damage to Spells")), ""),
     ("r-side-open-scoped",
@@ -543,7 +582,7 @@ RULED_COMPOSED = [
      "no twin row names is answered",
      composed("pc", ABSENT_BASE, "Rare", line("Adds 5 to 10 Fire Damage to Attacks")), ""),
     ("r-side-open-no-base",
-     "decisions/search.md, C93; class.rs: the item has no base",
+     "ruling 2; decisions/search.md, C93; class.rs: the item has no base — its attacks' totals answer",
      composed("pc", None, "Rare", line("Adds 5 to 10 Chaos Damage")), ""),
 ]
 
@@ -572,9 +611,13 @@ def ruled_from_copy(tables, uniques_limit):
         ("r-other", "DESIGN.md, C94 — the ranged family: the other twin feeds the plain, the attacks' and "
                     "the spells'",
          lambda i: one_unsuffixed(i, "not a weapon"), ""),
-        ("r-category-crucible", "DESIGN.md, C94 — the ranged family; J7: on a weapon the line is the "
-                                "weapon's own — said of the item, so of a line in any array: a crucible node's",
+        ("r-left-out-crucible", "ruling 1: a total leaves out a crucible node's lines — a weapon whose only "
+                                "line of the family is a crucible node's lacks every total",
          lambda i: one_unsuffixed(i, "weapon", "crucibleMods"), ""),
+        ("r-left-out-flask", "ruling 1: a total leaves out a flask's own lines — a flask of the copy, its "
+                             "own lines in `utilityMods`",
+         lambda i: i["realm"] == "pc" and isinstance(i["lines"].get("utilityMods"), list)
+         and len(i["lines"]["utilityMods"]) > 0, ""),
         ("r-category-implicit", "DESIGN.md, C94 — the ranged family; J7: on a weapon the line is the "
                                 "weapon's own — an implicit",
          lambda i: i["realm"] == "pc" and tables.side(i)[0] == "weapon"
@@ -756,9 +799,11 @@ def main():
     fc, ft = tables.family_changes, tables.family_twins
     print(f"{len(tables.totals)} totals; {fc['add row']} `add row` and {fc['twin']} `twin`, "
           f"{ft['global']} `global` and {ft['local']} `local`")
-    print("the brief's count, 2026-10-07: 96 `add row` and 52 `twin`, 39 `global` and 13 `local` — "
-          + ("agree" if (fc["add row"], fc["twin"], ft["global"], ft["local"]) == (96, 52, 39, 13)
-             else "DO NOT agree"))
+    print(f"{fc['add row'] + fc['twin']} rows; before the attacks' pairs became rows of `any` twin (ruling 2; "
+          f"the brief, 2026-10-08): 96 `add row` and 52 `twin`, 39 `global` and 13 `local`, 148 rows")
+    pairs_left = sum(1 for rows in tables.rows.values() for (t, which, w) in rows
+                     if which == "local" and (t, "global", w) in rows)
+    print(f"totals still holding a `local` and a `global` row of one line at one weight: {pairs_left}")
     below = sum(1 for rows in tables.rows.values() for (_, _, w) in rows if w != 1)
     print(f"{len(tables.templates)} templates the rows name, {len(tables.twinned)} of them under a twin; "
           f"rows at a weight other than 1: {below}; rows whose template says `increased` or `reduced`: "
@@ -816,8 +861,7 @@ def main():
                 for text, _ in entries:
                     for row in text.split("\n"):
                         if template(row) in tables.twinned:
-                            took = {"weapon": "local", "not a weapon": "global", None: "open"}[
-                                tables.side(item)[0]]
+                            took = twin_taken(tables, item, array)
                             pairs.append(f"{template(row)}: site {site_twin(beside[i], local)}, reading {took}")
                     i += 1
             twins = " | ".join(pairs)
@@ -868,8 +912,9 @@ def main():
               if any(p in tables.by_site for p, _ in asked(c["returned_query"]))}
     fetched_rows = sum(len(c["fetched"] or []) for c in naming.values())
     empty = [n for n, c in naming.items() if not c["fetched"]]
-    print(f"{len(naming)} searches and {fetched_rows} fetched rows; the brief's count, 2026-10-07: 103 and 519 — "
-          + ("agree" if (len(naming), fetched_rows) == (103, 519) else "DO NOT agree"))
+    round_n = {n: c for n, c in naming.items() if re.fullmatch(r"n\d+", n)}
+    print(f"{len(naming)} searches and {fetched_rows} fetched rows; of them round n's: {len(round_n)} searches "
+          f"({', '.join(round_n)}) and {sum(len(c['fetched'] or []) for c in round_n.values())} fetched rows")
     found_none = [n for n in empty if not naming[n]["search"].get("total")]
     print(f"read: {len(naming) - len(empty)} searches, every fetched row of each; left out: {len(empty)}, "
           f"each a search that fetched no item, so there is no item to read — {len(found_none)} found "
@@ -929,7 +974,7 @@ def main():
             for text, _ in entries:
                 for row in text.split("\n"):
                     if template(row) in tables.twinned:
-                        took = {"weapon": "local", "not a weapon": "global", None: "open"}[tables.side(facts)[0]]
+                        took = twin_taken(tables, facts, array)
                         twin_pairs[(site_twin(beside[i], local), took)] += 1
                 i += 1
     print("distinct captured items by side: " + "; ".join(f"{k} {v}" for k, v in sorted(side_captured.items())))
@@ -1085,10 +1130,16 @@ def main():
             where = f"{array}{' (' + flags + ')' if flags else ''}"
             what = {"weapon": "a weapon", "not a weapon": "an item that is no weapon",
                     "open": "an item the class table cannot class"}[side]
+            if array in LEFT_OUT:
+                named = sorted(n for n, rows in tables.rows.items() if any(r[0] == t for r in rows))
+                return ("ruling 1: a total leaves out the array's lines, whatever the line",
+                        f"does any pseudo of the family ({', '.join(tables.totals[n][0] for n in named)}) "
+                        f"count `{t}` in {where} on {what}? The reading: none")
             if t in tables.twinned:
                 total = next(n for n, rows in tables.rows.items() if len(rows) == 1 and rows[0][0] == t)
                 expects = {"weapon": "none, the attacks' pseudo showing the line's average",
-                           "not a weapon": "the line's average", "open": "unruled"}[side]
+                           "not a weapon": "the line's average",
+                           "open": "undecided, the attacks' pseudo showing the line's average"}[side]
                 rule = ("J7: on a weapon the line is the weapon's own, whatever its array or flag"
                         if side == "weapon" else
                         "the paragraph: the other twin feeds the plain, the attacks' and the spells'; "
@@ -1151,6 +1202,8 @@ def main():
                 folded[key]["types"].append(type_of(g[0]))
         by_rule = defaultdict(lambda: {"groups": 0, "lines": 0, "where": Counter()})
         asks = {
+            "ruling 1, a line in an array every total leaves out, of a type no capture asked":
+                "does any pseudo of the family count the line there? The reading: none",
             "J7, a weapon's own line in an array or under a flag no capture asked":
                 "does the plain pseudo of the line's type show on a weapon carrying the unsuffixed line "
                 "there? The reading: none, the attacks' pseudo showing the line's average",
@@ -1165,14 +1218,17 @@ def main():
             f = folded[key]
             if not f["types"]:
                 continue
-            rule = ("J7, a weapon's own line in an array or under a flag no capture asked"
+            rule = ("ruling 1, a line in an array every total leaves out, of a type no capture asked"
+                    if key[2] in LEFT_OUT else
+                    "J7, a weapon's own line in an array or under a flag no capture asked"
                     if key[0] == "unsuffixed" and key[1] == "weapon" else
                     "the other twin in an array no capture asked" if key[0] == "unsuffixed" else
                     "a row of `any` twin (totals.rs: any source, any flag) where no capture asked")
             by_rule[rule]["groups"] += len(f["types"])
             by_rule[rule]["lines"] += f["lines"]
             where = key[2] + (f" ({key[3]})" if key[3] else "")
-            by_rule[rule]["where"][where if key[0] == "unsuffixed" else f"{key[0]}, {key[1]}, {where}"] += f["lines"]
+            by_rule[rule]["where"][where if key[0] == "unsuffixed" and key[2] not in LEFT_OUT
+                                   else f"{key[0]}, {key[1]}, {where}"] += f["lines"]
             print(f"  {key[0]} · {key[1]} · {key[2]}{' (' + key[3] + ')' if key[3] else ''}: {f['lines']} lines "
                   f"on {f['items']} items; not asked of {', '.join(f['types'])}"
                   + (f"; asked of {', '.join(f['asked'])}" if f["asked"] else "; asked of no type"))
@@ -1221,6 +1277,12 @@ def main():
         print(f"live pc items with a `…Mods` array that is no array: {no_array}; elements of a `…Mods` array "
               f"that hold no text, passed over as no line, every live item: "
               + ("; ".join(f"{a} {n}" for a, n in sorted(PASSED_OVER.items()) if n) or "none"))
+        for array in LEFT_OUT:
+            holding = [i for i in pc if isinstance(i["lines"].get(array), list) and i["lines"][array]]
+            named = sum(1 for i in holding for t, _ in readable(i["lines"][array]) for r in t.split("\n")
+                        if template(r) in tables.templates)
+            print(f"ruling 1 on the copy — live pc items holding `{array}`: {len(holding)}; lines there a row "
+                  f"of the 21 names, left out: {named}")
         for r in copy_rows:
             print(f"  {r[1]}: {r[2]}{' (' + r[3] + ')' if r[3] else ''}: {r[5]} items"
                   + (f"; low {r[7]}, high {r[8]}, avg {r[9]}" if r[2] == "value" else ""))
