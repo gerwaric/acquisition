@@ -9,7 +9,9 @@ contribute, who says so, and which search would decide it. Writes
 Part 1 of the second pass (BRIEF.md): it decides no contributor. A pair is a
 candidate when a source names the line under the pseudo, or when the
 template's own words put it in reach of the pseudo's text (the WORDS table
-below, one entry per pseudo, printed in the README). A pseudo is a row of
+below, one entry per pseudo, grouped as a table in ../data/part1-detail.md):
+a template is in reach when every group of the entry holds one of its words,
+whole and with case. A pseudo is a row of
 PSEUDOS and WORDS, never a rule in the code: the site's other sum-like
 pseudos join by adding rows.
 
@@ -21,10 +23,15 @@ totals are generated from it, so the two are one source), Awakened PoE
 Trade's pseudo rules, Path of Building's stat-to-pseudo map. Agreement among
 them is not the site's answer, and nothing here raises a status on
 likelihood.
+Path of Building's Item.lua names the percentile's lines by modifier
+kind ("Armour", "BASE"), never by text, so a kind matched by its words is a
+note on the row, not a source: the cut that leaves `sources-agree` empty.
 
 Scope (the brief): the 21 `pseudo_adds_*`, `pseudo_total_life`,
 `pseudo_base_defence_percentile`, and the 35 shipped totals for the lines no
-total counts (search/MEASUREMENTS.md, M6).
+total counts (search/MEASUREMENTS.md, M6). The 18 gem totals without a
+row are the ones whose every `Level of Socketed ... Gems` template a shipped
+total already counts.
 
 Families: a template of a conditional shape (the SHAPES table: a passive's
 grant, a minion's, a monster's, during a flask's effect, while, if/recently,

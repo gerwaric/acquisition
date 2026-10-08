@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: first pass complete — 2026-09-18; second pass, part 1 complete — 2026-09-26, reviewed; the pilot and six checks captured and read — 2026-09-26; four rounds captured and read — 2026-09-26, 212 searches; the table's changes written as rows; those that need no twin applied (totals v2, `e81cc8ca`), a total of nothing lacked (`37faf903`); the ranged family waits for 9d's category; the site's other totals (step 9c2), rounds five and six captured and read — 2026-09-27, 98 searches: their changes written as rows and applied (totals v4); the four pseudos that are no sum built as readings of other totals (step 9c3, totals v5), answered as the site shows them with the captures' mods entered unchanged (step 9c4); before 9d (the brief at `9280f559`) — 2026-09-30, reviewed: round i prepared, not sat; the ranged census over the copy, open question 7 closed; round i sat 2026-10-01 and read: C1, C2, C7 and C14 pinned, C10 in part (the site shows nothing over 100); i07 sat the same day: no listed weapon carries the unsuffixed line under the global stat; open question 9 read (`scripts/defence-twins.py`), J8's k001 and k002 read: the item's eldritch or synthesis mark separates an implicit twin, a candidate on 27 items.
+Status: J8's k001 and k002 read: the item's eldritch or synthesis mark separates an implicit twin, a candidate on 27 items — 2026-10-04 (`da2c1711`). The states before it, each by its commit: the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -26,72 +26,22 @@ Per-row detail: `data/candidates.csv` (`scripts/candidates.py`), `data/percentil
 (`tools/trade-captures.py`, the owner's captures scrubbed), `data/evidence.csv` (`tools/trade-evidence.py`).
 Each regenerates byte-for-byte; run `percentile.py` before `candidates.py`, which reads its output.
 
-## Part 1: the candidates by status
+Moved from this page when it passed its guide, verbatim: `data/part1-detail.md`, `data/sittings-detail.md`;
+the page before the move is this file at `da2c1711`.
 
-Scope (`BRIEF.md`): the 21 `pseudo_adds_*`, `pseudo_total_life`, `pseudo_base_defence_percentile`, and
-the 35 shipped totals for the lines no total counts (`../MEASUREMENTS.md`, M6).
+## Part 1: the candidates
 
-| Status | Ranged | Life | Totals | Percentile | All | Admitted by |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| `site` | 0 | 2 | 0 | 0 | 2 | `fetch-census.json`: the weights reproduce every q4 item (life 1, Strength 0.5) |
-| `sources-differ` | 0 | 0 | 5 | 0 | 5 | APT names `+#% to All Resistances`; the C++ tables (and PoB, for four) list the pseudo without it |
-| `one-source` | 0 | 3 | 0 | 12 | 15 | APT alone: Str&Dex, Str&Int, all Attributes at 0.5 into life; its 12 percentile lines |
-| `sources-agree` | 0 | 0 | 0 | 0 | 0 | — |
-| `text-only` | 439 | 35 | 1,077 | 82 | 1,633 | the template's row in `mod-templates.csv`, by the table below |
-| **All** | **439** | **40** | **1,082** | **94** | **1,655** | |
+The scope, the statuses, the three sources and the rule that puts a template in reach of a pseudo are
+`scripts/candidates.py`'s docstring and its `WORDS` table; the script prints the counts by status and
+group, the families by shape and the ranged templates by what the export says is local. The same as
+tables, with what admits each status, the searches counted by form and what part 1 left out:
+`data/part1-detail.md`.
 
-The sources are three separate readings: the C++ app's tables (`pseudomods.toml`; the shipped totals
-are generated from it, so they are one source), APT's `PSEUDO_RULES`, PoB's stat-to-pseudo map.
-Path of Building's `Item.lua` names the percentile's lines by modifier *kind* (`"Armour", "BASE"`),
-never by text, so a kind matched by its words is a note on the row, not a source (the cut that
-leaves `sources-agree` empty). The 18 gem totals without a row are the ones whose every
-`Level of Socketed … Gems` template a shipped total already counts.
-
-## Why a template is a candidate
-
-`WORDS` in `candidates.py` has one row per pseudo; a template is in reach when every group holds
-one of its words, whole and with case. Rows differing only in the named word are grouped here.
-
-| Pseudos | Scope | Groups (each must hold one) |
-| --- | --- | --- |
-| `adds_<t>_damage`, t = physical, lightning, cold, fire, chaos | all | `Adds # to #` · `<T>` · `Damage` |
-| `adds_elemental_damage` | all | `Adds # to #` · Fire/Cold/Lightning/Elemental · `Damage` |
-| `adds_damage` | all | `Adds # to #` · `Damage` |
-| the seven above `…_to_attacks` / `…_to_spells` | all | the same · Attack/Attacks (Spell/Spells) or neither word |
-| `total_life` | all | `maximum Life` |
-| `total_<e>_resistance`, e = cold, fire, lightning | uncounted | `<E>`/Elemental/all · Resistance(s) |
-| `total_elemental_resistance` | uncounted | Fire/Cold/Lightning/Elemental/all · Resistance(s) |
-| `total_chaos_resistance` | uncounted | Chaos/all · Resistance(s) |
-| `total_resistance` | uncounted | Resistance(s) |
-| `total_<a>`, a = strength, dexterity, intelligence | uncounted | `<A>`/Attributes |
-| `total_attack_speed` · `total_cast_speed` | uncounted | Attack(s) · Speed — Cast · Speed |
-| `increased_physical_damage` | uncounted | increased/reduced · `Physical Damage` |
-| `critical_strike_chance_for_spells` | uncounted | `Critical Strike Chance` · Spell(s) |
-| `total_additional_gem_levels` · the 21 `…_<k>_gem_levels` | uncounted | `Level of Socketed` · Gem(s) — `<K>` |
-| `base_defence_percentile` | all | Armour/Evasion Rating/Evasion/Energy Shield/Ward/Defences · `# to`/`#% increased`/`#% reduced` |
-
-A template of a conditional shape keeps its row; the (pseudo, shape) family names one representative
-for the sheet (a stat id first, then status, then corpus items) and the rest say `family:`.
-**256 families hold 998 `family:` rows**: a monster's or an enemy's 294 (27 families), per 198 (35),
-a minion's or ally's 156 (19), a passive's grant 127 (14), while 104 (25), a description 87 (30),
-if or recently 77 (27), against 74 (25), a weapon's or hand's 55 (20), a socketed gem's or skill's
-43 (13), during a flask's effect 39 (21). A shape whose words are in the pseudo's own text is not a
-shape for it (`Level of Socketed` gems).
-
-## The ranged family by what the export says is local
-
-| Templates | Corpus items | Stats behind the text (poe1 `stats.json`) | Where the export spawns them (`mods.json`) |
-| --- | ---: | --- | --- |
-| `Adds # to # Physical / Lightning / Cold / Fire / Chaos Damage` | 485 / 269 / 266 / 224 / 67 | `local_{min,max}imum_added_<t>_damage` (local) **and** `global_…` (not local) | local: 107–262 mods each, spawning on weapon tags only (physical: also a veiled tag); global: 9–31 each — uniques, bench crafts, grafts, veiled (amulet, quiver, ring, shield), delve (gloves) |
-| the same `… to Attacks` | 543 / 272 / 245 / 219 / 39 | `attack_…` (not local), one id each | — |
-| the same `… to Spells` | 5 / 98 / 79 / 97 / 11 | `spell_…` (not local), one id each | — |
-| `Adds # to # Elemental Damage`, `Adds # to # Damage` (and scoped) | — | no template: the site's aggregates | — |
-
-The site gives the unsuffixed text two ids — `explicit.stat_709508406` "(Local)" and
-`explicit.stat_321077055` for fire — so its pseudo may count one and not the other; a private item
-shows only the text, and its class says which. How many of the owner's 224 fire lines sit on weapons
-is not in any committed census (open question 7). Each unsuffixed line goes out as a `count` over
-both ids (L002–L006, L021); the returned item's hash names which it carried.
+- `site`, 2 pairs: `fetch-census.json`'s weights reproduce every q4 item (life 1, Strength 0.5).
+- **256 families hold 998 `family:` rows**: a template of a conditional shape keeps its row, and its
+  family names one representative for the sheet.
+- Not run, and one command away (`tools/trade-sheet.py --method if`): the rows named L, P, C and R below and in the open questions are that sheet's.
+  By form: 264 searches by `--method if`, 565 by `--method and`.
 
 ## The percentile
 
@@ -136,16 +86,12 @@ Round i (`tools/trade-sheet.py`, `round_i`): the percentile's read by `percentil
 | i02 | C7 | `Quality does not increase Defences`: the percentile, the 20%-quality figure | 2 / 0 | **pinned**: 10 of 10 reproduced with the quality term dropped, the figure 10 of 10; quality read after all, 0 and 0 |
 | i03, i04 | C10 | whether the site shows over 100; i04 at 100 its mutant | 0 / 0 | **in part**: i03 found 0, its mutant i04 10000; i04's 10 rows reproduced, the highest 100, 0 with no roll in range: none shows a roll over the maximum, so whether the site clamps one is not pinned |
 | i05 | C14 | a defence line under its global twin (text cannot tell): read or not | 1 / 0 | **pinned, left out**: 10 of 10 from the ids; 5 carry a twin of a type they read, and read as local, as text reads them, 0 of 5 |
-| i06–i08 | ranged | a weapon under the global twin: sound, mutant, control | below | i07 found 10000, its 10 fetched each under a `(Local)` pair in `data/evidence.csv` and showing none of the five plain pseudos, as its row says; so i06's 0 and i08's 0 hold: no listed weapon carries the line under the global stat |
 | i09 | C2 | ward on any ward base | 13 / 2 | **pinned**: 10 rows, 10 reproduced, 9 of them by their ward roll |
 
 J6's shapes: C1, C2, C7 and C14 are pinned; C10 is not. The site shows no armour item over 100, and
 no fetched item needs a roll over its base's maximum: what closes it is such an item, one whose display
-no roll in range gives, fetched at 100 or not found at 101. i06 and i08 found nothing, and i07, their
-mutant, found weapons: i06's nothing is proved, one row changed. i08's rests on i07 and on the site's
-tip for an `if` group (`../trade-query/README.md`: a stat with no bound restricts nothing), so it
-asks every weapon carrying the global stat. What is proved is of listed weapons, in Standard, that day:
-a weapon the owner holds and no one lists, such as a unique no longer dropped, is not reached.
+no roll in range gives, fetched at 100 or not found at 101.
+The ranged searches i06–i08, by search: `data/sittings-detail.md`.
 
 The defence twin on a private item (open question 9, `scripts/defence-twins.py`,
 `data/defence-twins.csv`; i05 and J8's k001 and k002): over the captures, 17 twin lines the site lists
@@ -184,23 +130,7 @@ found, `data/ranged-uniques.csv` (339 lines, 95 uniques).
 The class decides as the export and the site do wherever either speaks. The limit: 36 weapon lines
 the join cannot place (29 match local and global mods, 7 none), 19 uncaptured; i06–i08 found no listed
 weapon carrying the line under the global stat, which says nothing of a weapon no one lists.
-
-## The searches part 1 counted, by form
-
-Not run, and one command away (`tools/trade-sheet.py --method if`): the rows named L, P, C and R below
-and in the open questions are that sheet's. The committed sheet is the pilot and the checks.
-
-| Form | Pilot | Batch | Percentile lines | Percentile cases | Open question | Total |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `--method if` | 2 | 219 lines | 34 | 8 | 1 (R1) | **264** |
-| `--method and` | 2 | 520 pairs | 34 | 8 | 1 (R1) | **565** |
-
-Lines by their best pair: `sources-differ` 1, `text-only` 215, `one-source` 3 (percentile: 27, 7).
-Controls: `+# to Strength` required, showing `+# total maximum Life` (the site counted it, q4[7]), or
-`+#% to Fire Resistance` showing its total (q5) when the candidates include what Strength feeds; a
-pseudo the control also feeds is read by value; a result with no items decides nothing and is
-rerun with the other control. L033 and L219 repeat the pilot's p2 and p1. 131 rows (72 of them
-representatives or direct) have no stat id: a skill gem's text, a description, a buff.
+i06–i08 by search: `data/sittings-detail.md`.
 
 ## The captures, and what the site said
 
@@ -211,62 +141,47 @@ search that finds nothing proves nothing until its mutant, the same search with 
 finds something (c2, c4, d02). The rows are `tools/trade_rows.py`, versions appended and never edited;
 every capture is read against each pseudo's latest (`tools/trade-evidence.py`, `data/evidence.csv`).
 
-| Round | Searches | Asked | Captured |
-| --- | --- | --- | --- |
-| the pilot | p1, p2 | a composed link; an `if` group | by hand |
-| the checks | c1–c6 | the method's mutants; total life; attack speed | by hand |
-| two | d01–d24, b1, b2 | total life sound; the ranged family on its own text; the owner's report | one recording |
-| three | e001–e107 | every pseudo in scope, complete and sound | two recordings; e047, e051 refused as too complex |
-| four | f001–f073 | the 33 pseudos whose rows round three moved | three recordings |
-| five | g001–g044, R1 | the 29 other totals (`data/other-totals.csv`) at their own text, or what carries them | two recordings |
-| six | h001–h053 | the 19 whose rows round five moved; the readings that are no sum; a `reduced` line | three recordings |
-
-A sitting is one recording of the browser's network panel, exported with its content and split by
-`tools/trade-split.py` (`MANIFEST.md`): no file name is typed, since a search response carries its
-query and the sheet says which row that is.
+Seven rounds, each a commit and its recordings a block of `MANIFEST.md`: the pilot (p1, p2) `9166e88b`;
+the checks (c1–c6) `a80748b4`; two (d01–d24, b1, b2) `ecd682e2`; three (e001–e107; e047 and e051 refused
+as too complex) `41ed6467`; four (f001–f073) `c2fc1ba0`; five (g001–g044, R1) `b22dccbe`; six
+(h001–h053) `85f338e3`. What each asked, as a table: `data/sittings-detail.md`.
 
 What the site counts, as the rows now stand:
 
-| Finding | Evidence | For the build |
-| --- | --- | --- |
-| **A row's two eldritch forms are counted as the row**: `While a Unique Enemy is in your Presence, …`, `While a Pinnacle Atlas Boss is in your Presence, …` | every complete check that found items found these and nothing else; left out, 197 readings disagree | 147 rows added, one rule; ruled, the owner: "include the eldritch mods" |
-| **A sum of nothing shows no total** | c3, d01, e043, f005: lines that cancel | ruled, the owner: "Yes, let's make it absent to match the site."; of an item with no such line as of one whose lines cancel: "A". Built: `has:` asks a total's presence |
-| **A ranged pseudo is the average of a line's two numbers**, shown in both places | every reading of the family | a ranged total is one number |
-| **A weapon's own line** — the `(Local)` twin — feeds the attacks' pseudo alone; **the other twin** feeds the plain, the attacks' and the spells'; `to Spells and Attacks` feeds both; an aggregate is its types' rows together | rounds two to four; the scoped pseudos' sound checks found nothing | 52 rows mean a twin: the build answers by the item's class, the export spawning the `(Local)` stats on weapons alone |
-| `#% to All Resistances` counts toward each resistance total | e042, e044, e048 | 6 rows; the elemental total's 3 and the total's 4 are arithmetic, unseen |
-| **One text, two ids, one counted**: `+# to Strength and Intelligence` on That Which Was Taken is left out of total life, Strength and Intelligence | c3, b1, b2, e053, e057 | ruled, the owner: "I believe this is a bug. Let's count the mod"; reported by him to GGG 2026-09-26 |
-| `+# total to Level of Socketed Skill Gems` does not count `# to Level of Socketed Skill Gems` | e103: 10,000 found, the ten fetched one unique; f030, f031: without the row, complete and sound, nothing found | ruled, the owner: "yes, include the socketed skill gems": the row stays |
+| Finding | Evidence |
+| --- | --- |
+| **A row's two eldritch forms are counted as the row**: `While a Unique Enemy is in your Presence, …`, `While a Pinnacle Atlas Boss is in your Presence, …` | every complete check that found items found these and nothing else; left out, 197 readings disagree |
+| **A sum of nothing shows no total** | c3, d01, e043, f005: lines that cancel |
+| **A ranged pseudo is the average of a line's two numbers**, shown in both places | every reading of the family |
+| **A weapon's own line** — the `(Local)` twin — feeds the attacks' pseudo alone; **the other twin** feeds the plain, the attacks' and the spells'; `to Spells and Attacks` feeds both; an aggregate is its types' rows together | rounds two to four; the scoped pseudos' sound checks found nothing |
+| `#% to All Resistances` counts toward each resistance total | e042, e044, e048 |
+| **One text, two ids, one counted**: `+# to Strength and Intelligence` on That Which Was Taken is left out of total life, Strength and Intelligence | c3, b1, b2, e053, e057 |
+| `+# total to Level of Socketed Skill Gems` does not count `# to Level of Socketed Skill Gems` | e103: 10,000 found, the ten fetched one unique; f030, f031: without the row, complete and sound, nothing found |
 
 What rounds five and six added, of the 29 other totals and of every total (each version's `why`
 in `tools/trade_rows.py` names its captures and counts):
 
-| Finding | Evidence | For the build |
-| --- | --- | --- |
-| **Four pseudos are no sum of lines**: the two counts count the resistance totals an item shows, chaos among them, never lines; `total to all Elemental Resistances` and `total to all Attributes` are the least of their three totals, shown where all three are | R1, g001, g002, h040; g003, h039; h001, h002: 110 readings, none disagreeing as `tools/trade-evidence.py` reads them, a mod's rows apart, and none as the build answers them since a total's row names a row of a mod (step 9c4, `tests/pseudo.rs`): until then it disagreed on 2, both of Thread of Hope, whose resistance is a row inside a mod of three. Read from a sibling, unasked: the count of all four on an item with no resistance, the elemental least on an item with one or two of its totals | 4 rows `no sum`, built at 9c3 as readings (`totals-v5.toml`, `pseudo.rs`): derived fields (C101) |
-| **A row's `reduced` spelling is the row, below nothing**: the line is under the `increased` spelling's id | 60 readings of the 61 that carry one, the other a sum of nothing; left out, 59 disagree | a rule, and a row at a weight of -1 for every row that says `increased`, six of them on totals the build shipped; ruled, the owner: "yes, we need to be able to find reduced lines and totals" |
-| Total mana is total life's rows with Intelligence for Strength, the twin id left out of it too | g005, h003, h004 (3,295 found, b2's 3,297) | 5 rows; the twin `not mimicked`: ruled, the owner: "yes, count it for mana." |
-| A type's `increased` damage counts elemental damage; its spell damage, spell damage too; its damage with attack skills, elemental damage with attack skills too; burning damage counts fire and elemental damage | g014–g035, each tested complete and sound at round six | rows |
-| The two leech pseudos count the line under all ten ids, the `(Local)` twin among them | g039–g042 found nothing; h041, the bound's mutant, found 10,000 | no twin: nothing waits for 9d |
-| Life regenerated is shown a tenth over the line's text on two items of ten: the site rounds what the text cuts | g037 | a `limit`: a total read from the text is under the site's by a tenth a line at most; ruled, the owner: "yes, let's go with what we can observe directly from the text we have." |
+| Finding | Evidence |
+| --- | --- |
+| **Four pseudos are no sum of lines**: the two counts count the resistance totals an item shows, chaos among them, never lines; `total to all Elemental Resistances` and `total to all Attributes` are the least of their three totals, shown where all three are | R1, g001, g002, h040; g003, h039; h001, h002: 110 readings, none disagreeing. Read from a sibling, unasked: the count of all four on an item with no resistance, the elemental least on an item with one or two of its totals |
+| **A row's `reduced` spelling is the row, below nothing**: the line is under the `increased` spelling's id | 60 readings of the 61 that carry one, the other a sum of nothing; left out, 59 disagree |
+| Total mana is total life's rows with Intelligence for Strength, the twin id left out of it too | g005, h003, h004 (3,295 found, b2's 3,297) |
+| A type's `increased` damage counts elemental damage; its spell damage, spell damage too; its damage with attack skills, elemental damage with attack skills too; burning damage counts fire and elemental damage | g014–g035, each tested complete and sound at round six |
+| The two leech pseudos count the line under all ten ids, the `(Local)` twin among them | g039–g042 found nothing; h041, the bound's mutant, found 10,000 |
+| Life regenerated is shown a tenth over the line's text on two items of ten: the site rounds what the text cuts | g037 |
 
-Two things the searches could not do, each a limit of what is closed:
+What each finding means for the build — the rows it adds and their counts, the owner's ruling in his
+words — is `data/table-changes.csv` (`change`, `evidence`) and `../LEDGER.md`; as this page told it,
+finding by finding, `data/sittings-detail.md`. A weapon's own line is answered by the item's class, the
+export spawning the `(Local)` stats on weapons alone: 52 rows mean a twin.
 
-- **A `not` on an eldritch form's id lets some items through.** 23 of round four's complete checks
-  found 9 to 146 items each. Of the 229 fetched, 227 carry a form the search had excluded by that
-  id, and two the enchant's id that round three had wrongly left out; each shows what the rows
-  give. So 24 pseudos are explained and not closed: nothing new was found among what was fetched,
-  and what was not fetched is unread.
+Two things the searches could not do, each a limit of what is closed (whole in `data/sittings-detail.md`,
+with the mutants that show the reading can fail and the most a sitting used of what the site allows):
+
+- **A `not` on an eldritch form's id lets some items through.** So 24 pseudos are explained and not
+  closed: nothing new was found among what was fetched, and what was not fetched is unread.
 - **A weighted group is refused past some cost** (56 and 4 an id; taken at 23 ids, refused at 41),
-  so a total of many rows is asked sound in parts, and a part finds items whose whole sum is
-  nothing: five parts of the elemental and the whole resistance totals found 152 to 2,284 each,
-  and on all fifty fetched the rows' lines sum to nothing.
-
-The reading can fail, shown on the captures each time the rows moved: the eldritch forms left out
-disagree on 197 readings, the low number read for the average on 160, a weapon's line left out of
-attacks on 54 and counted by the plain pseudos on 40, the twin id counted on 20 and 5.
-
-The most any sitting used of what the site allows: 13 of 15 searches in 60 s (the last recording)
-and 44 of 60 in 300 s (the one before it). No response asked a sitting to slow down.
+  so a total of many rows is asked sound in parts, and a part finds items whose whole sum is nothing.
 
 ## Candidate claims
 
@@ -288,14 +203,6 @@ For `docs/design/trade-ground-truth.md`, authored master-side; each is what the 
 | Four pseudos are readings of other pseudos and no sum of lines: the two counts are how many resistance totals an item shows, chaos among them; `total to all Elemental Resistances` and `total to all Attributes` are the least of their three, shown where all three are (2026-09-27) | R1, g001–g004; h001, h002, h039, h040 |
 | `# Life Regenerated per Second` is rounded where the item's line is cut to a tenth: 1.2 over `1.1` (2026-09-27) | g037, two items of ten |
 | A weighted group takes a maximum below nothing, and a minimum of a hundredth (2026-09-27) | h042–h053, 12 searches answered; g040, g042, h038, h041 |
-
-## Left out
-
-- A shipped row where the sources differ: APT's `#% total increased Physical Damage` lists only the
-  Global line (`index.ts` L168–L173); the C++ table also counts `#% increased Physical Damage`.
-- PoB's kinds as sources (above); `# to Armour and Energy Shield`, a PoB kind with no template.
-- The percentile formula read from APT's `renderer/src/parser/`, outside the brief's named
-  `filters/pseudo/`, whose `item-property.ts` only consumes the value computed there.
 
 ## First pass (2026-09-18; `data/pseudo-classes.csv`, unchanged by this pass)
 
