@@ -138,8 +138,11 @@ waiting:
 1. **The expected answers first**: a committed table in the piece's
    track, generated from the captures by a script
    (`.claude/skills/research-track/SKILL.md`), or worked by hand where
-   the row closes on a fixture (rule 3). The owner reads it before
-   anything is built.
+   the row closes on a fixture (rule 3). The run first regenerates
+   the track's extracts and reports any that changed; its report
+   lists every rule the answers rest on that no capture has asked, so
+   that a sitting is decided before the owner reads the table. The
+   owner reads it before anything is built.
 2. **One builder**, under `search/BRIEF.md`, committed before it runs
    and removed at the piece's close. It writes the tests from the
    table, then the code. It changes no expected value and commits
