@@ -1,168 +1,107 @@
-# pseudo-stats — the brief for 9d-C's expected answers (2026-10-07)
+# pseudo-stats — the brief for two reads before 9d-C's sitting (2026-10-08)
 
-Piece C of 9d builds the ranged family's 21 totals
-(`search/BUILD-PLAN.md`, "The steps left", the row 9d-C). Before
-anything is built its expected answers are a committed table in this
-track, which the owner reads: what each of the 21 totals answers of an
-item, taken from what the site showed and from the rulings, never from
-the build. The builder then writes its tests from the table and changes
-no value in it. This run writes that table. It builds nothing, sits
+9d-C's expected answers (`README.md`, "The ranged family's expected
+answers"; the brief that ran them is this file at `624506b2`) rest on
+two things no capture was composed to ask, and each reaches past the
+ranged family:
+
+- **Where a line sits does not change whether a total counts it.** Every
+  row of the shipped table admits every source and every flag. The site
+  files a line under a domain — the word after `stat.` in its `hash` —
+  which a private item shows as its array and flags.
+- **On a weapon the unsuffixed `Adds # to # <Type> Damage` is the
+  weapon's own wherever it sits** (J7).
+
+This run measures what is already on this machine says of each, so that
+the owner's sitting asks only what is left. It builds nothing, sits
 nothing and composes no search. The reviewer — the session that
 launched you — checks the acceptance sentence by hand and commits; your
 report is what it restores from.
 
-Until now every reading of the family was made from the site's stat id,
-which says which twin a line is. A private item shows the text alone.
-This is the first time the family is read as the build must read it —
-from an item's text and what the item is — and the first time its
-rulings are written as code. Where writing a line made you choose
-between two readings, the choice is not yours: the cell is `unruled`
-(below).
-
 ## Rules that bind you
 
 - Read first: this track's `README.md` — the headline, "The ranged
-  family on the copy", "The captures, and what the site said" — and
-  `data/sittings-detail.md`; in `search/DESIGN.md` the contract
-  detail's paragraph *C94 — the ranged family (9d)*, by `grep -n` and
-  line range, never the file whole; `search/LEDGER.md`, "Holes ruled",
-  the rows whose step is 9c, 9c2 or 9c4 and the 9d row that holds J7;
-  `decisions/search.md`, C92, C93 and C94; the plan's rules 3, 4 and 8
-  and the 9d-C row; the module docs at the top of
-  `crates/acquisition-search/src/totals.rs` and `pseudo.rs`, the docs
-  alone; `tools/trade_rows.py` and `tools/trade-evidence.py`;
-  `scripts/ranged-census.py`.
-- Write only inside `search/pseudo-stats/`: one script, two files under
-  `data/`, one section of the README. Never the index
+  family on the copy", "The ranged family's expected answers", "The
+  captures, and what the site said"; `tools/trade_rows.py` and
+  `tools/trade-evidence.py`; `scripts/ranged-census.py` and
+  `scripts/ranged-expected.py`, the docstring and the readers each
+  script below imports, never whole.
+- Write only inside `search/pseudo-stats/`: two scripts, two files
+  under `data/`, one section of the README. No existing script or
+  extract changes: import what you need. Never the index
   (`search/README.md`), another track, `tools/`, `CONTEXT.md`,
-  `decisions/`, `SURFACES.md`, the crates. The README's status line and
-  the index row are the reviewer's.
+  `decisions/`, `SURFACES.md`, the crates, the README's status line.
 - Never commit, push, fetch or spawn. No network (C79). Restore no file
-  with git: what a command changed stays changed, and is reported.
-- Do not run `acq` or `cargo`, and read nothing under `target/`: an
-  expected answer is never read off the build. The shipped tables under
-  `crates/acquisition-search/reference/` are reviewed data and may be
-  read. The copy is read-only, as `scripts/ranged-census.py` opens it;
-  the owner's store is never opened.
-- **The reading takes what a private item carries**: its base, its
-  rarity, each line's text, array and flags. Never a line's `hash` or
-  `mods`. The site's id is read beside the reading, to say which twin
-  the site filed a line under, and never by it.
-- **A cell the rulings do not answer is `unruled`**, with the readings
-  it could take and what each would change, one line each (the plan,
-  rule 4). Never fill it, and never leave it out. A rule that answers
-  by its letter where the site was never asked is not unruled: it is
-  answered, and marked as not asked.
-- Every number written is printed by the script after the last edit.
-  Where one restates a number the README already holds, say whether the
-  two agree. Of a copy item write its base, rarity and lines; a
-  unique's name; never an id, a rare's name or a place.
+  with git. Do not run `acq` or `cargo`; read nothing under `target/`.
+  The copy is read-only, as `scripts/ranged-census.py` opens it.
+- Do not read the Path of Building clone: another reader has it, and
+  the two answers are compared afterwards.
+- A number is printed by a script after its last edit, never recalled.
+  A count of nothing is written as nothing found, with what was looked
+  through: it is no evidence that a thing is not counted.
 - Extracts: CSV with `lineterminator="\n"`, the first line naming the
-  script and its inputs; `mod-templates.csv` opened with
-  `newline="\n"`. Raw files, the clones and the copy are local and may
-  be absent: say which was, and go on with what is there.
+  script and its inputs. The clones, the raw files and the copy are
+  local and may be absent: say which was, and go on.
 
 ## The work
 
-1. **The extracts, regenerated first.** Run, in this order, from the
-   workspace root, each with `python3`: `tools/trade-sheet.py`,
-   `tools/trade-captures.py`, `tools/trade-evidence.py`,
-   `tools/trade-changes.py`, then in `search/pseudo-stats/scripts/`:
-   `classify.py`, `other-totals.py`, `percentile.py`, `candidates.py`,
-   `ranged-census.py`, `percentile-shapes.py`, `defence-twins.py`; then
-   `tools/totals-table.py --check`. Then `git status --short`. Every
-   one ran on 2026-10-07 at `5118a3a8` and left the tree clean. Report
-   each file that changed, each command that failed, and each number a
-   command printed that the README states otherwise. Go on from the
-   files as regenerated.
-2. **The reading.** `scripts/ranged-expected.py` holds one function:
-   from an item's facts — realm, base, rarity, its lines by text, array
-   and flags — to what each of the 21 totals answers of it: lacked, or
-   its `low`, `high` and `avg`, or undecided with the cause (its
-   wording is the builder's; the cause is yours). The rows are
-   `data/table-changes.csv`'s, the 21 totals named `adds_…`, read by
-   the script and never typed into it: 96 `add row` and 52 `twin`, 39
-   `global` and 13 `local`, counted there 2026-10-07 — say whether
-   yours agree. Which twin a line is comes from what the item is, as
-   the paragraph and J7 rule it; what the item is, from the shipped
-   class and category tables. `ranged-census.py` reads a weapon from
-   another file: print, for every class of the class table, whether the
-   two say the same. Every step of the function cites the sentence of
-   the paragraph, the registry entry or the ruling it carries out.
-3. **The cases**, `data/ranged-expected.csv`, one row a case and a
-   total, three kinds:
-   - `captured` — every item fetched by a capture whose returned query
-     names a pseudo of the family (`data/captures.json`; 103 searches
-     and 519 fetched rows, counted 2026-10-07 — say whether yours
-     agree), the first row holding an item named beside a repeat. For
-     each total its search named: what the site showed, a value or
-     none, read as `tools/trade-evidence.py` reads it.
-   - `ruled` — for each sentence of the paragraph, each rule of
-     `totals.rs`'s C94 a ranged total meets (nothing summed, an unread
-     contributor, a realm with no recipe), each `rule` row of the table
-     of changes, and what C93 says of an item whose side cannot be
-     established: at least one item the captures do not hold, named for
-     the sentence it answers — an item of the copy where the copy holds
-     one, else composed, and marked which.
-   - `worked` — the plan's closing row, `Adds # to # Fire Damage` on a
-     weapon, and the same line on an item that is no weapon; then as
-     few composed items as leave no row of the 21 totals without a case
-     that counts it. Each cell's arithmetic is written out in its row,
-     by hand, before the function is run on it (the plan, rule 3): say
-     of each whether the function gave what the hand did.
-
-   A row carries the case and its kind, the item's facts, the total,
-   the answer (status, `low`, `high`, `avg`, cause), the lines counted
-   with the row that counted each, what the site showed or `not asked`,
-   whether the two agree, the twin the site's id names beside the twin
-   the reading took, and the sentences the row rests on. A total a case
-   does not list is lacked. A line of the family whose text holds a
-   line break is counted as the rulings say and marked. Print, for each
-   row of the 21 totals, how many cases of each kind count it, and name
-   each row no case counts.
-4. **Disagreements, and what the agreement is worth.** A cell where the
-   reading and the site differ is a finding: listed, not settled, the
-   reading not bent to it. Then break the reading once for each rule in
-   it (a flag of the script) and print how many captured cells then
-   disagree. A rule whose break no capture notices rests on the ruling
-   alone; list each.
-5. **What no capture has asked.** The site files a line under a domain,
-   which a private item shows as its array and flags. For every
-   template a row of the 21 totals names, over the live `pc` items of
-   the copy: the lines by template, side, array and flags, each beside
-   the captured cells of the same four that a search asked and the site
-   answered. A group the copy holds and no capture asked is a rule not
-   asked: list each with its lines and items on the copy, the rule it
-   rests on, and the one question a sitting would put — the pseudo, the
-   side and the line — composing nothing.
-6. **The copy**, `data/ranged-expected-copy.csv`: the function over
-   every live `pc` item of the copy — for each total the items that
-   have it, the sums of their `low`, `high` and `avg`, and the items
-   undecided by cause. Say whether the items carrying a line of the
-   family are `ranged-census.py`'s.
-7. **The README**, written last from the script's output: one section,
-   "The ranged family's expected answers", about 2 KB — the cases by
-   kind, counted; every `unruled` cell with its readings; every
-   disagreement; the rules that rest on the ruling alone; the rules not
-   asked, each with its question. The detail stays in `data/`. Nothing
-   else in the README changes.
+1. **The evidence by domain**, `scripts/evidence-domains.py` writing
+   `data/evidence-domains.csv`. Over every reading
+   `tools/trade-evidence.py` makes — an item under a pseudo its search
+   named, 1,503 printed on 2026-10-07 — and every line of the item that
+   a row of the pseudo's latest version names: the line's domain and
+   array, beside the pseudo. Per domain, and per pseudo and domain:
+   the lines, the items, the readings that agree. Then the test: with
+   that domain's lines left out of the rows' sum, how many readings
+   disagree. A domain is **shown counted** where leaving it out breaks
+   a reading; **shown left out** where a reading agrees only with it
+   left out; otherwise **not shown**, and say which of the two it is:
+   no line of it captured, or its lines captured only where the sum
+   reads the same either way. Say how a domain maps to what a private
+   item carries, array and flags, from the captures themselves, and
+   name each domain where the captures do not settle the mapping.
+2. **The copy beside it.** For every template a row of the shipped
+   table (`crates/acquisition-search/reference/totals-v5.toml`) or of
+   the 21 ranged totals (`data/table-changes.csv`) names: the copy's
+   live `pc` lines by array and flags, each group beside step 1's
+   verdict for its domain. In the same file, marked apart. Print the
+   lines and items in groups shown counted, shown left out, not shown.
+3. **The twin from the export**, `scripts/ranged-twins.py` writing
+   `data/ranged-twins.csv`. `ranged-census.py` joins the export to the
+   family's lines on uniques. Make the same join for every live `pc`
+   line of the family on the copy, of any rarity: the mods of the
+   generation types the line's array and the item's class admit, whose
+   text is the line's template and whose ranges hold its two numbers;
+   of each, whether the stats it translates from are local. One row a
+   line: the item's base, class, side and rarity, the array and flags,
+   and what the export says — local, global, both, or no mod found —
+   with the mods' ids. How a generation type is chosen for an array and
+   a class is a reading of the export you state at the top of the
+   script; where two readings are open, run both and print both. Print
+   the lines by side, array, flags and what the export says, and say
+   whether the unique rows are `data/ranged-uniques.csv`'s.
+4. **The README**, written last from the scripts' output: one section,
+   "Before the sitting: the domain, and the twin from the export",
+   about 1.5 KB — the domains by verdict, counted; the copy's lines
+   under each; the family's lines by what the export says, and every
+   line where the export and the item's side differ; then what is left
+   for a sitting, as questions: a pseudo, a side, a domain. Detail
+   stays in `data/`. Nothing else in the README changes.
 
 ## Acceptance
 
-`python3 search/pseudo-stats/scripts/ranged-expected.py` exits 0 and a
-second run leaves the two files under `data/` byte for byte the same;
-it prints, of the captures whose query names a pseudo of the family,
-how many it read and how many it left out and why; every row of the 21
-totals is counted by a case or named as counted by none; every
-`unruled` cell, every disagreement, every break's count and every rule
-not asked is in the README as the script printed it.
+Each script exits 0 and a second run leaves its file byte for byte the
+same; step 1 prints the readings it made and says whether the count is
+`tools/trade-evidence.py`'s; every domain the captures hold and every
+array and flag the copy holds under a row's template has a verdict in
+the README as a script printed it.
 
 ## The report
 
-At most 300 words, to the reviewer: what the regeneration changed, and
-the numbers the README states otherwise; the cases by kind; the
-disagreements; the `unruled` cells; the rules resting on the ruling
-alone; the rules no capture has asked, with what a sitting would close;
+At most 300 words, to the reviewer: the domains by verdict; the copy's
+lines under each; what the export says of the family's lines by side
+and array, and every difference from the item's side; the readings of
+the export you had to choose between; what is left for a sitting;
 which local input was absent; what you left out and why; the one cut
 you would most want reversed; and that the status line and the index
-row in `search/README.md` are not set.
+row are not set.
