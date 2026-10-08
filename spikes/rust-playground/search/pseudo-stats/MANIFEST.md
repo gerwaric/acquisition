@@ -174,3 +174,13 @@ round k was: one HAR fragment per call, 190 files under
 | File | Bytes | Captured | sha256 |
 | --- | --- | --- | --- |
 | `raw/searches/l-fragments/` (190 files; the hash is of the sorted files' sha256s, one a line) | 2439438 | 2026-10-04 21:57 – 22:35 | `487a376cd8cfa53b090f0f6bad01d140eb9d312a73b3e6e6e6f89d50aa1dfc22` |
+
+Round m, 2026-10-07, 19:08 to 19:10 US Central (2026-10-08 00:08 to 00:10 UTC),
+by the owner, from the links of `data/search-sheet.csv` as the commit that adds
+this row holds it, saved as round l was: one fragment per call, 14 files under
+`raw/searches/m-fragments/`. Every body held, no cookie, nothing refused, all
+8 searches. `tools/trade-split.py --write` wrote their 14 captures.
+
+| File | Bytes | Captured | sha256 |
+| --- | --- | --- | --- |
+| `raw/searches/m-fragments/` (14 files; the hash is of the sorted files' sha256s, one a line) | 160454 | 2026-10-07 19:08 – 19:10 | `c6fdeb8a8cdccc0010596d0b5f900365c63adb13f743e40bb17cef09abe07bc1` |

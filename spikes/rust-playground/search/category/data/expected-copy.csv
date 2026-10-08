@@ -74,14 +74,14 @@ graft,Any Graft,0,0,0,0
 wombgift,Any Wombgift,50,50,0,0
 enshrouded,Any Enshrouded Item,1,1,0,0
 chart,Any Chart,0,0,0,0
-currency,Any Currency,924,653,0,0
+currency,Any Currency,924,651,0,0
 currency.piece,Unique Fragment,39,39,0,0
 currency.resonator,Resonator,7,7,0,0
 currency.fossil,Fossil,26,26,0,0
 currency.incubator,Incubator,104,104,0,0
 currency.heistobjective,Heist Target,1,1,0,0
 currency.omen,Omen,74,74,0,0
-currency.tattoo,Tattoo,20,20,0,0
+currency.tattoo,Tattoo,22,22,0,0
 (none),no id: the count's bucket,0,1,0,0
 (undecided),no id: the count's bucket,0,0,0,0
 (items: an id answers yes),"a split of the copy's items, not an id",22622,,,

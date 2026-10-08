@@ -44,6 +44,10 @@ Ruled after them (J20-J22, the cells J14, J17 and J18 left open, U9-U11 here), e
   J21  a count lists an item whose class is open under the most specific id that holds.
   J22  in a realm with no table every id is undecided on every item, the beast ids among them.
 
+Ruled 2026-10-07 after round m (m01-m04), a named step:
+  J23  a Stackable Currency base whose name holds the word Tattoo is `currency.tattoo`: the site
+       lists Honoured and Journey tattoos there, which the taxonomy's prefix `Tattoo of ` leaves out.
+
 No cell is left `unruled`. The word stays in the reading and the files for a cell a later rule opens.
 """
 
@@ -118,6 +122,7 @@ BREAKS = collections.OrderedDict([
     ("J20", "J20: Growing Wombgift's class is Wombgifts (broken: its class stays undecided, `wombgift` alone holding)"),
     ("J21", "J21: a count lists an item whose class is open under the most specific id that holds (broken: the undecided bucket)"),
     ("J22", "J22: in a realm with no table the beast ids are undecided on an item without the bestiary line (broken: they answer no)"),
+    ("J23", "J23: a base holding the word Tattoo is `currency.tattoo` (broken: only a name beginning `Tattoo of `)"),
     ("C93-realm", "C93: a realm with no table leaves the class undecided (broken: read as pc)"),
     ("C105-none", "C105: a class with no id is known absence, `none` (broken: undecided)"),
 ])
@@ -207,6 +212,8 @@ def leaf_of(ctx, internal, base, broken):
             continue
         if fine == "map.invitation" and "J3" not in broken and not maven(base):
             continue  # J3 overrides the taxonomy's rule ("Invitation" in the name): the Maven's alone
+        if fine == "currency.tattoo" and "J23" not in broken and "Tattoo" in base:
+            return fine  # J23 overrides the taxonomy's rule (the name begins "Tattoo of "): the word, m01 and m03
         if pred(base):
             return fine
     return ctx.tax.CLASS_TO_TRADE.get(internal, "")

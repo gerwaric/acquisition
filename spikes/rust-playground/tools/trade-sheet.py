@@ -1283,6 +1283,47 @@ def round_l():
     return rows
 
 
+def round_m():
+    """m01–m04 the tattoo name rule (the look at 9d-B: 40 of the class table's
+    100 tattoo bases do not begin `Tattoo of `), m05–m07 `Veiled Scarab`, which
+    the export classes Stackable Currency, m08 a beast under `currency` (J10,
+    ruled on the owner's word and asked by no capture)."""
+    def at(option, item_type):
+        return batch_query([], category(option) if option else None, item_type)
+
+    rows = []
+
+    def add(decides, control, query):
+        rows.append({"search": f"m{len(rows) + 1:02d}", "decides": decides, "control": control, "query": query})
+        return rows[-1]["search"]
+
+    for base in ("Honoured Tattoo of the Oak", "Journey Tattoo of the Body"):
+        m = add(f"the tattoo name rule: whether `currency.tattoo` (\"Tattoo\") holds `{base}`, a Stackable Currency "
+                "base that holds the word and does not begin `Tattoo of `. Found: the rule is the word, not the "
+                "prefix. Not found, its pair finding it: the prefix stands for this name",
+                "the pair, the next search: the type with no category",
+                at("currency.tattoo", base))
+        add(f"{m}'s pair: `{base}` with no category — that it is listed at all",
+            f"the pair is the control: nothing found means the type has no listing and {m} says nothing",
+            at(None, base))
+    m = add("whether `map.scarab` (\"Scarab\") holds `Veiled Scarab`, which the export classes Stackable Currency "
+            "and the scarab rule, a Map Fragment's, never sees. Found: a scarab by its name whatever its class",
+            "m07, the type with no category",
+            at("map.scarab", "Veiled Scarab"))
+    add(f"whether `currency` (\"Any Currency\") holds `Veiled Scarab`, as its class says; read beside {m}",
+        "m07, the type with no category",
+        at("currency", "Veiled Scarab"))
+    add(f"the pair of {m} and the search after it: `Veiled Scarab` with no category — that it is listed at all",
+        "the pair is the control: nothing found means the type has no listing and the two say nothing",
+        at(None, "Veiled Scarab"))
+    add("J10: whether `currency` holds `Farric Ursa`, a captured beast, whose class is Stackable Currency (J9). "
+        "Not found: the owner's word (\"Trade searches for the category \"Any Currency\" filter out beasts.\") has "
+        "its capture. Found: J10 is brought back to him",
+        "l011: `Farric Ursa` under `monster.redbeast`, found 3655 on 2026-10-04",
+        at("currency", "Farric Ursa"))
+    return rows
+
+
 def report():
     """b1, b2: the two searches a report of c3's twin id rests on."""
     twin = "explicit.stat_2543977012"
@@ -1363,7 +1404,7 @@ def main():
         print(__doc__)
         return 2
     searches = PILOT + (checks() + round_two() + report() + round_three() + round_four()
-                        + round_five() + OPEN_QUESTION_SEARCHES + round_six() + round_i() + round_j() + round_k() + round_l()
+                        + round_five() + OPEN_QUESTION_SEARCHES + round_six() + round_i() + round_j() + round_k() + round_l() + round_m()
                         if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
