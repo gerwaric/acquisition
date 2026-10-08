@@ -54,11 +54,11 @@
 //!   `"rare"` and `line(template:rare)`, and [`parse_query`] puts
 //!   `rarity=rare` before them.
 //! - **A computed value is bound by name** (`pseudo.rs`; the build plan,
-//!   step 7): a total of the table or a derived field, in any case, with
-//!   its slot word checked against what it is — a ranged total takes one,
-//!   nothing else does. A name nothing defines is an unknown name with the
-//!   near ones offered, or, with a slot word, the refusal of a ranged
-//!   total, which this build ships none of.
+//!   steps 7 and 9d-C): a total of the table or a derived field, in any
+//!   case, with its slot word checked against what it is — a ranged total
+//!   takes `low`, `high` or `avg` and with none is its `avg`, nothing
+//!   else takes one. A name nothing defines is an unknown name with the
+//!   near ones offered, with a slot word or without.
 //! - **The sockets are numbers** (`sockets.rs`, C101; the build plan, step
 //!   8): `sockets`, `links` and `sockets.<colour>` for the four colour
 //!   words are fields of `Kind::Number`, so a comparison, `has:`, a
@@ -106,11 +106,6 @@ pub const NOT_BUILT: &[NotBuilt] = &[
         construct: "pseudo.defence_pct",
         step: None,
         what: "the base defence percentile (C101): its formula is not pinned against the site's (search/pseudo-stats/README.md, open question 3)",
-    },
-    NotBuilt {
-        construct: "pseudo.<name>.<slot>",
-        step: None,
-        what: "a ranged total: the totals table admits one, and this build ships none — which lines a site's ranged pseudo sums is unread (search/pseudo-stats/README.md, open question 2)",
     },
     NotBuilt {
         construct: "--fields",
@@ -889,6 +884,10 @@ fn bind_value(flag: &str, value: &ValueRef) -> Result<SortKey, LanguageError> {
     }
 }
 
+/// The slot words a ranged total takes (C94), `avg` first: the one the
+/// bare name is.
+const RANGE_SLOTS: [&str; 3] = ["avg", "low", "high"];
+
 /// A computed value by name (the module doc): the total or the derived
 /// field, and its slot word where it takes one.
 fn bind_pseudo(
@@ -906,39 +905,28 @@ fn bind_pseudo(
     }
     let known = crate::pseudo::names();
     let Some(named) = crate::pseudo::lookup(name)? else {
-        let near: Vec<String> = near(name, known)
-            .into_iter()
-            .map(|n| {
-                print::print_value(&ValueRef::Pseudo {
-                    name: n.to_string(),
-                    slot: None,
-                })
+        return Err(unknown("computed value", name, known, |near| {
+            print::print_value(&ValueRef::Pseudo {
+                name: near.to_string(),
+                slot: None,
             })
-            .collect();
-        return Err(if slot.is_some() {
-            not_built("pseudo.<name>.<slot>").with_readings(near)
-        } else {
-            unknown("computed value", name, known, |near| {
-                print::print_value(&ValueRef::Pseudo {
-                    name: near.to_string(),
-                    slot: None,
-                })
-            })
-        });
+        }));
     };
     match (named.ranged(), slot) {
-        (true, Some(slot)) => Ok((named, Some(slot.to_string()))),
-        (true, None) => Err(LanguageError::new(
-            ErrorKind::SlotMissing,
-            format!("`{}` is a range: name low, high or avg", printed(None)),
+        (true, Some(slot)) if RANGE_SLOTS.contains(&slot) => Ok((named, Some(slot.to_string()))),
+        // a total has no occurrence, so no `arg1`: its numbers are its
+        // two sums and their mean
+        (true, Some(slot)) => Err(LanguageError::new(
+            ErrorKind::SlotUnknown,
+            format!(
+                "`{}` is a range, summed low with low and high with high: it takes avg, low or high, never `{slot}`",
+                printed(None)
+            ),
         )
-        .with_readings(
-            ["avg", "low", "high"]
-                .into_iter()
-                .map(|s| printed(Some(s)))
-                .collect(),
-        )),
-        (false, None) => Ok((named, None)),
+        .with_readings(RANGE_SLOTS.into_iter().map(|s| printed(Some(s))).collect())),
+        // a ranged total with no slot word is its `avg` (`pseudo.rs`,
+        // C94), bound as written and read so
+        (_, None) => Ok((named, None)),
         (false, Some(_)) => Err(LanguageError::new(
             ErrorKind::SlotUnknown,
             format!(

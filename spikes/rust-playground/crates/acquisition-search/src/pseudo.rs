@@ -39,6 +39,11 @@
 //!   The base defence percentile the same paragraph names is not built
 //!   (`bind::NOT_BUILT`, its formula unpinned: `search/pseudo-stats/README.md`,
 //!   open question 3).
+//! - **C94 — what no total reads (J29)** is `totals.rs`'s, said there
+//!   once (the owner, 2026-10-08: "Leave both out."): no total reads a
+//!   line of `crucibleMods` or `utilityMods`, and neither array unread
+//!   leaves a total open. A reading follows the totals it reads and has
+//!   no rule of its own; a derived field reads properties, never lines.
 //! - **C101 — the readings of other totals** (the build plan, step 9c3;
 //!   owner, 2026-09-26: "They should be present at launch."). Four of the
 //!   trade site's pseudos are no sum of lines and so no total: each reads
@@ -80,11 +85,28 @@
 //! - **A name is the table's — a total's or a reading's — or a derived
 //!   field's**, matched in any case
 //!   (B1); an unknown one is an authoring error with the near names
-//!   offered, as a field's is — unless it carries a slot word, which asks
-//!   for a ranged total, and this build ships none (`bind::NOT_BUILT`).
+//!   offered, as a field's is, with a slot word or without one.
 //!   A slot word on a total that is no range, on a reading or on a
-//!   derived field, is an authoring error; a ranged total asked for with
-//!   none is one that offers `low`, `high` and `avg`.
+//!   derived field, is an authoring error, and so is a slot word a range
+//!   does not take — a total has no occurrence, so no `arg1` — which
+//!   offers `avg`, `low` and `high`.
+//! - **A ranged total with no slot word is its `avg`** (C94, the ranged
+//!   family, `totals.rs`; owner, 2026-09-26: "yes, bare means average"),
+//!   wherever a computed value is asked: a comparison, `has:`, `--sort`,
+//!   a count's sum. `low` and `high` stay. The bare name is bound and
+//!   printed as written and read as `avg` ([`total_of`]). A ranged total
+//!   is nothing, and so lacked, only where its low and its high both are
+//!   (J31), so `has:` of it, which asks its `avg`, holds on a range whose
+//!   average alone is 0.
+//! - **A row that reads what the item is** (`totals.rs`, J7, J30) is
+//!   asked here, where a total is summed ([`total_of`]) and nowhere
+//!   else: `totals::Row::counts_on` is the category's answer, and where
+//!   that is not established a line the row names is unread to the total
+//!   — an incomplete subtotal of the other rows, undecided under a
+//!   comparison and `has:`, open under `undecided( … )` — by the
+//!   category's own reasons for the id asked (`category::unread`, the one
+//!   maker a category term reads; [`unread_of`]). What a row shows of a
+//!   total is the lines of the rows that count on the item.
 //! - **A value has the sum's three statuses** ([`Valued`]; the reference,
 //!   *A sum's status*): complete, an incomplete subtotal, or lacked — a
 //!   derived field whose input the item lacks, a total whose lines sum
@@ -113,7 +135,10 @@
 //!   row sorted by a reading shows it first by its own name
 //!   ([`sorted_by`]).
 //! - **The vocabulary lists a computed value beside the templates** whose
-//!   name or definition its narrowing matches, and none under `line`
+//!   name or definition its narrowing matches — a total's own
+//!   definition, its rows and its limit, never the rule the table states
+//!   of every total (J29), by a word of which every total would be
+//!   listed — and none under `line`
 //!   alone, where `--describe` names them (owner, 2026-09-24, T5 in
 //!   `search/LEDGER.md`; the reference, `--count line[:text]`;
 //!   `counts.rs`), marked computed, with the count of the matches that
@@ -130,6 +155,7 @@ use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use crate::bind::NumTest;
+use crate::category;
 use crate::corpus::Held;
 use crate::derive::{Part, Property, Unread};
 use crate::describe::Named as Entry;
@@ -345,22 +371,51 @@ pub(crate) fn unread_of(named: Named, held: &Held) -> Vec<Cow<'_, Unread>> {
     }
 }
 
-/// What leaves a total open on this item, each part once.
+/// What leaves a total open on this item, each part once: what each row
+/// that counts on the item could not read, and — under a row that reads
+/// the item's category, where that is not established and the row names
+/// a line of the item — the category's own reasons, made where a
+/// category term's are (`category::unread`; rule 10 of the plan), and
+/// those alone: such a row is not summed, so a number or an array it
+/// would have read is no second reason for the one contribution lost
+/// (rule 8). A row that does not count on the item reads nothing of it.
 fn unread_of_total<'a>(total: &Total, held: &'a Held, unread: &mut Vec<&'a Unread>) {
+    let mut push = |u: &'a Unread| {
+        if !unread.iter().any(|seen| std::ptr::eq(*seen, u)) {
+            unread.push(u);
+        }
+    };
     for row in &total.rows {
+        match row.counts_on(&held.category) {
+            Truth::False => continue,
+            Truth::Undecided if names_a_line(row, held) => {
+                category::unread(&held.item, &held.class, &held.category, row.asks())
+                    .into_iter()
+                    .for_each(&mut push);
+                // said once (rule 8): the row was not summed
+                // ([`total_of`]), so nothing else of it was asked
+                continue;
+            }
+            Truth::Undecided | Truth::True => {}
+        }
         let slots: &[Option<&str>] = if total.ranged {
             &[Some("low"), Some("high")]
         } else {
             &[row.slot.as_deref()]
         };
         for slot in slots {
-            for u in eval::unread_of_sum(held, &row.group, *slot) {
-                if !unread.iter().any(|seen| std::ptr::eq(*seen, u)) {
-                    unread.push(u);
-                }
-            }
+            eval::unread_of_sum(held, &row.group, *slot)
+                .into_iter()
+                .for_each(&mut push);
         }
     }
+}
+
+/// Whether the row's selector picks a line of the item: what a row that
+/// reads the item's category leaves unread where the category cannot say
+/// whether the row counts it.
+fn names_a_line(row: &totals::Row, held: &Held) -> bool {
+    eval::selected(held, &row.group).next().is_some()
 }
 
 /// What a row shows of a computed value that matched: the lines the
@@ -370,7 +425,13 @@ pub(crate) fn evidence(named: Named, held: &Held) -> Vec<Evidence> {
     match named {
         Named::Total { total, .. } => {
             let mut lines: Vec<&crate::derive::Line> = Vec::new();
-            for row in &total.rows {
+            // the lines of the rows that count on the item: a weapon's
+            // own line is no line of a row that means the other twin
+            for row in total
+                .rows
+                .iter()
+                .filter(|row| row.counts_on(&held.category) == Truth::True)
+            {
                 for line in eval::selected(held, &row.group) {
                     if !lines.iter().any(|seen| std::ptr::eq(*seen, line)) {
                         lines.push(line);
@@ -431,7 +492,20 @@ fn total_of(table: &TotalsTable, total: &Total, slot: Option<&str>, held: &Held)
         return Valued::Incomplete(None);
     }
     let mut complete = true;
+    let nothing = Exact::default();
     let mut row_sum = |slot: Option<&str>, row: &totals::Row| -> Exact {
+        // a row that reads what the item is (`totals.rs`): where its id
+        // holds the row counts nothing and reads nothing of the item;
+        // where the category cannot say, a line the row names is a
+        // contribution unread — and with no such line there is none
+        match row.counts_on(&held.category) {
+            Truth::False => return nothing,
+            Truth::Undecided if names_a_line(row, held) => {
+                complete = false;
+                return nothing;
+            }
+            Truth::Undecided | Truth::True => {}
+        }
         let (value, whole) = match slot {
             Some(slot) => eval::sum(held, &row.group, slot),
             None => eval::count(held, &row.group),
@@ -439,7 +513,6 @@ fn total_of(table: &TotalsTable, total: &Total, slot: Option<&str>, held: &Held)
         complete &= whole;
         value.halved(row.halves)
     };
-    let nothing = Exact::default();
     let (value, is_nothing) = if total.ranged {
         let low = Exact::sum(total.rows.iter().map(|row| row_sum(Some("low"), row)));
         let high = Exact::sum(total.rows.iter().map(|row| row_sum(Some("high"), row)));
@@ -674,9 +747,10 @@ fn inputs(derived: Derived, held: &Held) -> Result<Read<'_>, Inputs<'_>> {
 
 // ---- the vocabulary -----------------------------------------------------------------------------------
 
-/// The computed values a vocabulary narrowing matches by name or
-/// definition — none when it narrows by nothing (the module doc) — each
-/// with the term that selects the items carrying it.
+/// The computed values a vocabulary narrowing matches by name or by
+/// their own definition ([`OWN`]), never by the rule every total's
+/// definition prints — none when it narrows by nothing (the module doc)
+/// — each with the term that selects the items carrying it.
 pub(crate) fn matching(
     narrow: Option<&(Op, String)>,
 ) -> Result<Vec<(String, Named, Node)>, LanguageError> {
@@ -685,8 +759,8 @@ pub(crate) fn matching(
     };
     let test = crate::bind::text_test("line", *op, &Value::Text(text.clone()))?;
     let mut out = Vec::new();
-    for entry in DESCRIBED.iter() {
-        if !(test.holds(&entry.name) || test.holds(&entry.what)) {
+    for (entry, own) in DESCRIBED.iter().zip(OWN.iter()) {
+        if !(test.holds(&entry.name) || test.holds(own)) {
             continue;
         }
         let name = entry.name.trim_start_matches("pseudo.");
@@ -733,7 +807,8 @@ static DESCRIBED: LazyLock<Vec<Entry>> = LazyLock::new(|| {
             let name = format!("pseudo.{}", total.name);
             let examples = if total.ranged {
                 vec![
-                    leak(format!("{name}.avg>=30")),
+                    leak(format!("{name}>=30")),
+                    leak(format!("{name}.low>=10 {name}.high<=60")),
                     leak(format!("-has:{name}")),
                     leak(format!("undecided({name})")),
                 ]
@@ -791,6 +866,23 @@ static DESCRIBED: LazyLock<Vec<Entry>> = LazyLock::new(|| {
         });
     }
     out
+});
+
+/// What a narrowing is matched against of each computed value, in
+/// [`DESCRIBED`]'s order: its definition as printed — but a total's own
+/// (`Total::own_definition`), without the rule the table states of every
+/// total (J29), which names no total and would list every one under a
+/// word of it (T5: a narrowing lists those it matches).
+static OWN: LazyLock<Vec<String>> = LazyLock::new(|| {
+    let totals = totals::table().ok();
+    DESCRIBED
+        .iter()
+        .map(|entry| {
+            totals
+                .and_then(|table| table.get(entry.name.trim_start_matches("pseudo.")))
+                .map_or_else(|| entry.what.clone(), Total::own_definition)
+        })
+        .collect()
 });
 
 /// The computed values as `--describe` lists them (C97): every total with
@@ -853,7 +945,7 @@ mod tests {
 
     fn table(totals: &str) -> &'static TotalsTable {
         let text = format!(
-            "version = 5\nrealms = [\"pc\"]\nsource = \"s\"\ngenerated_by = \"t\"\n{totals}"
+            "version = 6\nrealms = [\"pc\"]\nsource = \"s\"\ngenerated_by = \"t\"\nleaves_out = []\nleaves_out_rule = \"\"\n{totals}"
         );
         Box::leak(Box::new(TotalsTable::parse(&text).unwrap()))
     }
@@ -907,7 +999,7 @@ mod tests {
         );
         assert_eq!(
             super::unread_of(named(t, "total_life"), &poe2)[0].problem,
-            "no totals table for realm poe2 (totals v5 covers pc)"
+            "no totals table for realm poe2 (totals v6 covers pc)"
         );
         // a contributor unread: a subtotal, marked incomplete
         let open = held(
@@ -963,7 +1055,7 @@ mod tests {
             assert_eq!(value(reading(name), None, &poe2), Valued::Incomplete(None));
             assert_eq!(
                 super::unread_of(reading(name), &poe2)[0].problem,
-                "no totals table for realm poe2 (totals v5 covers pc)"
+                "no totals table for realm poe2 (totals v6 covers pc)"
             );
         }
     }

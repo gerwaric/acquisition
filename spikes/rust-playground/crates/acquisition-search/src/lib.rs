@@ -114,13 +114,18 @@
 //!   category, a category under not and or, `show`, the help) and
 //!   `tests/acceptance.rs` (OQ5 by category).
 //! - **C94, C101.** The totals table is [`totals`]'s doc and
-//!   `reference/totals-v5.toml`'s header; the computed values, their three
+//!   `reference/totals-v6.toml`'s header — the ranged family and what no
+//!   total reads (J29) among them, taken from the contract detail at
+//!   step 9d-C; the computed values, their three
 //!   statuses, the readings of other totals and the derived fields are
 //!   `pseudo`'s doc; pinned by
 //!   `tests/pseudo.rs` (the shipped table through the boundary, a total's
 //!   three statuses, a count and a least on the trade site's captures and
 //!   where a total they read is open, `dps` and `pdps`, the sort and the
-//!   sum over one),
+//!   sum over one), `tests/ranged.rs` (every row of the ranged family's
+//!   expected answers, the plan's closing row, J29 on the totals shipped
+//!   before it and on round n's captures, a row that reads the category
+//!   under not and or, the help),
 //!   `tests/answer.rs` (the reference's worked example whole) and
 //!   `tests/acceptance.rs` (AQ2 as worded). The sockets are [`sockets`]'s
 //!   doc, the link group `group`'s; pinned by `tests/sockets.rs` (the

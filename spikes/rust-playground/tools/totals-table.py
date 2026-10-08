@@ -4,7 +4,7 @@ reviewed sum over an item's lines, defined once — regenerated from the C++
 app's pseudomod tables and from what the trade site itself answered into the
 reviewed file the search crate ships.
 
-    python3 tools/totals-table.py            # writes crates/acquisition-search/reference/totals-v5.toml
+    python3 tools/totals-table.py            # writes crates/acquisition-search/reference/totals-v6.toml
     python3 tools/totals-table.py --check    # exits 1 when the file on disk differs from what the sources give
 
 Inputs (read-only, committed):
@@ -16,8 +16,8 @@ Inputs (read-only, committed):
                                              the site answered itself: q5, total fire resistance)
   search/pseudo-stats/data/table-changes.csv what the site's own answers ask of the table, one change a
                                              row, each with the captures that ask for it (the build plan,
-                                             steps 9c to 9c3: the searches the owner ran, 2026-09-26
-                                             and 2026-09-27; the track's README). Every total counts
+                                             steps 9c to 9d-C: the searches the owner ran, 2026-09-26
+                                             to 2026-10-08; the track's README). Every total counts
                                              what the site's pseudo of that
                                              name counts (owner, V6), and where the owner ruled the site
                                              wrong the row says `not mimicked` and the line stays counted
@@ -60,11 +60,24 @@ Rules, each a reading of the source and never a judgment (C106):
      `limit`, which its definition prints: how far under the site's a
      line's text may be (owner, 2026-09-27: "yes, let's go with what we can
      observe directly from the text we have.").
-  7. What waits, counted in the header and not built: a change `twin`, a row
-     that means one of two stats displaying one text, which a table row
-     cannot say until it can name what the item is; and with it every total
-     that reads the average of a ranged line — the ranged family, all of
-     whose totals hold such a row or are an aggregate of those that do.
+  7. A change `new total` that reads the average of a ranged line becomes a
+     ranged total (`ranged = true`): the ranged family, the 21 named
+     `adds_…` (the build plan, 9d-C). Its rows name no slot — a ranged
+     total sums low with low and high with high — and each is the change's:
+     an `add row` that means the line whatever the item is, and a `twin`,
+     a row that means one of the two stats the unsuffixed `Adds # to # <type>
+     Damage` displays. The one twin a row can mean is `global`, the stat
+     that is no weapon's own: written `not_on = "weapon"`, the category id
+     the line is not counted on (J7: on a weapon the line is the weapon's
+     own). What a weapon is, is the category table's answer and never this
+     file's; any other twin stops the run. Every ranged total carries the
+     limit its definition prints, RANGED_LIMIT below: a line under the other
+     stat on a weapon is read as the weapon's own, with what the site showed.
+  9. The change `rule` that a total leaves out arrays (J29; the owner,
+     2026-10-08: "Leave both out.") is written once, in the table's header
+     and on no row: `leaves_out`, the arrays the rule names, and
+     `leaves_out_rule`, the rule's own sentence, which every total's
+     definition prints. No rule of that form, or two, stops the run.
 Nothing else is added, renamed beyond rule 1, merged beyond rule 2, or dropped;
 the counts the header prints are measured at generation. The site's own
 answer on ten fetched items (`search/trade-query/data/fetch-census.json`,
@@ -83,8 +96,8 @@ ROOT = os.path.dirname(HERE)
 SOURCE = os.path.join(ROOT, "search", "cpp-search", "data", "pseudomods.toml")
 CLASSES = os.path.join(ROOT, "search", "pseudo-stats", "data", "pseudo-classes.csv")
 CHANGES = os.path.join(ROOT, "search", "pseudo-stats", "data", "table-changes.csv")
-OUT = os.path.join(ROOT, "crates", "acquisition-search", "reference", "totals-v5.toml")
-VERSION = 5
+OUT = os.path.join(ROOT, "crates", "acquisition-search", "reference", "totals-v6.toml")
+VERSION = 6
 REALMS = ["pc", "xbox", "sony"]  # the C++ app searched PoE1; poe2 has no table yet
 PIN = "master@946a4f51"
 
@@ -108,6 +121,14 @@ GEM_LEVELS = re.compile(r"^\+# total to Level of Socketed (?:(\w+) )?Gems$")
 
 # rule 8: a reading as table-changes.csv states it, `the least of a, b, c`
 READING = re.compile(r"^the (count|least) of ([a-z0-9_]+(?:, [a-z0-9_]+)+)$")
+
+# rule 7: the twin a row can mean, as the category id its line is not counted on
+TWINS = {"global": "weapon"}
+RANGED_LIMIT = ("a line under the other stat on a weapon is read as the weapon's own: no weapon the "
+                "trade site listed was found to carry one (round i, i06–i08)")
+
+# rule 9: the rule that names the arrays no total reads
+LEAVES_OUT = re.compile(r"^a total leaves out .*: the arrays ((?:`\w+Mods`(?:, | and )?)+), and no other array$")
 
 # rule 2: a `+` straight before a `#` is spelling (template.rs, `unsigned`)
 PLUS = re.compile(r"(?<![#)\d])\+(?=#)")
@@ -159,21 +180,31 @@ def weight_of(text):
     return int(value) if value == int(value) else value
 
 
+def leaves_out(changes):
+    """Rule 9: the arrays the rule names, and the rule's own sentence."""
+    rules = [m for c in changes if c["change"] == "rule" and (m := LEAVES_OUT.match(c["template"]))]
+    if len(rules) != 1:
+        sys.exit(f"{len(rules)} rules name the arrays a total leaves out, and rule 9 writes one")
+    return re.findall(r"`(\w+Mods)`", rules[0].group(1)), rules[0].group(0)
+
+
 def apply(totals, changes):
-    """Rules 4 to 8. Returns the rows added, what waits by kind, the limits and the readings."""
+    """Rules 4 to 8. Returns the rows added, what waits by kind, the limits, the readings and the
+    ranged totals by name."""
     by_name = {t[0]: t for t in totals}
-    waits = {"twin": 0, "ranged": set(),
-             "limit": {c["total"] for c in changes
+    waits = {"limit": {c["total"] for c in changes
                        if c["change"] == "limit" and c["twin_or_reads"] != "ruled"}}
+    ranged = set()
     no_sum = {c["total"] for c in changes if c["change"] == "no sum"}
     added = 0
     for c in changes:
         if c["change"] == "new total":
             if c["total"] in waits["limit"]:
                 continue
-            if c["twin_or_reads"] != "slot":
-                waits["ranged"].add(c["total"])
-                continue
+            if c["twin_or_reads"] == "avg":
+                ranged.add(c["total"])
+            elif c["twin_or_reads"] != "slot":
+                sys.exit(f"{c['total']!r}: a new total reads `slot` or `avg`, never {c['twin_or_reads']!r}")
             if c["total"] in by_name:
                 sys.exit(f"{c['total']!r}: a new total the source already has")
             total = (c["total"], c["site_id"].removeprefix("pseudo."), c["site_text"], [])
@@ -185,24 +216,42 @@ def apply(totals, changes):
         if name not in by_name:
             sys.exit(f"{name!r}: a limit on a total the table does not write")
     for c in changes:
-        if c["total"] in waits["ranged"]:
-            waits["twin"] += c["change"] == "twin"
-            continue
         if c["total"] in waits["limit"] or c["total"] in no_sum:
+            continue
+        if c["change"] == "remove row":
+            sys.exit(f"{c['total']!r}: a row removed — a reviewed change, and rule 6 has no case for it")
+        if c["change"] not in ("add row", "twin"):
+            continue
+        rows = by_name[c["total"]][3]
+        if any(r[0] == c["template"] for r in rows):
+            sys.exit(f"{c['total']!r}: {c['template']!r} is a row already")
+        if c["total"] in ranged:
+            # rule 7: a ranged line, no slot, a whole weight, and the twin it means
+            if c["template"].count("#") != 2 or c["template"].count("# to #") != 1:
+                sys.exit(f"{c['total']!r}: {c['template']!r} is no ranged line, and rule 7 sums low and high")
+            weight = weight_of(c["weight"])
+            if not isinstance(weight, int):
+                sys.exit(f"{c['total']!r}: {c['template']!r} at a half, and a ranged total's `avg` is a mean")
+            if c["change"] == "twin":
+                if c["twin_or_reads"] not in TWINS:
+                    sys.exit(f"{c['total']!r}: {c['template']!r} means the twin {c['twin_or_reads']!r}, "
+                             "which no row can say (rule 7)")
+                rows.append([c["template"], weight, TWINS[c["twin_or_reads"]]])
+            elif c["twin_or_reads"] != "any":
+                sys.exit(f"{c['total']!r}: {c['template']!r} is added as {c['twin_or_reads']!r}, never a twin")
+            else:
+                rows.append([c["template"], weight, None])
+            added += 1
             continue
         if c["change"] == "twin":
             sys.exit(f"{c['total']!r}: a row that means a twin on a total that reads a line's number")
-        if c["change"] == "remove row":
-            sys.exit(f"{c['total']!r}: a row removed — a reviewed change, and rule 6 has no case for it")
-        if c["change"] != "add row":
-            continue
-        rows = by_name[c["total"]][3]
         if c["template"].count("#") != 1:
             sys.exit(f"{c['total']!r}: {c['template']!r} has {c['template'].count('#')} numbers, and rule 4 names arg1")
-        if any(r[0] == c["template"] for r in rows):
-            sys.exit(f"{c['total']!r}: {c['template']!r} is a row already")
         rows.append([c["template"], weight_of(c["weight"])])
         added += 1
+    for name in ranged:
+        if not by_name[name][3]:
+            sys.exit(f"{name!r}: a ranged total with no row")
     readings = []
     for c in changes:
         if c["change"] != "no sum":
@@ -214,12 +263,12 @@ def apply(totals, changes):
         if c["total"] in by_name or any(r[0] == c["total"] for r in readings):
             sys.exit(f"{c['total']!r}: a reading named as a total or another reading is")
         for name in of:
-            if name not in by_name or name in waits["limit"] or name in waits["ranged"]:
+            if name not in by_name or name in waits["limit"] or name in ranged:
                 sys.exit(f"{c['total']!r}: it reads {name!r}, which this table does not write")
         if len(set(of)) != len(of):
             sys.exit(f"{c['total']!r}: it reads a total twice")
         readings.append((c["total"], c["site_id"].removeprefix("pseudo."), c["site_text"], kind, of))
-    return added, waits, limits, readings
+    return added, waits, limits, readings, ranged
 
 
 def toml_str(s):
@@ -247,7 +296,11 @@ def main():
             sys.exit(f"{text!r}: the site names no pseudo stat for it in {CLASSES}")
         totals.append((name_of(text), site, text, rows))
     listed = sum(len(t[3]) for t in totals)
-    added, waits, limits, readings = apply(totals, read_changes())
+    changes = read_changes()
+    added, waits, limits, readings, ranged = apply(totals, changes)
+    arrays, rule = leaves_out(changes)
+    ranged_rows = sum(len(t[3]) for t in totals if t[0] in ranged)
+    twins = sum(1 for t in totals if t[0] in ranged for r in t[3] if r[2])
     names = [t[0] for t in totals] + [r[0] for r in readings]
     if len(set(names)) != len(names):
         sys.exit("two tables got one name")
@@ -257,8 +310,8 @@ def main():
     below = sum(1 for t in totals for r in t[3] if r[1] < 0)
 
     out = [
-        "# The totals table — v5 (C94, C101, C68; decisions/search.md), item search steps 7 and 9c",
-        "# to 9c3.",
+        "# The totals table — v6 (C94, C101, C68; decisions/search.md), item search steps 7 and 9c",
+        "# to 9d-C.",
         "#",
         "# Reference data: reviewed, committed, shipped inside the binary",
         "# (`include_str!` in `src/totals.rs`), read-only, never in a store file,",
@@ -280,6 +333,20 @@ def main():
         "# slot contributes its weight per line. What the total is from there is",
         "# `src/totals.rs` (C94), said once.",
         "#",
+        "# What no row reads: a line in an array `leaves_out` names — a crucible",
+        "# node's lines and a flask's own, which the trade site files under no stat",
+        "# and counts toward no pseudo (J29; the owner, 2026-10-08: \"Leave both",
+        "# out.\"). Said here once, for every total, and on no row; `leaves_out_rule`",
+        "# is the rule as search/pseudo-stats/data/table-changes.csv states it, which",
+        "# every total's definition prints.",
+        "#",
+        "# What a ranged total means (`ranged = true`): its rows are ranged lines and",
+        "# name no slot — low is summed with low and high with high. A row with",
+        "# `not_on` means the one of two stats displaying its text that is no",
+        "# weapon's own: it counts its line only on an item the category id does not",
+        "# hold on, which is the category table's answer (`src/category.rs`) and",
+        "# never this file's (J7, J30).",
+        "#",
         "# What a reading means: a pseudo of the site's that is no sum of lines, and",
         "# so no total and no row of one (C101) — `count`, how many of the totals",
         "# `of` names the item shows; `least`, the smallest of them, where the item",
@@ -288,9 +355,9 @@ def main():
         "#",
         f"# Measured at generation: {len(totals)} totals, {n_rows} rows — {listed} the C++ tables",
         f"# list, {added} the site's answers add — {weighted} with a weight above 1, {halves} at a",
-        f"# half and {below} below nothing, a row's `reduced` spelling. Not built, waiting",
-        f"# for a row that can name what the item is: {len(waits['ranged'])} totals of the ranged",
-        f"# family, {waits['twin']} of whose rows mean one of two stats displaying one text.",
+        f"# half and {below} below nothing, a row's `reduced` spelling. Of them the ranged",
+        f"# family: {len(ranged)} totals, {ranged_rows} rows, {twins} of which mean one of two stats",
+        "# displaying one text and read what the item is.",
         f"# Written apart, as readings: {len(readings)} pseudos that are a reading of other totals",
         f"# and no sum of lines. Not written: {len(waits['limit'])} whose limit the owner has not",
         f"# ruled on. Written with a limit its definition prints: {len(limits)}.",
@@ -299,6 +366,8 @@ def main():
         f"realms = [{', '.join(toml_str(r) for r in REALMS)}]",
         f"source = {toml_str(f'the trade site’s pseudo stats, by what the site answered of each (search/pseudo-stats/data/table-changes.csv), over the C++ app’s pseudomod tables, src/pseudomods.cpp at {PIN}')}",
         'generated_by = "tools/totals-table.py"',
+        f"leaves_out = [{', '.join(toml_str(a) for a in arrays)}]",
+        f"leaves_out_rule = {toml_str(rule)}",
     ]
     for name, site, text, rows in totals:
         out.append("")
@@ -306,6 +375,17 @@ def main():
         out.append(f"name = {toml_str(name)}")
         out.append(f"site = {toml_str(site)}")
         out.append(f"text = {toml_str(text)}")
+        if name in ranged:
+            if name in limits:
+                sys.exit(f"{name!r}: a ranged total with a limit of its own beside rule 7's")
+            out.append("ranged = true")
+            out.append("limit = " + toml_str(RANGED_LIMIT))
+            out.append("rows = [")
+            for template, weight, not_on in rows:
+                reads = f", not_on = {toml_str(not_on)}" if not_on else ""
+                out.append(f"  {{ template = {toml_str(template)}, weight = {weight}{reads} }},")
+            out.append("]")
+            continue
         if name in limits:
             out.append("limit = " + toml_str(
                 "read from the item's text, which cuts what the trade site rounds: under the "

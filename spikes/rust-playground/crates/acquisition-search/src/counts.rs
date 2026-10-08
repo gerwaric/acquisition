@@ -84,8 +84,11 @@
 //!   its legal spelling, which the evaluator matches in any case (B2), so
 //!   the kind's route returns what it counted; a spelling outside the list
 //!   is counted and has no route. The vocabulary lists beside its
-//!   templates the computed values whose name or definition its
-//!   narrowing matches — none under `line` alone (T5, `search/LEDGER.md`,
+//!   templates the computed values whose name or own definition its
+//!   narrowing matches — a total's rows and its limit, never the rule
+//!   every total's definition prints of what no total reads (J29;
+//!   owner, 2026-10-08: "i approve your recommendation") — none under
+//!   `line` alone (T5, `search/LEDGER.md`,
 //!   "Holes ruled"; the reference: "marked computed"; `pseudo::matching`),
 //!   each with the count of the
 //!   matches carrying it — its value established, as `has:` of it asks —

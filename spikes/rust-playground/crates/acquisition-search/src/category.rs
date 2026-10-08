@@ -769,6 +769,14 @@ impl Tables {
             .fold(Ids::NONE, |all, at| all.with(Ids::one(at)))
     }
 
+    /// One id as a set, none where the table has no such id: what a
+    /// total's row asks an item's category by (`totals.rs`, C94 — a row
+    /// that reads what the item is), the question being [`Category::asked`]
+    /// as a term's is.
+    pub(crate) fn one(&self, id: &str) -> Option<Ids> {
+        self.at(id).map(Ids::one)
+    }
+
     /// Of the values a term picked, those that hold on the item: what its
     /// selector resolved to there.
     pub(crate) fn holding(&self, category: &Category, picked: Ids) -> Vec<&'static str> {

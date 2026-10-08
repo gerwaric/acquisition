@@ -62,14 +62,14 @@ CENSUS = TRACK / "data" / "ranged-census.csv"
 UNIQUES = TRACK / "data" / "ranged-uniques.csv"
 CLASSES = ROOT / "crates/acquisition-search/reference/classes-v1.toml"
 CATEGORIES = ROOT / "crates/acquisition-search/reference/categories-v1.toml"
-TOTALS = ROOT / "crates/acquisition-search/reference/totals-v5.toml"
+TOTALS = ROOT / "crates/acquisition-search/reference/totals-v6.toml"
 TRADE_CLASSES = SEARCH / "repoe/data/class-to-trade-category.csv"
 TRADE_STATS = SEARCH / "trade-query/data/stats-2026-09-12.json"
 STORE = SEARCH / "item-facts/raw/m3/store/mock/GERWARIC_7694.db"
 OUT = TRACK / "data" / "ranged-expected.csv"
 OUT_COPY = TRACK / "data" / "ranged-expected-copy.csv"
 INPUTS = ("data/table-changes.csv, data/captures.json, data/ranged-uniques.csv, "
-          "crates/acquisition-search/reference/classes-v1.toml, categories-v1.toml and totals-v5.toml, "
+          "crates/acquisition-search/reference/classes-v1.toml, categories-v1.toml and totals-v6.toml, "
           "../trade-query/data/stats-2026-09-12.json, "
           "../item-facts/raw/m3/store/mock/GERWARIC_7694.db (read-only)")
 
@@ -80,7 +80,7 @@ EQUIPMENT = {"Normal", "Magic", "Rare", "Unique"}
 # The sentences a step of the reading carries out, cited by key in `rests_on`.
 CITES = {
     "realm": "totals.rs, C94: no definition for the item's realm is never a zero — unavailable, undecided "
-             "with that reason (the table's realms: totals-v5.toml)",
+             "with that reason (the table's realms: totals-v6.toml)",
     "category": "DESIGN.md, C94 — the ranged family: `Which it is the item's category decides: on a weapon "
                 "the line is the weapon's own` (J7, LEDGER 9d); category.rs, J2: `weapon` and every id under it",
     "own": "DESIGN.md, C94 — the ranged family: `a weapon's own line feeds the attacks' total alone`",
@@ -92,7 +92,9 @@ CITES = {
     "nothing": "totals.rs, C94: a total of nothing is lacked — no line a row names, or lines that cancel; "
                "table-changes.csv, rule: absent, never 0 (LEDGER 9c)",
     "unread": "totals.rs, C94: a contributor the search could not read — a source a row admits unread, an "
-              "occurrence whose flag is unread — leaves a subtotal incomplete; the plan, rule 8",
+              "occurrence whose number is unread — leaves a subtotal incomplete; the plan, rule 8",
+    "unread-flag": "LEDGER 9d, J32: a flag that is no yes or no leaves open only what asks a flag, and no row "
+                   "of the table does: the line counts by its text (the plan, rule 8; C93)",
     "open": "decisions/search.md, C93: what cannot be established makes only the terms that needed it "
             "undecided; class.rs: a base the table cannot class",
     "frame": "class.rs: a base under several classes is read by the item's frame, each class that remains; "
@@ -133,7 +135,7 @@ BREAKS = {
     "explicit-only": "a line outside explicitMods is not read",
     "unflagged-only": "a line under a flag (crafted, fractured) is not read",
     "whole-text": "a mod displayed over several rows is read by its whole text, not by a row",
-    "unread-ignored": "an unread array or flag is read as absent",
+    "unread-ignored": "an unread array is read as absent",
     "no-local-row": "a weapon's own line feeds nothing: no row counts the unsuffixed line on a weapon (the "
                     "table's `local` rows until ruling 2, since then the attacks' rows of `any` twin)",
     "no-eldritch-rows": "the table's rows of the two eldritch forms are dropped",
@@ -293,8 +295,6 @@ def read(tables, item, broken=None):
             here = index
             index += 1
             flag_unread = any(not isinstance(v, bool) for v in (flags or {}).values())
-            if flag_unread and broken == "unread-ignored":
-                continue
             shown = ";".join(sorted(k for k, v in (flags or {}).items() if v is True))
             if broken == "explicit-only" and array != "explicitMods":
                 continue
@@ -356,9 +356,8 @@ def read(tables, item, broken=None):
                     open_side = True
                     continue
             if flag_unread:
-                flag_open = True
-                cites.add("unread")
-                continue
+                # J32: no row asks a flag, so a flag that is no yes or no loses nothing a total reads
+                cites.add("unread-flag")
             if len(nums) < 2:
                 flag_open = True
                 continue
@@ -377,7 +376,7 @@ def read(tables, item, broken=None):
             answer.update(status="undecided", cause="unread: " + ", ".join(unread_arrays) + " is no array")
             cites.add("unread")
         elif flag_open:
-            answer.update(status="undecided", cause="unread: a flag of a line a row names is no yes or no")
+            answer.update(status="undecided", cause="unread: a number of a line a row names is unread")
         elif open_side:
             answer.update(status="undecided", cause=f"side: {side_cause}")
         elif not counted or (low == 0 and high == 0) or (broken == "cancels-is-lacked" and low + high == 0):
@@ -558,7 +557,7 @@ RULED_COMPOSED = [
      composed("pc", "Ruby Ring", "Rare", line("Adds 3 to 8 Fire Damage", "implicitMods"),
               arrays={"explicitMods": "unreadable"}), ""),
     ("r-unread-flag",
-     "totals.rs, C94: an occurrence a row names whose flag is unread leaves a subtotal marked incomplete",
+     "J32: a line whose flag is no yes or no counts by its text, no row asking a flag",
      composed("pc", "Driftwood Wand", "Rare", line("Adds 3 to 8 Fire Damage", flags={"crafted": "yes"}),
               line("Adds 2 to 5 Cold Damage")), ""),
     ("r-eldritch-form",

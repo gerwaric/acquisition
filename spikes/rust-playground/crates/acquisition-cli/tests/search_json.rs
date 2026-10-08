@@ -1489,3 +1489,160 @@ fn every_pick_of_a_category_term_is_printed_at_a_terminal() {
     let bases = text(&acq(&base, &["search", "base:e"]));
     assert!(bases.contains("more"), "{bases}");
 }
+
+/// Step 9d-C at a terminal (C94, J7, J29): the plan's closing row — `Adds
+/// # to # Fire Damage` on a weapon counted toward the attacks' total
+/// alone — a flask's own line counted by no total, and `--describe` of a
+/// ranged total. Tab `t3` gains `wand`, a Driftwood Wand, and `ruby`, a
+/// Ruby Ring, each with `Adds 10 to 21 Fire Damage` (15.5 by hand);
+/// `flask`, a Quicksilver Flask whose own line is `40% increased Movement
+/// Speed`; and `greaves`, with that line as an explicit.
+#[test]
+fn step_9d_c_the_ranged_family_and_a_flask_at_a_terminal() {
+    let base = base();
+    seed(&base);
+    let mut store = Store::open(&account_path(&base.join("mock"), USER)).unwrap();
+    let item = |id: &str, base: &str, rarity: &str, more: Value| {
+        let mut v = json!({ "id": id, "name": "", "typeLine": base, "baseType": base,
+                            "rarity": rarity, "frameTypeId": rarity,
+                            "identified": true, "ilvl": 0, "x": 0, "y": 0 });
+        for (k, value) in more.as_object().unwrap() {
+            v[k] = value.clone();
+        }
+        v
+    };
+    let fire = json!({ "explicitMods": ["Adds 10 to 21 Fire Damage"] });
+    store
+        .record(
+            &Endpoint::Stash {
+                realm: "pc".into(),
+                league: "Standard".into(),
+                id: "t3".into(),
+                sub: None,
+            },
+            &json!({ "realm": "pc", "league": "Standard" }),
+            200,
+            &json!({ "stash": { "id": "t3", "name": "Never", "type": "PremiumStash", "items": [
+                item("wand", "Driftwood Wand", "Rare", fire.clone()),
+                item("ruby", "Ruby Ring", "Rare", fire),
+                item("flask", "Quicksilver Flask", "Magic", json!({
+                    "utilityMods": ["40% increased Movement Speed"] })),
+                item("greaves", "Iron Greaves", "Rare", json!({
+                    "explicitMods": ["40% increased Movement Speed"] })),
+            ] } }),
+            40,
+        )
+        .unwrap();
+    drop(store);
+    let found = |query: &str| -> (Vec<String>, Value) {
+        let a = sole_json(&acq(&base, &["--json", "search", query]));
+        let mut ids: Vec<String> = a["rows"]
+            .as_array()
+            .unwrap_or_else(|| panic!("`{query}`: {a}"))
+            .iter()
+            .map(|r| r["id"].as_str().unwrap().to_string())
+            .collect();
+        ids.sort_unstable();
+        (ids, a)
+    };
+
+    // the closing row: the bare name is the `avg`
+    let (ids, a) = found("pseudo.adds_fire_to_attacks=15.5");
+    assert_eq!(ids, ["ruby", "wand"]);
+    assert_eq!(a["basis"]["totals"], 6);
+    assert_eq!(a["query"]["text"], "pseudo.adds_fire_to_attacks=15.5");
+    assert_eq!(found("pseudo.adds_fire=15.5").0, ["ruby"]);
+    assert_eq!(
+        found("pseudo.adds_fire.low=10 pseudo.adds_fire.high=21").0,
+        ["ruby"]
+    );
+    assert_eq!(found("has:pseudo.adds_fire_to_spells").0, ["ruby"]);
+    let sorted = text(&acq(
+        &base,
+        &[
+            "search",
+            "--realm",
+            "pc",
+            "has:pseudo.adds_fire_to_attacks",
+            "--sort",
+            "pseudo.adds_fire",
+        ],
+    ));
+    assert!(
+        sorted.contains("sorts by 15.5 · Adds 10 to 21 Fire Damage (explicit)"),
+        "{sorted}"
+    );
+    assert!(
+        sorted.contains("sorts last: no satisfying occurrence (pseudo.adds_fire)"),
+        "{sorted}"
+    );
+    let summed = sole_json(&acq(
+        &base,
+        &[
+            "--json",
+            "search",
+            "has:pseudo.adds_fire_to_attacks",
+            "--count",
+            "base",
+            "--sum",
+            "pseudo.adds_fire",
+        ],
+    ));
+    assert_eq!(
+        summed["view"]["counts"]["sum"],
+        json!({ "name": "pseudo.adds_fire", "value": 15.5, "lacking": 1 })
+    );
+
+    // a flask's own line is counted by no total (J29)
+    assert_eq!(found("has:pseudo.increased_movement_speed").0, ["greaves"]);
+    assert_eq!(
+        found("id:flask -has:pseudo.increased_movement_speed").0,
+        ["flask"]
+    );
+    // and found by its line still
+    assert_eq!(
+        found("\"#% increased Movement Speed\"=40").0,
+        ["flask", "greaves"]
+    );
+
+    // `--describe` of one ranged total
+    let d = sole_json(&acq(
+        &base,
+        &["--json", "search", "--describe", "adds_fire"],
+    ));
+    assert_eq!(d["computed"].as_array().unwrap().len(), 1);
+    assert_eq!(d["computed"][0]["name"], "pseudo.adds_fire");
+    assert_eq!(d["computed"][0]["kind"], "ranged total");
+    let what = d["computed"][0]["what"].as_str().unwrap();
+    for needle in [
+        "pseudo_adds_fire_damage",
+        "line(\"Adds # to # Fire Damage\")",
+        "category=weapon",
+        "`crucibleMods`",
+        "`utilityMods`",
+        "i06–i08",
+    ] {
+        assert!(
+            what.contains(needle),
+            "the definition lacks `{needle}`: {what}"
+        );
+    }
+    assert!(
+        d["totals"].as_str().unwrap().starts_with("totals v6, "),
+        "{d}"
+    );
+    let shown = text(&acq(&base, &["search", "--describe", "adds_fire"]));
+    assert!(
+        shown.contains("pseudo.adds_fire") && shown.contains("`utilityMods`"),
+        "{shown}"
+    );
+    // the refusal of a ranged total is gone from the list of what is not built
+    let all = sole_json(&acq(&base, &["--json", "search", "--describe"]));
+    assert!(
+        all["not_built"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|n| n["construct"] != "pseudo.<name>.<slot>")
+    );
+}

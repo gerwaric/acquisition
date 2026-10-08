@@ -210,7 +210,7 @@ fn c94_a_total_has_three_statuses_and_a_total_of_nothing_is_lacked() {
     assert_eq!(why["unread"], "the total: no definition for the realm");
     assert_eq!(
         why["problem"],
-        "no totals table for realm poe2 (totals v5 covers pc, xbox, sony)"
+        "no totals table for realm poe2 (totals v6 covers pc, xbox, sony)"
     );
     assert_eq!(
         why["hint"],
@@ -348,8 +348,8 @@ fn audit_an_unrelated_malformed_property_hides_no_derived_field() {
 }
 
 /// Outside audit, 2026-09-24 (4): the vocabulary lists beside its
-/// templates the computed values whose name or definition the narrowing
-/// matches, marked computed, each counting the matches that carry it —
+/// templates the computed values whose name or own definition the
+/// narrowing matches, marked computed, each counting the matches that carry it —
 /// established and not zero — with a route that returns exactly them;
 /// `line` alone lists none.
 #[test]
@@ -645,21 +645,26 @@ fn c92_c95_a_computed_value_sorts_and_sums() {
 fn c97_describe_lists_every_computed_value_with_its_definition() {
     let whole = serde_json::to_value(describe(&[]).unwrap()).unwrap();
     let computed = whole["computed"].as_array().unwrap();
-    assert_eq!(computed.len(), 67);
+    assert_eq!(computed.len(), 88);
     assert_eq!(computed[0]["name"], "pseudo.total_cold_res");
-    assert_eq!(computed[35]["name"], "pseudo.total_life");
-    assert_eq!(computed[36]["name"], "pseudo.total_mana");
-    assert_eq!(computed[60]["name"], "pseudo.increased_mana_regen");
+    // the ranged family where the table's changes name it, before the
+    // totals the later rounds added (step 9d-C)
+    assert_eq!(computed[35]["name"], "pseudo.adds_physical");
+    assert_eq!(computed[35]["kind"], "ranged total");
+    assert_eq!(computed[55]["name"], "pseudo.adds_damage_to_spells");
+    assert_eq!(computed[56]["name"], "pseudo.total_life");
+    assert_eq!(computed[57]["name"], "pseudo.total_mana");
+    assert_eq!(computed[81]["name"], "pseudo.increased_mana_regen");
+    assert_eq!(computed[81]["kind"], "total");
     // the readings of other totals after the totals they read (step 9c3)
-    assert_eq!(computed[60]["kind"], "total");
-    assert_eq!(computed[61]["name"], "pseudo.count_res");
-    assert_eq!(computed[61]["kind"], "derived");
-    assert_eq!(computed[64]["name"], "pseudo.total_all_attributes");
-    assert_eq!(computed[65]["name"], "pseudo.dps");
-    assert_eq!(computed[66]["kind"], "derived");
+    assert_eq!(computed[82]["name"], "pseudo.count_res");
+    assert_eq!(computed[82]["kind"], "derived");
+    assert_eq!(computed[85]["name"], "pseudo.total_all_attributes");
+    assert_eq!(computed[86]["name"], "pseudo.dps");
+    assert_eq!(computed[87]["kind"], "derived");
     assert!(
         whole["totals"].as_str().unwrap().starts_with(
-            "totals v5, 61 totals and 4 readings of them over pc, xbox, sony: the trade site’s pseudo stats"
+            "totals v6, 82 totals and 4 readings of them over pc, xbox, sony: the trade site’s pseudo stats"
         ),
         "{}",
         whole["totals"]
@@ -682,7 +687,7 @@ fn c97_describe_lists_every_computed_value_with_its_definition() {
         ])
     );
     let block = serde_json::to_value(describe(&["pseudo".to_string()]).unwrap()).unwrap();
-    assert_eq!(block["computed"].as_array().unwrap().len(), 67);
+    assert_eq!(block["computed"].as_array().unwrap().len(), 88);
     // what the reference names and no step builds is refused by that name
     let e = describe(&["defence_pct".to_string()]).unwrap_err();
     assert!(
@@ -745,10 +750,13 @@ fn a_computed_value_that_cannot_be_is_an_authoring_error() {
             "takes no slot word",
         ),
         ("pseudo.dps.low>=1", "slot_unknown", "takes no slot word"),
+        // a name nothing defines is unknown with a slot word as without
+        // one: the refusal of a ranged total left when they were built
+        // (step 9d-C)
         (
             "pseudo.cold_damage.avg>=30",
-            "not_built",
-            "pseudo.<name>.<slot>",
+            "unknown_name",
+            "pseudo.increased_cold_damage",
         ),
         ("pseudo.defence_pct>=90", "not_built", "pseudo.defence_pct"),
         (
@@ -774,7 +782,7 @@ fn a_computed_value_that_cannot_be_is_an_authoring_error() {
         ("pseudo.total_res", "ok"),
         ("pseudo.dps", "ok"),
         ("pseudo.total_res.high", "slot_unknown"),
-        ("pseudo.nothing_here.avg", "not_built"),
+        ("pseudo.nothing_here.avg", "unknown_name"),
         ("pseudo.defence_pct", "not_built"),
     ] {
         let result = view(&s, "", json!({ "rows": { "sort": sort } }));

@@ -5,6 +5,7 @@
 
 pub mod generated;
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use acquisition_search::show::Shown;
@@ -122,6 +123,46 @@ pub fn item(id: &str, name: &str, base: &str, rarity: &str, more: Value) -> Valu
         body[key] = value.clone();
     }
     body
+}
+
+/// A track's committed table, read where it lies (the build plan, "The
+/// steps left": the expected answers first): a CSV text as rows of
+/// fields, a comment line dropped, a quoted field kept whole with its
+/// commas, a doubled quote one quote.
+pub fn csv(text: &str) -> Vec<Vec<String>> {
+    let mut rows = Vec::new();
+    for line in text.lines().filter(|l| !l.starts_with('#')) {
+        let mut fields = vec![String::new()];
+        let mut quoted = false;
+        let mut chars = line.chars().peekable();
+        while let Some(c) = chars.next() {
+            match (c, quoted) {
+                ('"', true) if chars.peek() == Some(&'"') => {
+                    chars.next();
+                    fields.last_mut().unwrap().push('"');
+                }
+                ('"', _) => quoted = !quoted,
+                (',', false) => fields.push(String::new()),
+                (c, _) => fields.last_mut().unwrap().push(c),
+            }
+        }
+        assert!(!quoted, "a quoted field runs past its line: {line}");
+        rows.push(fields);
+    }
+    rows
+}
+
+/// The rows as maps by the header's names.
+pub fn table(text: &str) -> Vec<BTreeMap<String, String>> {
+    let rows = csv(text);
+    let header = &rows[0];
+    rows[1..]
+        .iter()
+        .map(|row| {
+            assert_eq!(row.len(), header.len(), "{row:?}");
+            header.iter().cloned().zip(row.iter().cloned()).collect()
+        })
+        .collect()
 }
 
 pub fn ask(corpus: &Corpus, text: &str) -> Result<Answer, SearchError> {

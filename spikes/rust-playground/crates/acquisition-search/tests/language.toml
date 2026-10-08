@@ -628,15 +628,20 @@ construct = "values.pseudo_unbuilt"
 text = '''pseudo.defence_pct=90..100'''
 canonical = '''pseudo.defence_pct=90..100'''
 
-# A ranged computed value takes a slot word last.
+# A ranged computed value takes a slot word last; with none it is its `avg`.
 [[case]]
 construct = "values.pseudo_slot"
-text = '''pseudo.cold_damage.avg>=30'''
-canonical = '''pseudo.cold_damage.avg>=30'''
+text = '''pseudo.adds_cold.avg>=30'''
+canonical = '''pseudo.adds_cold.avg>=30'''
 
 [[case]]
 construct = "values.pseudo_slot"
-text = '''pseudo.cold_damage.mean>=30'''
+text = '''pseudo.adds_cold>=30 pseudo.adds_cold.low>=10 pseudo.adds_cold.high<=60'''
+canonical = '''pseudo.adds_cold>=30 pseudo.adds_cold.low>=10 pseudo.adds_cold.high<=60'''
+
+[[case]]
+construct = "values.pseudo_slot"
+text = '''pseudo.adds_cold.mean>=30'''
 error = "unexpected"
 
 [[case]]
@@ -708,8 +713,8 @@ canonical = '''price.amount'''
 
 [[value]]
 construct = "sort.computed"
-text = '''pseudo.cold_damage.avg'''
-canonical = '''pseudo.cold_damage.avg'''
+text = '''pseudo.adds_cold.avg'''
+canonical = '''pseudo.adds_cold.avg'''
 
 [[value]]
 construct = "sort.computed"
