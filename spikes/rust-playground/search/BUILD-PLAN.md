@@ -130,8 +130,8 @@ it could ask and what it refused by name: this file at `880d9387`.
 
 ## The steps left — provisional, his to reorder
 
-9d is built one piece at a time — B, then C, then A — each closed
-before the next is briefed. Within a piece one agent writes at a time,
+9d is built one piece at a time — B (closed, `search/LEDGER.md`), then
+C, then A — each closed before the next is briefed. Within a piece one agent writes at a time,
 in this checkout, the tree its alone while it runs and the session
 waiting:
 
@@ -154,7 +154,6 @@ the piece and bring it to the owner.
 
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
-| 9d-B · category | category as a grouping above class (V1: the beasts are its first case), from the trade site's categories and/or RePoE under C106's admission test (owner, 2026-09-26), computed from class and reviewed base rules in one place (rule 10), never a second classifier; the colour table as reference data | 9c | C106, C105, C93; the contract detail, *C106 — category (9d)* and *what reference data admits*; `class.rs`; `search/category/data/beast-colours.csv`, `categories.csv` | OQ5 by category; a beast found by its category |
 | 9d-C · the ranged family | the ranged family's 21 totals, whose rows mean one of two stats a category tells apart — a weapon's own line or not (owner, 2026-09-26: "agree with 9d") | 9d-B | C94; the contract detail, *C94 — the ranged family (9d)*; `totals.rs`, `pseudo.rs`; `search/pseudo-stats/README.md`, "The ranged family on the copy", and its `data/table-changes.csv` | `Adds # to # Fire Damage` on a weapon counted toward attacks alone |
 | 9d-A · percentile | `pseudo.defence_pct` as the site's Base Percentile (V5), by the site's own rule, pinned at 9c | 9c | C101; the contract detail, *C101 — the derived fields not yet built*; `pseudo.rs`; `search/pseudo-stats/README.md`, "The percentile" and "The percentile's round"; `search/repoe/data/base-defences.csv` | the captured items the stated rule reproduces, each answered as the site showed it |
 | 10 · continuing and exchanging | in the order the seat wanted them (the sitter, 2026-09-26): `--explain` and `show --against` first — a zero answer was where they were missed; `--next` and `--request` for the MCP, an agent pages and replays; `--view locations`, `--fields`, `--rebind` and `show --basis` had no consumer at the seat and wait for one. `--next` refused across a changed basis; `--membership all` (the reference, *Membership*): the read hands removed items over with `removed_at`, every such row marked, the scope block counting each, an `id:` term that matches nothing live naming the removed id and its route, `acq show` on a removed item; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | C98, C100, C104, C108; the reference, *Membership*, *Explain*, *Outside the first surface*; `answer.rs`, `corpus.rs`; gap 3 (the record) | AQ3 whole; AQ4 across a refresh that removed the item; M5 |
@@ -203,7 +202,7 @@ the new verb to answer what `--removed` answers: `--membership all`, step
 | Park | Fired by | Then |
 | --- | --- | --- |
 | the totals coverage trial | step 7, before the first recipe was accepted — fired 2026-09-23 | `search/pseudo-stats/scripts/coverage-trial.py` over the deriver's census; the rows stood (M6, `search/MEASUREMENTS.md`) |
-| a grouping above class | step 6 reaching OQ5 — fired 2026-09-23; the seat — fired 2026-09-26 (V1: the beasts follow the trade site's categories; OQ5 took 18 terms) | brought to the owner; kept parked, OQ5 pinned from his words, the trigger now the seat (`decisions/search.md`) |
+| a grouping above class | step 6 reaching OQ5 — fired 2026-09-23; the seat — fired 2026-09-26 (V1: the beasts follow the trade site's categories; OQ5 took 18 terms) | built at 9d-B (`category.rs`), the park deleted; OQ5 is asked by category beside its class spelling |
 | a unique's variant as a field (C107) | step 4 reaching OQ2 | the trigger reopens the question, not the build: brought to the owner with his Ashes of the Stars as the first test |
 | the digest's kill list | step 11, the last acceptance test written | recheck against the tests and the reference before any removal |
 | a persisted projection; the store's search-at-scale park | M3, only if the load exceeds 500 ms — an evaluator cost over budget is the totals batch park's (owner, 2026-09-24, `decisions/search.md`) | reported with the numbers; it opens the experiment among the candidates, never persistence by default. The seat goes ahead: slow is not wrong |
@@ -239,6 +238,6 @@ submit the job (C98) — a resident client's question, the GUI's.
 Each under rule 4, with the builder's recommendation, which is no
 ruling (an outside audit's finding, 2026-09-20); a ruled one becomes a
 line in `search/LEDGER.md`, "Holes ruled", its rule in `search/DESIGN.md`.
-T3 and J1–J9, what the two tracks run before 9d surfaced (2026-09-30
-to 2026-10-05), are all ruled: `search/LEDGER.md`, "Holes ruled", the
+T3 and J1–J28, what the two tracks run before 9d and piece B
+surfaced (2026-09-30 to 2026-10-07), are all ruled: `search/LEDGER.md`, "Holes ruled", the
 seat, 9c and 9d rows. None is unruled today.

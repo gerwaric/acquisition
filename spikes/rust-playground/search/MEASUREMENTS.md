@@ -210,6 +210,7 @@ to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 | `ca9f53bc` | step 9c4, a group's quoted tests compiled once (the `-p acquisition-cli` form, sha256 `cfdec97b…`) | 599 | 455–494 but six over, the empty query 461: the two totals asks of step 7 at 521 and 522, two readings at 528 and 522, the two readings in one ask 578, and the vocabulary whole 507 | 2,438–3,178 but the six: 3,666, 3,340, 3,708, 3,467, 4,792 and 2,751 |
 | `d9d7c9da` | step 9c4, after its review's third look: an occurrence weighed once, every node of a group once (the `-p acquisition-cli` form, sha256 `6c64352a…`) | 553 | 456–500 but four over, the empty query 464: the two totals asks of step 7 at 508 and 516, `pseudo.count_res>=3` at 504 and the two readings in one ask 537 | 2,441–3,152 but the four: 3,392, 3,031, 3,172 and 3,756 |
 | `62a6d7c8` | step 9c4, after its review's fourth look: a slot beside two rows named together refused before anything is read (the `-p acquisition-cli` form, sha256 `4a481496…`) | 696 | 448–500 but five over, the empty query 448: the two totals asks of step 7 at 509 and 507, `pseudo.count_res>=3` at 510, the two readings in one ask 542, and the seat's bare phrase 517, the run's own — `d9d7c9da`'s binary and this one, asked in turn afterwards, answer it in 469 and 468 | 2,443–3,157 but the five: 3,395, 3,035, 3,237, 3,780 and 2,671 |
+| `dc262f71` | step 9d-B, category, with its four asks added to the script (the `-p acquisition-cli` form, sha256 `6fba1aa0…`) | 688 | 470–500 but nine over, the empty query 470: OQ7 554, AQ2 503 and as worded 522, the worked example 525, the vocabulary 506 and whole 513, `pseudo.count_res>=3` 525, `pseudo.count_ele_res=3` 517 and the two readings in one ask 556 — the piece's own cost is beneath | 2,588–3,121 but the nine: 2,648, 3,305, 2,891, 2,903, 3,549, 3,188, 3,335, 3,194, 3,927 |
 
 The asks each step added to the script, at the step's build, warm
 medians in ms; a step's empty query is its floor.
@@ -250,6 +251,7 @@ medians in ms; a step's empty query is its floor.
 | `bd4679e1`, 9c4 | `"#% to all Elemental Resistances"<0`, a mod named by a row · `name="Thread of Hope" pseudo.count_res=3 pseudo.count_ele_res=3` (two readings, 67 rows of the totals they read) | 487 · 817 | 2,667 · 5,657 |
 | `ca9f53bc`, 9c4 after its review | the same two · the four readings of 9c3 (`pseudo.count_res>=3` · `pseudo.count_ele_res=3` · `pseudo.total_all_ele_res>=30` · `pseudo.total_all_attributes>=10`) | 477 · 578 · 528 · 522 · 484 · 470 | 2,576 · 4,792 · 3,708 · 3,467 · 2,858 · 2,607 |
 | `d9d7c9da`, 9c4 after its review's third look | the same six | 476 · 537 · 504 · 494 · 472 · 465 | 2,575 · 3,756 · 3,172 · 3,027 · 2,676 · 2,535 |
+| `dc262f71`, 9d-B | `category=armour` · `category:beast` · `(category=armour or category=accessory) (reqlevel=..30 or -has:reqlevel)` · `--count category` | 476 · 476 · 475 · 478 | 2,595 · 2,588 · 2,599 · 2,609 |
 
 **The price join's cost (step 9, `57c2f78b`): the floor rose from 276
 to 445 ms release, and two totals asks crossed 500 ms with it.** The
@@ -507,3 +509,15 @@ in turn), is 195 to 199 ms at `7435874e` and 206 to 215 at `bd4679e1`:
 a difference the asks do not show, the whole step being 3 to 5 on the
 load, and that the close took for the step's cost before the first
 cause was found.
+
+**Step 9d-B — what category costs an ask (`dc262f71` against `e3094bb1`, 2026-10-07): 14 to 22 ms, at the load.**
+The release binary of the commit before the piece, built in a scratch
+worktree with its own target directory, and the piece's, asked in turn
+over the M3 copy, fifteen asks each, medians in ms: the empty query 458
+and 472; OQ7 463 and 483; `--count class` 464 and 486; Thread of Hope's
+counts 535 and 554. So of the 22 ms the M3 row above sits over
+`62a6d7c8`'s, the piece is some 14 and the day the rest; OQ7's 554 in
+the M3 run was the run's. Every item is classed by a second field and
+asked its category when the corpus is loaded, an ask naming a category
+or not; what part of the cost each is was not taken apart. The four
+category asks cost no more than the empty query.

@@ -56,9 +56,9 @@ first: the shapes of fault that came back until they were named.
 | --- | --- | --- |
 | **A meaning read off the syntax.** Which sources a group admits, what its selector picks, where its together bound sits, which slot a template has, what the zero block reads — each answered at the group's own level and wrong one level down, so parentheses changed the answer; and which part of a mod a slot reads, answered once for the group from every template in it, so an alternative beside a comparison changed its number — then, mended by pushing every not down to the tests, answered apart from the template a not had held it with, so a group and its not both held; then, two rows being named together, answered by the mod's numbers in order, so a row named as a condition moved the number beside it, while the slot check held every slot against the group's one quoted template | five times across step 4's four audits; four times at 9c4, in three looks | `group.rs`, the one reader of a group's meaning, `Slots` what a slot is read beside (L3); `tools/docs-check.sh` §7; the equivalence property (rule 9), which asks a fourth way since: an alternative that holds nowhere beside every group; two laws asked of any generated group (`tests/generated_rows.rs`): a group or its not holds, and a group's or is the item's |
 | **One thing counted under two names, and two taken for one.** The mod's first number and its first row's first, two parts read by two alternatives, added twice to a sum and to the together count; then, a place being added once, a number that is either of two rows' given the first row's place and dropped for the number read there | 9c4's review, the second look and the third; the builder had seen the first case and let it pass | `derive::Place`, a number known by where it sits in its mod, and none where it sits in no one place; `eval::Read`; `tests/rows.rs` (`c95_…`, `c93_a_number_that_is_either_…`), the rows-apart oracle |
-| **Unknown said at the wrong grain.** A whole object unread for one flag that is no boolean, a whole array for one number too long, a whole requirements list for one bad row: too wide leaves open terms that never needed it, too narrow reads as absence, which a not makes a witness of | steps 4, 4b, 6, 7, 8 | rule 8; `derive::Slot`, `Line::flags_unknown`, `Unread::line`, `Unread::name`; `sockets::Groups`; the completion property |
-| **Two statuses for one thing.** A number kept beside the unread that may replace it, so a comparison, the sort and the sum disagreed; a total exact on the item and rounded again in the bucket | steps 5, 6 | rule 8 (`reqlevel`'s one status); `exact::Exact`, units carried to the print |
-| **A second maker.** A route, a printed command, a reason, a selector's resolved list, each made in two places that then disagreed — a lacked count of 1 whose route returned 0, a `show` continuation that dropped the account | steps 4, 4b, 5 | rule 10; `answer::command`, `answer::Router`, `eval::why`; the CLI test that runs every printed command with a second account known |
+| **Unknown said at the wrong grain.** A whole object unread for one flag that is no boolean, a whole array for one number too long, a whole requirements list for one bad row: too wide leaves open terms that never needed it, too narrow reads as absence, which a not makes a witness of | steps 4, 4b, 6, 7, 8, 9d-B | rule 8; `derive::Slot`, `Line::flags_unknown`, `Unread::line`, `Unread::name`; `sockets::Groups`; the completion property |
+| **Two statuses for one thing.** A number kept beside the unread that may replace it, so a comparison, the sort and the sum disagreed; a total exact on the item and rounded again in the bucket | steps 5, 6, 9d-B | rule 8 (`reqlevel`'s one status; `class::unread`, a class reason only where the class has no name); `exact::Exact`, units carried to the print |
+| **A second maker.** A route, a printed command, a reason, a selector's resolved list, each made in two places that then disagreed — a lacked count of 1 whose route returned 0, a `show` continuation that dropped the account | steps 4, 4b, 5, 9d-B | rule 10; `answer::command`, `answer::Router`, `eval::why`; the CLI test that runs every printed command with a second account known |
 | **A printed command the build refuses.** A route starting with `-` at a shell, a reading that does not parse (`class=Body Armours`), a slot word the same build's slot check refuses, a continuation the key parser could not read back | steps 4, 5, 6 | rule 5; the route property; every offered reading bound by a test; `bind::closed` offering through the printer |
 | **Arithmetic on floats.** A sum whose value depended on the order of its occurrences; a fallback whose use depended on how the integers cancelled; units read back off a float that does not print its decimal | steps 4b, 5 | `exact.rs`: a number read once, within a measured rule, and whole units from then on |
 | **A cut in the query's order.** A reason made beyond the item's parts took its place from the term that met it first, so two spellings of one query showed different sixes | step 7 | rule 9; `eval::why` orders such a reason by what it says; the audit test in `tests/pseudo.rs` asks two spellings |
@@ -66,7 +66,7 @@ first: the shapes of fault that came back until they were named.
 | **A number no game displays, read as one.** Scientific notation through a length check; a product past the units rounded in silence | step 7 | `exact::reads` reads decimal syntax alone; `Exact::times` is none where the units cannot hold it; the input is unread to what asked it |
 | **A join inherits the producer's grain.** A field the other area's read typed strictly — a note, a slot — failed that read whole on one malformed body, and the join made every such failure the search's, for queries that never asked the field; an override in the producer decided without the gate its own rule states (a note where no index sees it); a number from the intent file bypassed the crate's rule for numbers and two prices met in one bucket; coverage was derived from the locations that name a league, and a character with none went unpriced | step 9, the first outside review: four of five | rule 8 at the producer's grain (`ItemSnapshot::note_unread`, `inventory_id_unread`; `body_string`); C81's own gate (`game.public`) on the override; `exact::reads` on every number that enters (`price::number`); `price::leagues` |
 | **A claim the code did not make.** A hand count wrong; `DERIVATION` not moved when a body derived to another item; a cause named before it was measured; "covered" said of a property whose generators could not reach the case; a record row crediting the wrong commit; a commit message claiming what a failed step had not shown; a module doc saying a group costs its size after a fix had made a not cost what it held again at every depth; a fixture that wrote its capture's input another way, a mod's rows apart, and agreement with the research tool reported as the build's | every step | every count worked by hand and then run; the constant's rule on its own doc; a number stated only after measuring; the generators reaching what a fix touched (`reqlevel` joined them at step 6, a mod of several rows at 9c4); a command that commits stops at the first error, each check's exit read first; a capture entered as captured and asked through the boundary (`tests/pseudo.rs`, `c94_a_row_inside_…`); a cost claimed is a cost asked for, thirty nots deep (`tests/rows.rs`) |
-| **Silent reach.** Right by its rule and wrong for the reader: an open-text `:` example reaching 87 bases with five shown (`base:ring`); two realms' place values merged under `--realm all`, one `Standard` whose route returned both | the first seat, twice (the examples; F3) | `tests/seat_faults.rs` (`f3_`); the help's examples teach `class:ring`, a closed set whose picks are all printed |
+| **Silent reach.** Right by its rule and wrong for the reader: an open-text `:` example reaching 87 bases with five shown (`base:ring`); two realms' place values merged under `--realm all`, one `Standard` whose route returned both | the first seat, twice (the examples; F3); 9d-B, a category term's picks cut at five in text | `tests/seat_faults.rs` (`f3_`); the help's examples teach `class:ring`, a closed set whose picks are all printed |
 | **A refusal right in kind, wrong in size.** 82 names inline, twice, the meant one not singled out; one reason printed once per term, eighteen times; a near reading for a field and none for a computed value | the first seat, three times (F5, F9, F10) | `tests/seat_faults.rs` (`f5_`, `v8_`, `f10_`); `bind::near`, `bind::LISTED_INLINE`; `Total.undecided_reasons` |
 
 ## What the measurements taught
@@ -80,19 +80,18 @@ number there was measured, never recalled. The verdicts:
 - M2 (step 2, rerun at every change of the deriver): 0 unread and 0
   unexplained against the census; seven departures, each a rule of
   `derive.rs`, two of them candidate ground-truth claims.
-- M3 (step 4, rerun at every build since; as of `62a6d7c8`): the load,
-  the empty query, is 448 ms release, under 500, so the projection park
-  does not fire; the price join raised it from 276 at step 9, and a
-  mod's rows, kept by the deriver, by 3 to 5 at 9c4. Four asks are over
-  500, each by an evaluator's cost, the totals batch park's (V9,
-  revisited at step 11): an ask pays some 1 ms for each row of every
-  total it reads, where it paid 5 to 6 until 9c4's review had a slot
-  read of a part that may hold alone and an occurrence weighed once, a
-  least stopping at the first total that is nothing; a fifth, a bare
-  phrase at 517, was the run's, 468 asked again. The six asks the
-  seat saw at 695–715 ms did not recur on the copy, their cause
-  unmeasured. The debug build is 2.4 to 3.8 s. What each rerun showed
-  is the block's.
+- M3 (step 4, rerun at every build since; as of `dc262f71`): the load,
+  the empty query, is 470 ms release, under 500, so the projection park
+  does not fire; the price join raised it from 276 at step 9, a mod's
+  rows by 3 to 5 at 9c4, and category by some 14 at 9d-B — every item
+  classed by a second field and asked its category at the load, the
+  build before it asked in turn. Nine asks are over 500 in the run and
+  five were at `62a6d7c8`, each by an evaluator's cost on a floor 22
+  higher, the totals batch park's (V9, revisited at step 11): an ask
+  pays some 1 ms for each row of every total it reads. The category
+  asks cost no more than the empty query. The six asks the seat saw at
+  695–715 ms did not recur on the copy, their cause unmeasured. The
+  debug build is 2.6 to 3.9 s. What each rerun showed is the block's.
 - M4 (step 4): `~` over all text adds 9 ms.
 - The class table (step 6): 56 of 82 classes carried, 681 of 22,721
   undecided, the buckets summing to the copy (C105).
@@ -105,6 +104,10 @@ number there was measured, never recalled. The verdicts:
   agree.
 - Step 8: every socket bucket a value or `none`, `undecided` 0; every
   group on the copy one contiguous run.
+- Category (9d-B): the count by category is
+  `search/category/data/expected-copy.csv` on every id — 22,622 of the
+  copy's 22,623 pc items under an id, 1 `none`, 0 undecided — and
+  `undecided(class)` is 0 where it was 158, the beasts.
 
 ## Observations still open
 
@@ -186,7 +189,7 @@ filed again by the step that touches it.
   satisfying occurrence`, which is a line's wording; a field's and a
   computed value's is the same status today.
 - The generated properties reach `pseudo` since the third look and
-  `price` since step 9, and still no `class`.
+  `price` since step 9, and still no `class` or `category`.
 - `pseudo.dps` counts every damage property the item displays and
   `pseudo.pdps` the physical alone; the C++ app reads 0 where a property
   is missing and this build says *lacked* — the one departure, C93's.
@@ -225,9 +228,6 @@ filed again by the step that touches it.
 - `class:sword` and `class:map` reach past their word too, but print
   every pick; an open field's `:` prints five of 87 (the checklist's
   silent reach).
-- After 9b every `class:` term carries 158 undecided, the captured
-  beasts (70 bases), until category lands (9d); `undecided(class)` is
-  the same 158 since G2's revision.
 - `show`: an unnamed substash renders as a trailing separator; `price
   none (none)`; explicit lines before implicit, where the game shows
   the implicit first. A row prints `price.side`, which `--describe`
@@ -275,6 +275,16 @@ filed again by the step that touches it.
 - *The totals batch park (V9, step 11):* what it was parked on has
   moved, M3's verdict above; the table's 284 rows are bound at every
   ask (`search/MEASUREMENTS.md`, the step's block).
+- *The next sitting, or a seat:* of 9d-B's seven name rules the
+  tattoo's alone is asked of the site (J23, two families of five);
+  the other five rest on the research script and one ruled row each.
+  The generator's near-miss check sees a rule too narrow, never one
+  too wide, and takes a leaf's word to be the first word of the
+  site's text. An id with a dot is typed quoted, 73 of the 82 (J24).
+- *The review's next look, 9d-C:* the language corpus has no case
+  for `category`; `show` prints an item's listing, never every id
+  that holds; a beast's class rests on a second field, the bestiary
+  line, and a body where that line is no string is fixtures' alone.
 - *9d:* the two leech pseudos count the line under every id, the
   `(Local)` twin among them, so neither waits for a row that names what
   the item is; of 9c2's totals none does. `has:` of a ranged total

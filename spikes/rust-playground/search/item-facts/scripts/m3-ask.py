@@ -80,6 +80,11 @@ ASKS = [
     # step 9c4: a mod displayed over several rows, named by a row
     ("a mod named by a row", ['"#% to all Elemental Resistances"<0']),
     ("Thread of Hope's counts", ['name="Thread of Hope" pseudo.count_res=3 pseudo.count_ele_res=3']),
+    # step 9d-B: category
+    ("category=armour", ["category=armour"]),
+    ("a beast by its category", ["category:beast"]),
+    ("OQ5 by category and level", ['(category=armour or category=accessory) (reqlevel=..30 or -has:reqlevel)']),
+    ("--count category", ["", "--count", "category"]),
 ]
 
 def main():

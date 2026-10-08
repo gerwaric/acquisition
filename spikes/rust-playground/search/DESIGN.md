@@ -222,6 +222,9 @@ ITEM-LEVEL
                                      A word outside its list is an authoring error with the near
                                      ones offered. A flag GGG adds is shown by acq show and
                                      cannot be asked for until the list gains it.
+  category=armour  category="armour.boots"   the trade site's category id, a closed set of its own
+                                     words; an id with a dot in it is quoted, and a parent holds
+                                     what is under it (--describe category).
   league:  tab:  character:  container:      place, as text fields. tab: is the tab's name, never its
                                      type: a map tab named Maps is found by tab:maps because of
                                      what it is called; tab.type is GGG's type of the tab, verbatim,
@@ -546,7 +549,9 @@ paragraphs the crate took on 2026-09-23 — C89/C103, C90/C102, C92,
 C93, C95, C105, C96, C97, C98, C100, the derivation's shape, and C94
 with C101's DPS at step 7 — are their module docs' now (`eval.rs`,
 `group.rs`, `counts.rs`, `answer.rs`, `corpus.rs`, `derive.rs`,
-`show.rs`, `totals.rs`, `pseudo.rs`) and this file at `aeeba6d3`. The
+`show.rs`, `totals.rs`, `pseudo.rs`) and this file at `aeeba6d3`;
+C106's category, taken at 9d-B, is `category.rs`'s and this file at
+`dc262f71`. The
 site's 298 pseudo stats by the mechanism each needs, with the input
 that admits each, is `search/pseudo-stats/README.md` (2026-09-18; 109
 unresolved, each with the one read that closes it).
@@ -594,46 +599,6 @@ unresolved, each with the one read that closes it).
   limit — a global line on a weapon is read as the weapon's own — with
   what the site showed: no listed weapon was found to carry one (round
   i, i06–i08).
-- **C106 — category (9d).** A term names the trade site's category id
-  as spelled; a parent matches the classes the site puts at it and
-  every id under it by the dot (`map` holds Inscribed Ultimatums of its
-  own and its children's scarabs and breachstones alike; J2, ruled
-  2026-10-05); a grouping (`weapon.one` and the six others) is a term
-  over reviewed members, each row citing the capture that answered it,
-  Fishing Rods outside two-handed melee (J4). A leaf is a class's, or a
-  class's with a rule on the base name: the Maven's Invitation leaf
-  holds a base named for the Maven and every other invitation takes
-  `map`, the second half not asked of the site (J3). A captured beast,
-  known by its bestiary line, is `monster.beast`, and its colour leaf
-  is the row of the colour table — reference data under clause (a)
-  below, generated from the sittings' captures by a committed script,
-  reviewed as a diff, 250 yellow, 79 red, 32 unknown, each row citing
-  its capture — a name the table lacks or marks unknown being undecided
-  with that reason and the hint that the site may list it; the count of
-  bestiary mods is the generator's check and reads nothing at run time
-  (J1). A beast's class is the game's own word for it, `Stackable
-  Currency`, read by the same line (J9, revising V1, which was ruled
-  when a beast was thought to have no class). That class gives a beast
-  no id: it is under `monster.beast` and its colour leaf, never
-  `currency` (J10; owner, 2026-10-06: "They are "Captured Beast" and
-  either "Red Beast" or "Yellow Beast" or neither."). A count by
-  category lists an item under its most specific id (J11: "under the
-  most specific. consumers can roll up these counts as needed.").
-  Ruled 2026-10-06 (J12–J19): a grouping holds its reviewed members
-  alone, a leaf nothing places being out; a base whose class the export
-  prints no name for (the grafts) is undecided; Growing Wombgift is
-  `wombgift`; a count lists a beast of undecided colour under
-  `monster.beast`, and an item of two leaves not nested under each; an
-  id every candidate class gives holds while the class is open; a beast
-  in a realm with no table is undecided; a quest-frame invitation has
-  no id. J20–J22: Growing Wombgift's class is Wombgifts, the item as
-  any wombgift is ("I want growing wombgift to behave like other
-  wombgift items, however they are handled."); a count lists an item
-  whose class is open under the most specific id that holds; in a realm
-  with no table every id is undecided on every item. Computed from
-  class and
-  these rules in one place (rule 10 of the plan), never a second
-  classifier; the table and the rules are `category.rs`'s when built.
 - **C106 — what reference data admits, and the test.** Three kinds:
   *data*, what the game files state and a registered surface exports;
   *convention*, a concept the community has published a definition for
