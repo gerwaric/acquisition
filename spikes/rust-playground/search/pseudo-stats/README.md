@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: J8's k001 and k002 read: the item's eldritch or synthesis mark separates an implicit twin, a candidate on 27 items — 2026-10-04 (`da2c1711`). The states before it, each by its commit: the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
+Status: 9d-C's expected answers, reviewed: the ranged family read from an item's text and class, the site disagreeing on none of 559 captured cells; 14 cells unruled under two questions; 50 of the copy's 71 groups of lines not asked — 2026-10-07. The states before it, each by its commit: J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -131,6 +131,40 @@ The class decides as the export and the site do wherever either speaks. The limi
 the join cannot place (29 match local and global mods, 7 none), 19 uncaptured; i06–i08 found no listed
 weapon carrying the line under the global stat, which says nothing of a weapon no one lists.
 i06–i08 by search: `data/sittings-detail.md`.
+
+## The ranged family's expected answers
+
+`scripts/ranged-expected.py` (the brief, `BRIEF.md`): one function from a private item's realm, base,
+rarity and lines — text, array, flags, never an id — to what each of the 21 totals answers; the rows are
+`data/table-changes.csv`'s, 96 `add row` and 52 `twin`. `data/ranged-expected.csv`, a row a case and a
+total; `data/ranged-expected-copy.csv`, the function over the copy's 22623 live pc items and its lines by
+template, side, array and flags.
+
+- **Cases**: captured 519 (420 distinct items, 99 repeats; 52 searches read, 51 left out as fetching no
+  item), ruled 25 (14 items of the copy, 11 composed), worked 3 (composed; the function gave what the hand
+  did on 21 cells of 21, each). Every one of the 148 rows is counted by a case.
+- **Disagreements**: 0 of 559 captured cells (the site a value on 439, none on 120); 0 not comparable.
+- **`unruled`**, 14 cells under 2 questions, each on composed items alone. `side-open-attacks`, 5 cells
+  (`r-side-open-unsuffixed`, `r-side-open-no-base`): an unsuffixed line on an item the class table cannot
+  class, under an attacks' total — A: complete, both twins' rows counting it at one weight; B: undecided, the
+  row that names it unknown. `range-cancels`, 9 cells (`r-nothing-cancels`, `Adds -5 to 5`; lines holding a
+  number below nothing: 0 on the copy, 0 captured) — A: lacked, the average being nothing; B: a value,
+  `low` and `high` not nothing.
+- **Broken once for each rule**, the captured cells that then disagree, of 559: `realm` 0,
+  `weapon-own-as-other` 87, `other-as-weapon-own` 41, `side-open-as-other` 0, `frame-picks-none` 0,
+  `low-for-avg` 439, `nothing-is-zero` 120, `first-line-only` 13, `explicit-only` 280, `unflagged-only` 3,
+  `whole-text` 0, `unread-ignored` 0, `no-local-row` 54, `no-eldritch-rows` 279,
+  `no-spells-and-attacks-rows` 37, `no-aggregate-rows` 140. **On the ruling alone**, 5: a realm with no
+  recipe; a side left open; the frame picking among a base's classes; a mod of several rows read by a row;
+  an unread array or flag.
+- **Not asked**: of the copy's 71 groups 50, holding 279 lines of 1831 (each with its question in the copy
+  file). By rule: J7, a weapon's own line in an array or under a flag no capture asked, 15 groups, 61 lines
+  — `crucibleMods` 43, fractured 8, `implicitMods` 6, crafted 3, `enchantMods` 1 — does the plain pseudo of
+  the line's type show on a weapon carrying the unsuffixed line there? The reading: none, the attacks'
+  pseudo showing its average. The other twin as an implicit, 2 groups, 8 lines: the same pseudo on an item
+  that is no weapon; the reading: the average. A row of `any` twin, 33 groups, 210 lines — `to Attacks` as
+  an implicit off a weapon 78, `to Spells and Attacks` as a weapon's implicit 50, `to Spells` off a weapon
+  34: does the pseudo of the line's own scope and type show its average there? The reading: yes.
 
 ## The captures, and what the site said
 
