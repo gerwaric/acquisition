@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: 9d-C's expected answers, reviewed: the ranged family read from an item's text and class, the site disagreeing on none of 559 captured cells; 14 cells unruled under two questions; 50 of the copy's 71 groups of lines not asked — 2026-10-07. The states before it, each by its commit: J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
+Status: before 9d-C's sitting, reviewed: seven of the site's domains shown counted and none left out; no crucible line, flask's own line or mutated line captured under any pseudo; the export says global of no weapon's unsuffixed line, and Path of Building reads it as the weapon's own in every array — 2026-10-08. The states before it, each by its commit: 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -165,6 +165,36 @@ template, side, array and flags.
   that is no weapon; the reading: the average. A row of `any` twin, 33 groups, 210 lines — `to Attacks` as
   an implicit off a weapon 78, `to Spells and Attacks` as a weapon's implicit 50, `to Spells` off a weapon
   34: does the pseudo of the line's own scope and type show its average there? The reading: yes.
+
+## Before the sitting: the domain, and the twin from the export
+
+`scripts/evidence-domains.py` (`data/evidence-domains.csv`): `tools/trade-evidence.py`'s 1503 readings, each
+made again with one domain's lines off the item. `Not shown` is no evidence a domain is left out.
+
+- **Shown counted**, 7, by readings broken: `explicit` 489, `implicit` 732, `crafted` 9, `scourge` 4,
+  `enchant` 2, `fractured` 1, a line with no hash 1. **Shown left out**, 0. **Not shown**, 7, no line
+  captured: `crucible`, `veiled`, `delve`, `ultimatum`, `sanctum`, `imbued`, `mercenary`. Unflagged
+  `explicitMods` holds `explicit`, `ultimatum` and hashless lines; the other five captured map one to one.
+- **The ranged 21**: `explicit` counted under 16 (5 plain: a weapon's own, the same either way), `implicit`
+  14 (1 the same, 6 uncaptured), `crafted` 1; no other domain.
+- **The copy**, 19151 lines in 280 groups: 17987 shown counted (`explicitMods` 14823, `implicitMods` 2427,
+  crafted 557, fractured 159, `scourgeMods` 17, `enchantMods` 4); 1164 not shown, uncaptured —
+  `utilityMods` 1084, `crucibleMods` 77, crafted and fractured 2, `mutated` 1.
+
+`scripts/ranged-twins.py` (`data/ranged-twins.csv`): 702 lines, four readings each — the generation types
+the array names or every mod, any class or those the base admits; the unique rows are
+`data/ranged-uniques.csv`'s. On a weapon (573) the export says local of 532, 531, 447, 481 and global of
+none; off one (129), global of 36, 36, 19, 34. All four say the side's twin on 461, cannot say on 240. **One
+differs**: a rare Gold Ring's `Adds 19 to 24 Cold Damage`, local under every mod and any class alone.
+
+Path of Building @ 16de4b82, read apart from the export: the line is parsed with no item in hand
+(`src/Modules/ModParser.lua` L129, L6818–L6824) and is a weapon's own where the base is a weapon and
+nowhere else, whatever array it came from (`src/Classes/Item.lua` L2204, L2288–L2300); the scoped forms
+carry a keyword flag and are never local. Fishing rods are weapons there, as in the category table.
+
+**For a sitting**: an attacks' and a plain `Adds` pseudo of a weapon whose line is `crucible` (43),
+`fractured` (8), `implicit` (9, one type captured), `crafted` (3), `enchant` (1); a plain one of an implicit
+off a weapon (8); a resistance or speed pseudo of a flask's `utilityMods`; any of a `mutated` line.
 
 ## The captures, and what the site said
 
