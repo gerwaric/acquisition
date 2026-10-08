@@ -363,13 +363,15 @@ fn open_store_and_intent() -> Result<(Store, acquisition_store::Annotations)> {
 /// The basis line every answer and every `show` prints (C98).
 fn basis_text(b: &acquisition_search::Basis) -> String {
     format!(
-        "basis   store {} · snapshot {} · facts v{} · intent {} · derivation {} · classes v{} · totals v{} · currency v{} · notes v{}",
+        "basis   store {} · snapshot {} · facts v{} · intent {} · derivation {} · classes v{} · categories v{} · beast colours v{} · totals v{} · currency v{} · notes v{}",
         b.store,
         b.snapshot.response,
         b.snapshot.facts_version,
         b.intent,
         b.derivation,
         b.classes,
+        b.categories,
+        b.beast_colours,
         b.totals,
         b.currency,
         b.notes
@@ -555,15 +557,22 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                 counts.join(" · ")
             ));
             if let Some(resolved) = &term.resolved {
-                // the five most carried; the JSON lists ten
-                const SHOWN: usize = 5;
+                // the five most carried, where the JSON lists ten and a
+                // count lists the rest; every pick of a category term,
+                // which no count lists (`category.rs`): a cut there would
+                // have no route to what it left out
+                let shown = if resolved.of == "category" {
+                    resolved.values.len()
+                } else {
+                    5
+                };
                 let mut values: Vec<String> = resolved
                     .values
                     .iter()
-                    .take(SHOWN)
+                    .take(shown)
                     .map(|v| format!("{} ({})", v.value.replace('\n', "\\n"), v.items))
                     .collect();
-                let more = resolved.more + resolved.values.len().saturating_sub(SHOWN);
+                let more = resolved.more + resolved.values.len().saturating_sub(shown);
                 if more > 0 {
                     // the count that lists every value, where one does
                     values.push(match &resolved.rest {
@@ -1094,6 +1103,15 @@ fn describe_text(d: &Describe) -> String {
     // and source (C106's clause (c))
     block(&format!("computed values — {}", d.totals), &d.computed);
     block("counts", &d.counts);
+    // every category id with the site's text for it and what makes it
+    // hold (C106)
+    if !d.categories.is_empty() {
+        out.push_str("categories — the trade site's ids, as spelled\n");
+        for c in &d.categories {
+            out.push_str(&format!("  {:<30}{}\n", c.id, c.text));
+            out.push_str(&format!("  {:<30}  {}\n", "", c.holds));
+        }
+    }
     if !d.not_built.is_empty() {
         out.push_str("not built, refused by name\n");
         for n in &d.not_built {
@@ -1148,6 +1166,25 @@ fn shown_text(s: &Shown) -> String {
         Classed::FrameUnread { .. } => out.push_str(
             "class   undecided: the frame, which decides an invitation's class, was not read\n",
         ),
+        Classed::BestiaryUnread { candidates, .. } => out.push_str(&format!(
+            "class   undecided: the bestiary line, which tells a captured beast, was not read — {}\n",
+            candidates.join(" or ")
+        )),
+    }
+    // the category (C106): the id or ids a count lists the item under,
+    // none, or undecided — and the reason wherever an id is left open
+    let category = &s.category;
+    out.push_str(&match category.bucket {
+        "value" => format!("category {}\n", category.listed.join(", ")),
+        other => format!("category {other}\n"),
+    });
+    for open in &category.open {
+        let ids = if open.ids.len() <= 4 {
+            open.ids.join(", ")
+        } else {
+            plural(open.ids.len(), "id", "ids")
+        };
+        out.push_str(&format!("         open {ids}: {}\n", open.why.problem));
     }
     // what the listing state prices it at (C81): the price, or why none
     match &s.price {

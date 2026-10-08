@@ -1226,8 +1226,9 @@ fn c95_a_sum_of_item_sums_is_exact_between_items() {
 
 /// C105's first test as worded in the contract detail, with the class
 /// names the table gives (step 6): ten rare items by class — Rings 6,
-/// Wands 3, undecided 1 (an itemised beast, whose name is no base of the
-/// table), total 10; no `none`, since every item has a class.
+/// Wands 3, undecided 1 (a beast's name with no bestiary line, which is
+/// no base of the table), total 10; no `none`, since every item has a
+/// class.
 #[test]
 fn c105_ten_rare_items_by_class_sum_to_the_total() {
     let mut s = store();

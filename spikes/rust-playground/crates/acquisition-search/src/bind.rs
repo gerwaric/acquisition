@@ -36,6 +36,10 @@
 //!   language knows is known in any case, a computed value's too (F10),
 //!   and a computed value is near a misspelt one, behind `has:` as
 //!   anywhere.
+//! - **`category` is a closed set too** (`category.rs`, C106): its list
+//!   the trade site's ids, in the site's order. An id with a dot is a
+//!   value of more than a word and is quoted, as the grammar has every
+//!   such value — `category="armour.boots"` — and printed so.
 //! - **`reqlevel` is a number** the deriver reads from the `Level`
 //!   requirement (the build plan, step 6): `reqlevel=..30`, `-has:reqlevel`.
 //! - **Atomic terms are numbered by path** — `0`, `1`, `3.1` — as the
@@ -239,6 +243,9 @@ pub(crate) enum Thing {
     Frame,
     /// The class table's word for the item's base (`class.rs`).
     Class,
+    /// The trade site's category ids that hold on the item
+    /// (`category.rs`).
+    Category,
     Ilvl,
     /// The `Level` requirement, as a number.
     ReqLevel,
@@ -333,6 +340,12 @@ pub(crate) const FIELDS: &[FieldDef] = &[
         thing: Thing::Class,
         kind: Kind::Closed(crate::class::names),
         what: "the item's class as the game names it, read from its base in the class table",
+    },
+    FieldDef {
+        name: crate::category::FIELD,
+        thing: Thing::Category,
+        kind: Kind::Closed(crate::category::ids),
+        what: "the trade site's category of the item, by the site's own id, computed from the item's class and reviewed rules",
     },
     FieldDef {
         name: "ilvl",
@@ -578,6 +591,10 @@ pub(crate) enum Atom {
     Closed {
         thing: Thing,
         values: Vec<&'static str>,
+        /// The values as a set of the category table's ids, where the
+        /// field is `category` (`category.rs`): bound once, asked of every
+        /// item. Empty for every other field.
+        ids: crate::category::Ids,
     },
     Number {
         thing: Thing,
@@ -1160,6 +1177,14 @@ pub(crate) fn values_of(def: &FieldDef) -> Result<&'static [&'static str], Langu
             )
         })?;
     }
+    if def.thing == Thing::Category {
+        crate::category::tables().map_err(|e| {
+            LanguageError::new(
+                ErrorKind::Tree,
+                format!("the category tables this build ships do not load: {e}"),
+            )
+        })?;
+    }
     if def.thing == Thing::PriceCurrency {
         crate::price::currency_table().map_err(|e| {
             LanguageError::new(
@@ -1177,10 +1202,18 @@ fn test(def: &'static FieldDef, op: Op, value: &Value) -> Result<Atom, LanguageE
             thing: def.thing,
             test: text_test(def.name, op, value)?,
         }),
-        Kind::Closed(_) => Ok(Atom::Closed {
-            thing: def.thing,
-            values: closed(def.name, values_of(def)?, op, value)?,
-        }),
+        Kind::Closed(_) => {
+            let values = closed(def.name, values_of(def)?, op, value)?;
+            let ids = match (def.thing, crate::category::tables()) {
+                (Thing::Category, Ok(tables)) => tables.picked(&values),
+                _ => crate::category::Ids::default(),
+            };
+            Ok(Atom::Closed {
+                thing: def.thing,
+                values,
+                ids,
+            })
+        }
         Kind::Number => match op {
             Op::Contains | Op::Match => Err(LanguageError::new(
                 ErrorKind::OperatorMismatch,

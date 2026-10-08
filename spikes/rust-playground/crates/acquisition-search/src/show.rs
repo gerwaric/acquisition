@@ -17,7 +17,9 @@
 //! with the search that lists what is in it. The item's price is the
 //! listing state's (`price.rs`, C81), joined after the read as a corpus
 //! joins every item's, under the same check that the facts and the intent
-//! still stand at the basis.
+//! still stand at the basis. Its category stands beside its class
+//! (`category.rs`): the ids a count lists it under, and what left an id
+//! open.
 
 use acquisition_store::corpus::{LocationRow, RealmScope};
 use acquisition_store::{Annotations, Store};
@@ -26,8 +28,8 @@ use serde::Serialize;
 use crate::answer::command;
 use crate::class::Classed;
 use crate::corpus::{
-    Basis, Place, REREADS, class_table, currency_table, locations, moved, placed, still_at,
-    tab_type_unread,
+    Basis, Place, REREADS, category_tables, class_table, currency_table, locations, moved, placed,
+    still_at, tab_type_unread,
 };
 use crate::derive::{Facts, Item, Line, derive};
 use crate::describe::limit;
@@ -43,6 +45,9 @@ pub struct Shown {
     pub item: Item,
     /// What the class table says of it (`class.rs`).
     pub class: Classed,
+    /// Its category (`category.rs`): the id or ids a count lists it
+    /// under, and the reason wherever an id is left open.
+    pub category: crate::category::Shown,
     /// What the listing state prices it at (`price.rs`, C81).
     pub price: Priced,
     pub lines: Vec<ShownLine>,
@@ -86,6 +91,7 @@ fn read_one(
     body: bool,
 ) -> Result<Option<Shown>, SearchError> {
     let table = class_table()?;
+    let categories = category_tables()?;
     currency_table()?;
     let intent_revision = price::intent_revision(intent)?;
     let found = store
@@ -149,10 +155,12 @@ fn read_one(
             line,
         })
         .collect();
+    let class = table.classify(&item);
     Ok(Some(Shown {
         basis,
         place,
-        class: table.classify(&item),
+        category: categories.shown(&item, &class, &categories.of(&item, &class)),
+        class,
         price: priced,
         item,
         lines,

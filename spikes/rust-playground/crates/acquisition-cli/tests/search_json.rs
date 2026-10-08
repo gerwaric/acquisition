@@ -1001,6 +1001,7 @@ fn describe_and_show_print_json_whole_and_text_from_it() {
             "rarity",
             "frame",
             "class",
+            "category",
             "ilvl",
             "reqlevel",
             "stack",
@@ -1260,4 +1261,231 @@ fn step_9c4_a_mod_is_found_by_a_row_and_show_prints_its_rows() {
         described.contains("or by any one of its rows"),
         "{described}"
     );
+}
+
+/// The seed, and in tab `t3` what step 9d-B's tests ask by category: a
+/// pair of boots, a gem with a damage line, a captured Dune Hellion
+/// (yellow by the colour table), a captured Bleached Crustacean (unknown
+/// there) and a breachstone with no frame.
+fn seed_categories(base: &Path) {
+    seed(base);
+    let mut store = Store::open(&account_path(&base.join("mock"), USER)).unwrap();
+    let plain = |id: &str, base: &str, more: Value| {
+        let mut v = json!({ "id": id, "name": "", "typeLine": base, "baseType": base,
+                            "identified": true, "ilvl": 0, "x": 0, "y": 0 });
+        for (k, value) in more.as_object().unwrap() {
+            v[k] = value.clone();
+        }
+        v
+    };
+    let bestiary = "Right-click to add this to your bestiary.";
+    store
+        .record(
+            &Endpoint::Stash {
+                realm: "pc".into(),
+                league: "Standard".into(),
+                id: "t3".into(),
+                sub: None,
+            },
+            &json!({ "realm": "pc", "league": "Standard" }),
+            200,
+            &json!({ "stash": { "id": "t3", "name": "Never", "type": "PremiumStash", "items": [
+                plain("boots", "Iron Greaves", json!({ "frameTypeId": "Rare", "rarity": "Rare",
+                    "requirements": [{ "name": "Level", "values": [["20", 0]], "displayMode": 0 }],
+                    "explicitMods": ["+30 to maximum Life"] })),
+                plain("fire", "Fireball", json!({ "frameTypeId": "Gem",
+                    "explicitMods": ["Deals 9 to 14 Fire Damage"] })),
+                plain("hellion", "Dune Hellion", json!({ "frameTypeId": "Rare", "descrText": bestiary })),
+                plain("crab", "Bleached Crustacean", json!({ "frameTypeId": "Rare", "descrText": bestiary })),
+                plain("stone", "Tul's Breachstone", json!({})),
+            ] } }),
+            40,
+        )
+        .unwrap();
+}
+
+/// Step 9d-B at a terminal (C106, category): OQ5 spelled by category, a
+/// beast found by its category and shown, the count by category with
+/// every route it prints returning what it counted, and `--describe
+/// category`. Tab `t3` gains a pair of boots, a gem with a damage line, a
+/// captured Dune Hellion (yellow by the colour table), a captured
+/// Bleached Crustacean (unknown there) and a breachstone with no frame.
+#[test]
+fn step_9d_category_at_a_terminal_oq5_a_beast_the_count_and_the_help() {
+    let base = base();
+    seed_categories(&base);
+
+    // OQ5 by category: the seed's plate and three rings with a life line,
+    // and the boots; the gem's damage line and the plain ring's mana stay out
+    let oq5 = "(category=armour or category=accessory) (reqlevel=..30 or -has:reqlevel) \
+               (line(template:resistance) or line(template:life) or line(template:damage))";
+    let a = sole_json(&acq(&base, &["--json", "search", oq5]));
+    let mut found: Vec<&str> = a["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["id"].as_str().unwrap())
+        .collect();
+    found.sort_unstable();
+    assert_eq!(found, ["boots", "kaom", "r1", "r2", "r3"]);
+    assert_eq!(a["basis"]["categories"], 1);
+    assert_eq!(a["basis"]["beast_colours"], 1);
+    let shown = text(&acq(&base, &["search", oq5]));
+    assert!(
+        shown.contains("categories v1 · beast colours v1"),
+        "{shown}"
+    );
+    assert!(shown.contains("category armour.boots"), "{shown}");
+
+    // the beast, by its category and by its colour
+    let a = sole_json(&acq(
+        &base,
+        &["--json", "search", "category=\"monster.yellowbeast\""],
+    ));
+    assert_eq!(a["total"]["matched"], 1);
+    assert_eq!(a["rows"][0]["id"], "hellion");
+    assert_eq!(a["terms"][0]["undecided"]["count"], 1);
+    let a = sole_json(&acq(&base, &["--json", "search", "category:beast"]));
+    assert_eq!(a["total"]["matched"], 2);
+    let s = sole_json(&acq(&base, &["--json", "show", "crab"]));
+    assert_eq!(s["class"], json!({ "is": "Stackable Currency" }));
+    assert_eq!(s["category"]["listed"], json!(["monster.beast"]));
+    assert_eq!(s["category"]["open"][0]["part"], "colour");
+    let shown = text(&acq(&base, &["show", "crab"]));
+    for needle in [
+        "class   Stackable Currency",
+        "category monster.beast",
+        "open monster.yellowbeast, monster.redbeast:",
+    ] {
+        assert!(
+            shown.contains(needle),
+            "the text lacks `{needle}`:\n{shown}"
+        );
+    }
+    let shown = text(&acq(&base, &["show", "hellion"]));
+    assert!(shown.contains("category monster.yellowbeast"), "{shown}");
+    let shown = text(&acq(&base, &["show", "fire"]));
+    assert!(shown.contains("category gem.activegem"), "{shown}");
+
+    // counted: every route printed returns what its heading counted, the
+    // breachstone's among them — under `map`, its leaf open (J21)
+    let counted = sole_json(&acq(&base, &["--json", "search", "--count", "category"]));
+    let by: Vec<(String, u64)> = counted["view"]["counts"]["tables"][0]["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| {
+            (
+                b["value"].as_str().unwrap_or("").to_string(),
+                b["count"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        by,
+        [
+            ("accessory.ring", 4),
+            ("armour.boots", 1),
+            ("armour.chest", 1),
+            ("gem.activegem", 1),
+            ("map", 1),
+            ("monster.beast", 1),
+            ("monster.yellowbeast", 1),
+        ]
+        .map(|(id, n)| (id.to_string(), n))
+    );
+    let shown = text(&acq(&base, &["search", "--count", "category", "--routes"]));
+    assert!(shown.contains("count   category · 7 values"), "{shown}");
+    let lines: Vec<&str> = shown.lines().collect();
+    let mut ran = 0;
+    for pair in lines.windows(2) {
+        let Some(n) = pair[0]
+            .strip_suffix("), over the scope:")
+            .and_then(|head| head.rsplit_once('('))
+            .and_then(|(_, n)| n.parse::<u64>().ok())
+        else {
+            continue;
+        };
+        let command = pair[1].trim();
+        let out = run_printed(&base, command);
+        assert!(out.status.success(), "`{command}` does not run");
+        assert_eq!(
+            sole_json(&out)["total"]["matched"],
+            n,
+            "`{command}` under `{}`",
+            pair[0]
+        );
+        ran += 1;
+    }
+    assert!(ran >= 7, "{ran} routes ran:\n{shown}");
+    let crossed = text(&acq(&base, &["search", "--cross", "category,tab"]));
+    assert!(crossed.contains("cross   category × tab"), "{crossed}");
+
+    // the help: the field, and every id with the site's text for it
+    let d = sole_json(&acq(&base, &["--json", "search", "--describe", "category"]));
+    assert_eq!(d["fields"][0]["name"], "category");
+    assert_eq!(d["fields"][0]["values"].as_array().unwrap().len(), 82);
+    assert_eq!(d["categories"].as_array().unwrap().len(), 82);
+    assert_eq!(
+        d["categories"][0],
+        json!({ "id": "weapon", "text": "Any Weapon", "holds": d["categories"][0]["holds"] })
+    );
+    let shown = text(&acq(&base, &["search", "--describe", "category"]));
+    for needle in [
+        "monster.yellowbeast",
+        "Yellow Beast",
+        "Maven's Invitation",
+        "categories v1",
+    ] {
+        assert!(
+            shown.contains(needle),
+            "the help lacks `{needle}`:\n{shown}"
+        );
+    }
+    // a word that is no id is refused, structured (C11)
+    let out = acq(&base, &["--json", "search", "category=beasts"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert_eq!(sole_json(&out)["kind"], "unknown_value");
+}
+
+/// A block cut with no route to the rest (invariant 5 of the surface; the
+/// brief of 9d-B: every pick of a category term is printed). The text cut
+/// what a selector resolved to at five, and a category term has no count
+/// that lists the rest: `category:one` on the owner's copy hid
+/// `map.breachstone` behind "· 1 more". Here the pattern picks every id
+/// and the store's items carry ten of them: each is printed, with its
+/// count, and nothing is left behind a "more".
+#[test]
+fn every_pick_of_a_category_term_is_printed_at_a_terminal() {
+    let base = base();
+    seed_categories(&base);
+    let a = sole_json(&acq(&base, &["--json", "search", "category~\".\""]));
+    let picks: Vec<(String, u64)> = a["terms"][0]["resolved"]["values"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| {
+            (
+                v["value"].as_str().unwrap().to_string(),
+                v["items"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(picks.len(), 10, "{picks:?}");
+    assert_eq!(a["terms"][0]["resolved"]["more"], 0);
+    let shown = text(&acq(&base, &["search", "category~\".\""]));
+    let resolved = shown
+        .lines()
+        .find(|line| line.trim_start().starts_with('→'))
+        .unwrap_or_else(|| panic!("no resolved line:\n{shown}"));
+    for (id, items) in &picks {
+        assert!(
+            resolved.contains(&format!("{id} ({items})")),
+            "`{id}` is not printed: {resolved}"
+        );
+    }
+    assert!(!resolved.contains("more"), "{resolved}");
+    // another field's selector is cut as it was, with its route
+    let bases = text(&acq(&base, &["search", "base:e"]));
+    assert!(bases.contains("more"), "{bases}");
 }

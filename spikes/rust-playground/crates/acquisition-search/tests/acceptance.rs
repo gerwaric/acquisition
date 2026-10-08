@@ -727,19 +727,9 @@ fn c100_show_is_the_derived_item_and_the_stored_body_on_request() {
     );
 }
 
-/// OQ5 from the owner's words (2026-09-23, G6): leveling gear is "items
-/// that can be equipped at a low character level with basic resistance,
-/// life, and damage modifiers". The level and the lines are the
-/// language's; what can be equipped is the class, spelled out — the
-/// grouping above class stays parked (owner: "yes, lets keep this
-/// parked"), so the list here is the fixture's wearable classes and
-/// claims no more. The distractors the bracket alone admits: a gem with a
-/// damage line at level 1, a map with a damage line, a currency stack;
-/// none appears. A pair of boots whose requirements could not be read is
-/// undecided. A flask is wearable too; whether it is leveling gear waits
-/// with the park's list.
-#[test]
-fn oq5_leveling_gear_from_the_owners_words_wearable_low_level_with_the_lines() {
+/// OQ5's fixture, the class-spelled test's and the category-spelled
+/// one's: eight items in `Leveling` (l1) and `Odds` (l2).
+fn leveling() -> Store {
     let mut s = store();
     list_tabs(
         &mut s,
@@ -818,10 +808,30 @@ fn oq5_leveling_gear_from_the_owners_words_wearable_low_level_with_the_lines() {
         ],
         21,
     );
+    s
+}
+
+const OQ5_LOW: &str = "(reqlevel=..30 or -has:reqlevel)";
+const OQ5_LINES: &str =
+    "(line(template:resistance) or line(template:life) or line(template:damage))";
+
+/// OQ5 from the owner's words (2026-09-23, G6): leveling gear is "items
+/// that can be equipped at a low character level with basic resistance,
+/// life, and damage modifiers". The level and the lines are the
+/// language's; what can be equipped is the class, spelled out — the
+/// grouping above class stays parked (owner: "yes, lets keep this
+/// parked"), so the list here is the fixture's wearable classes and
+/// claims no more. The distractors the bracket alone admits: a gem with a
+/// damage line at level 1, a map with a damage line, a currency stack;
+/// none appears. A pair of boots whose requirements could not be read is
+/// undecided. A flask is wearable too; whether it is leveling gear waits
+/// with the park's list.
+#[test]
+fn oq5_leveling_gear_from_the_owners_words_wearable_low_level_with_the_lines() {
+    let s = leveling();
     const WEARABLE: &str = "(class:boots or class:gloves or class:helmet or class:ring)";
-    const LOW: &str = "(reqlevel=..30 or -has:reqlevel)";
-    const LINES: &str =
-        "(line(template:resistance) or line(template:life) or line(template:damage))";
+    const LOW: &str = OQ5_LOW;
+    const LINES: &str = OQ5_LINES;
     let query = format!("{WEARABLE} {LOW} {LINES}");
     let a = asked(&s, &query);
     assert_eq!(ids(&a), ["boots", "ring"]);
@@ -876,6 +886,90 @@ fn oq5_leveling_gear_from_the_owners_words_wearable_low_level_with_the_lines() {
     let mut rest = order[2..].to_vec();
     rest.sort_unstable();
     assert_eq!(rest, ["helm", "odd", "ring"]);
+}
+
+/// OQ5 by category (C106; J10's row in `search/LEDGER.md`): the same
+/// question over the same fixture, what can be equipped spelled as two of
+/// the trade site's categories where the test above spells four classes.
+/// It answers as the class spelling does — the boots and the ring, the
+/// boots whose requirements could not be read undecided — and no
+/// distractor appears: the gem is `gem.activegem`, the map `map`, the
+/// stack `currency`. The ids are the fixture's and claim no more: what
+/// can be equipped is no fixed set of categories (the owner, 2026-10-06:
+/// "It can include flasks and even cluster jewels or abyssal jewels
+/// depending on the context.").
+#[test]
+fn oq5_by_category_answers_as_the_class_spelling_does() {
+    let s = leveling();
+    const WEARABLE: &str = "(category=armour or category=accessory)";
+    let query = format!("{WEARABLE} {OQ5_LOW} {OQ5_LINES}");
+    let a = asked(&s, &query);
+    assert_eq!(ids(&a), ["boots", "ring"]);
+    assert_eq!(a["total"]["undecided"]["count"], 1);
+    assert_eq!(a["scope"]["items"], 8);
+    // the wearable part alone is what the class spelling's is
+    assert_eq!(
+        ids(&asked(&s, WEARABLE)),
+        ["boots", "gloves", "helm", "odd", "ring"]
+    );
+    let class_spelled = asked(
+        &s,
+        &format!(
+            "(class:boots or class:gloves or class:helmet or class:ring) {OQ5_LOW} {OQ5_LINES}"
+        ),
+    );
+    assert_eq!(ids(&a), ids(&class_spelled));
+    assert_eq!(a["total"], {
+        // the totals agree but for the route's own text
+        let mut total = class_spelled["total"].clone();
+        total["undecided"]["request"]["query"]["text"] =
+            a["total"]["undecided"]["request"]["query"]["text"].clone();
+        total
+    });
+    // each match's row names the category it was found by
+    let shows = |id: &str| -> Value {
+        a["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == id)
+            .unwrap()["matched"][0]["shows"]
+            .clone()
+    };
+    assert_eq!(
+        shows("boots"),
+        json!([{ "value": { "name": "category", "value": "armour.boots" } }])
+    );
+    assert_eq!(
+        shows("ring"),
+        json!([{ "value": { "name": "category", "value": "accessory.ring" } }])
+    );
+    // counted by category: the fixture's eight, each under its leaf
+    let counted: Request = serde_json::from_value(json!({
+        "scope": { "realm": "pc" },
+        "query": { "text": "" },
+        "view": { "counts": { "keys": ["category"] } },
+    }))
+    .unwrap();
+    let c = as_json(&acquisition_search::answer(&load(&s, Some("pc")), &counted).unwrap());
+    let by: Vec<(&str, u64)> = c["view"]["counts"]["tables"][0]["buckets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| (b["value"].as_str().unwrap(), b["count"].as_u64().unwrap()))
+        .collect();
+    assert_eq!(
+        by,
+        [
+            ("armour.boots", 2),
+            ("accessory.ring", 1),
+            ("armour.gloves", 1),
+            ("armour.helmet", 1),
+            ("currency", 1),
+            ("gem.activegem", 1),
+            ("map", 1),
+        ]
+    );
 }
 
 /// OQ6: the item found, `has:priced`, the price as the owner set it — the

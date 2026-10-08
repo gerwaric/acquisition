@@ -12,7 +12,8 @@
 //! - **The basis** names the store, the account, the facts revision — the
 //!   highest response id and the facts schema beside it — the
 //!   derivation's version ([`DERIVATION`]), the class table's
-//!   (`class.rs`; C106) and the totals table's (`totals.rs`; C94). The store is named by twelve
+//!   (`class.rs`; C106), the category table's and the beast colour
+//!   table's (`category.rs`; C106) and the totals table's (`totals.rs`; C94). The store is named by twelve
 //!   hex digits of the SHA-256 of its file's canonical path, as C83 names
 //!   a world (owner, 2026-09-20: "(a') now and park (c)"): no path in an
 //!   answer, no migration, and two files of one account are two stores. A
@@ -32,10 +33,11 @@
 //!   revision are read again after them and the whole corpus is read again
 //!   where either moved — three times, then an error — so no answer is
 //!   labelled with a basis its prices were not read at.
-//! - **Each item is classed as it is derived** (`class.rs`): the table is
-//!   checked before the read, so a build whose table does not load answers
-//!   nothing rather than an unclassed corpus; the totals table is checked
-//!   with it, so a total is never asked of a corpus over a table that
+//! - **Each item is classed as it is derived** (`class.rs`), and its
+//!   category computed from that class beside it (`category.rs`): the
+//!   tables are checked before the read, so a build whose table does not
+//!   load answers nothing rather than an unclassed corpus; the totals
+//!   table is checked with it, so a total is never asked of a corpus over a table that
 //!   does not load.
 //! - **Place is the store's** (C103): the league as the read joined it, the
 //!   location by its full coordinate (C54), its name, its parent's and
@@ -53,6 +55,7 @@ use acquisition_store::corpus::{CorpusHeader, CorpusItem, LocationRow, RealmScop
 use acquisition_store::{Annotations, Store};
 use serde::{Deserialize, Serialize};
 
+use crate::category::{self, CATEGORY_TABLE_VERSION, COLOUR_TABLE_VERSION, Category};
 use crate::class::{self, CLASS_TABLE_VERSION, ClassTable, Classed};
 use crate::derive::{Facts, Item, Part, Unread, derive};
 use crate::error::SearchError;
@@ -61,7 +64,7 @@ use crate::totals::{self, TOTALS_TABLE_VERSION, TotalsTable};
 
 /// The version of [`derive()`]'s reading of a body: it moves when the same
 /// body would derive to another item.
-pub const DERIVATION: u32 = 10;
+pub const DERIVATION: u32 = 11;
 
 /// The realms GGG has (owner, 2026-09-20: "the full list").
 pub const REALMS: [&str; 4] = ["pc", "xbox", "sony", "poe2"];
@@ -120,6 +123,10 @@ pub struct Basis {
     pub derivation: u32,
     /// The class table's version (C106).
     pub classes: u32,
+    /// The category table's version (C106; `category.rs`).
+    pub categories: u32,
+    /// The beast colour table's version (C106; `category.rs`).
+    pub beast_colours: u32,
     /// The totals table's version (C94).
     pub totals: u32,
     /// The intent file's revision the prices were read at (C98, C81).
@@ -160,12 +167,14 @@ pub struct Named {
 }
 
 /// One held item: what the body says, where it is, what the class table
-/// says of it, and what the listing state prices it at.
+/// says of it, what the category ids answer of it, and what the listing
+/// state prices it at.
 #[derive(Debug, Clone)]
 pub struct Held {
     pub item: Item,
     pub place: Place,
     pub class: Classed,
+    pub category: Category,
     pub price: Priced,
 }
 
@@ -277,6 +286,8 @@ impl Basis {
             snapshot: header.revision,
             derivation: DERIVATION,
             classes: CLASS_TABLE_VERSION,
+            categories: CATEGORY_TABLE_VERSION,
+            beast_colours: COLOUR_TABLE_VERSION,
             totals: TOTALS_TABLE_VERSION,
             intent,
             currency: CURRENCY_TABLE_VERSION,
@@ -289,6 +300,12 @@ impl Basis {
 /// answers with (`class.rs`).
 pub(crate) fn class_table() -> Result<&'static ClassTable, SearchError> {
     class::table().map_err(|e| SearchError::scope("class_table", e.to_string()))
+}
+
+/// The category tables, or the error a build whose tables do not load
+/// answers with (`category.rs`).
+pub(crate) fn category_tables() -> Result<&'static category::Tables, SearchError> {
+    category::tables().map_err(|e| SearchError::scope("category_table", e.to_string()))
 }
 
 /// The totals table, or the error a build whose table does not load
@@ -338,6 +355,7 @@ impl Corpus {
         };
         let named = realm.cloned();
         let table = class_table()?;
+        let categories = category_tables()?;
         totals_table()?;
         currency_table()?;
         let intent_revision = price::intent_revision(intent)?;
@@ -367,8 +385,10 @@ impl Corpus {
                     let (facts, place) = placed(&index, row);
                     let mut item = derive(facts, &body);
                     item.unread.extend(tab_type_unread(&place));
+                    let class = table.classify(&item);
                     items.push(Held {
-                        class: table.classify(&item),
+                        category: categories.of(&item, &class),
+                        class,
                         item,
                         place,
                         // joined below, once the read is done

@@ -69,6 +69,14 @@
 //!   satisfies `X`, failed otherwise (F2, the first seat): the class is
 //!   not established, but the term's truth is. `reqlevel` is the
 //!   deriver's number.
+//! - **A category term asks the ids it picked** (`category.rs`): matched
+//!   where one holds, undecided where none holds and one is open, lacked
+//!   where the item has no category at all, failed otherwise; its
+//!   reasons are those of the ids it picked. `has:category` is an id
+//!   holding, and `undecided(category)` no id holding with one open — so
+//!   an item listed under an id has a category whatever stays open beside
+//!   it, the one field whose `undecided( … )` is not "something it reads
+//!   was unread". A row shows the ids a count lists the item under.
 //! - **Outcomes are computed for every term on every item, and nothing
 //!   else is**: what a row shows ([`evidence`]) is worked out only for the
 //!   items an answer prints, and why an item is undecided at the root
@@ -119,7 +127,7 @@ use std::borrow::Cow;
 use serde::Serialize;
 
 use crate::bind::{Atom, BProbe, Bound, NumTest, SortKey, Term, Thing};
-use crate::class::Classed;
+use crate::category::Holds;
 use crate::corpus::Held;
 use crate::derive::{Line, Part, Place, Shown, Slot, Unread};
 use crate::exact::{self, Exact};
@@ -210,6 +218,7 @@ fn body_key(thing: Thing) -> Option<&'static str> {
         Thing::Stack => "stackSize",
         Thing::Text
         | Thing::Class
+        | Thing::Category
         | Thing::ReqLevel
         | Thing::Sockets
         | Thing::Links
@@ -283,27 +292,20 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
                 | Part::Class(_)
                 | Part::Total(_)
                 | Part::Price(_)
-                | Part::TabType => false,
+                | Part::TabType
+                | Part::Colour => false,
             })
             .collect(),
-        // the base, or the body, unread leaves the class open; the table's
-        // own reason is the class's (`class.rs`); the frame's unread is
-        // the class's where the frame decides (an invitation's, V2)
-        (Thing::Class, _) => held
-            .item
-            .unread
-            .iter()
-            .filter(|u| match &u.part {
-                Part::Body => true,
-                Part::Field(key) => {
-                    key == "baseType"
-                        || (key == "frameTypeId"
-                            && matches!(held.class, Classed::FrameUnread { .. }))
-                }
-                _ => false,
-            })
-            .chain(held.class.open())
-            .collect(),
+        // the base, the bestiary line or the body unread leaves the class
+        // open; the table's own reason is the class's; the frame's unread
+        // is the class's where the frame decides (an invitation's, V2):
+        // one maker, `class::unread`
+        (Thing::Class, _) => crate::class::unread(&held.item, &held.class).collect(),
+        // what leaves an id open is the class's reason or the colour's
+        // (`category.rs`)
+        (Thing::Category, _) => {
+            crate::category::unread(&held.item, &held.class, &held.category, None)
+        }
         // the store's read gave a stash tab no type: unread, said where the
         // place was read (`corpus::tab_type_unread`)
         (Thing::TabType, _) => held
@@ -384,6 +386,8 @@ pub(crate) fn texts(held: &Held, thing: Thing) -> Vec<&str> {
         Thing::Rarity => one(&item.rarity),
         Thing::Frame => one(&item.frame),
         Thing::Class => held.class.names(),
+        // the ids a count lists the item under (`category.rs`)
+        Thing::Category => held.category.listed().to_vec(),
         Thing::League => one(&place.league),
         Thing::Container => one(&place.container),
         Thing::Tab if place.kind == "stash" => place
@@ -458,6 +462,12 @@ fn open(held: &Held, thing: Thing) -> bool {
             Counted::Absent => !unread_for(held, thing).is_empty(),
         };
     }
+    // a category is not established where no id holds and one is open: an
+    // item listed under an id has one, whatever stays open beside it
+    // (`category.rs`; J15, J21)
+    if thing == Thing::Category {
+        return held.category.undecided();
+    }
     !unread_for(held, thing).is_empty()
 }
 
@@ -511,7 +521,8 @@ fn unread_lines<'a>(held: &'a Held, group: &Group) -> Vec<&'a Unread> {
             | Part::Class(_)
             | Part::Total(_)
             | Part::Price(_)
-            | Part::TabType => false,
+            | Part::TabType
+            | Part::Colour => false,
         })
         .collect()
 }
@@ -675,14 +686,25 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
                 !unread_for(held, *thing).is_empty(),
             )
         }
-        Atom::Closed { thing, values } => {
+        Atom::Closed { thing, values, ids } => {
+            // a category's ids hold, fail or stay open each on its own
+            // (`category.rs`): the term holds where a picked id does, is
+            // open where none does and one is open, and fails otherwise —
+            // lacked where the item has no category at all
+            if *thing == Thing::Category {
+                return match held.category.asked(*ids) {
+                    Holds::Yes => Outcome::Matched,
+                    Holds::Open => Outcome::Undecided,
+                    Holds::No if held.category.bucket() == "none" => Outcome::Lacked,
+                    Holds::No => Outcome::Failed,
+                };
+            }
             // a base under several classes keeps its candidates (`class.rs`,
-            // F2), whether the table or an unread frame left it there: the
-            // term is open only where one of them satisfies it
-            if *thing == Thing::Class
-                && let Classed::Among { candidates, .. } | Classed::FrameUnread { candidates } =
-                    &held.class
-            {
+            // F2), whether the table, an unread frame or an unread bestiary
+            // line left it there: the term is open only where one of them
+            // satisfies it
+            let candidates = held.class.candidates();
+            if *thing == Thing::Class && !candidates.is_empty() {
                 let possible = candidates
                     .iter()
                     .any(|c| values.iter().any(|legal| legal.eq_ignore_ascii_case(c)));
@@ -1142,6 +1164,17 @@ fn everything(term: &Term, held: &Held) -> Vec<Evidence> {
                 value: serde_json::Value::from(class),
             })
             .collect(),
+        // nor is the category: the id or ids a count lists the item under
+        Atom::Closed {
+            thing: Thing::Category,
+            ..
+        } => texts(held, Thing::Category)
+            .into_iter()
+            .map(|id| Evidence::Value {
+                name: crate::category::FIELD.to_string(),
+                value: serde_json::Value::from(id),
+            })
+            .collect(),
         Atom::Lines(group) => satisfying(held, &group.whole).map(line_evidence).collect(),
         Atom::Sum { group, slot, .. } => {
             let (total, _) = sum(held, group, slot);
@@ -1210,6 +1243,18 @@ pub(crate) fn unread_of_sum<'a>(
 fn unread_of<'a>(atom: &Atom, held: &'a Held) -> Vec<Cow<'a, Unread>> {
     let borrowed = |unread: Vec<&'a Unread>| unread.into_iter().map(Cow::Borrowed).collect();
     match atom {
+        // a category term rests on what left the ids it picked open, and
+        // on nothing an id it did not pick was left open by
+        Atom::Closed {
+            thing: Thing::Category,
+            ids,
+            ..
+        } => borrowed(crate::category::unread(
+            &held.item,
+            &held.class,
+            &held.category,
+            Some(*ids),
+        )),
         Atom::Text { thing, .. }
         | Atom::Closed { thing, .. }
         | Atom::Number { thing, .. }
@@ -1260,12 +1305,14 @@ fn reason(unread: &Unread) -> Reason {
             Part::Total(gap) => gap.unread().to_string(),
             Part::Price(gap) => gap.unread().to_string(),
             Part::TabType => "the tab's type".to_string(),
+            Part::Colour => crate::category::COLOUR_UNREAD.to_string(),
         },
         problem: unread.problem.clone(),
         hint: match &unread.part {
             Part::Class(_) => crate::class::CLASS_HINT,
             Part::Total(_) => crate::totals::TOTAL_HINT,
             Part::Price(gap) => gap.hint(),
+            Part::Colour => crate::category::COLOUR_HINT,
             _ => UNREAD_HINT,
         },
     }

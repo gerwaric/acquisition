@@ -24,7 +24,10 @@
 //!   total (C105's second invariant); `line` puts an item in a bucket for
 //!   each template it carries, and `class` an item that is each of
 //!   several classes (`class.rs`) in a bucket for each, and only the
-//!   first invariant holds for those.
+//!   first invariant holds for those. `category` puts an item under the
+//!   most specific id that holds on it (J11) — under each of two leaves
+//!   not nested (J16) — and a bucket's term says exactly that: the id,
+//!   and none beneath it known to hold (`category::Tables::listed_under`).
 //! - **A place value is one realm's under an all-realms scope** (F3, the
 //!   first seat: pc's Standard and poe2's were one `Standard` of 21,409,
 //!   and its route returned both): a league, a character, a container, a
@@ -486,6 +489,21 @@ fn buckets_of(def: &'static FieldDef, held: &Held, tabs: &mut Tabs, by_realm: bo
             return names.into_iter().map(|n| Of::Text(n.to_string())).collect();
         }
     }
+    // each id the item is listed under (`category.rs`: the most specific
+    // that hold, J11; two leaves not nested, J16), or `none`, or
+    // `undecided`, as `has:category` answers
+    if def.thing == Thing::Category {
+        return match eval::outcome(&Atom::Has(def.thing), held, &[]) {
+            Outcome::Undecided => vec![Of::Undecided],
+            Outcome::Failed | Outcome::Lacked => vec![Of::None],
+            Outcome::Matched => held
+                .category
+                .listed()
+                .iter()
+                .map(|id| Of::Text((*id).to_string()))
+                .collect(),
+        };
+    }
     vec![bucket_of(def, held, tabs, by_realm)]
 }
 
@@ -629,6 +647,17 @@ fn label_of(
                 realm: None,
             }),
         ),
+    };
+    // a category's bucket lists what holds with nothing beneath it
+    // holding, and its terms say so (`category::Tables::listed_under`)
+    let selects = match (def.thing, of, selects) {
+        (Thing::Category, Of::Text(id), Some(selects)) => Some(Selects {
+            terms: crate::category::tables()
+                .map(|tables| tables.listed_under(id))
+                .unwrap_or(selects.terms),
+            realm: selects.realm,
+        }),
+        (_, _, selects) => selects,
     };
     let label = Label {
         bucket,

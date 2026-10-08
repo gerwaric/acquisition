@@ -673,8 +673,17 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                         values.sort_by(|a, b| {
                             b.items.cmp(&a.items).then_with(|| a.value.cmp(&b.value))
                         });
-                        let more = values.len().saturating_sub(LISTED);
-                        values.truncate(LISTED);
+                        // every pick of a category term is printed: the
+                        // ids are a closed set, and no count lists the rest
+                        let listed = match &term.atom {
+                            Atom::Closed {
+                                thing: Thing::Category,
+                                ..
+                            } => values.len(),
+                            _ => LISTED,
+                        };
+                        let more = values.len().saturating_sub(listed);
+                        values.truncate(listed);
                         let rest = (more > 0)
                             .then(|| rest_of(term))
                             .flatten()
@@ -983,6 +992,26 @@ fn routes(term: &Term) -> Routes {
             (Some(failed), Some(not(selected)), together)
         }
         (Atom::Has(_) | Atom::HasComputed(_), _) => (None, Some(not(node.clone())), None),
+        // a category term failed on an item that has a category or whose
+        // category is open (`category.rs`): what it lacked is `-has:` alone
+        (
+            Atom::Closed {
+                thing: Thing::Category,
+                ..
+            },
+            Node::Test { field, .. },
+        ) => {
+            let has = Node::Has(field.clone());
+            let had_or_open = Node::Any(vec![
+                has.clone(),
+                Node::Undecided(Probe::Thing(ValueRef::Field(field.clone()))),
+            ]);
+            (
+                Some(Node::All(vec![had_or_open, not(node.clone())])),
+                Some(not(has)),
+                None,
+            )
+        }
         // a class never lacks (`class.rs`), and `has:class` is open on an
         // item whose base is under several classes while `class:X` on it
         // may be false (F2): the failed route is the not alone
@@ -1095,6 +1124,12 @@ fn rest_of(term: &Term) -> Option<(Node, String)> {
                 key,
             ))
         }
+        // no count lists every id a category term picked: a count by
+        // category lists an item under its most specific id alone
+        Atom::Closed {
+            thing: Thing::Category,
+            ..
+        } => None,
         Atom::Text { thing, .. } | Atom::Closed { thing, .. } if *thing != Thing::Tab => {
             match &term.node {
                 Node::Test { field, .. } => Some((term.node.clone(), field.clone())),
@@ -1122,14 +1157,27 @@ fn resolved_values(term: &Term, held: &Held, outcome: Outcome) -> Vec<String> {
             .filter(|v| test.holds(v))
             .map(str::to_string)
             .collect(),
+        // the picked ids that hold on the item (`category.rs`)
+        Atom::Closed {
+            thing: Thing::Category,
+            ids,
+            ..
+        } if outcome == Outcome::Matched => crate::category::tables()
+            .map(|tables| tables.holding(&held.category, *ids))
+            .unwrap_or_default()
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
         // what the closed set's selector picked of the item's values — an
         // item that is each of two classes carries one the term did not
         // pick (the rule of 2026-09-26; `class.rs`)
-        Atom::Closed { thing, values } if outcome == Outcome::Matched => eval::texts(held, *thing)
-            .into_iter()
-            .filter(|v| values.iter().any(|legal| legal.eq_ignore_ascii_case(v)))
-            .map(str::to_string)
-            .collect(),
+        Atom::Closed { thing, values, .. } if outcome == Outcome::Matched => {
+            eval::texts(held, *thing)
+                .into_iter()
+                .filter(|v| values.iter().any(|legal| legal.eq_ignore_ascii_case(v)))
+                .map(str::to_string)
+                .collect()
+        }
         _ => Vec::new(),
     };
     values.sort();

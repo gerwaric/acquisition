@@ -43,9 +43,34 @@
 //!   (Tier 13)`, Maps — the prefix is read past, never matched inside, and
 //!   only where the base itself is not in the table. An invitation's
 //!   class is its frame's (V2), which the rule below generalises. A
-//!   captured beast's class follows the trade site's categories, the
-//!   grouping above class's first case, and waits for it (the plan, 9d):
-//!   until then its base is not in the table.
+//!   captured beast's was to follow the trade site's categories (V1,
+//!   ruled when a beast was thought to have no class); J9 revised it,
+//!   below.
+//! - **What step 9d-B changed here (J9, J18, J20; `search/LEDGER.md`,
+//!   "Holes ruled", the 9d rows).** *A captured beast's class is the
+//!   game's own word for it, Stackable Currency* ([`BEAST_CLASS`]), read
+//!   by its bestiary line ([`BESTIARY_LINE`], GGG's `descrText`, which the
+//!   deriver now keeps) and by nothing else: a beast's name is no base of
+//!   the game's data, and an item of that name without the line is no
+//!   beast. [`captured`] is the one reader of the line, which the
+//!   category asks too (`category.rs`: the class gives a beast no id,
+//!   J10). In a realm with no table a beast is undecided as any item is
+//!   (J18). *Growing Wombgift's class is Wombgifts* (J20: "I want growing
+//!   wombgift to behave like other wombgift items, however they are
+//!   handled."): the export files it under a class it prints no name for,
+//!   so the table lacks it, and the departure is a named rule citing its
+//!   ruling ([`RULED`]) — the table stays what the export states, never an
+//!   unmarked row. *A bestiary line that could not be read* leaves the
+//!   class open among the beast's and what the base says
+//!   ([`Classed::BestiaryUnread`]), by the deriver's unread on
+//!   `descrText`; where the base says nothing the class is open whole, as
+//!   it was; and where the base says Stackable Currency too, every
+//!   reading gives one class and that is the class (J17's rule, said of
+//!   the class itself; the owner's ruling, 2026-10-07). *What left a class
+//!   open is made once* (`unread`, below), and is nothing where the class
+//!   is established — a beast whose base is unread has its class by its
+//!   line, one status; what the reading rests on (`rests_on`) is the
+//!   category's reason too.
 //! - **A base under several classes is read by the item's frame, and the
 //!   item is each class that remains** (owner, 2026-09-26, revising G2:
 //!   "The frame picks among candidates, then any remaining match is
@@ -67,8 +92,8 @@
 //!   confirm the quest side against.
 //! - **What the table cannot class is undecided with its reason** (C93,
 //!   C105), one [`ClassGap`] each, said once, where the table is read
-//!   (rule 8 of the plan): the base is not in the table (an itemised
-//!   beast); it is in the table under more than one class (`Energy
+//!   (rule 8 of the plan): the base is not in the table (a graft, whose
+//!   class the export prints no name for); it is in the table under more than one class (`Energy
 //!   Blade`: the table lists each and never chooses); the item's realm
 //!   has no table (`poe2`); the item has no base. Each is
 //!   `undecided(class)`: its reason on the row, its kind tallied beneath a
@@ -119,6 +144,79 @@ pub const GEM_CLASSES: [&str; 2] = ["Skill Gems", "Support Gems"];
 /// The class a quest frame picks: an invitation in a character's
 /// inventory, an Echo.
 pub const QUEST_CLASS: &str = "Quest Items";
+
+/// The line a captured beast's body carries, GGG's `descrText`: what a
+/// beast is known by (J1) — never its name, which is no base of the game's
+/// data, nor its frame.
+pub const BESTIARY_LINE: &str = "Right-click to add this to your bestiary.";
+
+/// A captured beast's class (J9): the game's own word for it, which the
+/// clipboard of every beast fetched prints.
+pub const BEAST_CLASS: &str = "Stackable Currency";
+
+/// The classes a ruling gives a base where the export says otherwise, each
+/// a named departure and never a row of the table, which stays what the
+/// export states: the base, its class, the ruling. J20: Growing Wombgift's
+/// class is Wombgifts — the export files it under a class it prints no
+/// name for — so that the item is as any wombgift is.
+pub const RULED: [(&str, &str, &str); 1] = [("Growing Wombgift", "Wombgifts", "J20")];
+
+/// Whether an item is a captured beast, by its bestiary line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Captured {
+    Yes,
+    No,
+    /// The line could not be read: the deriver's unread on `descrText`, or
+    /// on the body, says so.
+    Unread,
+}
+
+/// Whether the item carries the bestiary line (J1): the one reader of it,
+/// which the class and the category both ask.
+pub fn captured(item: &Item) -> Captured {
+    if item.descr.as_deref() == Some(BESTIARY_LINE) {
+        Captured::Yes
+    } else if item
+        .unread_in(&Part::Field("descrText".to_string()))
+        .next()
+        .is_some()
+    {
+        Captured::Unread
+    } else {
+        Captured::No
+    }
+}
+
+/// What left an item's class open, and nothing where the class is
+/// established: one status (the record's shape, two statuses for one
+/// thing) — a beast whose base could not be read has its class by its
+/// bestiary line, and that unread base leaves no class open. One maker
+/// (rule 10 of the plan): a class term's reasons, `undecided(class)` and a
+/// count's bucket read this.
+pub(crate) fn unread<'a>(item: &'a Item, class: &'a Classed) -> impl Iterator<Item = &'a Unread> {
+    let open = class.names().is_empty();
+    rests_on(item, class).filter(move |_| open)
+}
+
+/// What the reading of an item's class rests on that could not be read:
+/// the deriver's unread on the body, the base, the bestiary line, and the
+/// frame where the frame decides, and the table's own reason. The
+/// category's reasons are these too (`category.rs`), where an id is open
+/// while the class is established — a beast's colour by its unread name,
+/// `currency` on a stack of orbs whose bestiary line could not be read.
+pub(crate) fn rests_on<'a>(item: &'a Item, class: &'a Classed) -> impl Iterator<Item = &'a Unread> {
+    let frame_decides = class.frame_unread();
+    item.unread
+        .iter()
+        .filter(move |u| match &u.part {
+            Part::Body => true,
+            Part::Field(key) => {
+                key == "baseType" || key == "descrText" || (key == "frameTypeId" && frame_decides)
+            }
+            _ => false,
+        })
+        .chain(class.open())
+}
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -339,7 +437,7 @@ impl ClassTable {
     /// is from, with its version.
     pub fn definition(&self) -> String {
         format!(
-            "the item's class as the game names it, read from its base in the class table — classes v{}, {} classes over {}: {}. A base the table lists under several classes is read by the item's frame — a gem frame the gem classes, a quest frame Quest Items, any other the rest — and the item is each class that remains; an item whose base the table lacks or whose realm the table does not cover is undecided with that reason (C93)",
+            "the item's class as the game names it, read from its base in the class table — classes v{}, {} classes over {}: {}. A captured beast, known by its bestiary line, is {BEAST_CLASS}, the game's own word for it. A base the table lists under several classes is read by the item's frame — a gem frame the gem classes, a quest frame Quest Items, any other the rest — and the item is each class that remains; an item whose base the table lacks or whose realm the table does not cover is undecided with that reason (C93)",
             self.version,
             self.names.len(),
             self.realms.join(", "),
@@ -347,8 +445,47 @@ impl ClassTable {
         )
     }
 
-    /// What the table says of one derived item (the module doc).
+    /// What the table says of one derived item (the module doc): a
+    /// captured beast's class is the game's word for it, read by its
+    /// bestiary line (J9); every other item's is its base's.
     pub fn classify(&self, item: &Item) -> Classed {
+        // J18: a beast in a realm with no table is undecided as any item is
+        if !self.realms.contains(&item.facts.realm) {
+            return self.by_base(item);
+        }
+        match captured(item) {
+            Captured::Yes => Classed::Is(BEAST_CLASS.to_string()),
+            Captured::No => self.by_base(item),
+            // a beast, or what the base says: open among them, and where
+            // the base says nothing the class is open whole
+            Captured::Unread => match self.by_base(item) {
+                open @ (Classed::Open(_) | Classed::BaseUnread) => open,
+                // every reading gives one class, so that is the class
+                // (J17's rule, said of the class itself; owner,
+                // 2026-10-07): a stack of orbs is Stackable Currency, a
+                // beast or not
+                Classed::Is(class) if class == BEAST_CLASS => Classed::Is(class),
+                otherwise => {
+                    let mut candidates: Vec<String> = otherwise
+                        .names()
+                        .into_iter()
+                        .map(str::to_string)
+                        .chain(otherwise.candidates().iter().cloned())
+                        .collect();
+                    if !candidates.iter().any(|c| c == BEAST_CLASS) {
+                        candidates.push(BEAST_CLASS.to_string());
+                    }
+                    Classed::BestiaryUnread {
+                        candidates,
+                        otherwise: Box::new(otherwise),
+                    }
+                }
+            },
+        }
+    }
+
+    /// What the table says of an item's base, the bestiary line apart.
+    fn by_base(&self, item: &Item) -> Classed {
         let open = |gap: ClassGap, problem: String| {
             Classed::Open(Unread {
                 part: Part::Class(gap),
@@ -380,6 +517,10 @@ impl ClassTable {
                 )
             };
         };
+        // a class a ruling gives the base, the table saying otherwise
+        if let Some((_, class, _)) = RULED.iter().find(|(ruled, _, _)| *ruled == base.as_str()) {
+            return Classed::Is((*class).to_string());
+        }
         match self.of(base).as_slice() {
             [] => {
                 // V1: a map's base past the prefix the API adds
@@ -494,6 +635,14 @@ pub enum Classed {
     /// could not be read: the deriver's unread on `frameTypeId` says so.
     /// The candidates are kept, as [`Classed::Among`] keeps them (F2).
     FrameUnread { candidates: Vec<String> },
+    /// The bestiary line, which tells a captured beast (J9), could not be
+    /// read: the deriver's unread on `descrText` says so. The item is a
+    /// beast or what its base says `otherwise`, and the candidates are
+    /// both readings' classes.
+    BestiaryUnread {
+        candidates: Vec<String>,
+        otherwise: Box<Classed>,
+    },
 }
 
 impl Classed {
@@ -505,7 +654,8 @@ impl Classed {
             Classed::Among { .. }
             | Classed::Open(_)
             | Classed::BaseUnread
-            | Classed::FrameUnread { .. } => Vec::new(),
+            | Classed::FrameUnread { .. }
+            | Classed::BestiaryUnread { .. } => Vec::new(),
         }
     }
 
@@ -514,6 +664,7 @@ impl Classed {
         match self {
             Classed::Among { why, .. } => Some(why),
             Classed::Open(unread) => Some(unread),
+            Classed::BestiaryUnread { otherwise, .. } => otherwise.open(),
             Classed::Is(_)
             | Classed::All(_)
             | Classed::BaseUnread
@@ -521,10 +672,22 @@ impl Classed {
         }
     }
 
+    /// Whether the frame decides the class and could not be read: its
+    /// unread is then the class's reason.
+    pub(crate) fn frame_unread(&self) -> bool {
+        match self {
+            Classed::FrameUnread { .. } => true,
+            Classed::BestiaryUnread { otherwise, .. } => otherwise.frame_unread(),
+            _ => false,
+        }
+    }
+
     /// The classes the base may be of, where the table lists several.
     pub fn candidates(&self) -> &[String] {
         match self {
-            Classed::Among { candidates, .. } | Classed::FrameUnread { candidates } => candidates,
+            Classed::Among { candidates, .. }
+            | Classed::FrameUnread { candidates }
+            | Classed::BestiaryUnread { candidates, .. } => candidates,
             Classed::Is(_) | Classed::All(_) | Classed::Open(_) | Classed::BaseUnread => &[],
         }
     }

@@ -92,7 +92,11 @@
 //!   and 2). The row itself stays a displayed string.
 //! - **The class is not the deriver's** (C103, C106): `class.rs` reads it
 //!   from the base in the class table, and says under [`Part::Class`] why
-//!   it could not.
+//!   it could not. What the deriver keeps for it is the fact it is read
+//!   from: the base, the frame, and GGG's `descrText` ([`Item::descr`];
+//!   step 9d-B), the help line a captured beast is known by — as given,
+//!   never interpreted here, unread under its own key where it is no
+//!   string.
 //! - **A yes or no that is neither** is unread, never a no (C93): a key
 //!   of [`ITEM_FLAGS`] or of `influences` whose value is no boolean is
 //!   unread under that key — `influences.hunter`, so that a no beside it
@@ -186,6 +190,12 @@ pub struct Item {
     /// The `Level` requirement, as a number; absent on an item with none.
     pub reqlevel: Option<i64>,
     pub note: Option<String>,
+    /// GGG's `descrText`, the help line beneath the item, as given: what a
+    /// captured beast is known by (`class.rs`, J1). Never a displayed
+    /// string a phrase is tested against, and not printed with the item:
+    /// the stored body has it.
+    #[serde(skip)]
+    pub descr: Option<String>,
     /// Every yes the body says: a top-level boolean that is true, and the
     /// true keys of `influences`, as GGG spells them, sorted.
     pub flags: Vec<String>,
@@ -362,6 +372,9 @@ pub enum Part {
     /// The tab's type, which the store's read handed over as none for a
     /// stash tab (`corpus::tab_type_unread`): only what asks `tab.type`.
     TabType,
+    /// A captured beast's colour, which the beast colour table could not
+    /// give its name (`category.rs`): only what asks a colour leaf.
+    Colour,
 }
 
 /// What a slot word names on one occurrence.
@@ -447,6 +460,7 @@ pub fn derive(facts: Facts, body: &str) -> Item {
         stack: None,
         reqlevel: None,
         note: None,
+        descr: None,
         flags: Vec::new(),
         properties: Vec::new(),
         requirements: Vec::new(),
@@ -472,6 +486,7 @@ pub fn derive(facts: Facts, body: &str) -> Item {
     item.rarity = item.text(&body, "rarity");
     item.frame = item.text(&body, "frameTypeId");
     item.note = item.text(&body, "note");
+    item.descr = item.text(&body, "descrText");
     // GGG's 0 is an item the game shows no level for: known absence
     item.ilvl = item.int(&body, "ilvl").filter(|ilvl| *ilvl != 0);
     item.item_level = item.ilvl.map(|ilvl| format!("Item Level: {ilvl}"));

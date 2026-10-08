@@ -12,8 +12,8 @@
 //!
 //! The language (the build plan, step 1), the derivation (step 2), the
 //! first surface (step 4), the counts view (step 5), the class table
-//! (step 6), the computed values (step 7) and the sockets (step 8): a
-//! request in, an answer out.
+//! (step 6), the computed values (step 7), the sockets (step 8) and the
+//! categories (step 9d-B): a request in, an answer out.
 //!
 //! - [`tree`] — the query tree (C91): one typed value, and [`check`], what
 //!   a tree must satisfy to be one the language can say.
@@ -39,6 +39,10 @@
 //! - [`class`] — the class table (C106): reviewed reference data shipped
 //!   in the binary, the item's class read from its base, and what the
 //!   search says when the table cannot class it (C93).
+//! - [`category`] — the trade site's categories (C106): the grouping
+//!   above class, each of the site's ids answered of an item from its
+//!   class and reviewed rules in one place; a captured beast by its
+//!   bestiary line and the beast colour table.
 //! - [`totals`] — the totals table (C94): a named total as reviewed
 //!   reference data, one meaning on every surface; `pseudo` — the
 //!   computed values, `pseudo.<name>`: the totals and the derived fields
@@ -102,7 +106,13 @@
 //!   `reference/classes-v1.toml`'s header; pinned by `tests/class.rs`
 //!   (the shipped file, every reason the table gives, `undecided(class)`,
 //!   the count's tally, `show`) and `tests/acceptance.rs` (OQ1 and OQ4 as
-//!   worded, OQ5 askable).
+//!   worded, OQ5 askable). Category is [`category`]'s doc — the paragraph
+//!   of the contract detail and the rulings J1–J4, J9–J22, taken there at
+//!   step 9d-B — and the headers of `reference/categories-v1.toml` and
+//!   `reference/beast-colours-v1.toml`; pinned by `tests/category.rs`
+//!   (every row of the track's expected answers, a beast found by its
+//!   category, a category under not and or, `show`, the help) and
+//!   `tests/acceptance.rs` (OQ5 by category).
 //! - **C94, C101.** The totals table is [`totals`]'s doc and
 //!   `reference/totals-v5.toml`'s header; the computed values, their three
 //!   statuses, the readings of other totals and the derived fields are
@@ -125,6 +135,7 @@
 
 pub mod answer;
 pub mod bind;
+pub mod category;
 pub mod class;
 pub mod corpus;
 pub mod counts;
@@ -147,6 +158,7 @@ pub mod tree;
 
 pub use answer::{Answer, Request, answer};
 pub use bind::{NOT_BUILT, NotBuilt, Query, bind, not_built, parse_query};
+pub use category::{CATEGORY_TABLE_VERSION, COLOUR_TABLE_VERSION, Category, CategoryTableError};
 pub use class::{CLASS_TABLE_VERSION, ClassGap, ClassTable, ClassTableError, Classed};
 pub use corpus::{Basis, Corpus, Realm};
 pub use derive::{

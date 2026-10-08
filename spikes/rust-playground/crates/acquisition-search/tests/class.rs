@@ -18,7 +18,8 @@ use serde_json::{Value, json};
 /// Energy Blade, which the table lists under three classes and its frame
 /// leaves two of (owner, 2026-09-26; `tests/seat_faults.rs`); `invite`, a
 /// Polaric Invitation, under two, which its frame decides (V2); `beast`,
-/// an itemised beast no table lists;
+/// a base named as a beast is and carrying no bestiary line, so no beast
+/// (J9) and a base no table lists;
 /// `blank`, an item with no base at all; `odd`, whose `baseType` is a
 /// number, so unread; `late`, a helmet whose `Level` requirement reads
 /// `soon`. `Vault` (v1) in poe2: `p2ring`, an Iron Ring the table has no
@@ -566,6 +567,7 @@ fn review_two_reqlevel_has_one_status_and_markup_hides_no_level_row() {
     // the review's third finding: the derivation moved — to 7 then, to 8
     // when an unread property gained its name (the step-7 audit, 2026-09-24),
     // to 9 when the sockets were read (step 8), to 10 when a mod of
-    // several rows kept each row (step 9c4)
-    assert_eq!(shown["basis"]["derivation"], 10);
+    // several rows kept each row (step 9c4), to 11 when the bestiary line
+    // was read, which a beast's class is read by (step 9d-B, J9)
+    assert_eq!(shown["basis"]["derivation"], 11);
 }

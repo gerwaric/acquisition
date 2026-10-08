@@ -847,6 +847,7 @@ mod tests {
                 socketed_in: None,
             },
             class: Classed::BaseUnread,
+            category: crate::category::Category::none(),
         }
     }
 

@@ -7,7 +7,9 @@
 //! example printed is a query this build binds, or a key a count takes
 //! (`tests/surface_faults.rs`, `tests/counts.rs`), and every word an entry is
 //! named by can be asked for alone. Printed from the binder's own tables,
-//! so the help cannot say a name the binder refuses.
+//! so the help cannot say a name the binder refuses. The category ids are
+//! rows of their own (`category.rs`): each with the site's text for it and
+//! what makes it hold, printed whole and beside the field `category`.
 
 use serde::Serialize;
 
@@ -37,6 +39,11 @@ pub struct Describe {
     pub totals: String,
     /// What `--count`, `--cross` and `--sum` take (C95, C97).
     pub counts: Vec<Named>,
+    /// Every category id with the site's text for it and what makes it
+    /// hold (C106; `category.rs`): printed whole, and beside the field
+    /// `category` where that is named.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub categories: Vec<crate::category::Described>,
     pub not_built: Vec<NotBuilt>,
     pub limits: Vec<Limit>,
 }
@@ -136,6 +143,24 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
                         "class=Rings",
                         "class:sword",
                         "undecided(class)",
+                    ],
+                ),
+                // the category prints its definition and its tables'
+                // sources and versions, as the class does
+                Thing::Category => (
+                    match crate::category::tables() {
+                        Ok(tables) => tables.definition(),
+                        Err(e) => {
+                            format!("{} — the tables this build ships do not load: {e}", f.what)
+                        }
+                    },
+                    vec![
+                        "category=armour",
+                        "category=\"accessory.ring\"",
+                        "category:beast",
+                        "(category=armour or category=accessory)",
+                        "-has:category",
+                        "undecided(category)",
                     ],
                 ),
                 Thing::ReqLevel => (f.what.to_string(), vec!["reqlevel=..30", "-has:reqlevel"]),
@@ -398,6 +423,9 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
         computed: crate::pseudo::described(),
         totals: crate::pseudo::provenance(),
         counts,
+        categories: crate::category::tables()
+            .map(|tables| tables.described())
+            .unwrap_or_default(),
         not_built: NOT_BUILT.to_vec(),
         limits: LIMITS.to_vec(),
     };
@@ -509,6 +537,13 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     out.computed
         .retain(|n| wants("computed", &n.name) || wants("pseudo", &n.name));
     out.counts.retain(|n| wants("counts", &n.name));
+    // the ids are the field's: printed where `category` is named
+    if !names
+        .iter()
+        .any(|asked| asked.eq_ignore_ascii_case(crate::category::FIELD))
+    {
+        out.categories.clear();
+    }
     out.not_built.clear();
     out.limits.clear();
     Ok(out)

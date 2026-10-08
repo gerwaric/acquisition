@@ -76,7 +76,9 @@ fn bucket<'a>(table: &'a Value, value: &str) -> Vec<&'a Value> {
 
 /// One tab, `Gear`, of what the seat met: three blighted maps, two
 /// invitations, a rare Energy Blade and one whose frame could not be
-/// read, two itemised beasts, a plain map and a ring.
+/// read, two items named as beasts are with no bestiary line — bases the
+/// table lacks, as a beast was before its line was read (J9) — a plain
+/// map and a ring.
 fn seat_stash() -> Store {
     let mut s = store();
     list_tabs(&mut s, "pc", "Standard", json!([tab("g1", "Gear")]), 10);
