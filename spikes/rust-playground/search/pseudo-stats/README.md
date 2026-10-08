@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: before 9d-C's sitting, reviewed: seven of the site's domains shown counted and none left out; no crucible line, flask's own line or mutated line captured under any pseudo; the export says global of no weapon's unsuffixed line, and Path of Building reads it as the weapon's own in every array — 2026-10-08. The states before it, each by its commit: 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
+Status: round n composed, reviewed: 23 searches for the owner's sitting — a crucible line, a weapon's crucible twin, a flask's own line, the implicit twin off a weapon, the thin domains — 2026-10-08. The states before it, each by its commit: before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -195,6 +195,21 @@ carry a keyword flag and are never local. Fishing rods are weapons there, as in 
 **For a sitting**: an attacks' and a plain `Adds` pseudo of a weapon whose line is `crucible` (43),
 `fractured` (8), `implicit` (9, one type captured), `crafted` (3), `enchant` (1); a plain one of an implicit
 off a weapon (8); a resistance or speed pseudo of a flask's `utilityMods`; any of a `mutated` line.
+
+## Round n, composed
+
+`tools/trade-sheet.py`, `round_n`: 23 searches, none sent; one page, `raw/sitting/n-1.html`. A mutant is its
+search with the pseudo shown (`if`), its ten fetched the reading. The core, deciding a row of the build: n01–n15.
+
+| Search | Question | Items found | None found | Mutant |
+| --- | --- | --- | --- | --- |
+| n01 | 1: a crucible `#% increased Spell Damage` node, none of the total's rows, no pseudo | the node is not counted | a crucible line is counted | n02 |
+| n03 | 2: a weapon's crucible `Adds # to # Fire Damage`, no attacks' pseudo | not counted | counted | n05 |
+| n04 | 2: the same, no plain pseudo | the weapon's own, or not counted | the other twin | n05 |
+| n06, n08 | 3: a flask showing the movement speed, the chaos resistance total | a flask shows a pseudo | its own line is not counted | n07, n09: Quicksilver, Amethyst |
+| n10, n13 | 4: a helmet, a ring: the implicit cold line, no `(Local)`, no plain pseudo | not counted | counted off a weapon | n11, n14 |
+| n12, n15 | 4: the same, an implicit under a `(Local)` stat | a weapon's own stat off a weapon | the class decides | n11, n14 |
+| n16, n18, n20, n22 | 5: fractured (life), enchant (spell damage), scourge, crafted (total resistance), sound | a line not counted, or cancelled | counted | n17, n19, n21, n23 |
 
 ## The captures, and what the site said
 

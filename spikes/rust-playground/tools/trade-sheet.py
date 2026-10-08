@@ -43,6 +43,7 @@ answer and never the method's failure.
 import base64
 import csv
 import json
+import re
 import struct
 import sys
 import zlib
@@ -1324,6 +1325,190 @@ def round_m():
     return rows
 
 
+# Round n (before 9d-C's sitting): what the two reads left to the site
+# (search/pseudo-stats/README.md, "Before the sitting: the domain, and the twin
+# from the export"). Each pseudo at the version asked, written out.
+ROUND_N = {
+    "increased_spell_damage": 3,
+    "adds_fire_to_attacks": 3,
+    "adds_fire": 2,
+    "increased_movement_speed": 3,
+    "total_chaos_res": 3,
+    "adds_cold": 2,
+    "total_life": 2,
+    "total_res": 3,
+}
+# A crucible entry of the stats file is a whole node, its numbers and its tier
+# in the text and a row to a line: the nodes that display a row, counted with
+# each number read as `#` and the tier dropped. A stats file that counts
+# another number is another round's.
+ROUND_N_NODES = {"#% increased Spell Damage": 40, "Adds # to # Fire Damage": 64}
+# The flask base whose own line (`utilityMods`) is the total's row on the copy.
+ROUND_N_FLASKS = [("increased_movement_speed", "Quicksilver Flask", "#% increased Movement Speed"),
+                  ("total_chaos_res", "Amethyst Flask", "+#% to Chaos Resistance")]
+# The categories that hold the copy's eight implicit lines off a weapon.
+ROUND_N_OFF_WEAPON = [("armour.helmet", "helmet"), ("accessory.ring", "ring")]
+# A thin domain and the total asked sound over its ids of that domain alone.
+ROUND_N_DOMAINS = [("fractured", "total_life"), ("enchant", "increased_spell_damage"),
+                   ("scourge", "total_res"), ("crafted", "total_res")]
+RANGED_LOCAL = [f"Adds # to # {kind.capitalize()} Damage (Local)"
+                for kind in ("physical", "lightning", "cold", "fire", "chaos")]
+
+
+def round_n():
+    """n01–n02 a crucible line under a total; n03–n05 a weapon's crucible
+    `Adds # to # Fire Damage`, its own or the other twin; n06–n09 a flask's own
+    line; n10–n15 the implicit twin off a weapon; n16–n23 the four thin
+    domains. A search that can find nothing is followed by its mutant, the
+    pseudo shown (`if`) where the search refused it or required it."""
+    ids, texts = table.stats()
+    versions = table.versions()
+
+    def at(name):
+        return versions[name][ROUND_N[name] - 1]
+
+    def pin(name):
+        return f"{name} v{ROUND_N[name]}"
+
+    def nodes(template):
+        """The crucible nodes that display a row of this template."""
+        found = []
+        for g in json.loads(STATS.read_text())["result"]:
+            if g["id"] != "crucible":
+                continue
+            for e in g["entries"]:
+                lines = re.sub(r" \(Tier \d+\)$", "", e["text"]).split("\n")
+                if template in [re.sub(r"\d+(?:\.\d+)?", "#", line) for line in lines]:
+                    found.append(e["id"])
+        if len(found) != ROUND_N_NODES[template]:
+            raise SystemExit(f"{len(found)} crucible nodes display {template!r}, not {ROUND_N_NODES[template]}")
+        return found
+
+    rows = []
+
+    def add(decides, control, query):
+        rows.append({"search": f"n{len(rows) + 1:02d}", "decides": decides, "control": control, "query": query})
+        return rows[-1]["search"]
+
+    # 1. A crucible line under a total that is no ranged one.
+    spell = at("increased_spell_damage")
+    spell_text = texts[spell["pseudo"]]
+    spell_nodes = nodes("#% increased Spell Damage")
+    spell_rows = table.ids_of(spell, ids)
+    carried = (f"a crucible node displaying `#% increased Spell Damage` ({len(spell_nodes)} nodes, a count) and "
+               f"none of the total's rows ({len(spell_rows)} ids, a `not`)")
+    n = add(f"{pin('increased_spell_damage')}, a crucible line: whether any listed item carries {carried} while showing "
+            f"no `{spell_text}`. None found, the mutant finding items: the pseudo counts a crucible line. Any found: "
+            "it does not count that node's, and the item's lines say whether a `reduced` node cancels it",
+            "the next search, the mutant, must find items",
+            batch_query([group("count", spell_nodes, {"min": 1}), group("not", spell_rows),
+                         group("not", [spell["pseudo"]])]))
+    add(f"{n}'s mutant: the pseudo shown (`if`) where {n} refused it. It must find items, each carrying {carried}; "
+        "the ten fetched show the pseudo's value beside the node's line, or none. None found: no such item is listed, "
+        f"or a count of crucible nodes finds nothing, and {n} says nothing",
+        f"the mutant is the control: nothing found means {n} decides nothing",
+        batch_query([group("count", spell_nodes, {"min": 1}), group("not", spell_rows),
+                     group("if", [spell["pseudo"]])]))
+
+    # 2. A weapon's crucible `Adds # to # Fire Damage`: its own, the other twin, or not counted.
+    attacks, plain = at("adds_fire_to_attacks"), at("adds_fire")
+    attacks_text, plain_text = texts[attacks["pseudo"]], texts[plain["pseudo"]]
+    fire_nodes = nodes("Adds # to # Fire Damage")
+    fire_rows = table.ids_of(attacks, ids)
+    if not set(table.ids_of(plain, ids)) <= set(fire_rows):
+        raise SystemExit("the plain fire pseudo has a row the attacks' has not")
+    carried = (f"a crucible node displaying `Adds # to # Fire Damage` ({len(fire_nodes)} nodes, a count) and none of "
+               f"the rows of {pin('adds_fire_to_attacks')} ({len(fire_rows)} ids, a `not`; those of {pin('adds_fire')} "
+               "are among them)")
+    weapon = category("weapon")
+    a = f"n{len(rows) + 1:02d}"
+    b = f"n{len(rows) + 2:02d}"
+    m = f"n{len(rows) + 3:02d}"
+    readings = (f"Read with its pair: {a} none and {b} found, the weapon's own (the attacks' pseudo alone); both none, "
+                f"the other twin (the plain too); both found, not counted; {a} found and {b} none, counted by the plain "
+                "and not the attacks', which no row says")
+    add(f"a weapon's crucible line, the attacks' pseudo: whether any weapon carries {carried} while showing no "
+        f"`{attacks_text}`. None found, {m} finding items: the node's line is counted. Any found: it is not. {readings}",
+        f"{m}, the mutant, must find items",
+        batch_query([group("count", fire_nodes, {"min": 1}), group("not", fire_rows),
+                     group("not", [attacks["pseudo"]])], weapon))
+    add(f"a weapon's crucible line, the plain pseudo: whether any weapon carries {carried} while showing no "
+        f"`{plain_text}`. None found, {m} finding items: the node's line is the other twin. Any found: it is the "
+        f"weapon's own, or not counted. {readings}",
+        f"{m}, the mutant, must find items",
+        batch_query([group("count", fire_nodes, {"min": 1}), group("not", fire_rows),
+                     group("not", [plain["pseudo"]])], weapon))
+    add(f"the mutant of {a} and {b}: the two pseudos shown (`if`) where each refused one. It must find weapons, each "
+        f"carrying {carried}; the ten fetched show `{attacks_text}` and `{plain_text}` beside the node's line, or "
+        f"neither. None found: no such weapon is listed, and {a} and {b} say nothing",
+        f"the mutant is the control: nothing found means {a} and {b} decide nothing",
+        batch_query([group("count", fire_nodes, {"min": 1}), group("not", fire_rows),
+                     group("if", [attacks["pseudo"], plain["pseudo"]])], weapon))
+
+    # 3. A flask's own line.
+    for name, base, line in ROUND_N_FLASKS:
+        pseudo = at(name)["pseudo"]
+        m = f"n{len(rows) + 2:02d}"
+        n = add(f"{pin(name)}, a flask's own line: whether any listed flask shows `{texts[pseudo]}`. Any found: a "
+                f"pseudo is shown on a flask, and its lines say from which. None found, {m} finding flasks: no flask "
+                f"shows it, and a flask's own `{line}` is not counted",
+                f"{m}, the mutant narrowed to the base that carries the line, must find items",
+                batch_query([group("and", [pseudo])], category("flask")))
+        add(f"{n}'s mutant, narrowed: `{base}`, whose own line is `{line}` on the copy, the pseudo shown (`if`) "
+            f"where {n} required it. It must find flasks; the ten fetched show what the site files the line under, "
+            f"and `{texts[pseudo]}` beside it or none. None found: the category finds no flask, and {n} says nothing",
+            f"the mutant is the control: nothing found means {n} decides nothing",
+            batch_query([group("if", [pseudo])], category("flask"), base))
+
+    # 4. The implicit twin off a weapon.
+    cold = at("adds_cold")
+    cold_text = texts[cold["pseudo"]]
+    other = [i for i in ids_of("Adds # to # Cold Damage") if i.startswith("implicit.")]
+    own = [i for i in ids_of(*RANGED_LOCAL) if i.startswith("implicit.")]
+    for option, word in ROUND_N_OFF_WEAPON:
+        m = f"n{len(rows) + 2:02d}"
+        n = add(f"{pin('adds_cold')}, the implicit twin off a weapon: whether any {word} carries `Adds # to # Cold Damage` "
+                f"as an implicit under the stat without `(Local)` (ids: {len(other)}, a count) while showing no "
+                f"`{cold_text}`. None found, {m} finding items: the plain pseudo counts the implicit off a weapon, "
+                "as the reading says. Any found: it does not count that item's",
+                f"{m}, the mutant, must find items",
+                batch_query([group("count", other, {"min": 1}), group("not", [cold["pseudo"]])], category(option)))
+        add(f"{n}'s mutant: the pseudo shown (`if`) where {n} refused it. It must find a {word} carrying the implicit; "
+            f"the ten fetched show `{cold_text}` beside the line, or none. None found: no {word} carries the stat, "
+            f"and {n} says nothing",
+            f"the mutant is the control: nothing found means {n} decides nothing",
+            batch_query([group("count", other, {"min": 1}), group("if", [cold["pseudo"]])], category(option)))
+        add(f"whether any {word} carries an unsuffixed `Adds # to # <type> Damage` as an implicit under the `(Local)` "
+            f"stat at all ({len(own)} ids, the five types, a count), `{cold_text}` shown where there is one. None "
+            f"found, {m} finding items: off a weapon the implicit is never the `(Local)` stat's, and the class "
+            "decides as the site does. Any found: an item that is no weapon carries a weapon's own stat; each names "
+            "its base, and what it shows says whether the site counts it",
+            f"{m}, this search with the stat without `(Local)` in place of the `(Local)` ids, must find items",
+            batch_query([group("count", own, {"min": 1}), group("if", [cold["pseudo"]])], category(option)))
+
+    # 5. The thin domains.
+    for domain, name in ROUND_N_DOMAINS:
+        version = at(name)
+        text = texts[version["pseudo"]]
+        rows_of = weighted(version, ids)
+        rows_of["filters"] = [f for f in rows_of["filters"] if f["id"].startswith(domain + ".")]
+        if not 0 < len(rows_of["filters"]) <= WEIGHTED_AT_MOST:
+            raise SystemExit(f"{name} has {len(rows_of['filters'])} {domain} ids")
+        m = f"n{len(rows) + 2:02d}"
+        n = add(f"{pin(name)}, sound over its {domain} lines: whether any listed item's {domain} rows — the site's "
+                f"own sum of its ids of that domain ({len(rows_of['filters'])}), a half or more — show no `{text}`. "
+                f"None found, {m} finding items: {domain} lines are counted wherever they appear. Any found: one of "
+                f"its {domain} lines is not counted, or lines of another domain cancel it; the item's lines say which",
+                f"{m}, the mutant, must find items; c4 and d02 for a pseudo in a `not` beside a sum",
+                batch_query([rows_of, group("not", [version["pseudo"]])]))
+        add(f"{n}'s mutant: the pseudo shown (`if`) where {n} refused it. It must find items whose {domain} rows "
+            f"sum so; the ten fetched show `{text}` beside the line. None found: no item lists such a line, and {n} "
+            "says nothing",
+            f"the mutant is the control: nothing found means {n} decides nothing",
+            batch_query([rows_of, group("if", [version["pseudo"]])]))
+    return rows
+
+
 def report():
     """b1, b2: the two searches a report of c3's twin id rests on."""
     twin = "explicit.stat_2543977012"
@@ -1405,6 +1590,7 @@ def main():
         return 2
     searches = PILOT + (checks() + round_two() + report() + round_three() + round_four()
                         + round_five() + OPEN_QUESTION_SEARCHES + round_six() + round_i() + round_j() + round_k() + round_l() + round_m()
+                        + round_n()
                         if method == "site" else batch(method))
     seen = set()
     with OUT.open("w", newline="") as out:
