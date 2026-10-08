@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: round n composed, reviewed: 23 searches for the owner's sitting — a crucible line, a weapon's crucible twin, a flask's own line, the implicit twin off a weapon, the thin domains — 2026-10-08. The states before it, each by its commit: before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
+Status: round n sat and read: the site counts no crucible node's line and no flask's own line under any pseudo asked, counts the implicit twin off a weapon, and counts fractured, enchant, scourge and crafted lines; 80 readings disagree with the rows until the two arrays are ruled — 2026-10-08. The states before it, each by its commit: round n composed `2b86eef4`; before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -210,6 +210,24 @@ search with the pseudo shown (`if`), its ten fetched the reading. The core, deci
 | n10, n13 | 4: a helmet, a ring: the implicit cold line, no `(Local)`, no plain pseudo | not counted | counted off a weapon | n11, n14 |
 | n12, n15 | 4: the same, an implicit under a `(Local)` stat | a weapon's own stat off a weapon | the class decides | n11, n14 |
 | n16, n18, n20, n22 | 5: fractured (life), enchant (spell damage), scourge, crafted (total resistance), sound | a line not counted, or cancelled | counted | n17, n19, n21, n23 |
+
+## Round n, read (2026-10-08; `tools/trade-split.py`, `tools/trade-evidence.py`)
+
+All 23 captured, each the sheet's query. Found, a search beside its mutant:
+
+| Question | Found | The site says |
+| --- | --- | --- |
+| 1: a crucible spell damage node | n01 1245, n02 1245 | **not counted**: n02's ten show no pseudo, the node's line under no stat |
+| 2: a weapon's crucible `Adds # to # Fire Damage` | n03 3744, n04 3744, n05 3744 | **not counted**, under the attacks' pseudo or the plain: n05's ten show neither |
+| 3: a flask's own line | n06 0, n07 10000; n08 0, n09 10000 | **not counted**: no flask shows either pseudo; the line is `utilityMods`, under no stat |
+| 4: the implicit twin off a weapon | n10 0, n11 10000; n13 0, n14 622 | counted by the plain pseudo, ten of ten each |
+| 4: an implicit under a `(Local)` stat off a weapon | n12 0, n15 0 | none listed on a helmet or a ring |
+| 5: fractured, enchant | n16 0, n17 10000; n18 0, n19 920 | counted |
+| 5: scourge, crafted | n20 2, n21 3947; n22 3, n23 10000 | counted: the five found are each a sum of nothing, the domain's lines cancelled by another's |
+
+Against the rows as they stand, which count a line by its text wherever it sits, 80 of 1648 readings
+disagree, every one a crucible node's line or a flask's own (`data/evidence.csv`): the rows wait for the
+owner's ruling on the two arrays.
 
 ## The captures, and what the site said
 
