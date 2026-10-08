@@ -108,8 +108,8 @@ on an item of neither mark, and none on the copy is. On the copy the eldritch ki
 export's text join holds only as global.
 
 Left out, answered by the captures (captured / reproduced): C3 shields 23 / 23, C4 helmets 220 / 219,
-C5 gloves 151 / 151, C6 quality over 20 9 / 9, C8 uniques 170 / 170, C9 a defence the base lacks (its
-own types read) 35 / 35. Not the site's: C11 poe2, no table (ruled); C12 an exact half, no filter
+C5 gloves 152 / 152, C6 quality over 20 10 / 9, C8 uniques 172 / 172, C9 a defence the base lacks (its
+own types read) 39 / 39. Not the site's: C11 poe2, no table (ruled); C12 an exact half, no filter
 selects it; C13 a `reduced` local line, none on the copy or captured. The copy's 2,272 armour items:
 2,240 read to a value, 22 poe2, 9 at an exact half, 1 under its minimum (C14's trace); 20 bases not in
 the class table. Per shape: `data/percentile-shapes.csv`.
@@ -123,7 +123,7 @@ found, `data/ranged-uniques.csv` (339 lines, 95 uniques).
 | Lines | On a weapon | Not a weapon |
 | --- | ---: | ---: |
 | all live | **573** | **129** |
-| on uniques, export local: site local / global / not captured | 92 / 0 / 96 | 0 / 0 / 0 |
+| on uniques, export local: site local / global / not captured | 95 / 0 / 93 | 0 / 0 / 0 |
 | on uniques, export global: the same | 0 / 0 / 0 | 0 / 26 / 4 |
 | on uniques, export cannot say: the same | 17 / 0 / 19 | 0 / 68 / 17 |
 
