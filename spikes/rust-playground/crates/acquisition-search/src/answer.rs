@@ -1033,9 +1033,15 @@ fn routes(term: &Term) -> Routes {
             )
         }
         // a computed value lacked is `-has:` of it: a derived field (T2),
-        // a total of nothing (C94)
-        (Atom::Pseudo { name, .. }, _) => {
-            let has = Node::Has(name.clone());
+        // a total of nothing (C94) — of the value, never of a number of
+        // it: `has:` takes no slot word, and a ranged total asked by one
+        // is lacked where the total is (J31)
+        (Atom::Pseudo { name, slot, .. }, _) => {
+            let whole = slot
+                .as_deref()
+                .and_then(|slot| name.strip_suffix(slot)?.strip_suffix('.'))
+                .unwrap_or(name);
+            let has = Node::Has(whole.to_string());
             (
                 Some(Node::All(vec![has.clone(), not(node.clone())])),
                 Some(not(has)),

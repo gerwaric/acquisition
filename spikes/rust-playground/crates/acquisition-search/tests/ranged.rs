@@ -1250,6 +1250,53 @@ fn j31_a_ranged_total_is_nothing_only_where_its_low_and_its_high_both_are() {
     assert_eq!(by["zero"], json!({ "status": "no satisfying occurrence" }));
 }
 
+/// Rule 5 of the plan, at a ranged total asked by a slot word: the
+/// routes of its failed and its lacked count are commands the build
+/// answers. They were `has:` of the value as written, slot word and all —
+/// `-has:pseudo.adds_fire.low` — which `has:` refuses, taking none (found
+/// by the generated cross-checks at step 9e). Worked by hand on the two
+/// items of `fire`, one line each, low 10 and high 21: the plain total is
+/// nothing on the wand, a weapon, and lacked under every slot word; on
+/// the ring its low 10 fails `>=11`, its high 21 and its avg 15.5 pass.
+#[test]
+fn a_ranged_total_asked_by_a_slot_word_routes_its_failed_and_lacked_by_has_of_the_total() {
+    let s = fire();
+    for (text, four, failed, matched) in [
+        (
+            "pseudo.adds_fire.low>=11",
+            [0, 1, 1, 0],
+            vec!["ring"],
+            vec![],
+        ),
+        (
+            "pseudo.adds_fire.high>=11",
+            [1, 0, 1, 0],
+            vec![],
+            vec!["ring"],
+        ),
+        (
+            "pseudo.adds_fire.avg>=11",
+            [1, 0, 1, 0],
+            vec![],
+            vec!["ring"],
+        ),
+        ("pseudo.adds_fire>=11", [1, 0, 1, 0], vec![], vec!["ring"]),
+    ] {
+        let a = asked(&s, text);
+        let term = &a["terms"][0];
+        assert_eq!(ids(&a), matched, "`{text}`");
+        assert_eq!(counts(term), four, "`{text}`");
+        assert_eq!(follow(&s, &term["lacked"]), ["wand"], "`{text}`");
+        assert_eq!(
+            term["lacked"]["request"]["query"]["text"], "-has:pseudo.adds_fire",
+            "`{text}`"
+        );
+        if !failed.is_empty() {
+            assert_eq!(follow(&s, &term["failed"]), failed, "`{text}`");
+        }
+    }
+}
+
 /// C93 and the plan's rule 8, at a row that reads the category: a row
 /// that does not count on the item reads nothing of it, so what could not
 /// be read of the item leaves that row's total open by nothing. `blind`
