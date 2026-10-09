@@ -942,6 +942,112 @@ fn rule_8_what_the_percentile_does_not_ask_does_not_open_it() {
 
 // ---- the twin ---------------------------------------------------------------------------------
 
+/// What the field asks opens it, and of no more than was lost (rule 8 of
+/// the plan; C93), each a rule no row of the table reaches: an array of
+/// lines that is no array, a crucible node's among them (J29 is the
+/// totals' rule), and `hybrid` unread, may hold a line it reads; a
+/// defence displayed twice, an unread element named for a defence, and
+/// one named `Quality` beside a defence, are properties it reads — the
+/// quality asked only of an item displaying a defence; a text only a
+/// local stat displays is the item's own on an eldritch item too; a twin
+/// text in an array J8 does not name, the enchant's, is of no side
+/// (J33); each of the three marks J8 reads, unread, opens an implicit
+/// twin under its own key; and a base that could not be read is unread
+/// under `baseType`, never an item with no base.
+#[test]
+fn rule_8_what_the_percentile_asks_opens_it() {
+    let vest = |id: &str, armour_shown: &str, more: Value| {
+        armour(id, "Plate Vest", "Rare", &[("Armour", armour_shown)], more)
+    };
+    let unread = |name: &str| json!({ "name": name, "values": 7, "displayMode": 0 });
+    let mut twice = vest("twice", "23", json!({}));
+    twice["properties"] = json!([property("Armour", "23"), property("Armour", "23")]);
+    let mut named = vest("named", "23", json!({}));
+    named["properties"] = json!([unread("Armour")]);
+    let mut quality = vest("quality", "23", json!({}));
+    quality["properties"] = json!([property("Armour", "23"), unread("Quality")]);
+    let s = one_tab(vec![
+        vest(
+            "crucible_array",
+            "23",
+            json!({ "crucibleMods": "no array" }),
+        ),
+        vest("enchant_array", "23", json!({ "enchantMods": 7 })),
+        vest("hybrid", "23", json!({ "hybrid": 7 })),
+        twice,
+        named,
+        quality,
+        item(
+            "quality_alone",
+            "",
+            "Ruby Ring",
+            "Rare",
+            json!({ "properties": [unread("Quality")] }),
+        ),
+        // (roll + 0) × 1.10: roll 23 displays 25.3, 25; left out, the roll
+        // would be 25 and the value 75
+        vest(
+            "local_only",
+            "25",
+            json!({ "searing": true, "implicitMods": ["10% increased Armour and Evasion"] }),
+        ),
+        vest(
+            "enchant_twin",
+            "40",
+            json!({ "enchantMods": ["+17 to Armour"] }),
+        ),
+        vest(
+            "tangled",
+            "23",
+            json!({ "tangled": "yes", "implicitMods": ["19% increased Armour"] }),
+        ),
+        vest(
+            "synthesised",
+            "23",
+            json!({ "synthesised": "yes", "implicitMods": ["19% increased Armour"] }),
+        ),
+        vest("base", "23", json!({ "baseType": 7 })),
+    ]);
+    let found = |text: &str| ids(&asked(&s, text));
+    assert_eq!(found("pseudo.defence_pct=50"), ["local_only"]);
+    assert_eq!(found("-has:pseudo.defence_pct"), ["quality_alone"]);
+    assert_eq!(
+        found("undecided(pseudo.defence_pct)"),
+        [
+            "base",
+            "crucible_array",
+            "enchant_array",
+            "enchant_twin",
+            "hybrid",
+            "named",
+            "quality",
+            "synthesised",
+            "tangled",
+            "twice"
+        ]
+    );
+    let kinds = |id: &str| -> Vec<String> {
+        asked(&s, &format!("id:{id} has:pseudo.defence_pct"))["total"]["undecided_reasons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["unread"].as_str().unwrap().to_string())
+            .collect()
+    };
+    assert_eq!(kinds("tangled"), ["`tangled`"]);
+    assert_eq!(kinds("synthesised"), ["`synthesised`"]);
+    assert_eq!(kinds("base"), ["`baseType`"]);
+    assert_eq!(kinds("crucible_array"), ["crucible lines"]);
+    assert_eq!(kinds("hybrid"), ["`hybrid`"]);
+    assert_eq!(kinds("twice"), ["`properties`"]);
+    assert_eq!(kinds("named"), ["`properties`"]);
+    assert_eq!(kinds("quality"), ["`properties`"]);
+    assert_eq!(
+        kinds("enchant_twin"),
+        ["the percentile: a twin text in an array no ruling names"]
+    );
+}
+
 /// J8, J33, over the table's composed cases (`r-j8-…`, `r-twin-…`,
 /// `r-crucible-line`): a Plate Vest, Armour ranged 19–27, displaying
 /// Armour 23 beside `19% increased Armour`, a text the local stat and the
