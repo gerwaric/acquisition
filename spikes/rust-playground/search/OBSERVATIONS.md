@@ -59,9 +59,10 @@ filed again by the step that touches it.
 
 **Step 4b.**
 
-- The gate's cost, a debug build here: equivalence 14 s, the cross-checks
-  15 s, completion 3 to 6 s, beside the routes' 16 s. 256, 192 and 256
-  cases; `PROPTEST_CASES` runs any of them longer by hand.
+- The gate's cost, a debug build here, at 9e: equivalence 11 s, the
+  cross-checks 54 s, completion 8 s, beside the routes' 9 s and the
+  rows' 8 s. 256, 192 and 256 cases; `PROPTEST_CASES` runs any of them
+  longer by hand. The cross-checks were 37 s before the step.
 - The basis names no evaluator, so two builds can label different
   answers with one basis — true of every evaluator fix since step 4;
   `DERIVATION` moves only when a body derives to another item.
@@ -89,8 +90,8 @@ filed again by the step that touches it.
 - A derived field's lacked item sorts last with the status `no
   satisfying occurrence`, which is a line's wording; a field's and a
   computed value's is the same status today.
-- The generated properties reach `pseudo` since the third look and
-  `price` since step 9, and still no `class` or `category`.
+- The generated properties reach `pseudo` since the third look,
+  `price` since step 9, and `class` and `category` since 9e.
 - `pseudo.dps` counts every damage property the item displays and
   `pseudo.pdps` the physical alone; the C++ app reads 0 where a property
   is missing and this build says *lacked* — the one departure, C93's.
@@ -196,12 +197,24 @@ filed again by the step that touches it.
   item's percentile, one search, the copy's one such item undecided;
   32 of the copy's 74 groups of defence lines, and a roll out of
   range (J34), unasked.
-- *Step 9e (the plan):* the generated properties reach no ranged
-  total, no row that reads the category, neither array J29 leaves out
-  and no percentile. Unpinned of the percentile, no fixture reaching
-  either: a body wholly unread, a base of one fixed defence beside a
-  ranging one. The field makes its own reason for a veiled line's
-  number, the deriver recording none.
+- *The review's next look:* unpinned of the percentile, no fixture
+  reaching either: a body wholly unread, a base of one fixed defence
+  beside a ranging one. The field makes its own reason for a veiled
+  line's number, the deriver recording none.
+- *The review's next look (step 9e):* what the generated properties do
+  not reach of 9d — an id with ids beneath it as a bucket (J26), an
+  item of two leaves (J16), a beast; a row of a mod of several rows
+  under a ranged total; the `reduced` spelling, evasion and ward; and
+  the percentile's own rules where nothing is unread, a crucible
+  node's defence line among them, which the hand-worked tests hold
+  alone: a fault every completion shares is past the completion
+  property, and the percentile's completions the rule leaves open are
+  set aside there, by the build's own probe.
+- *A seat, or the review's next look (step 9e):* a slot word is matched
+  in its own case where a name is matched in any: `pseudo.ADDS_COLD.low`
+  is answered, `pseudo.adds_cold.Low` refused as no computed value, and
+  a line's `LOW` as no slot word — two wordings of one refusal, older
+  than 9d, unruled.
 - *The trade translation (C99):* what the search counts and the site
   leaves out is said in the table's changes and nowhere a user reads.
   A stat whose rows another's sit between is named by a row or by the
