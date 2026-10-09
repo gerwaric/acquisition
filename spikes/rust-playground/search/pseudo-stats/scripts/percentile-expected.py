@@ -12,16 +12,16 @@ One function, `read`, goes from what a private item carries — its realm, its
 base, its rarity, its properties as displayed, each line's text, array and
 flags, and the item's own marks (`searing`, `tangled`, `synthesised`) — to what
 `pseudo.defence_pct` answers of it: `lacked`, a value, or `undecided` with its
-cause; `unruled` where the rulings give a cell two readings, each written with
-what it gives. Beside the answer, what it read: each defence type's display,
+cause; `unruled` is kept for a cell the rulings give two readings of, and no
+cell is one since J33 to J35 (2026-10-08). Beside the answer, what it read: each defence type's display,
 range, flat and increase, the quality term, the rolls the display admits and
 each roll's percentile, the lines taken and the lines left out. It never reads
 a line's `hash` or `mods`, nor `extended`: the site's value and the site's id
 are read beside it (`site_value`, `site_side`), and nothing in `read` takes them.
 
 Every step of `read` is a key of STEPS, with the sentences it carries out
-(CITES); a step with nothing to cite is a key of UNRULED and its cell is
-`unruled`. The ranges are ../repoe/data/base-defences.csv's, read and never
+(CITES); a step with nothing to cite would be a key of UNRULED and its cell
+`unruled`, and there is none. The ranges are ../repoe/data/base-defences.csv's, read and never
 typed. Which stat a line's text is: percentile-shapes.py's join (`role_ids`),
 the trade site's `(Local)` texts to the export's local defence stats, the
 `reduced` spelling the same stat below nothing; which of those texts a global
@@ -141,6 +141,13 @@ CITES = {
           "base ranges none of is no base defence roll (the tip: `all base defence rolls`)",
     "one-value": "README, The percentile's round: the captured items reproduced `each one value` — the display "
                  "fixes the answer",
+    "J33": "LEDGER 9d, J33 (2026-10-08): the percentile is a value only where what the item shows gives one "
+           "value from lines whose side is established; anywhere else it is undecided, and the reason says "
+           "which part failed",
+    "J34": "LEDGER 9d, J34 (2026-10-08; the owner: `keep reads over 100`): a roll over the base's maximum "
+           "reads over 100, and one under its minimum below 0",
+    "J35": "LEDGER 9d, J35 (2026-10-08; the owner: `undecided`): in a realm with no table the field is "
+           "undecided on every item, one displaying no defence among them",
     "realms": "crates/acquisition-search/reference/classes-v1.toml, `realms`: the realms the shipped tables of "
               "this export cover; base-defences.csv is the same export's and carries no realm line",
 }
@@ -192,9 +199,9 @@ STEPS = {
     "no-roll": ("no integer gives the display of a defence the base ranges: undecided", ["C93-open",
                                                                                          "C101-rule"]),
     "roll-over-max": ("a roll over the base's maximum is a roll: its percentile is over 100",
-                      ["C101-over", "C101-rule"]),
+                      ["C101-over", "J34", "C101-rule"]),
     "roll-under-min": ("a roll under the base's minimum is a roll, `any integer whose display is the item's`: "
-                       "its percentile is below 0", ["C101-rule"]),
+                       "its percentile is below 0", ["J34", "C101-rule"]),
     "several-rolls-one-value": ("more than one roll gives a display, and every combination rounds to one "
                                 "value: that value", ["C101-rule", "one-value"]),
     "one-type": ("one defence type: its roll's percentile, rounded half up", ["C101-rule"]),
@@ -203,54 +210,24 @@ STEPS = {
                     ["J6-three", "C101-rule"]),
     "ward": ("ward is a roll as the others are", ["J6-ward"]),
     "average-at-a-half": ("an average at an exact half rounds up", ["C101-rule"]),
+    "realm-no-defence": ("a realm with no table, the item displaying no defence: undecided as every item of "
+                         "the realm is", ["J35", "C101-realm"]),
+    "base-type-not-shown": ("no row of the base has every defence it ranges displayed: undecided",
+                            ["J33", "C93-open"]),
+    "twin-both-marks": ("a twin text in `implicitMods` of an item both eldritch and synthesised: undecided",
+                        ["J33", "J8-unmarked"]),
+    "twin-other-array": ("a twin text in an array J8 does not name, `crucibleMods` apart: undecided",
+                         ["J33", "J8-unmarked"]),
+    "crucible-line": ("a defence line in `crucibleMods` of a type a roll reads: undecided, the site not "
+                      "asked", ["J33"]),
+    "flat-range": ("a base whose minimum is its maximum: no percentile, undecided", ["J33"]),
+    "several-values": ("more than one roll gives a display, and the rolls give different values: undecided",
+                       ["J33"]),
 }
 
 # Where the rulings give two readings, or none: the cell is `unruled`, and carries each reading with what
-# it would change. A key is a step of `read` too.
-UNRULED = {
-    "realm-no-defence": (
-        "an item of a realm with no table that displays none of the four defences",
-        [("undecided, the realm", "C101's letter, `a realm with no table is undecided`, said of every item of "
-                                  "the realm as a total is unavailable there (J22): `-has:pseudo.defence_pct` "
-                                  "counts no item of the realm, and each is in the undecided count"),
-         ("lacked", "as `pseudo.dps` answers a ring in any realm (C93): a property name is then read in a "
-                    "realm with no table, and `-has:pseudo.defence_pct` counts the item")]),
-    "base-type-not-shown": (
-        "no row of the base has every defence it ranges displayed — the base ranges a defence the item does "
-        "not display, or ranges none",
-        [("undecided, the base's row is not the item's by its display", "the item is in the undecided count "
-                                                                        "(percentile-shapes.py reads it so)"),
-         ("the defences displayed, averaged", "a value from the rolls there are; a defence the base ranges "
-                                              "and the item hides is left out of the average")]),
-    "twin-both-marks": (
-        "a twin text in `implicitMods` of an item both eldritch and synthesised, of a type a roll reads",
-        [("left out", "J8's eldritch part read first: the roll is recovered without the line"),
-         ("the item's own", "J8's synthesised part read first: the line's number enters the roll"),
-         ("undecided", "neither part read: the item is in the undecided count")]),
-    "twin-other-array": (
-        "a twin text in an array J8 does not name — neither `explicitMods` nor `implicitMods` — of a type a "
-        "roll reads",
-        [("the item's own", "the line's number enters the roll, as an explicit twin's does"),
-         ("left out", "the roll is recovered without the line, as the global stat's"),
-         ("undecided", "as J8 rules the unmarked implicit: the item is in the undecided count")]),
-    "crucible-line": (
-        "a defence line in `crucibleMods`, a twin text or a local stat's alone, of a type a roll reads",
-        [("the item's own", "the node changes what the item displays, so the roll is recovered with it"),
-         ("left out", "as J29 has every total leave the array out and the site files its lines under no "
-                      "stat: the roll is recovered without it, and a display the node moved may admit no "
-                      "roll")]),
-    "flat-range": (
-        "a base whose minimum is its maximum: a roll's percentile divides by nothing",
-        [("undecided", "the item is in the undecided count"),
-         ("the defence left out of the average", "the other defences' value, and lacked where it is the only "
-                                                 "one"),
-         ("0, or 100", "a value the table cannot place")]),
-    "several-values": (
-        "more than one roll gives a display, and the rolls give different values",
-        [("undecided", "the display does not fix the value: the item is in the undecided count"),
-         ("the lowest to the highest, an interval", "as a count left open prints `2..3`: a comparison is "
-                                                    "decided where the whole interval agrees")]),
-}
+# it would change. A key is a step of `read` too. None since J33 to J35.
+UNRULED = {}
 
 # One break for each rule of the reading (step 4): what the break does.
 BREAKS = {
@@ -420,9 +397,8 @@ def read(tables, item, broken=None):
     if item["realm"] not in tables.realms and broken != "realm":
         if shown or unread:
             return answer("undecided", ["realm"], cause=f"realm: `{item['realm']}` has no table")
-        # the sentence's letter is of the realm; C93 has an item lack what it displays none of: two readings
-        return answer("unruled", ["realm-no-defence"], cause="realm-no-defence",
-                      readings=[("undecided, the realm", "undecided"), ("lacked", "lacked")])
+        # J35: every item of the realm, one displaying no defence among them
+        return answer("undecided", ["realm-no-defence"], cause=f"realm: `{item['realm']}` has no table")
 
     # pseudo.rs, C101; rule 8: a property the field reads, unread, leaves the field open.
     if unread:
@@ -453,10 +429,9 @@ def read(tables, item, broken=None):
                       cause=f"base: the range table holds `{base}` {len(rows)} times, and the defences "
                             f"displayed are those of {len(fits)} of its rows")
     if not fits:
-        return answer("unruled", ["base-type-not-shown"], cause="base-type-not-shown",
-                      readings=[("undecided, the base's row is not the item's by its display", "undecided"),
-                                ("the defences displayed, averaged", "not computed: which row's ranges is "
-                                 "part of the ruling")],
+        # J33: the base's row is not the item's by what it displays
+        return answer("undecided", ["base-type-not-shown"],
+                      cause=f"base: no row of `{base}` has every defence it ranges displayed",
                       base_row="; ".join(f"row {n}: {'/'.join(r) or 'no defence'}" for n, r in rows))
     base_row, ranges = fits[0]
     steps.append("base-held-twice" if len(rows) > 1 else "base")
@@ -478,7 +453,7 @@ def read(tables, item, broken=None):
     kind = mark_kind(item.get("marks"))
     flat = {t: Fraction(0) for t in ranges}
     incs = {t: [] for t in ranges}
-    taken, left, lines, opened, unruled_lines = [], [], [], [], []
+    taken, left, lines, opened = [], [], [], []
     no_quality = False
     for array, entries in (item.get("lines") or {}).items():
         if not isinstance(entries, list):
@@ -533,7 +508,7 @@ def read(tables, item, broken=None):
                     left.append(line)
                     continue
                 if array == "crucibleMods":
-                    rule, became = "crucible-line", "unruled"
+                    rule, became = "crucible-line", "open"  # J33
                 elif not twin:
                     # the join: a text only a local stat displays is the item's own
                     rule, became = "local-only", "own"
@@ -557,11 +532,11 @@ def read(tables, item, broken=None):
                         if broken == "unmarked-twin-own":
                             became = "own"
                     elif kind == "both":
-                        rule, became = "twin-both-marks", "unruled"
+                        rule, became = "twin-both-marks", "open"  # J33
                     else:
                         rule, became = "mark-unread", "open"  # rule 8
                 else:
-                    rule, became = "twin-other-array", "unruled"
+                    rule, became = "twin-other-array", "open"  # J33
                 line["rule"] = rule
                 steps.append(rule)
                 value, reduced = number(row)
@@ -576,12 +551,9 @@ def read(tables, item, broken=None):
                 elif became == "left":
                     line["became"] = "left out: the global stat"
                     left.append(line)
-                elif became == "open":
+                else:
                     line["became"] = "open"
                     opened.append(line)
-                else:
-                    line["became"] = "unruled"
-                    unruled_lines.append(line)
 
     def apply(extra):
         f = dict(flat)
@@ -648,7 +620,9 @@ def read(tables, item, broken=None):
                         took + ["no-roll"], set())
             if hi == lo:
                 detail[t]["rolls"] = [(b, None, h) for b, h in found]
-                return "unruled", None, "flat-range", detail, took + ["flat-range"], set()
+                # J33: a percentile of such a range divides by nothing
+                return ("undecided", None, f"range: the base's minimum {WORD[t]} is its maximum", detail,
+                        took + ["flat-range"], set())
             took.append("roll")
             per[t] = []
             for b, at_half in found:
@@ -674,7 +648,9 @@ def read(tables, item, broken=None):
         if at_half:
             took.append("average-at-a-half")
         if len(values) > 1:
-            return "unruled", None, "several-values", detail, took + ["several-values"], values
+            # J33: the display does not fix the value
+            return ("undecided", None, "several values: the display admits rolls that give "
+                    + ", ".join(str(v) for v in sorted(values)), detail, took + ["several-values"], values)
         if any(len(v) > 1 for v in per.values()):
             took.append("several-rolls-one-value")
         return "value", min(values), "", detail, took, values
@@ -686,35 +662,22 @@ def read(tables, item, broken=None):
         status, value, cause, _, _, values = result
         if status == "value":
             return str(value)
-        if cause == "several-values":
-            return "unruled, several values: " + "|".join(str(v) for v in sorted(values))
         return f"{status}: {cause}"
 
-    # J8: an implicit twin on an item of neither mark cannot be established.
+    # J8, J33: a line whose side cannot be established leaves the field open.
     if opened:
         with_it, without = compute(opened), compute([])
         rule = opened[0]["rule"]
-        cause = ("an implicit twin on an item of neither mark" if rule == "twin-unmarked"
-                 else "an implicit twin on an item whose mark is unread")
+        cause = {"twin-unmarked": "an implicit twin on an item of neither mark",
+                 "mark-unread": "an implicit twin on an item whose mark is unread",
+                 "twin-both-marks": "an implicit twin on an item both eldritch and synthesised",
+                 "twin-other-array": f"a twin text in `{opened[0]['array']}`",
+                 "crucible-line": "a defence line in `crucibleMods`"}[rule]
         return answer("undecided", steps, cause=f"{cause}: {opened[0]['row']}", types=without[3],
                       readings=[("were it the item's own", said(with_it)), ("were it left out", said(without))],
                       **common)
-    if unruled_lines:
-        with_it, without = compute(unruled_lines), compute([])
-        key = unruled_lines[0]["rule"]
-        readings = [("the item's own", said(with_it)), ("left out", said(without))]
-        if key != "crucible-line":
-            readings.append(("undecided", "undecided"))
-        return answer("unruled", steps, cause=key, types=without[3], readings=readings, **common)
     status, value, cause, detail, took, values = compute([])
-    readings = []
-    if cause == "several-values":
-        readings = [("undecided", "undecided"),
-                    ("the lowest to the highest, an interval", f"{min(values)}..{max(values)}")]
-    elif cause == "flat-range":
-        readings = [("undecided", "undecided"), ("the defence left out of the average", "not computed"),
-                    ("0, or 100", "0, or 100")]
-    return answer(status, steps + took, value=value, cause=cause, types=detail, readings=readings, **common)
+    return answer(status, steps + took, value=value, cause=cause, types=detail, **common)
 
 
 # ---- an item from each source, as a private item carries it ---------------------------------------------
@@ -1032,11 +995,11 @@ RULED = [
     ("r-over-maximum", "C101: an item above its base's current maximum reads over 100 % — the stated "
                        "rule's, no capture's",
      has("roll-over-max"), composed("pc", "Plate Vest", "Normal", [("Armour", "30")])),
-    ("r-under-minimum", "the function's: a roll under the base's minimum, by the rule's letter `any integer`",
+    ("r-under-minimum", "J34: a roll under the base's minimum reads below 0, by the rule's letter `any integer`",
      has("roll-under-min"), composed("pc", "Plate Vest", "Normal", [("Armour", "17")])),
     ("r-realm-no-table", "C101: a realm with no table is undecided with that reason, never zero",
      has("realm"), composed("poe2", "Rusted Cuirass", "Normal", [("[Armour]", "45")])),
-    ("r-realm-no-table-no-defence", "the function's: an item of a realm with no table displaying no defence",
+    ("r-realm-no-table-no-defence", "J35: an item of a realm with no table displaying no defence is undecided",
      has("realm-no-defence"), composed("poe2", "Lazuli Ring", "Normal", [])),
     ("r-average-rounded-half-up", "C101, the stated rule: each roll's percentile, averaged, rounded half up "
                                   "— an average at an exact half",
@@ -1101,7 +1064,7 @@ RULED = [
     ("r-quality-no-number-no-defence", "rule 8, of no more than was lost: the quality unread on an item "
                                        "displaying no defence leaves it lacked",
      None, composed("pc", "Ruby Ring", "Rare", [("Quality", "some")])),
-    ("r-several-rolls-different-values", "the function's: a display more than one roll gives, the rolls "
+    ("r-several-rolls-different-values", "J33: a display more than one roll gives, the rolls "
                                          "giving different values",
      has("several-values"),
      composed("pc", "Iron Hat", "Magic", [("Armour", "5")], line("50% reduced Armour"))),
@@ -1119,7 +1082,7 @@ RULED = [
      has("base-held-twice-open"),
      composed("pc", "Two-Toned Boots", "Rare",
               [("Armour", "130"), ("Evasion Rating", "140"), ("Energy Shield", "28")])),
-    ("r-min-is-max", "the function's: a base whose minimum is its maximum",
+    ("r-min-is-max", "J33: a base whose minimum is its maximum",
      has("flat-range"), composed("pc", "Kaom's Plate", "Normal", [("Armour", "23")])),
     ("r-defence-base-lacks", "C9: a defence displayed that the base lacks — its own types read",
      lambda i, a: "not-of-base" in a["steps"] and a["status"] == "value",
@@ -1128,16 +1091,16 @@ RULED = [
     ("r-reduced-line", "C13: a `reduced` local line is its stat below nothing",
      lambda i, a: "reduced" in a["steps"] and a["status"] == "value",
      composed("pc", "Cone Helmet", "Magic", [("Armour", "36")], line("10% reduced Armour"))),
-    ("r-base-defence-not-displayed", "the function's: the base ranges a defence the item does not display",
+    ("r-base-defence-not-displayed", "J33: the base ranges a defence the item does not display",
      has("base-type-not-shown"), composed("pc", "Scale Doublet", "Normal", [("Armour", "103")])),
-    ("r-twin-both-marks", "the function's: an implicit twin on an item both eldritch and synthesised",
+    ("r-twin-both-marks", "J33: an implicit twin on an item both eldritch and synthesised",
      has("twin-both-marks"),
      composed("pc", "Plate Vest", "Rare", [("Armour", "23")], line("19% increased Armour", "implicitMods"),
               marks={"tangled": True, "synthesised": True})),
-    ("r-twin-other-array", "the function's: a twin text in an array J8 does not name",
+    ("r-twin-other-array", "J33: a twin text in an array J8 does not name",
      has("twin-other-array"),
      composed("pc", "Plate Vest", "Rare", [("Armour", "40")], line("+17 to Armour", "scourgeMods"))),
-    ("r-crucible-line", "the function's: a defence line in `crucibleMods`",
+    ("r-crucible-line", "J33: a defence line in `crucibleMods`",
      has("crucible-line"),
      composed("pc", "Plate Vest", "Rare", [("Armour", "23")], line("19% increased Armour", "crucibleMods"))),
     ("r-array-no-array", "rule 8: an array that is no array is unread",
@@ -1623,7 +1586,8 @@ def main():
           f"through J5 here {len(j5)}, of which the floats read "
           f"{sum(1 for c in j5 if not float_none(c[3]))} by the stated rule")
     for i, a in armour:
-        if a["status"] in ("undecided", "unruled") and "realm" not in a["steps"]:
+        if (a["status"] in ("undecided", "unruled") and "realm" not in a["steps"]
+                and "realm-no-defence" not in a["steps"]):
             print(f"  {a['status']}: {i['rarity']} {i['base']}"
                   f"{' (' + i['name'] + ')' if i['rarity'] == 'Unique' else ''} — {cause_text(a)}; "
                   f"{properties_text(i)}; {lines_text(tables, i)}")

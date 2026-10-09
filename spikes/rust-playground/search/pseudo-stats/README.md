@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: 9d-A's expected answers, run and reviewed: the site disagreeing on none of 4849 captured cells, 7 kinds of cell unruled and none of them captured — 2026-10-08. The states before it, each by its commit: step 9d-C built and closed `ad1d081b`; 9d-C's expected answers final `5f834e8c`; round n sat and read `22380d71`; round n composed `2b86eef4`; before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
+Status: 9d-A's expected answers final: J33 to J35 ruled, the site disagreeing on none of 4849 captured cells, no cell unruled — 2026-10-08. The states before it, each by its commit: 9d-A's expected answers, seven kinds of cell unruled `a8ceaea9`; step 9d-C built and closed `ad1d081b`; 9d-C's expected answers final `5f834e8c`; round n sat and read `22380d71`; round n composed `2b86eef4`; before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -117,23 +117,24 @@ the class table. Per shape: `data/percentile-shapes.csv`.
 
 `scripts/percentile-expected.py` (the brief, `BRIEF.md`): one function from a private item's realm, base,
 properties, marks and lines — text, array, flags, never an id — to what `pseudo.defence_pct` answers, in exact
-arithmetic, each of its 35 steps citing its sentence. `data/percentile-expected.csv`, a row a case;
+arithmetic, each of its 42 steps citing its sentence. `data/percentile-expected.csv`, a row a case;
 `data/percentile-expected-copy.csv`, the function over the copy's 22721 live items.
 
 - **Cases**: captured 4849 (the 4819 fetched rows of 864 searches and `fetch-census.json`'s 30 carrying the
   value, its other 40 left out; 3622 distinct items, 1227 repeats), ruled 45 (20 items of the copy, 25
-  composed), worked 4 (the function gave what the hand did on 4 of 4). Every step is taken by a case, 14 by
+  composed), worked 4 (the function gave what the hand did on 4 of 4). Every step is taken by a case, 21 by
   no captured one.
 - **Disagreements**: 0 of 4849 cells (the site a value on 896, none on 3953); 0 not comparable. J5 answers 3
   distinct items (e014, h015, n22).
-- **Unruled**, 7 kinds of cell, none captured, each with its readings: `realm-no-defence`, an item of a realm with no
-  table displaying no defence (76 on the copy) — undecided as the realm's, or lacked; `crucible-line`, a
-  defence line in `crucibleMods` (1 on the copy, El'Abin's Visage: 94 or 462) — the item's own, or left out
-  as J29's; `twin-other-array`, a twin text outside `explicitMods` and `implicitMods`, and `twin-both-marks`,
-  an implicit twin on an item eldritch and synthesised — own, left out or undecided; `base-type-not-shown`, a
-  base ranging a defence the item does not display — undecided, or the displayed averaged; `flat-range`, a
-  base whose minimum is its maximum (Kaom's Plate, Kaom's Greaves) — undecided, left out of the average, or 0
-  or 100; `several-values`, a display several rolls give, their values differing — undecided, or an interval.
+- **The rulings**, 2026-10-08; no cell is `unruled`. J33: the field is a value only where what the item
+  shows gives one value from lines whose side is established, and undecided anywhere else, the reason saying
+  which part failed — a defence line in `crucibleMods` (1 on the copy, El'Abin's Visage: 94 were it the
+  item's own, 462 left out), a twin text in another array J8 does not name, an implicit twin on an item
+  eldritch and synthesised, a base ranging a defence the item does not display, a base whose minimum is its
+  maximum (Kaom's Plate, Kaom's Greaves), a display several rolls give at different values. J34: a roll over
+  the maximum reads over 100 and one under the minimum below 0 — the owner: "keep reads over 100". J35: in a
+  realm with no table the field is undecided on every item, the 76 of the copy that display no defence among
+  them — the owner: "undecided".
 - **Broken once for each rule**, the captured cells that then disagree / are not comparable, of 4849:
   `lacked-is-zero` 3953 / 0, `lines-not-read` 593 / 14, `explicit-twin-left-out` 450 / 6, `average-floored`
   317 / 0, `first-type-only` 169 / 0, `quality-not-read` 132 / 26, `flat-after-increase` 90 / 70,
@@ -149,9 +150,10 @@ arithmetic, each of its 35 steps citing its sentence. `data/percentile-expected.
   5, 15; fractured 3, 6; on a synthesised item 4, 14. A line of a type no roll reads, 3, 7. A synthesised
   implicit `# to maximum Energy Shield`, 1, 2. Of each: does the site show the reading's value of such an
   item? By the rule's letter and no capture's: a roll over the maximum reads over 100 (C10, open), one under
-  the minimum below 0, an unmarked implicit twin is undecided — what does the site show of each?
+  the minimum below 0, an unmarked implicit twin is undecided — what does the site show of each? And of a
+  crucible armour item with a defence node, which one search asks.
 - **The copy**: its 2272 items displaying a defence are `percentile-shapes.py`'s — 2249 a value, 22 poe2
-  undecided, 1 unruled. Of the 9 that script left at an exact half, 6 are J5's and 3 the stated rule's own:
+  undecided, 1 undecided by its crucible line. Of the 9 that script left at an exact half, 6 are J5's and 3 the stated rule's own:
   their product is a half that rounds up, which a float puts under it.
 
 ## The ranged family on the copy

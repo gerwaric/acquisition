@@ -292,7 +292,8 @@ filed again by the step that touches it.
   (`search/pseudo-stats/data/ranged-expected-copy.csv`): a weapon's
   fractured, implicit, crafted and enchant lines rest on J7, the
   export and Path of Building. J29 names two arrays; a mutated line,
-  one on the copy, is counted and unasked.
+  one on the copy, is counted and unasked. J33: a crucible armour
+  item's percentile, one search, the copy's one such item undecided.
 - *Step 9e and 9d-A's build (the plan):* the generated properties reach no
   ranged total, no row that reads the category and neither array J29
   leaves out; `has:pseudo.<ranged>.avg` is refused as an unknown

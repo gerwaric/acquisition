@@ -562,8 +562,10 @@ unresolved, each with the one read that closes it).
   from reference data (C68, C106) — the RePoE export carries the ranges
   (`search/repoe/data/base-defences.csv`: 476 bases, 466 with armour,
   evasion or energy shield, 9 with ward; pseudo-stats open question 3,
-  closed); an item above its base's current maximum reads over 100 %,
-  and a realm with no table is undecided with that reason, never zero;
+  closed); an item above its base's current maximum reads over 100 %
+  and one under its minimum below 0 (J34, 2026-10-08), and a realm
+  with no table is undecided with that reason, never zero, on every
+  item of it, one displaying no defence among them (J35);
   a quality-normalised defence follows S26; each is a named pure
   function in the search crate, listed with the totals under `pseudo.`
   by `--describe` (C97; the reference), as `pseudo.dps` and
@@ -588,6 +590,14 @@ unresolved, each with the one read that closes it).
   counts each part rests on. A roll over
   the base's maximum stays unpinned: the site lists no armour over 100,
   so "reads over 100 %" above is the stated rule's and no capture's.
+  The field is a value only where what the item shows gives one value
+  from lines whose side is established; anywhere else it is undecided,
+  the reason saying which part failed (J33, 2026-10-08): a defence line
+  in `crucibleMods`, the site not asked; a twin text in another array
+  J8 does not name; an implicit twin on an item eldritch and
+  synthesised; a base ranging a defence the item does not display; a
+  base whose minimum is its maximum; a display several rolls give at
+  different values.
   The sockets are `sockets.rs`'s (step 8).
 - **C106 — what reference data admits, and the test.** Three kinds:
   *data*, what the game files state and a registered surface exports;
