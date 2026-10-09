@@ -333,7 +333,8 @@ def mark_kind(marks):
     if marks is None:
         return "unread"
     eldritch = marks.get("searing") is True or marks.get("tangled") is True
-    # rule 8: an item eldritch by one of its two marks is eldritch whatever the other says
+    # rule 8: a mark is a yes, unknown or a no, and an item eldritch by one of its two marks is
+    # eldritch whatever the other says; only a mark still needed and unknown leaves the kind open
     asked = ("synthesised",) if eldritch else MARKS
     if any(not isinstance(marks.get(k), bool) for k in asked if k in marks):
         return "unread"
@@ -492,15 +493,9 @@ def read(tables, item, broken=None):
                 line = {"array": array, "flags": shown_flags, "row": row, "template": t, "role": role[0],
                         "twin": t in tables.twins, "mark": kind}
                 lines.append(line)
-                if role[0] == "no-quality" and array == "crucibleMods":
-                    # J33: a crucible node's line the field reads, the enchant among them, is no reason
-                    # to drop the term
-                    line["became"], line["rule"] = "open", "crucible-line"
-                    steps.append("crucible-line")
-                    opened.append(line)
-                    continue
                 if role[0] == "no-quality":
-                    # J6, i02: under the enchant that zeroes quality the quality term is dropped
+                    # J6, i02: under the enchant that zeroes quality the quality term is dropped,
+                    # wherever it sits: it is no defence line and is not asked whose it is
                     line["became"], line["rule"] = "taken: the quality term dropped", "enchant"
                     if broken != "enchant-ignored":
                         no_quality = True
@@ -625,6 +620,10 @@ def read(tables, item, broken=None):
                     if ok and (broken != "range-bound" or lo <= b <= hi):
                         found.append((b, at_half))
             detail[t] = {"display": d, "range": (lo, hi), "flat": f[t], "inc": inc, "rolls": []}
+            if mult <= 0:
+                # J33: the lines take the defence to nothing or below, and every roll displays the same
+                return ("undecided", None, f"several values: the item's lines take {WORD[t]} to nothing, "
+                        "whatever its roll", detail, took + ["several-values"], set())
             if not found:
                 # C93: nothing the item carries gives this display
                 return ("undecided", None, f"no roll: no integer gives the {WORD[t]} displayed, {d}", detail,

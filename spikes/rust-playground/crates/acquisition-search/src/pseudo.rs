@@ -238,10 +238,15 @@
 //!   whatever its array and whether or not its number was read. A mark
 //!   is asked only of an implicit twin text a roll reads, so a mark that
 //!   is no yes or no opens the field there and nowhere else. A mark is
-//!   unread wherever the deriver keeps one — under its own key, under
-//!   `influences`, or an `influences` that is no object — and an item
-//!   eldritch by one of its two marks is eldritch whatever the other
-//!   says. A flag is
+//!   three-valued — a yes where the deriver holds the flag, unknown where
+//!   its own key is no yes or no, a no otherwise — and an item eldritch
+//!   by one of its two marks is eldritch whatever the other says, so only
+//!   a mark still needed and unknown opens it. What `influences` holds is
+//!   not asked: on the owner's copy (2026-10-09) the three marks are
+//!   their own keys on 92, 96 and 261 items and under `influences` on
+//!   none. The enchant drops the quality wherever it sits, being no
+//!   defence line; lines that take a defence to nothing or below leave
+//!   the display fixing no roll, which is several values. A flag is
 //!   never asked (J32): a line counts by its text. The quality is asked
 //!   only of an item displaying a defence. A property the deriver read
 //!   with no name is a property of no name and none of the field's; one
@@ -325,7 +330,7 @@ impl Derived {
                 "physical damage per second: the attacks per second times the mean of `Physical Damage`; an item lacking either property lacks it".to_string()
             }
             Derived::DefencePct => format!(
-                "{} Of the captured lines whose side the site's id names, each part holds on all: 442 of 442 explicit, 17 of 17 implicit on an eldritch item, 10 of 10 implicit on a synthesised item — counted by search/pseudo-stats/scripts/defence-twins.py. {}",
+                "{} Of the captured lines whose side the site's id names, each part holds on all: 442 of 442 explicit, 17 of 17 implicit on an eldritch item, 10 of 10 implicit on a synthesised item — counted by search/pseudo-stats/scripts/defence-twins.py. Ruled: the exact half J5, the twin J8, undecided J33, out of range J34, a realm with no table J35; the site's bound C102. {}",
                 self.own_definition(),
                 match defences::table() {
                     Ok(table) => table.provenance(),
@@ -346,7 +351,7 @@ impl Derived {
         match self {
             Derived::Dps | Derived::Pdps => self.definition(),
             Derived::DefencePct => format!(
-                "the trade site's Base Percentile, by the site's own rule — \"{SITE_TIP}\": each of `Armour`, `Evasion Rating`, `Energy Shield` and `Ward` that the item's base ranges is worked back from the number displayed to the roll behind it, a roll being any whole number whose display is the item's — (the roll + what the item's own lines add) × (1 + the item's own increases) × (1 + the quality displayed), rounded half up — and the value is each roll's place in the base's range as a percentage, averaged over the defences and rounded half up to a whole number. One departure from the site's words: a display at an exact half admits both whole numbers as rolls (J5). Under `Quality does not increase Defences` the quality is dropped. A line whose text a global stat displays too, a twin text, is told by where it sits: an explicit is the item's own; an implicit on an eldritch item, `searing` or `tangled`, is the global stat and left out; an implicit on a synthesised item is the item's own. A roll out of the base's range still reads, over 100 above its maximum and below 0 under its minimum (J34), which no capture has shown: a line misread can show a number out of range. An item displaying none of the four defences lacks it. It is undecided, with the reason, wherever what the item shows does not give one value from lines whose side is established (J33): in a realm with no table, on every item; a base the table lacks, holds more than once with nothing telling which, or no row of which fits what is displayed; a property, an array or a line unread; a twin implicit on an item of neither mark, of both, or whose mark is unread; a twin text in any other array; a line of a crucible node that the field reads, of which the site has not yet been asked; no roll giving the display; a base whose minimum is its maximum; several rolls giving different values. A defence bound on the trade site is inexact (C102)."
+                "the trade site's Base Percentile, by the site's own rule — \"{SITE_TIP}\": each of `Armour`, `Evasion Rating`, `Energy Shield` and `Ward` that the item's base ranges is worked back from the number displayed to the roll behind it, a roll being any whole number whose display is the item's — (the roll + what the item's own lines add) × (1 + the item's own increases) × (1 + the quality displayed), rounded half up — and the value is each roll's place in the base's range as a percentage, averaged over the defences and rounded half up to a whole number. One departure from the site's words: a display at an exact half admits both whole numbers as rolls. Under `Quality does not increase Defences` the quality is dropped. A line whose text a global stat displays too, a twin text, is told by where it sits: an explicit is the item's own; an implicit on an eldritch item, `searing` or `tangled`, is the global stat and left out; an implicit on a synthesised item is the item's own. A roll out of the base's range still reads, over 100 above its maximum and below 0 under its minimum, which no capture has shown: a line misread can show a number out of range. An item displaying none of the four defences lacks it. It is undecided, with the reason, wherever what the item shows does not give one value from lines whose side is established: in a realm with no table, on every item; a base the table lacks, holds more than once with nothing telling which, or no row of which fits what is displayed; a property, an array or a line unread; a twin implicit on an item of neither mark, of both, or whose mark is unread; a twin text in any other array; a line of a crucible node that the field reads, of which the site has not yet been asked; no roll giving the display; a base whose minimum is its maximum; several rolls giving different values. A defence bound on the trade site is inexact."
             ),
         }
     }
@@ -959,27 +964,25 @@ enum Mark<'a> {
 }
 
 fn mark_of(item: &Item) -> Mark<'_> {
+    // a mark is three-valued: a yes where the deriver holds the flag,
+    // unknown where its own key is no yes or no, a no otherwise; and an
+    // item is eldritch by either of its two marks. Only a mark still
+    // needed and unknown leaves the item's kind open (rule 8).
     let has = |mark: &str| item.flags.iter().any(|flag| flag == mark);
-    let eldritch = ELDRITCH.into_iter().any(has);
-    // a mark is a yes under its own key or under `influences`
-    // (`derive.rs`), so it is unread under either, and under an
-    // `influences` that is no object; an item eldritch by one of its two
-    // marks is eldritch whatever the other says (rule 8)
+    let (eldritch, synthesised) = (ELDRITCH.into_iter().any(has), has(SYNTHESISED));
     let unread: Vec<&Unread> = item
         .unread
         .iter()
         .filter(|u| {
-            let Part::Field(key) = &u.part else {
-                return false;
-            };
-            let mark = key.strip_prefix("influences.").unwrap_or(key);
-            key == "influences" || mark == SYNTHESISED || (!eldritch && ELDRITCH.contains(&mark))
+            matches!(&u.part, Part::Field(key)
+                if (!eldritch && ELDRITCH.contains(&key.as_str()))
+                    || (!synthesised && key == SYNTHESISED))
         })
         .collect();
     if !unread.is_empty() {
         return Mark::Unread(unread);
     }
-    match (eldritch, has(SYNTHESISED)) {
+    match (eldritch, synthesised) {
         (true, true) => Mark::Both,
         (true, false) => Mark::Eldritch,
         (false, true) => Mark::Synthesised,
@@ -1234,13 +1237,9 @@ fn percentile(held: &Held) -> Result<Percentile<'_>, Inputs<'_>> {
                 continue;
             };
             if row.does == Does::DropQuality {
-                if line.source == "crucible" {
-                    // J33: a crucible node's line the field reads, the
-                    // site not asked — no reason to drop the term
-                    sides.push((Some(PercentileGap::CrucibleLine), line, None));
-                    continue;
-                }
-                // J6: under the enchant the quality term is dropped
+                // J6: under the enchant the quality term is dropped —
+                // wherever it sits: it is no defence line, and is not
+                // asked whose it is
                 quality_dropped = true;
                 taken.push(line);
                 continue;
@@ -1472,25 +1471,22 @@ fn rolled(
                 }
             }
             let mult = one.plus(increase.over(hundred)?)?.times(quality)?;
-            let rolls = if mult.positive() {
-                let from = display.minus(half)?.over(mult)?.minus(flat)?.ceil();
-                let to = display.plus(half)?.over(mult)?.minus(flat)?.floor();
-                (from <= to).then_some((from, to))
-            } else {
-                None
-            };
-            if mult == Ratio::whole(0) && display == Ratio::whole(0) {
-                // the lines take the defence to nothing, and every roll
-                // displays it: the display does not fix the value
+            if !mult.positive() {
+                // the lines take the defence to nothing or below, and
+                // every roll displays the same: the display does not fix
+                // the value
                 open.push((
                     PercentileGap::SeveralValues,
                     format!(
-                        "every roll displays `{}` 0 under the item's lines",
+                        "the item's lines take `{}` to nothing, whatever its roll",
                         defence.property()
                     ),
                 ));
                 continue;
             }
+            let from = display.minus(half)?.over(mult)?.minus(flat)?.ceil();
+            let to = display.plus(half)?.over(mult)?.minus(flat)?.floor();
+            let rolls = (from <= to).then_some((from, to));
             let Some((from, to)) = rolls else {
                 open.push((
                     PercentileGap::NoRoll,

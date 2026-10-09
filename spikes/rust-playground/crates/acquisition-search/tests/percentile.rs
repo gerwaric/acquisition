@@ -964,6 +964,12 @@ fn rule_8_what_the_percentile_asks_opens_it() {
     twice["properties"] = json!([property("Armour", "23"), property("Armour", "23")]);
     let mut named = vest("named", "23", json!({}));
     named["properties"] = json!([unread("Armour")]);
+    let mut quality_twice = vest("quality_twice", "23", json!({}));
+    quality_twice["properties"] = json!([
+        property("Armour", "23"),
+        property("Quality", "+20%"),
+        property("Quality", "+20%")
+    ]);
     let mut quality = vest("quality", "23", json!({}));
     quality["properties"] = json!([property("Armour", "23"), unread("Quality")]);
     let s = one_tab(vec![
@@ -973,6 +979,9 @@ fn rule_8_what_the_percentile_asks_opens_it() {
             json!({ "crucibleMods": "no array" }),
         ),
         vest("enchant_array", "23", json!({ "enchantMods": 7 })),
+        vest("implicit_array", "23", json!({ "implicitMods": 7 })),
+        vest("scourge_array", "23", json!({ "scourgeMods": "no array" })),
+        quality_twice,
         vest("hybrid", "23", json!({ "hybrid": 7 })),
         twice,
         named,
@@ -1019,8 +1028,11 @@ fn rule_8_what_the_percentile_asks_opens_it() {
             "enchant_array",
             "enchant_twin",
             "hybrid",
+            "implicit_array",
             "named",
             "quality",
+            "quality_twice",
+            "scourge_array",
             "synthesised",
             "tangled",
             "twice"
@@ -1048,30 +1060,33 @@ fn rule_8_what_the_percentile_asks_opens_it() {
     );
 }
 
-/// Four edges the look at the build found (2026-10-08), each a rule
-/// already stated, misapplied at its edge:
+/// A mark, a multiplier and the rolls of several defences, each by one
+/// rule (the looks at the build, 2026-10-08 and 2026-10-09):
 ///
-/// - *A mark is unread wherever the deriver keeps it.* A mark is a yes
-///   under its own key or under `influences`, so one that is no yes or no
-///   under `influences` is unread too: a synthesised item whose
-///   `influences.searing` is unreadable may be of both marks, and its
-///   implicit twin is open — never the synthesised item's own.
-/// - *Unknown of no more than was lost* (rule 8). An item `tangled` is
-///   eldritch whatever `searing` says, so an unreadable `searing` beside
-///   it opens nothing: the implicit twin is the global stat, left out.
-/// - *A crucible node's line the field reads is undecided* (J33), the
-///   enchant that drops the quality term among them: it is no reason to
-///   drop it.
-/// - *A reason says what failed.* Under `100% reduced Armour` every roll
-///   displays 0: the display does not fix the value, which is several
-///   rolls of different values and never "no roll gives the display".
+/// - *A mark is three-valued, and read where GGG writes it.* It is a yes
+///   where the deriver holds the flag, unknown where its own key is no
+///   yes or no, and a no otherwise; an item is eldritch by either of its
+///   two marks. The field is open only where a mark it still needs is
+///   unknown (rule 8): `tangled` settles an unreadable `searing`, and
+///   neither settles an unreadable `synthesised`. What `influences`
+///   holds is not asked: on the owner's copy the three marks are always
+///   their own keys and never there.
+/// - *The enchant drops the quality wherever it sits.* It is no defence
+///   line, and is not asked whose it is.
+/// - *Lines that take a defence to nothing or below* leave every roll
+///   displaying the same: the display does not fix the value, which is
+///   several rolls of different values and never "no roll".
+/// - *The rolls of each defence are read apart* (J33): on a base of two
+///   defences, one whose display several rolls give leaves the value
+///   open whatever the other fixes, and one no roll gives is no roll.
 #[test]
-fn the_edges_of_a_mark_a_crucible_enchant_and_a_display_every_roll_gives() {
+fn a_mark_a_multiplier_and_the_rolls_of_several_defences() {
     let vest = |id: &str, properties: &[(&str, &str)], more: Value| {
         armour(id, "Plate Vest", "Rare", properties, more)
     };
     let twin = json!(["19% increased Armour"]);
     let s = one_tab(vec![
+        // the item's own: (roll) × 1.19 displays 23 at roll 19, of 19–27
         vest(
             "influence",
             &[("Armour", "23")],
@@ -1088,12 +1103,18 @@ fn the_edges_of_a_mark_a_crucible_enchant_and_a_display_every_roll_gives() {
             &[("Armour", "23")],
             json!({ "tangled": true, "searing": "yes", "implicitMods": twin }),
         ),
-        // an eldritch item that may be synthesised too is of one mark or both
+        // of one mark or of both
         vest(
-            "maybe_both",
+            "eldritch_or_both",
             &[("Armour", "23")],
             json!({ "tangled": true, "synthesised": "yes", "implicitMods": twin }),
         ),
+        vest(
+            "synthesised_or_both",
+            &[("Armour", "23")],
+            json!({ "synthesised": true, "searing": "yes", "implicitMods": twin }),
+        ),
+        // the quality dropped: the roll is the display
         vest(
             "enchant",
             &[("Quality", "+20%"), ("Armour", "23")],
@@ -1104,17 +1125,42 @@ fn the_edges_of_a_mark_a_crucible_enchant_and_a_display_every_roll_gives() {
             &[("Armour", "0")],
             json!({ "explicitMods": ["100% reduced Armour"] }),
         ),
+        vest(
+            "below",
+            &[("Armour", "0")],
+            json!({ "explicitMods": ["150% reduced Armour"] }),
+        ),
+        // Scale Doublet ranges Armour and Evasion Rating 97–121 each.
+        // (roll) × 0.5 displays 50 at rolls 99, 100 and 101: 8.33, 12.5
+        // and 16.67, which with the evasion's 25 average to 17, 19 and 21
+        armour(
+            "several_of_two",
+            "Scale Doublet",
+            "Rare",
+            &[("Armour", "50"), ("Evasion Rating", "103")],
+            json!({ "explicitMods": ["50% reduced Armour"] }),
+        ),
+        // (roll) × 2 is even, and 201 is no even number's display
+        armour(
+            "no_roll_of_two",
+            "Scale Doublet",
+            "Rare",
+            &[("Armour", "100"), ("Evasion Rating", "201")],
+            json!({ "explicitMods": ["100% increased Evasion Rating"] }),
+        ),
     ]);
     let found = |text: &str| ids(&asked(&s, text));
-    assert_eq!(found("pseudo.defence_pct=50"), ["eldritch"]);
+    assert_eq!(found("pseudo.defence_pct=50"), ["eldritch", "enchant"]);
+    assert_eq!(found("pseudo.defence_pct=0"), ["influence", "influences"]);
     assert_eq!(
         found("undecided(pseudo.defence_pct)"),
         [
-            "enchant",
-            "influence",
-            "influences",
-            "maybe_both",
-            "nothing"
+            "below",
+            "eldritch_or_both",
+            "no_roll_of_two",
+            "nothing",
+            "several_of_two",
+            "synthesised_or_both"
         ]
     );
     let kinds = |id: &str| -> Vec<String> {
@@ -1125,16 +1171,15 @@ fn the_edges_of_a_mark_a_crucible_enchant_and_a_display_every_roll_gives() {
             .map(|r| r["unread"].as_str().unwrap().to_string())
             .collect()
     };
-    assert_eq!(kinds("influence"), ["`influences.searing`"]);
-    assert_eq!(kinds("influences"), ["`influences`"]);
-    assert_eq!(kinds("maybe_both"), ["`synthesised`"]);
+    let several = "the percentile: several rolls of different values";
+    assert_eq!(kinds("eldritch_or_both"), ["`synthesised`"]);
+    assert_eq!(kinds("synthesised_or_both"), ["`searing`"]);
+    assert_eq!(kinds("nothing"), [several]);
+    assert_eq!(kinds("below"), [several]);
+    assert_eq!(kinds("several_of_two"), [several]);
     assert_eq!(
-        kinds("enchant"),
-        ["the percentile: a defence line of a crucible node"]
-    );
-    assert_eq!(
-        kinds("nothing"),
-        ["the percentile: several rolls of different values"]
+        kinds("no_roll_of_two"),
+        ["the percentile: no roll gives the display"]
     );
 }
 
@@ -1266,6 +1311,7 @@ fn has_with_a_slot_word_on_a_computed_value_is_refused_under_its_own_kind() {
         ("has:pseudo.defence_pct.avg", "has:pseudo.defence_pct"),
         ("has:pseudo.total_res.avg", "has:pseudo.total_res"),
         ("-has:pseudo.dps.low", "has:pseudo.dps"),
+        ("has:pseudo.count_res.avg", "has:pseudo.count_res"),
     ] {
         let e = refused(&s, text);
         assert_eq!(e["kind"], "slot_unknown", "`{text}`: {e}");
@@ -1378,6 +1424,9 @@ fn c97_a_narrowing_matches_what_the_percentile_reads_and_never_its_bookkeeping()
         "defences v1",
         "RePoE",
         "476",
+        "J33",
+        "J5",
+        "C102",
     ] {
         assert!(what.contains(word), "{word}: {what}");
         assert_eq!(computed(word), [] as [&str; 0], "line:{word}");
