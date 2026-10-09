@@ -95,8 +95,9 @@ the surface, history: files 10 and 11 are what was harvested, and the
 owner's words are whole in file 11. The build runs under
 `BUILD-PLAN.md`, the brief, deleted at the close; what it met is the
 record, its rows — the step ledger, the holes ruled — `LEDGER.md`,
-looked up by the row, and its measurements — the tables, commands and numbers on the
-owner's copy — are `MEASUREMENTS.md`, read by the block named.
+looked up by the row, its measurements — the tables, commands and numbers on the
+owner's copy — are `MEASUREMENTS.md`, read by the block named, and what a step saw
+that is open still is `OBSERVATIONS.md`, looked up by the step that will use it.
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search

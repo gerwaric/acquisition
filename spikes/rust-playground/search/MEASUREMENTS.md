@@ -277,8 +277,7 @@ fields in one two-path extract, changed no ask by more than the noise
 55 under the budget, so the projection park's trigger does not fire by
 the owner's rule (2026-09-24), and the two asks over it are an
 evaluator cost on a floor the join raised — a shape the ruling did not
-name, brought to the owner (`SEARCH-SLICE.md`, "Observations still
-open", step 9). Over the copy's fresh intent file the game alone prices
+name, brought to the owner (`search/OBSERVATIONS.md`, step 9). Over the copy's fresh intent file the game alone prices
 what `has:priced` finds; the count is the answer's, not recorded here.
 
 What the table says: a class table's or a totals table's parse is
