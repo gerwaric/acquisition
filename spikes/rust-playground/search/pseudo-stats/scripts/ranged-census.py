@@ -184,7 +184,9 @@ def main():
             for array, lines in item["lines"].items():
                 for line in lines:
                     t = template(line["description"])
-                    if t in FAMILY and array != "pseudoMods":
+                    # a line the site lists under no stat (a crucible node's, round n) carries no
+                    # hash: it names neither twin
+                    if t in FAMILY and array != "pseudoMods" and isinstance(line.get("hash"), str):
                         stat = line["hash"].removeprefix("stat.")
                         site[(item["name"], t)].add("local" if stat in local_ids else "global")
 

@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: step 9d-C built from the expected answers and closed: J32 corrected three cells, a flag no row asks; the totals table v6 holds every change of `data/table-changes.csv` — 2026-10-08. The states before it, each by its commit: 9d-C's expected answers final `5f834e8c`; round n sat and read `22380d71`; round n composed `2b86eef4`; before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
+Status: 9d-A's expected answers, run and reviewed: the site disagreeing on none of 4849 captured cells, 7 kinds of cell unruled and none of them captured — 2026-10-08. The states before it, each by its commit: step 9d-C built and closed `ad1d081b`; 9d-C's expected answers final `5f834e8c`; round n sat and read `22380d71`; round n composed `2b86eef4`; before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -70,11 +70,11 @@ capture has three defence types, ward, a shield, a helmet or gloves, quality abo
 ## The percentile's round
 
 `percentile.py` now scores the sittings' captures too (`data/percentile-captures.csv`, apart, as
-`candidates.py` reads `percentile-check.csv`): of 609 distinct items the stated rule reproduces 607;
-a display at an exact half read as either integer (J5), 609, each one value (half down: 603). Of 276
-hybrids, min, max and first type give 165, 172, 174. The 20%-quality figure from the recovered roll:
-785 of 785 rows, the enchant read as no quality. Read from text alone, as the build must, the items no
-longer all read as from their ids: 10 of 609 do not, each carrying a defence twin under the stat its
+`candidates.py` reads `percentile-check.csv`): of 637 distinct items the stated rule reproduces 634;
+a display at an exact half read as either integer (J5), 637, each one value (half down: 629). Of 292
+hybrids, min, max and first type give 173, 179, 181. The 20%-quality figure from the recovered roll:
+812 of 812 rows, the enchant read as no quality. Read from text alone, as the build must, the items no
+longer all read as from their ids: 10 of 637 do not, each carrying a defence twin under the stat its
 text does not show — i05's eldritch implicits, k001's synthesised ones (`percentile-shapes.py`).
 
 Round i (`tools/trade-sheet.py`, `round_i`): the percentile's read by `percentile.py`. The core is i01–i08.
@@ -94,24 +94,65 @@ The ranged searches i06–i08, by search: `data/sittings-detail.md`.
 
 The defence twin on a private item (open question 9, `scripts/defence-twins.py`,
 `data/defence-twins.csv`; i05 and J8's k001 and k002): over the captures, 17 twin lines the site lists
-under the global stat sit on 17 items, 431 under the local one on 315. The array no longer separates
+under the global stat sit on 17 items, 452 under the local one on 330. The array no longer separates
 them: k001, armour with a twin text as an implicit under the `(Local)` stat, found 10000, and its 10
 fetched are each a synthesised item whose implicit is the local twin (10 lines on 10 items). What
 separates is the kind of line: an implicit on an eldritch item (`searing` or `tangled`), 17 global and
 0 local, joined by its text to the export's eater of worlds implicits, whose 36 mods of a twin text are
 all global; an implicit on a synthesised item, 0 global and 10 local, which no synthesis mod in the
-export holds; an explicit, 0 global and 421 local on 311. k002, the mutant over the global implicit ids,
+export holds; an explicit, 0 global and 442 local on 326. k002, the mutant over the global implicit ids,
 found i05's shape again: 7 eldritch items new to the captures, 3 repeats. No captured implicit twin is
 on an item of neither mark, and none on the copy is. On the copy the eldritch kind touches 1 item
 (Destiny Leather, C14's trace), the synthesised 8 (9 lines), the explicit 921; 3 explicit lines the
 export's text join holds only as global.
 
-Left out, answered by the captures (captured / reproduced): C3 shields 23 / 23, C4 helmets 220 / 219,
-C5 gloves 152 / 152, C6 quality over 20 10 / 9, C8 uniques 172 / 172, C9 a defence the base lacks (its
+Left out, answered by the captures (captured / reproduced): C3 shields 23 / 23, C4 helmets 235 / 233,
+C5 gloves 152 / 152, C6 quality over 20 12 / 10, C8 uniques 176 / 176, C9 a defence the base lacks (its
 own types read) 39 / 39. Not the site's: C11 poe2, no table (ruled); C12 an exact half, no filter
-selects it; C13 a `reduced` local line, none on the copy or captured. The copy's 2,272 armour items:
+selects it; C13 a `reduced` local line, none on the copy, 1 captured and reproduced. The copy's 2,272 armour items:
 2,240 read to a value, 22 poe2, 9 at an exact half, 1 under its minimum (C14's trace); 20 bases not in
 the class table. Per shape: `data/percentile-shapes.csv`.
+
+## The percentile's expected answers
+
+`scripts/percentile-expected.py` (the brief, `BRIEF.md`): one function from a private item's realm, base,
+properties, marks and lines — text, array, flags, never an id — to what `pseudo.defence_pct` answers, in exact
+arithmetic, each of its 35 steps citing its sentence. `data/percentile-expected.csv`, a row a case;
+`data/percentile-expected-copy.csv`, the function over the copy's 22721 live items.
+
+- **Cases**: captured 4849 (the 4819 fetched rows of 864 searches and `fetch-census.json`'s 30 carrying the
+  value, its other 40 left out; 3622 distinct items, 1227 repeats), ruled 45 (20 items of the copy, 25
+  composed), worked 4 (the function gave what the hand did on 4 of 4). Every step is taken by a case, 14 by
+  no captured one.
+- **Disagreements**: 0 of 4849 cells (the site a value on 896, none on 3953); 0 not comparable. J5 answers 3
+  distinct items (e014, h015, n22).
+- **Unruled**, 7 kinds of cell, none captured, each with its readings: `realm-no-defence`, an item of a realm with no
+  table displaying no defence (76 on the copy) — undecided as the realm's, or lacked; `crucible-line`, a
+  defence line in `crucibleMods` (1 on the copy, El'Abin's Visage: 94 or 462) — the item's own, or left out
+  as J29's; `twin-other-array`, a twin text outside `explicitMods` and `implicitMods`, and `twin-both-marks`,
+  an implicit twin on an item eldritch and synthesised — own, left out or undecided; `base-type-not-shown`, a
+  base ranging a defence the item does not display — undecided, or the displayed averaged; `flat-range`, a
+  base whose minimum is its maximum (Kaom's Plate, Kaom's Greaves) — undecided, left out of the average, or 0
+  or 100; `several-values`, a display several rolls give, their values differing — undecided, or an interval.
+- **Broken once for each rule**, the captured cells that then disagree / are not comparable, of 4849:
+  `lacked-is-zero` 3953 / 0, `lines-not-read` 593 / 14, `explicit-twin-left-out` 450 / 6, `average-floored`
+  317 / 0, `first-type-only` 169 / 0, `quality-not-read` 132 / 26, `flat-after-increase` 90 / 70,
+  `display-floored` 40 / 228, `average-half-even` 19 / 0, `ward-not-read` 13 / 0, `unflagged-only` 12 / 1,
+  `enchant-ignored` 8 / 2, `eldritch-twin-own` 6 / 6, `increases-multiply` 3 / 1, `synthesised-twin-left-out`
+  3 / 0, `reduced-as-increased` 1 / 0, `held-twice-other-row` 1 / 0, `base-lacks-type-undecided` 0 / 40,
+  `j5-off` 0 / 7, `local-only-explicit-only` 0 / 1. **On the ruling alone**, 9, each 0 / 0: `realm`,
+  `property-unread-ignored`, `base-lacking-is-lacked`, `array-unread-ignored`, `whole-text`,
+  `flag-unread-opens`, `unmarked-twin-own`, `twin-of-no-roll-opens`, `range-bound`.
+- **Not asked**: of the copy's 74 groups of lines 32, holding 91 of 1822 (each with its question in the copy
+  file); no shape. An explicit twin the item's own (J8) under a flag — crafted 8 groups, 28 lines; fractured
+  6, 13; mutated 1, 2 — or on a synthesised item, 1, 4. A text a local stat alone displays (the join): crafted
+  5, 15; fractured 3, 6; on a synthesised item 4, 14. A line of a type no roll reads, 3, 7. A synthesised
+  implicit `# to maximum Energy Shield`, 1, 2. Of each: does the site show the reading's value of such an
+  item? By the rule's letter and no capture's: a roll over the maximum reads over 100 (C10, open), one under
+  the minimum below 0, an unmarked implicit twin is undecided — what does the site show of each?
+- **The copy**: its 2272 items displaying a defence are `percentile-shapes.py`'s — 2249 a value, 22 poe2
+  undecided, 1 unruled. Of the 9 that script left at an exact half, 6 are J5's and 3 the stated rule's own:
+  their product is a half that rounds up, which a float puts under it.
 
 ## The ranged family on the copy
 
@@ -124,7 +165,7 @@ found, `data/ranged-uniques.csv` (339 lines, 95 uniques).
 | all live | **573** | **129** |
 | on uniques, export local: site local / global / not captured | 95 / 0 / 93 | 0 / 0 / 0 |
 | on uniques, export global: the same | 0 / 0 / 0 | 0 / 26 / 4 |
-| on uniques, export cannot say: the same | 17 / 0 / 19 | 0 / 68 / 17 |
+| on uniques, export cannot say: the same | 17 / 0 / 19 | 0 / 69 / 16 |
 
 The class decides as the export and the site do wherever either speaks. The limit: 36 weapon lines
 the join cannot place (29 match local and global mods, 7 none), 19 uncaptured; i06–i08 found no listed
@@ -164,7 +205,8 @@ copy's 22623 live pc items.
 ## Before the sitting: the domain, and the twin from the export
 
 `scripts/evidence-domains.py` (`data/evidence-domains.csv`): `tools/trade-evidence.py`'s 1503 readings, each
-made again with one domain's lines off the item. `Not shown` is no evidence a domain is left out.
+made again with one domain's lines off the item; the counts here are the file's at `0a6f7d93`, before round n's
+captures, and the file as it regenerates holds round n's. `Not shown` is no evidence a domain is left out.
 
 - **Shown counted**, 7, by readings broken: `explicit` 489, `implicit` 732, `crafted` 9, `scourge` 4,
   `enchant` 2, `fractured` 1, a line with no hash 1. **Shown left out**, 0. **Not shown**, 7, no line
