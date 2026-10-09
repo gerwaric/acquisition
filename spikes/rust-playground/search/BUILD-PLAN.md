@@ -130,8 +130,8 @@ it could ask and what it refused by name: this file at `880d9387`.
 
 ## The steps left — provisional, his to reorder
 
-9d is built one piece at a time — B (closed, `search/LEDGER.md`), then
-C, then A — each closed before the next is briefed. Within a piece one agent writes at a time,
+9d is built one piece at a time — B and C (closed, `search/LEDGER.md`),
+then A — each closed before the next is briefed. Within a piece one agent writes at a time,
 in this checkout, the tree its alone while it runs and the session
 waiting:
 
@@ -157,7 +157,6 @@ the piece and bring it to the owner.
 
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
-| 9d-C · the ranged family | the ranged family's 21 totals, whose rows mean one of two stats a category tells apart — a weapon's own line or not (owner, 2026-09-26: "agree with 9d") | 9d-B | C94; the contract detail, *C94 — the ranged family (9d)*; `totals.rs`, `pseudo.rs`; `search/pseudo-stats/README.md`, "The ranged family on the copy", and its `data/table-changes.csv` | `Adds # to # Fire Damage` on a weapon counted toward attacks alone |
 | 9d-A · percentile | `pseudo.defence_pct` as the site's Base Percentile (V5), by the site's own rule, pinned at 9c | 9c | C101; the contract detail, *C101 — the derived fields not yet built*; `pseudo.rs`; `search/pseudo-stats/README.md`, "The percentile" and "The percentile's round"; `search/repoe/data/base-defences.csv` | the captured items the stated rule reproduces, each answered as the site showed it |
 | 10 · continuing and exchanging | in the order the seat wanted them (the sitter, 2026-09-26): `--explain` and `show --against` first — a zero answer was where they were missed; `--next` and `--request` for the MCP, an agent pages and replays; `--view locations`, `--fields`, `--rebind` and `show --basis` had no consumer at the seat and wait for one. `--next` refused across a changed basis; `--membership all` (the reference, *Membership*): the read hands removed items over with `removed_at`, every such row marked, the scope block counting each, an `id:` term that matches nothing live naming the removed id and its route, `acq show` on a removed item; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | C98, C100, C104, C108; the reference, *Membership*, *Explain*, *Outside the first surface*; `answer.rs`, `corpus.rs`; gap 3 (the record) | AQ3 whole; AQ4 across a refresh that removed the item; M5 |
 | 11 · the close | the MCP tool over the same request, with an agent's seat as its own consumer (P2), `--membership all` among what it validates; `acq items search` retired (below); the closed record, and whether its rows fold back into it from `search/LEDGER.md` or stay a file looked up (the owner's); this file deleted; `search/` shrunk; `DESIGN.md`'s paragraphs into module docs | all | everything above; `decisions/frontends.md`; the kill list (`DIGEST.md`); `MCP-REFERENCE.md`; "What happens to `acq items search`" below | AQ1–AQ5 driven through the MCP; the gate; the kill-list recheck |

@@ -111,8 +111,8 @@ never an implicit choice of its largest occurrence (C95; E2 accepted
 2026-09-22). For example, `--sum 'sum("# to maximum Life")'` adds all
 matching life lines on each item before adding the items' totals.
 A computed value (`pseudo.<name>`; C94, C101) defines its own
-contributors and is summed as a numeric field is; a ranged one needs a
-slot word, and none is shipped yet (`pseudo.rs`).
+contributors and is summed as a numeric field is; a ranged one with no
+slot word is its `avg` (`pseudo.rs`).
 `--limit` bounds rows or each table's values (a crossed table's cells),
 while `none` and `undecided` remain visible. The bucket selectors and
 the vocabulary's presence-based `undecided` (C105; E1 and E3 accepted
@@ -299,7 +299,7 @@ VALUES
                                  pseudo.dps   pseudo.pdps   pseudo.defence_pct.   It means computed
                                  here, from this definition; the translation report (C99) says
                                  where it corresponds to one of the site's pseudo stats.
-  pseudo.cold_damage.avg>=30     a ranged computed value takes a slot word last
+  pseudo.adds_cold.high>=30      a ranged computed value takes a slot word last; bare, it is avg
                                  Names are words of letters, digits and underscores; a hyphen is
                                  never part of a name, so `-` only ever means not, or a minus sign.
                                  has: asks a computed value's presence: -has:pseudo.dps, a ring
@@ -314,7 +314,7 @@ VALUES
                                  carries a price — a listing resolved to skip or no price lacks it (P1,
                                  ruled 2026-09-25); price.lot is a ratio's lot, which a decimal price
                                  lacks — 5 and 5/1 stay two spellings, as the game keeps them (P2, the same)
-  --sort takes a number: ilvl, stack, line(P).<slot>, sum( … ); a ranged value needs a slot. An
+  --sort takes a number: ilvl, stack, line(P).<slot>, sum( … ); a ranged line needs a slot. An
   item with no satisfying occurrence sorts last either way, and so does one whose largest is not
   established — a source P admits is unread, or an occurrence P may select holds a larger number:
   what was readable is shown, marked incomplete, as an incomplete sum is.
@@ -543,7 +543,7 @@ since none has a trigger yet. Meeting one is a listed limit (C102).
 ## Contract detail, by decision
 
 What remains is detail no module carries yet: the derived fields not
-yet built, the ranged family's twin, what reference data admits (every
+yet built, what reference data admits (every
 table to come), the trade translation (not in this plan). The
 paragraphs the crate took on 2026-09-23 — C89/C103, C90/C102, C92,
 C93, C95, C105, C96, C97, C98, C100, the derivation's shape, and C94
@@ -551,7 +551,8 @@ with C101's DPS at step 7 — are their module docs' now (`eval.rs`,
 `group.rs`, `counts.rs`, `answer.rs`, `corpus.rs`, `derive.rs`,
 `show.rs`, `totals.rs`, `pseudo.rs`) and this file at `aeeba6d3`;
 C106's category, taken at 9d-B, is `category.rs`'s and this file at
-`dc262f71`. The
+`dc262f71`; C94's ranged family, taken at 9d-C, is `totals.rs`'s and
+this file at `3eae4b4e`. The
 site's 298 pseudo stats by the mechanism each needs, with the input
 that admits each, is `search/pseudo-stats/README.md` (2026-09-18; 109
 unresolved, each with the one read that closes it).
@@ -588,24 +589,6 @@ unresolved, each with the one read that closes it).
   the base's maximum stays unpinned: the site lists no armour over 100,
   so "reads over 100 %" above is the stated rule's and no capture's.
   The sockets are `sockets.rs`'s (step 8).
-- **C94 — the ranged family (9d).** The unsuffixed `Adds # to # <type>
-  Damage` displays one of two stats: a weapon's own line feeds the
-  attacks' total alone, the other twin the plain, the attacks' and the
-  spells' (`search/pseudo-stats/README.md`, rounds two to four). Which
-  it is the item's category decides: on a weapon the line is the
-  weapon's own (J7, ruled 2026-10-01). A ranged total asked with no slot
-  word is its `avg`, the one number the site shows (owner, 2026-09-26:
-  "yes, bare means average"). Every ranged total prints the
-  limit — a global line on a weapon is read as the weapon's own — with
-  what the site showed: no listed weapon was found to carry one (round
-  i, i06–i08). A total leaves out a crucible node's lines and a
-  flask's own, the arrays `crucibleMods` and `utilityMods` and no
-  other: the site files them under no stat and counts neither (J29,
-  ruled 2026-10-08; round n). Where both twins count toward a total at
-  one weight its row asks nothing of the item, so only the plain and
-  the spells' rows read its category, and an item whose category is
-  not established is undecided there alone (J30). A ranged total is
-  nothing only where its low and its high both are (J31).
 - **C106 — what reference data admits, and the test.** Three kinds:
   *data*, what the game files state and a registered surface exports;
   *convention*, a concept the community has published a definition for

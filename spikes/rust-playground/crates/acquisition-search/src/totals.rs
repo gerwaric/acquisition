@@ -64,8 +64,8 @@
 //!   category is never left open by it (J30). A ranged total is nothing,
 //!   and so lacked, only where its low and its high both are — a range
 //!   that cancels in its average alone, `-5` to `5`, is a value whose
-//!   `avg` is 0 (J31). J30 and J31 are the builder's recommendations, put
-//!   to the owner 2026-10-08 and not objected to.
+//!   `avg` is 0 (J31). J30 and J31 are the builder's recommendations, the
+//!   owner's assent to each 2026-10-08: "yes and yes".
 //! - **C94 — what no total reads (J29).** A total leaves out a crucible
 //!   node's lines and a flask's own, the arrays `crucibleMods` and
 //!   `utilityMods` and no other: the trade site files them under no stat

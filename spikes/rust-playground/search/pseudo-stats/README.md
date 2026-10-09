@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: 9d-C's expected answers final, reviewed: the two arrays left out of every total by the owner's ruling, the rows agreeing with all 1648 readings; the ranged family's 135 rows, 26 reading what the item is; the site disagreeing on none of 619 captured cells, no cell unruled — 2026-10-08. The states before it, each by its commit: round n sat and read `22380d71`; round n composed `2b86eef4`; before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
+Status: step 9d-C built from the expected answers and closed: J32 corrected three cells, a flag no row asks; the totals table v6 holds every change of `data/table-changes.csv` — 2026-10-08. The states before it, each by its commit: 9d-C's expected answers final `5f834e8c`; round n sat and read `22380d71`; round n composed `2b86eef4`; before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -10,11 +10,10 @@ Headline:
   defence rolls, averaged". Rolls recovered as integers from the display reproduce **30 of 30**
   captured values, each a single value; APT's formula gives 20 exactly and 29 within rounding;
   every negative control fails. A private item displays everything the rule reads.
-- **The site is the checker** (310 searches captured; 1,453 readings, none disagreeing): of 86
+- **The site is the checker** (335 searches naming a pseudo captured; 1,648 readings, none disagreeing): of 86
   pseudos 42 are closed — a complete and a sound check each found nothing — and 44 explained:
   what a check found shows, item for item, what the rows give. `data/table-changes.csv` is the
-  totals table's changes as rows, 388, applied but the ranged family's; the four `no sum` are
-  written as readings.
+  totals table's changes as rows, 376, applied (totals v6); the four `no sum` are written as readings.
 - **The ranged family is one reading**: the site shows the average of a line's two numbers; a
   weapon's own line feeds the attacks' pseudo alone, the other twin the plain, the attacks' and
   the spells'.
@@ -144,8 +143,9 @@ copy's 22623 live pc items.
   flask's own, the arrays `crucibleMods` and `utilityMods` and no other — the owner, of both: "Leave both out."
   2: where both twins of the unsuffixed line count toward a total at one weight, its row is the line whatever
   the item is; a side left open answers the attacks' totals, undecided under the plain and the spells'.
-  3: a ranged total is nothing only where its low and its high both are. 2 and 3: the session's
-  recommendations, not objected to.
+  3: a ranged total is nothing only where its low and its high both are. 2 and 3, the owner's assent: "yes
+  and yes". J32, at the build: a flag that is no yes or no opens no total, no row asking one — three cells
+  of `r-unread-flag` a value ("yes, i agree").
 - **Cases**: captured 569 (458 distinct items, 111 repeats; of 112 searches, 9 of them round n's, 57 read
   and 55 left out as fetching no item), ruled 26 (15 items of the copy, 11 composed), worked 3 (the function gave what
   the hand did on 21 cells of 21, each). Every one of the 135 rows is counted by a case.
@@ -295,6 +295,9 @@ For `docs/design/trade-ground-truth.md`, authored master-side; each is what the 
 | Four pseudos are readings of other pseudos and no sum of lines: the two counts are how many resistance totals an item shows, chaos among them; `total to all Elemental Resistances` and `total to all Attributes` are the least of their three, shown where all three are (2026-09-27) | R1, g001–g004; h001, h002, h039, h040 |
 | `# Life Regenerated per Second` is rounded where the item's line is cut to a tenth: 1.2 over `1.1` (2026-09-27) | g037, two items of ten |
 | A weighted group takes a maximum below nothing, and a minimum of a hundredth (2026-09-27) | h042–h053, 12 searches answered; g040, g042, h038, h041 |
+| A crucible node is one stat with its numbers and tier in its text, and a fetched item's crucible lines are under no stat; no pseudo counts them (2026-10-08) | n01–n05: 1245 and 3744 items found carrying a node and showing no pseudo, ten fetched of each |
+| A flask's own line, its `utilityMods`, is under no stat and no pseudo counts it (2026-10-08) | n06–n09: no flask shows the movement speed or the chaos resistance pseudo; ten Quicksilver and ten Amethyst fetched, none showing one |
+| Fractured, enchant, scourge and crafted lines are counted by a pseudo as explicit ones are (2026-10-08) | n16–n23, each sound check finding nothing or a sum of nothing |
 
 ## First pass (2026-09-18; `data/pseudo-classes.csv`, unchanged by this pass)
 

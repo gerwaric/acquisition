@@ -68,6 +68,7 @@ import importlib.util
 import io
 import json
 import sqlite3
+import subprocess
 import sys
 import tomllib
 
@@ -82,7 +83,10 @@ ROOT = SEARCH.parent
 OUT = TRACK / "data" / "evidence-domains.csv"
 CAPTURES = TRACK / "data" / "captures.json"
 CHANGES = TRACK / "data" / "table-changes.csv"
-TOTALS = ROOT / "crates/acquisition-search/reference/totals-v5.toml"
+# A read made before round n, at `0a6f7d93`: the table it read is v5, which the
+# build replaced at 9d-C. Run again it reads today's captures and the table of
+# that commit, by `git show`; its committed file is that commit's.
+TOTALS_AT = "0a6f7d93:spikes/rust-playground/crates/acquisition-search/reference/totals-v5.toml"
 TRADE_STATS = SEARCH / "trade-query/data/stats-2026-09-12.json"
 STORE = SEARCH / "item-facts/raw/m3/store/mock/GERWARIC_7694.db"
 INPUTS = ("data/captures.json, tools/trade-evidence.py and tools/trade_rows.py (each pseudo's latest rows), "
@@ -377,7 +381,8 @@ def main():
                      "", "", "", "", "", "every captured line of the template, an item counted once"])
 
     # Step 2: the copy.
-    shipped = tomllib.loads(TOTALS.read_text())["total"]
+    shipped = tomllib.loads(subprocess.run(["git", "show", TOTALS_AT], cwd=ROOT, check=True,
+                                           capture_output=True, text=True).stdout)["total"]
     names = defaultdict(set)  # template -> the totals whose rows name it
     for total in shipped:
         for r in total["rows"]:

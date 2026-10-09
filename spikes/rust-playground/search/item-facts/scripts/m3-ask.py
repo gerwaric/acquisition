@@ -85,6 +85,11 @@ ASKS = [
     ("a beast by its category", ["category:beast"]),
     ("OQ5 by category and level", ['(category=armour or category=accessory) (reqlevel=..30 or -has:reqlevel)']),
     ("--count category", ["", "--count", "category"]),
+    # step 9d-C: the ranged family, a row that reads the category, J29
+    ("a ranged total, bare", ["pseudo.adds_fire_to_attacks>=20"]),
+    ("a ranged total whose rows read the category", ["pseudo.adds_damage_to_spells.high>=30"]),
+    ("a ranged total sorted", ["has:pseudo.adds_damage", "--sort", "pseudo.adds_damage", "--desc", "--limit", "10"]),
+    ("a total a flask's line fed (J29)", ["pseudo.increased_movement_speed>=20"]),
 ]
 
 def main():

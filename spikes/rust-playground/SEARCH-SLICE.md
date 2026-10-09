@@ -80,15 +80,16 @@ number there was measured, never recalled. The verdicts:
 - M2 (step 2, rerun at every change of the deriver): 0 unread and 0
   unexplained against the census; seven departures, each a rule of
   `derive.rs`, two of them candidate ground-truth claims.
-- M3 (step 4, rerun at every build since; as of `dc262f71`): the load,
-  the empty query, is 470 ms release, under 500, so the projection park
+- M3 (step 4, rerun at every build since; as of `3eae4b4e`): the load,
+  the empty query, is 478 ms release, under 500, so the projection park
   does not fire; the price join raised it from 276 at step 9, a mod's
-  rows by 3 to 5 at 9c4, and category by some 14 at 9d-B — every item
-  classed by a second field and asked its category at the load, the
-  build before it asked in turn. Nine asks are over 500 in the run and
-  five were at `62a6d7c8`, each by an evaluator's cost on a floor 22
-  higher, the totals batch park's (V9, revisited at step 11): an ask
-  pays some 1 ms for each row of every total it reads. The category
+  rows by 3 to 5 at 9c4, category by some 14 at 9d-B, and the table's
+  135 more rows by some 9 at 9d-C, bound at every ask. Thirteen asks
+  are over 500 in the run and nine were at `dc262f71`, each by an
+  evaluator's cost, the totals batch park's (V9, revisited at step 11):
+  an ask pays some 1 ms for each row of every total it reads. The
+  owner, 2026-10-08: the slice is wrapped up before anything is
+  optimized, and the budget was never a hard number. The category
   asks cost no more than the empty query. The six asks the seat saw at
   695–715 ms did not recur on the copy, their cause unmeasured. The
   debug build is 2.6 to 3.9 s. What each rerun showed is the block's.
@@ -281,14 +282,21 @@ filed again by the step that touches it.
   The generator's near-miss check sees a rule too narrow, never one
   too wide, and takes a leaf's word to be the first word of the
   site's text. An id with a dot is typed quoted, 73 of the 82 (J24).
-- *The review's next look, 9d-C:* the language corpus has no case
+- *The review's next look, 9d-A:* the language corpus has no case
   for `category`; `show` prints an item's listing, never every id
   that holds; a beast's class rests on a second field, the bestiary
   line, and a body where that line is no string is fixtures' alone.
-- *9d:* the two leech pseudos count the line under every id, the
-  `(Local)` twin among them, so neither waits for a row that names what
-  the item is; of 9c2's totals none does. `has:` of a ranged total
-  asks its `avg`, untested until then.
+- *The next sitting (9d-C):* 258 of the copy's 1,831 lines under the
+  ranged family's rows are in an array or under a flag no capture
+  asked, each with its question
+  (`search/pseudo-stats/data/ranged-expected-copy.csv`): a weapon's
+  fractured, implicit, crafted and enchant lines rest on J7, the
+  export and Path of Building. J29 names two arrays; a mutated line,
+  one on the copy, is counted and unasked.
+- *The review's next look (9d-C):* the generated properties reach no
+  ranged total, no row that reads the category and neither array J29
+  leaves out; `has:pseudo.<ranged>.avg` is refused as an unknown
+  name, the right reading under the wrong kind.
 - *The trade translation (C99):* what the search counts and the site
   leaves out is said in the table's changes and nowhere a user reads.
   A stat whose rows another's sit between is named by a row or by the
