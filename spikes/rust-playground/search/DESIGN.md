@@ -552,53 +552,19 @@ with C101's DPS at step 7 — are their module docs' now (`eval.rs`,
 `show.rs`, `totals.rs`, `pseudo.rs`) and this file at `aeeba6d3`;
 C106's category, taken at 9d-B, is `category.rs`'s and this file at
 `dc262f71`; C94's ranged family, taken at 9d-C, is `totals.rs`'s and
-this file at `3eae4b4e`. The
+this file at `3eae4b4e`; C101's base defence percentile, taken at
+9d-A, is `pseudo.rs`'s and `defences.rs`'s and this file at
+`a9733264`. The
 site's 298 pseudo stats by the mechanism each needs, with the input
 that admits each, is `search/pseudo-stats/README.md` (2026-09-18; 109
 unresolved, each with the one read that closes it).
 
-- **C101 — the derived fields not yet built.** Base
-  defence percentile is the item's defence against its base's range
-  from reference data (C68, C106) — the RePoE export carries the ranges
-  (`search/repoe/data/base-defences.csv`: 476 bases, 466 with armour,
-  evasion or energy shield, 9 with ward; pseudo-stats open question 3,
-  closed); an item above its base's current maximum reads over 100 %
-  and one under its minimum below 0 (J34, 2026-10-08), and a realm
-  with no table is undecided with that reason, never zero, on every
-  item of it, one displaying no defence among them (J35);
-  a quality-normalised defence follows S26; each is a named pure
-  function in the search crate, listed with the totals under `pseudo.`
-  by `--describe` (C97; the reference), as `pseudo.dps` and
-  `pseudo.pdps` are (`pseudo.rs`). The percentile is the site's own
-  stated rule — each base defence roll's percentile, averaged, rounded
-  half up, a roll being any integer whose display is the item's — with
-  one departure the definition prints: a display at an exact half
-  admits both integers as rolls (J5, 2026-10-01: the stated rule
-  reproduced 541 of 543 captured items and this reading all 543, each
-  one value; `search/pseudo-stats/README.md`, "The percentile's
-  round"). Round i pinned four of the shapes J6 named (read
-  2026-10-01, the same section): three defence types on one base are
-  the average of three rolls; under the enchant that zeroes quality the
-  quality term is dropped; ward is a roll as the others are; and a
-  defence line under its global twin the site leaves out, which the
-  item's mark tells (J8, ruled 2026-10-05): an implicit twin on an
-  eldritch item is the global stat and left out, 17 of 17 captured; an
-  explicit twin, and an implicit twin on a synthesised item, are the
-  item's own, 421 of 421 and 10 of 10; an implicit twin on an item of
-  neither mark, seen nowhere, cannot be established and the field is
-  undecided there with that reason (C93); the definition prints the
-  counts each part rests on. A roll over
-  the base's maximum stays unpinned: the site lists no armour over 100,
-  so "reads over 100 %" above is the stated rule's and no capture's.
-  The field is a value only where what the item shows gives one value
-  from lines whose side is established; anywhere else it is undecided,
-  the reason saying which part failed (J33, 2026-10-08): a defence line
-  in `crucibleMods`, the site not asked; a twin text in another array
-  J8 does not name; an implicit twin on an item eldritch and
-  synthesised; a base ranging a defence the item does not display; a
-  base whose minimum is its maximum; a display several rolls give at
-  different values.
-  The sockets are `sockets.rs`'s (step 8).
+- **C101 — the derived fields not yet built.** A quality-normalised
+  defence follows S26 and is parked (`decisions/search.md`): a named
+  pure function in the search crate, listed with the totals under
+  `pseudo.` by `--describe` (C97; the reference), as `pseudo.dps`,
+  `pseudo.pdps` and `pseudo.defence_pct` are (`pseudo.rs`). The sockets
+  are `sockets.rs`'s (step 8).
 - **C106 — what reference data admits, and the test.** Three kinds:
   *data*, what the game files state and a registered surface exports;
   *convention*, a concept the community has published a definition for

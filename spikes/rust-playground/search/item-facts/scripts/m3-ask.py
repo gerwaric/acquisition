@@ -90,6 +90,10 @@ ASKS = [
     ("a ranged total whose rows read the category", ["pseudo.adds_damage_to_spells.high>=30"]),
     ("a ranged total sorted", ["has:pseudo.adds_damage", "--sort", "pseudo.adds_damage", "--desc", "--limit", "10"]),
     ("a total a flask's line fed (J29)", ["pseudo.increased_movement_speed>=20"]),
+    # step 9d-A: the base defence percentile
+    ("the percentile", ["pseudo.defence_pct>=90"]),
+    ("the percentile of a class, sorted", ["class:helmet", "--sort", "pseudo.defence_pct", "--desc", "--limit", "10"]),
+    ("--count class --sum pseudo.defence_pct", ["category=armour", "--count", "class", "--sum", "pseudo.defence_pct"]),
 ]
 
 def main():

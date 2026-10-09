@@ -1,6 +1,6 @@
 # pseudo-stats — which mechanism answers each of the site's 298 `pseudo` stats
 
-Status: 9d-A's expected answers final: J33 to J35 ruled, the site disagreeing on none of 4849 captured cells, no cell unruled — 2026-10-08. The states before it, each by its commit: 9d-A's expected answers, seven kinds of cell unruled `a8ceaea9`; step 9d-C built and closed `ad1d081b`; 9d-C's expected answers final `5f834e8c`; round n sat and read `22380d71`; round n composed `2b86eef4`; before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
+Status: step 9d-A built from the expected answers and closed: one ruled case's input corrected at the build, a property's name a number where it was null; two looks, the second round one rule in place of each patch — 2026-10-09. The states before it, each by its commit: 9d-A's expected answers final `72cb7d58`; 9d-A's expected answers, seven kinds of cell unruled `a8ceaea9`; step 9d-C built and closed `ad1d081b`; 9d-C's expected answers final `5f834e8c`; round n sat and read `22380d71`; round n composed `2b86eef4`; before 9d-C's sitting, the domain and the twin `0a6f7d93`; 9d-C's expected answers `00610359`; J8's k001 and k002 read `da2c1711`; the first pass `6ea3277b`; the second pass, part 1 `55713506`; the pilot `9166e88b`, the checks `a80748b4` and rounds two to four `ecd682e2`, `41ed6467`, `c2fc1ba0`; the changes that need no twin applied, totals v2 `e81cc8ca`, a total of nothing lacked `37faf903`; rounds five and six (step 9c2) `b22dccbe`, `85f338e3`, applied at totals v4 `77685777`; the four that are no sum, steps 9c3 (totals v5) `7a315fbb` and 9c4 `64a6a3af`; before 9d (the brief at `9280f559`), round i prepared and the ranged census `cb77add0`; round i read `b39e0799`; i07 `c58d3050`; open question 9 `3cf6893e`. The line as it stood, whole: this file at `da2c1711`.
 
 Headline:
 - **Part 1: 1,655 candidate pairs** (pseudo, line template) over 40 of the 58 pseudos in scope:
@@ -115,7 +115,7 @@ the class table. Per shape: `data/percentile-shapes.csv`.
 
 ## The percentile's expected answers
 
-`scripts/percentile-expected.py` (the brief, `BRIEF.md`): one function from a private item's realm, base,
+`scripts/percentile-expected.py` (the brief, this track's `BRIEF.md` at `615709c3`): one function from a private item's realm, base,
 properties, marks and lines — text, array, flags, never an id — to what `pseudo.defence_pct` answers, in exact
 arithmetic, each of its 42 steps citing its sentence. `data/percentile-expected.csv`, a row a case;
 `data/percentile-expected-copy.csv`, the function over the copy's 22721 live items.

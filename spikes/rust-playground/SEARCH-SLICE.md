@@ -68,6 +68,7 @@ first: the shapes of fault that came back until they were named.
 | **A claim the code did not make.** A hand count wrong; `DERIVATION` not moved when a body derived to another item; a cause named before it was measured; "covered" said of a property whose generators could not reach the case; a record row crediting the wrong commit; a commit message claiming what a failed step had not shown; a module doc saying a group costs its size after a fix had made a not cost what it held again at every depth; a fixture that wrote its capture's input another way, a mod's rows apart, and agreement with the research tool reported as the build's | every step | every count worked by hand and then run; the constant's rule on its own doc; a number stated only after measuring; the generators reaching what a fix touched (`reqlevel` joined them at step 6, a mod of several rows at 9c4); a command that commits stops at the first error, each check's exit read first; a capture entered as captured and asked through the boundary (`tests/pseudo.rs`, `c94_a_row_inside_…`); a cost claimed is a cost asked for, thirty nots deep (`tests/rows.rs`) |
 | **Silent reach.** Right by its rule and wrong for the reader: an open-text `:` example reaching 87 bases with five shown (`base:ring`); two realms' place values merged under `--realm all`, one `Standard` whose route returned both | the first seat, twice (the examples; F3); 9d-B, a category term's picks cut at five in text | `tests/seat_faults.rs` (`f3_`); the help's examples teach `class:ring`, a closed set whose picks are all printed |
 | **A refusal right in kind, wrong in size.** 82 names inline, twice, the meant one not singled out; one reason printed once per term, eighteen times; a near reading for a field and none for a computed value | the first seat, three times (F5, F9, F10) | `tests/seat_faults.rs` (`f5_`, `v8_`, `f10_`); `bind::near`, `bind::LISTED_INLINE`; `Total.undecided_reasons` |
+| **A patch for a body composed to probe.** A look's finding on an input no real item has — a mark that is no yes or no, the quality enchant on a crucible node — mended as a case of its own; each case covered itself and opened its neighbour, four faults of the round's own making | 9d-A, the first look's round, found by the second | the probe measured on the owner's copy before a fix; one rule in place of the cases (`pseudo::mark_of`); `tests/percentile.rs` |
 
 ## What the measurements taught
 
@@ -84,7 +85,8 @@ number there was measured, never recalled. The verdicts:
   the empty query, is 478 ms release, under 500, so the projection park
   does not fire; the price join raised it from 276 at step 9, a mod's
   rows by 3 to 5 at 9c4, category by some 14 at 9d-B, and the table's
-  135 more rows by some 9 at 9d-C, bound at every ask. Thirteen asks
+  135 more rows by some 9 at 9d-C, bound at every ask; at `a9733264`
+  it is 481, the percentile's asks 486–489. Thirteen asks
   are over 500 in the run and nine were at `dc262f71`, each by an
   evaluator's cost, the totals batch park's (V9, revisited at step 11):
   an ask pays some 1 ms for each row of every total it reads. The
@@ -109,6 +111,10 @@ number there was measured, never recalled. The verdicts:
   `search/category/data/expected-copy.csv` on every id — 22,622 of the
   copy's 22,623 pc items under an id, 1 `none`, 0 undecided — and
   `undecided(class)` is 0 where it was 158, the beasts.
+- The percentile (9d-A): on the copy 2,249 items have it, 20,373
+  lack it and 99 are undecided — 98 by the realm, 1 by a crucible
+  line — `search/pseudo-stats/data/percentile-expected-copy.csv`'s;
+  none reads over 100 or below 0.
 
 ## Observations still open
 
@@ -282,22 +288,26 @@ filed again by the step that touches it.
   The generator's near-miss check sees a rule too narrow, never one
   too wide, and takes a leaf's word to be the first word of the
   site's text. An id with a dot is typed quoted, 73 of the 82 (J24).
-- *The review's next look, 9d-A:* the language corpus has no case
+- *The review's next look:* the language corpus has no case
   for `category`; `show` prints an item's listing, never every id
   that holds; a beast's class rests on a second field, the bestiary
   line, and a body where that line is no string is fixtures' alone.
-- *9d-A's sitting, if it has one (the plan):* 258 of the copy's 1,831 lines under the
+- *The next sitting:* 258 of the copy's 1,831 lines under the
   ranged family's rows are in an array or under a flag no capture
   asked, each with its question
   (`search/pseudo-stats/data/ranged-expected-copy.csv`): a weapon's
   fractured, implicit, crafted and enchant lines rest on J7, the
   export and Path of Building. J29 names two arrays; a mutated line,
   one on the copy, is counted and unasked. J33: a crucible armour
-  item's percentile, one search, the copy's one such item undecided.
-- *Step 9e and 9d-A's build (the plan):* the generated properties reach no
-  ranged total, no row that reads the category and neither array J29
-  leaves out; `has:pseudo.<ranged>.avg` is refused as an unknown
-  name, the right reading under the wrong kind.
+  item's percentile, one search, the copy's one such item undecided;
+  32 of the copy's 74 groups of defence lines, and a roll out of
+  range (J34), unasked.
+- *Step 9e (the plan):* the generated properties reach no ranged
+  total, no row that reads the category, neither array J29 leaves out
+  and no percentile. Unpinned of the percentile, no fixture reaching
+  either: a body wholly unread, a base of one fixed defence beside a
+  ranging one. The field makes its own reason for a veiled line's
+  number, the deriver recording none.
 - *The trade translation (C99):* what the search counts and the site
   leaves out is said in the table's changes and nowhere a user reads.
   A stat whose rows another's sit between is named by a row or by the

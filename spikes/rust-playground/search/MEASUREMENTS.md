@@ -212,6 +212,7 @@ to its own append-only file in `RUN-LEDGER.md`'s mold, no budget.
 | `62a6d7c8` | step 9c4, after its review's fourth look: a slot beside two rows named together refused before anything is read (the `-p acquisition-cli` form, sha256 `4a481496…`) | 696 | 448–500 but five over, the empty query 448: the two totals asks of step 7 at 509 and 507, `pseudo.count_res>=3` at 510, the two readings in one ask 542, and the seat's bare phrase 517, the run's own — `d9d7c9da`'s binary and this one, asked in turn afterwards, answer it in 469 and 468 | 2,443–3,157 but the five: 3,395, 3,035, 3,237, 3,780 and 2,671 |
 | `dc262f71` | step 9d-B, category, with its four asks added to the script (the `-p acquisition-cli` form, sha256 `6fba1aa0…`) | 688 | 470–500 but nine over, the empty query 470: OQ7 554, AQ2 503 and as worded 522, the worked example 525, the vocabulary 506 and whole 513, `pseudo.count_res>=3` 525, `pseudo.count_ele_res=3` 517 and the two readings in one ask 556 — the piece's own cost is beneath | 2,588–3,121 but the nine: 2,648, 3,305, 2,891, 2,903, 3,549, 3,188, 3,335, 3,194, 3,927 |
 | `3eae4b4e` | step 9d-C, the ranged family and what no total reads, totals v6 of 419 rows, with its four asks added to the script (the `-p acquisition-cli` form, sha256 `e0ef2b8c…`, built from the commit's source and one doc comment after it) | 679 | 478–500 but thirteen over, the empty query 478: Thread of Hope's counts 616, `pseudo.count_res>=3` 558, a ranged total whose rows read the category 557, AQ2 514 and as worded 545, `pseudo.count_ele_res=3` 541, the worked example 534, the vocabulary whole 521 and twice narrowed 513, `pseudo.total_all_ele_res` 508, OQ1 505 and as worded 506, a type's damage with attack skills 505 — the piece's own cost is beneath | 2,706–4,534 |
+| `a9733264` | step 9d-A, the percentile and the defence table, with its three asks added to the script (the `-p acquisition-cli` form, sha256 `173f2bdca701…`) | 672 | 478–500 and eighteen over in the run, whose first asks ran beside the session's own work and read some 20 ms high — the empty query 499 first and 478 as the seat's third ask, AQ2 654: asked again alone, the empty query 481, OQ1 508, OQ7 488, AQ2 512, the vocabulary whole 519, the percentile 486. Over in the run and not asked again: Thread of Hope's counts 616, a ranged total whose rows read the category 564, `pseudo.count_res>=3` 557, AQ2 as worded 552, `pseudo.count_ele_res=3` 544, the worked example 540, the vocabulary twice narrowed 518, `pseudo.total_all_ele_res` 510, OQ1 as worded 507, a ranged total sorted 505 and bare 504, AQ5 504, a type's damage with attack skills 504, `--count class --sum pseudo.total_res` 502 | 2,712–4,570 |
 
 The asks each step added to the script, at the step's build, warm
 medians in ms; a step's empty query is its floor.
@@ -254,6 +255,7 @@ medians in ms; a step's empty query is its floor.
 | `d9d7c9da`, 9c4 after its review's third look | the same six | 476 · 537 · 504 · 494 · 472 · 465 | 2,575 · 3,756 · 3,172 · 3,027 · 2,676 · 2,535 |
 | `dc262f71`, 9d-B | `category=armour` · `category:beast` · `(category=armour or category=accessory) (reqlevel=..30 or -has:reqlevel)` · `--count category` | 476 · 476 · 475 · 478 | 2,595 · 2,588 · 2,599 · 2,609 |
 | `3eae4b4e`, 9d-C | `pseudo.adds_fire_to_attacks>=20` · `pseudo.adds_damage_to_spells.high>=30` · `has:pseudo.adds_damage --sort pseudo.adds_damage --desc --limit 10` · `pseudo.increased_movement_speed>=20` | 496 · 557 · 497 · 487 | 2,976 · 3,883 · 2,966 · 2,823 |
+| `a9733264`, 9d-A | `pseudo.defence_pct>=90` · `class:helmet --sort pseudo.defence_pct --desc --limit 10` · `category=armour --count class --sum pseudo.defence_pct` | 489 · 486 · 487 | 2,751 · 2,728 · 2,751 |
 
 **The price join's cost (step 9, `57c2f78b`): the floor rose from 276
 to 445 ms release, and two totals asks crossed 500 ms with it.** The
@@ -542,3 +544,16 @@ The load is under 500; the owner, 2026-10-08, of the margin: "I'd
 rather wrap up this entire search slice before attempting to stop and
 optimize, so I'm ok if it's over a little. The original budget was not
 a hard number to begin with."
+
+**Step 9d-A — what the percentile costs an ask (`a9733264`, 2026-10-09, the session's measurement): some 5 to 10 ms where it is asked, nothing where it is not.**
+The release build over the M3 copy, the median of ten, in ms, asked
+alone: the empty query 481, `pseudo.defence_pct>=90` 486; in the M3
+run above, the percentile's three asks 486–489 beside an empty query
+of 478. The field is worked for the items an ask reaches and for no
+other, and the defence table, 476 base rows and 22 texts, is parsed
+once. Over the copy, all realms: 2,249 items have the field, 20,373
+lack it, 99 are undecided — 98 by the realm and 1 by a crucible line
+— which is `search/pseudo-stats/data/percentile-expected-copy.csv`'s;
+none reads over 100 or below 0. The M3 run itself ran while the
+session edited beside it, and its first asks read high; six were asked
+again alone, as its row says.
