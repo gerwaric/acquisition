@@ -71,6 +71,21 @@ fn query() -> BoxedStrategy<String> {
             "\"life\"",
             "true()",
             "false()",
+            // what step 9d built (step 9e): the category, a ranged total
+            // with a row that reads it, the percentile
+            "category=weapon",
+            "category:ring",
+            "has:category",
+            "undecided(category)",
+            "class:sword",
+            "pseudo.adds_cold>=3",
+            "pseudo.adds_cold_to_attacks>=3",
+            "pseudo.adds_cold_to_spells.low>=3",
+            "has:pseudo.adds_cold_to_spells",
+            "undecided(pseudo.adds_cold)",
+            "pseudo.defence_pct>=50",
+            "has:pseudo.defence_pct",
+            "undecided(pseudo.defence_pct)",
         ])
         .prop_map(str::to_string),
     ];
@@ -91,11 +106,13 @@ fn flag() -> impl Strategy<Value = Value> {
 }
 
 fn lines() -> BoxedStrategy<Value> {
-    let line = (0u8..4, -5i32..101, flag(), flag()).prop_map(|(kind, n, crafted, fractured)| {
+    let line = (0u8..6, -5i32..101, flag(), flag()).prop_map(|(kind, n, crafted, fractured)| {
         let description = match kind {
             0 => format!("{n} to maximum Life"),
             1 => format!("{n}% to Cold Resistance"),
             2 => format!("Adds {n} to {} Cold Damage", n + 10),
+            3 => format!("{n} to Armour"),
+            4 => format!("{n}% increased Armour"),
             _ => "Cannot be Frozen".to_string(),
         };
         json!({"description": description, "flags": {"crafted": crafted, "fractured": fractured}})
@@ -107,12 +124,48 @@ fn lines() -> BoxedStrategy<Value> {
     .boxed()
 }
 
+/// What step 9d reads beside the lines: a base — the fixture's, which no
+/// table knows, a ring, a sword, a body armour, or no string — a
+/// displayed armour, a mark, and a crucible node's lines.
+fn built() -> impl Strategy<Value = Value> {
+    (
+        proptest::sample::select(vec![
+            json!(null),
+            json!("Iron Ring"),
+            json!("Rusted Sword"),
+            json!("Plate Vest"),
+            json!(5),
+        ]),
+        proptest::sample::select(vec![json!(null), json!("23"), json!("30"), json!("many")]),
+        flag(),
+        prop_oneof![3 => Just(json!(null)), 1 => lines()],
+    )
+        .prop_map(|(base, armour, searing, crucible)| {
+            let mut body = json!({ "searing": searing });
+            if !base.is_null() {
+                body["baseType"] = base;
+            }
+            if !armour.is_null() {
+                body["properties"] =
+                    json!([{ "name": "Armour", "values": [[armour, 0]], "displayMode": 0 }]);
+            }
+            if !crucible.is_null() {
+                body["crucibleMods"] = crucible;
+            }
+            body
+        })
+}
+
 fn body() -> impl Strategy<Value = Value> {
-    (lines(), lines(), flag(), flag(), 0u8..3).prop_map(
-        |(explicit, implicit, corrupted, shaper, n)| {
-            json!({"explicitMods": explicit, "implicitMods": implicit,
+    (lines(), lines(), flag(), flag(), 0u8..3, built()).prop_map(
+        |(explicit, implicit, corrupted, shaper, n, mut body)| {
+            let more = json!({"explicitMods": explicit, "implicitMods": implicit,
             "corrupted": corrupted, "influences": {"shaper": shaper, "hunter": "unread"},
-            "ilvl": ([json!(84), json!(null), json!("unread")][usize::from(n)])})
+            "ilvl": ([json!(84), json!(null), json!("unread")][usize::from(n)])});
+            for (key, value) in more.as_object().unwrap() {
+                body[key] = value.clone();
+            }
+            body
         },
     )
 }

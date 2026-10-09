@@ -31,6 +31,22 @@
 //!   have. What the second way leaves open a reading's comparison
 //!   leaves open, and may leave more, never less; its presence leaves
 //!   open exactly that.
+//! - **A ranged total is what its rows make** (C94; step 9e): the plain,
+//!   the attacks' and the spells' totals of cold damage match what the
+//!   item's own `sum( … )` of their lines matches, outside the two arrays
+//!   no total reads, on an item that has such a line — and, for a row
+//!   that reads what the item is, on an item that is no weapon. The
+//!   attacks' second way asks nothing of the category, so a base that
+//!   could not be read leaves it decided (J30). A bare name is its `avg`.
+//! - **What no total reads moves no total** (J29): with a crucible
+//!   node's lines and a flask's own taken away, or put where none was as
+//!   an array that is no array, every total and every reading sorts by
+//!   the same value with the same status. The percentile, which reads
+//!   both, is not asked.
+//! - **A count by what the base decides accounts for every match**
+//!   (C105): by category and by class, the buckets' terms return what
+//!   they counted, and together the matches, each once — the generated
+//!   bases being of one class and one leaf.
 
 mod common;
 
@@ -196,6 +212,199 @@ fn a_reading_is_what_its_totals_make(corpus: &Corpus, scope: &Ids) -> Result<(),
         if !open_other.is_subset(&open) || (same_open && open != open_other) {
             return Err(format!(
                 "`{other}` is undecided on {open_other:?} and `{reading}` on {open:?}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The lines a row of the ranged family names, outside the two arrays no
+/// total reads, as a line's group.
+fn outside(templates: &[&str]) -> String {
+    let named: Vec<String> = templates.iter().map(|t| format!("\"{t}\"")).collect();
+    format!("({}) -source=crucible -source=utility", named.join(" or "))
+}
+
+fn a_ranged_total_is_what_its_rows_make(corpus: &Corpus, scope: &Ids) -> Result<(), String> {
+    let [plain, attacks, spells] = RANGED;
+    let (unsuffixed, both, own) = (
+        outside(&[ADDS]),
+        outside(&[ADDS, ADDS_SPELLS]),
+        outside(&[ADDS_SPELLS]),
+    );
+    let summed = |group: &str, slot: &str, cmp: &str| {
+        format!("line({group}) sum(line({group}).{slot}){cmp}")
+    };
+    // a total, its second way, and whether the two leave the same open
+    let mut pairs: Vec<(String, String, bool)> = Vec::new();
+    // the pairs whose second way says less than the total: the spells'
+    // is written by what the item is, so where that is open it is open,
+    // and the total — its own line read, the other absent — is not
+    let mut within: Vec<usize> = Vec::new();
+    for slot in SLOTS {
+        let word = slot.trim_start_matches('.');
+        let word = if word.is_empty() { "avg" } else { word };
+        // two bounds where the name is bare, one for each slot word
+        let bounds: &[&str] = if slot.is_empty() {
+            &[">=3", "<=7"]
+        } else {
+            &[">=6.5"]
+        };
+        for cmp in bounds {
+            pairs.push((
+                format!("{plain}{slot}{cmp}"),
+                format!("-category=weapon {}", summed(&unsuffixed, word, cmp)),
+                false,
+            ));
+            pairs.push((
+                format!("{attacks}{slot}{cmp}"),
+                summed(&unsuffixed, word, cmp),
+                false,
+            ));
+            pairs.push((
+                format!("{spells}{slot}{cmp}"),
+                format!(
+                    "(-category=weapon {}) or (category=weapon {})",
+                    summed(&both, word, cmp),
+                    summed(&own, word, cmp)
+                ),
+                false,
+            ));
+            within.push(pairs.len() - 1);
+        }
+    }
+    // a bare name is its `avg`: the same items, the same left open
+    for total in RANGED {
+        pairs.push((format!("{total}>=3"), format!("{total}.avg>=3"), true));
+    }
+    // presence: an item has the total only where it has such a line,
+    // and one with such a line has it or leaves it open — a line read is
+    // a witness of the line, and no witness that nothing unread cancels it
+    let present = [
+        (
+            format!("has:{plain}"),
+            format!("-category=weapon line({unsuffixed})"),
+        ),
+        (format!("has:{attacks}"), format!("line({unsuffixed})")),
+    ];
+    let mut cache = HashMap::new();
+    let ask = |text: &str| {
+        run(corpus, &request(text, None, false, scope.len().max(1)))
+            .map_err(|e| format!("`{text}`: {e}"))
+    };
+    for (has, other) in present {
+        let (a, b) = (ask(&has)?, ask(&other)?);
+        let (had, lined): (Ids, Ids) = (
+            common::ids(&a).into_iter().collect(),
+            common::ids(&b).into_iter().collect(),
+        );
+        let open = members(corpus, &a["total"]["undecided"], scope, &mut cache)?;
+        let had_or_open: Ids = had.union(&open).cloned().collect();
+        if !had.is_subset(&lined) || !lined.is_subset(&had_or_open) {
+            return Err(format!(
+                "`{has}` matches {had:?} and leaves {open:?} open, and `{other}` matches {lined:?}"
+            ));
+        }
+    }
+    for (at, (total, other, same_open)) in pairs.into_iter().enumerate() {
+        let (a, b) = (ask(&total)?, ask(&other)?);
+        if within.contains(&at) {
+            let (said, second): (Ids, Ids) = (
+                common::ids(&a).into_iter().collect(),
+                common::ids(&b).into_iter().collect(),
+            );
+            let open = members(corpus, &b["total"]["undecided"], scope, &mut cache)?;
+            let second_or_open: Ids = second.union(&open).cloned().collect();
+            if !second.is_subset(&said) || !said.is_subset(&second_or_open) {
+                return Err(format!(
+                    "`{total}` matches {said:?}, and `{other}` matches {second:?} and leaves {open:?} open"
+                ));
+            }
+            continue;
+        }
+        if common::ids(&a) != common::ids(&b) {
+            return Err(format!(
+                "`{total}` matches {:?} and `{other}` {:?}",
+                common::ids(&a),
+                common::ids(&b)
+            ));
+        }
+        let open = members(corpus, &a["total"]["undecided"], scope, &mut cache)?;
+        let open_other = members(corpus, &b["total"]["undecided"], scope, &mut cache)?;
+        if !open_other.is_subset(&open) || (same_open && open != open_other) {
+            return Err(format!(
+                "`{other}` is undecided on {open_other:?} and `{total}` on {open:?}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The values J29 is a rule of: every total and every reading generated.
+const TOTALS: [&str; 6] = [
+    "pseudo.total_res",
+    "pseudo.count_ele_res",
+    "pseudo.total_all_ele_res",
+    RANGED[0],
+    RANGED[1],
+    RANGED[2],
+];
+
+fn what_no_total_reads_moves_no_total(bodies: &[Body], values: &[&str]) -> Result<(), String> {
+    let without: Vec<Body> = bodies
+        .iter()
+        .map(Body::without_what_no_total_reads)
+        .collect();
+    let (as_given, scope) = fixture(bodies.iter().map(Body::json).collect());
+    let (other, _) = fixture(without.iter().map(Body::json).collect());
+    for value in values {
+        let (a, b) = (
+            scalars(&as_given, &scope, value),
+            scalars(&other, &scope, value),
+        );
+        if a != b {
+            return Err(format!(
+                "`--sort {value}`: {a:?} and, the arrays no total reads being otherwise, {b:?}"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn a_count_by_what_the_base_decides_accounts_for_every_match(
+    corpus: &Corpus,
+    scope: &Ids,
+    text: &str,
+) -> Result<(), String> {
+    let Ok(matched) = run(corpus, &request(text, None, false, scope.len().max(1))) else {
+        return Ok(());
+    };
+    let matched: Ids = common::ids(&matched).into_iter().collect();
+    let counted = json!({
+        "scope": { "realm": "pc" },
+        "query": { "text": text },
+        "view": { "counts": { "keys": ["category", "class"], "limit": 50 } },
+    });
+    let a = run(corpus, &counted).map_err(|e| format!("refused: {counted}: {e}"))?;
+    let mut cache = HashMap::new();
+    let tables = a["view"]["counts"]["tables"]
+        .as_array()
+        .ok_or("no tables")?;
+    if tables.len() != 2 {
+        return Err(format!("`{text}`: two keys and {} tables", tables.len()));
+    }
+    for table in tables {
+        let (mut listed, mut counts) = (Ids::new(), 0);
+        for bucket in table["buckets"].as_array().ok_or("no buckets")? {
+            let ids = members(corpus, bucket, scope, &mut cache)
+                .map_err(|e| format!("under `{text}`: {bucket}: {e}"))?;
+            counts += ids.len();
+            listed.extend(ids);
+        }
+        if listed != matched || counts != matched.len() {
+            return Err(format!(
+                "`{text}` counted by {}: {counts} in buckets that hold {listed:?}, of the matches {matched:?}",
+                table["key"]
             ));
         }
     }
@@ -411,8 +620,7 @@ fn every_item_twice(bodies: &[Value], text: &str, sort: Option<&str>) -> Result<
 fn every_occurrence_in_another_order(
     bodies: &[Body],
     q: &Q,
-    projection: &str,
-    sum: &str,
+    values: &[&str],
 ) -> Result<(), String> {
     let reversed: Vec<Body> = bodies.iter().map(Body::every_line_reversed).collect();
     let (as_given, scope) = fixture(bodies.iter().map(Body::json).collect());
@@ -430,7 +638,7 @@ fn every_occurrence_in_another_order(
             ));
         }
     }
-    for value in [projection, sum] {
+    for value in values {
         let (a, b) = (
             scalars(&as_given, &scope, value),
             scalars(&other, &scope, value),
@@ -444,11 +652,12 @@ fn every_occurrence_in_another_order(
     Ok(())
 }
 
+/// `stays` are the values that are no sum over lines, `doubles` the sums.
 fn every_occurrence_twice(
     bodies: &[Body],
     q: &Q,
-    projection: &str,
-    sum: &str,
+    stays: &[&str],
+    doubles: &[&str],
 ) -> Result<(), String> {
     let doubled: Vec<Body> = bodies.iter().map(Body::every_line_twice).collect();
     let (once, scope) = fixture(bodies.iter().map(Body::json).collect());
@@ -461,8 +670,11 @@ fn every_occurrence_twice(
             term_members(&once, &scope, &a)?,
             term_members(&twice, &scope, &b)?,
         );
-        for (i, (_, kind)) in kinds.iter().enumerate() {
-            if *kind != TermKind::Sum && a.get(i) != b.get(i) {
+        for (i, (key, kind)) in kinds.iter().enumerate() {
+            // a sum doubles, and the percentile moves with the lines it
+            // takes as the item's own — its terms, and a probe of it
+            let moves = *kind == TermKind::Sum || key.contains(PERCENTILE);
+            if !moves && a.get(i) != b.get(i) {
                 return Err(format!(
                     "`{text}`: term {i} moved when every occurrence was written twice: {:?} against {:?}",
                     a.get(i),
@@ -471,23 +683,28 @@ fn every_occurrence_twice(
             }
         }
     }
-    if let (Some(a), Some(b)) = (
-        scalars(&once, &scope, projection),
-        scalars(&twice, &scope, projection),
-    ) && a != b
-    {
-        return Err(format!(
-            "`--sort {projection}`: a value that is no sum moved when every occurrence was written twice"
-        ));
+    for projection in stays {
+        if let (Some(a), Some(b)) = (
+            scalars(&once, &scope, projection),
+            scalars(&twice, &scope, projection),
+        ) && a != b
+        {
+            return Err(format!(
+                "`--sort {projection}`: a value that is no sum moved when every occurrence was written twice"
+            ));
+        }
     }
-    if let (Some(a), Some(b)) = (scalars(&once, &scope, sum), scalars(&twice, &scope, sum)) {
-        for (id, was) in &a {
-            let now = &b[id];
-            let double = |v: &Value| v.as_f64().map(|n| n * 2.0);
-            if was["status"] != now["status"] || double(&was["value"]) != now["value"].as_f64() {
-                return Err(format!(
-                    "`--sort {sum}`: {id} sums to {was} and, every occurrence written twice, to {now}"
-                ));
+    for sum in doubles {
+        if let (Some(a), Some(b)) = (scalars(&once, &scope, sum), scalars(&twice, &scope, sum)) {
+            for (id, was) in &a {
+                let now = &b[id];
+                let double = |v: &Value| v.as_f64().map(|n| n * 2.0);
+                if was["status"] != now["status"] || double(&was["value"]) != now["value"].as_f64()
+                {
+                    return Err(format!(
+                        "`--sort {sum}`: {id} sums to {was} and, every occurrence written twice, to {now}"
+                    ));
+                }
             }
         }
     }
@@ -508,7 +725,7 @@ proptest! {
         all.extend(bodies.iter().map(Body::json));
         let (store, corpus, scope) = fixture_with_store(all.clone());
         let text = q_text(&q, Spelling::Authored);
-        for value in [projection.as_str(), sum.as_str(), "ilvl", "pseudo.total_res", "pseudo.count_ele_res", "pseudo.total_all_ele_res", "pseudo.dps", "pseudo.pdps", "links", "sockets.red"] {
+        for value in [projection.as_str(), sum.as_str(), "ilvl", "pseudo.total_res", "pseudo.count_ele_res", "pseudo.total_all_ele_res", "pseudo.dps", "pseudo.pdps", "links", "sockets.red", RANGED[0], RANGED[1], RANGED[2], "pseudo.adds_cold.low", "pseudo.adds_cold_to_spells.high", PERCENTILE] {
             probe_is_sort_status(&corpus, &scope, value).map_err(TestCaseError::fail)?;
         }
         for sort in [None, Some(projection.as_str()), Some(sum.as_str())] {
@@ -526,27 +743,39 @@ proptest! {
             zero_block_is_terms_block(&corpus, &answer).map_err(TestCaseError::fail)?;
         }
         a_reading_is_what_its_totals_make(&corpus, &scope).map_err(TestCaseError::fail)?;
+        a_ranged_total_is_what_its_rows_make(&corpus, &scope).map_err(TestCaseError::fail)?;
+        what_no_total_reads_moves_no_total(&bodies, &TOTALS).map_err(TestCaseError::fail)?;
+        a_count_by_what_the_base_decides_accounts_for_every_match(&corpus, &scope, &text)
+            .map_err(TestCaseError::fail)?;
+        a_count_by_what_the_base_decides_accounts_for_every_match(&corpus, &scope, "")
+            .map_err(TestCaseError::fail)?;
         every_item_twice(&all, &text, Some(&sum)).map_err(TestCaseError::fail)?;
-        every_occurrence_twice(&bodies, &q, &projection, &sum).map_err(TestCaseError::fail)?;
-        every_occurrence_in_another_order(&bodies, &q, &projection, &sum)
-            .map_err(TestCaseError::fail)?;
-        // a total is a sum over lines and doubles with them (C94); a
-        // derived field reads the properties, which no line is, and stays
-        // (C101); neither moves when the occurrences are reordered
-        every_occurrence_twice(&bodies, &q, "pseudo.dps", "pseudo.total_res").map_err(TestCaseError::fail)?;
-        every_occurrence_in_another_order(&bodies, &q, "pseudo.pdps", "pseudo.total_res")
-            .map_err(TestCaseError::fail)?;
-        // a count of totals is no sum and stays as they double; the least
-        // of them doubles with them (C101, step 9c3)
-        every_occurrence_twice(&bodies, &q, "pseudo.count_ele_res", "pseudo.total_all_ele_res")
-            .map_err(TestCaseError::fail)?;
-        every_occurrence_in_another_order(&bodies, &q, "pseudo.count_ele_res", "pseudo.total_all_ele_res")
-            .map_err(TestCaseError::fail)?;
-        // a socket count is over the collection, which no line is: it
-        // stays when the lines are written twice and when the sockets are
-        // written in another order (C101)
-        every_occurrence_in_another_order(&bodies, &q, "sockets", "links")
-            .map_err(TestCaseError::fail)?;
+        // every occurrence twice: the generated largest stays and the
+        // generated sum doubles (C92); a total is a sum over lines and
+        // doubles with them (C94), a ranged one's `avg` too, low summed
+        // with low and high with high; the least of totals doubles with
+        // them and a count of totals is no sum and stays (C101, step
+        // 9c3); a derived field reads the properties, which no line is,
+        // and stays (C101)
+        every_occurrence_twice(
+            &bodies,
+            &q,
+            &[&projection, "pseudo.dps", "pseudo.pdps", "pseudo.count_ele_res"],
+            &[&sum, "pseudo.total_res", "pseudo.total_all_ele_res", RANGED[0], RANGED[2]],
+        )
+        .map_err(TestCaseError::fail)?;
+        // in another order nothing moves: not those, not the percentile,
+        // which is of the item, and not a socket count, which is over the
+        // collection (C101)
+        every_occurrence_in_another_order(
+            &bodies,
+            &q,
+            &[
+                &projection, &sum, "pseudo.pdps", "pseudo.total_res", "pseudo.count_ele_res",
+                "pseudo.total_all_ele_res", RANGED[0], PERCENTILE, "sockets", "links",
+            ],
+        )
+        .map_err(TestCaseError::fail)?;
     }
 }
 

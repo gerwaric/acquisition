@@ -37,6 +37,16 @@
 //!
 //! No query here holds `undecided( … )`: it says something of the evidence
 //! and not of the item, so no completion is owed the same answer.
+//!
+//! **The one value a rule leaves open** (step 9e): the base defence
+//! percentile is a value only where what the item displays fixes one
+//! (J33), so it is undecided on some item with nothing unread — a twin
+//! text no mark tells, a display no roll gives. Such a completion says
+//! nothing of the stored item and is set aside, for the percentile's own
+//! terms, for the root of a query that holds one, and for its sort: what
+//! was decided as stored is held to every completion the rule decides.
+//! Which completions those are is asked of the build, `undecided( … )` of
+//! the field; that the probe is the sort's status is the cross-checks'.
 
 mod common;
 
@@ -131,6 +141,20 @@ fn check(
     let said = |what: &str| format!("`{text}` over {stored}: {what}");
     let completions: Vec<&String> = scope.iter().filter(|id| *id != STORED).collect();
     let mut cache = HashMap::new();
+    // the completions the percentile's rule leaves open
+    let ruled: Ids = {
+        let probe = request(
+            &format!("undecided({PERCENTILE})"),
+            None,
+            false,
+            scope.len(),
+        );
+        let answer = run(corpus, &probe).map_err(|e| said(&format!("the probe: {e}")))?;
+        common::ids(&answer)
+            .into_iter()
+            .filter(|id| id != STORED)
+            .collect()
+    };
 
     match run(corpus, &request(&text, None, false, scope.len())) {
         // an authoring error says nothing of any item
@@ -163,10 +187,16 @@ fn check(
                         .copied()
                         .ok_or_else(|| said(&format!("{asked} has no outcome on {id}")))
                 };
-                let each: Vec<Outcome> = completions
-                    .iter()
-                    .map(|id| outcome(id))
-                    .collect::<Result<_, _>>()?;
+                let mut each = Vec::new();
+                for id in &completions {
+                    let outcome = outcome(id)?;
+                    let set_aside = *kind == TermKind::Ruled
+                        && outcome == Outcome::Undecided
+                        && ruled.contains(*id);
+                    if !set_aside {
+                        each.push(outcome);
+                    }
+                }
                 if each.contains(&Outcome::Undecided) {
                     return Err(said(&format!(
                         "{asked} is undecided on an item with nothing unread"
@@ -179,6 +209,7 @@ fn check(
                         let what = match kind {
                             TermKind::Group => "a line's group",
                             TermKind::Sum => "a sum's comparison",
+                            TermKind::Ruled => "the percentile",
                             _ => "a field, a flag or a phrase",
                         };
                         tally.open(what, &each, || format!("{asked} over {stored}"));
@@ -226,7 +257,12 @@ fn check(
                 (_, true) => None,
                 _ => Some(false),
             };
-            let each: Vec<Option<bool>> = completions.iter().map(|id| root(id)).collect();
+            let holds_ruled = kinds.iter().any(|(_, kind)| *kind == TermKind::Ruled);
+            let each: Vec<Option<bool>> = completions
+                .iter()
+                .filter(|id| !(holds_ruled && ruled.contains(**id) && root(id).is_none()))
+                .map(|id| root(id))
+                .collect();
             if each.contains(&None) {
                 return Err(said("the root is undecided on an item with nothing unread"));
             }
@@ -275,8 +311,10 @@ fn check(
                 .cloned()
                 .ok_or_else(|| format!("`--sort {value}` over {stored}: no row for {id}"))
         };
+        let of_ruled = *sort == Sort::Field(PERCENTILE);
         let each: Vec<Value> = completions
             .iter()
+            .filter(|id| !(of_ruled && ruled.contains(**id)))
             .map(|id| scalar(id))
             .collect::<Result<_, _>>()?;
         if each.iter().any(|s| s["status"] == "incomplete") {
@@ -381,6 +419,10 @@ fn checked(case: &Case, tally: &mut Tally) -> Result<(), String> {
         Sort::Field("pseudo.pdps"),
         Sort::Field("links"),
         Sort::Field("sockets.red"),
+        Sort::Field(RANGED[0]),
+        Sort::Field(RANGED[1]),
+        Sort::Field(RANGED[2]),
+        Sort::Field(PERCENTILE),
     ];
     check(&corpus, &scope, q, &sorts, &stored.json(), tally)
 }

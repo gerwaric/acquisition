@@ -43,6 +43,21 @@
 //! what a term that names a row, a sum of one and a total are to answer
 //! alike.
 //!
+//! Since step 9e they reach what step 9d built (C94, C101, C106): an
+//! item's base — a ring, a sword, two body armours, or a `baseType` that
+//! is no string — so that `class` and `category` vary and may be open,
+//! as terms, `has:`, probes and a count's keys; the ranged family, the
+//! plain, the attacks' and the spells' totals of cold damage over the
+//! unsuffixed line and the spells' own, with and without a slot word, the
+//! plain and the spells' reading what the item is; the two arrays no
+//! total reads, `crucibleMods` and `utilityMods`, with their holes; and
+//! the base defence percentile over a displayed `Armour` and `Energy
+//! Shield`, the lines the defence table names — a twin text, a text only
+//! a local stat displays, the enchant — and the two marks that say whose
+//! an implicit twin is, each a yes, a no or neither. The percentile is
+//! the one value a rule leaves open on an item with nothing unread
+//! (J33), which [`TermKind::Ruled`] says of its terms.
+//!
 //! Nothing here reads the crate's tree, binder or evaluator: a query is
 //! rendered to text and asked, and a body enters through `Store::record`;
 //! a row enters through the pricing area's one write.
@@ -75,6 +90,17 @@ pub const ALL_RES: &str = "#% to all Elemental Resistances";
 pub const LIFE_COLD: &str = "# to maximum Life\\n#% to Cold Resistance";
 /// A row of Thread of Hope's mod that carries no number.
 pub const PASSAGE: &str = "Passage";
+/// The spells' own ranged line: a row of the spells' total that reads
+/// nothing of the item, beside `ADDS`, whose row there does (J7, J30).
+pub const ADDS_SPELLS: &str = "Adds # to # Cold Damage to Spells";
+/// A twin text of the defence table: a local stat and a global one both
+/// display it (J8).
+pub const ARMOUR: &str = "# to Armour";
+
+/// The bases an item is of: a ring, a weapon, a body armour ranging one
+/// defence (armour 19 to 27) and one ranging two (armour 27 to 38,
+/// energy shield 9 to 13).
+pub const BASES: [&str; 4] = ["Iron Ring", "Rusted Sword", "Plate Vest", "Chainmail Vest"];
 
 /// Values and bounds share one small range, so that a bound lands
 /// immediately below, at and above a value, zero and negatives included
@@ -99,7 +125,7 @@ fn quoted(template: &str) -> String {
 fn template_leaf() -> BoxedStrategy<String> {
     prop_oneof![
         2 => proptest::sample::select(vec![
-            LIFE, COLD, ADDS, FROZEN, SPIRIT, FIRE, ALL_RES, LIFE_COLD,
+            LIFE, COLD, ADDS, FROZEN, SPIRIT, FIRE, ALL_RES, LIFE_COLD, ADDS_SPELLS, ARMOUR,
         ])
         .prop_map(quoted),
         // a quoted string with no `#` is a phrase: a row that carries no
@@ -114,6 +140,7 @@ fn template_leaf() -> BoxedStrategy<String> {
             "template:spirit",
             "template:nothing",
             "template:leeched",
+            "template:armour",
             // a word no line has whole and some have part of: the zero
             // block's suggestions
             "template:lifes",
@@ -147,6 +174,8 @@ fn restriction_leaf() -> BoxedStrategy<String> {
         "source=implicit",
         "source=hybrid",
         "source:plicit",
+        "source=crucible",
+        "source=utility",
         "is:crafted",
         "is:fractured",
     ])
@@ -200,6 +229,9 @@ fn template_and_comparison() -> BoxedStrategy<(String, String)> {
         (ALL_RES, "arg1"),
         (LIFE_COLD, "arg1"),
         (LIFE_COLD, "arg2"),
+        (ADDS_SPELLS, "low"),
+        (ADDS_SPELLS, "high"),
+        (ARMOUR, "arg1"),
     ])
     .prop_map(|(template, slot)| (quoted(template), slot));
     let worded = (
@@ -364,6 +396,10 @@ pub enum Q {
     /// A named total's comparison, `pseudo.total_res>=6`: a sum over the
     /// item's lines (C94), so it moves as a sum does.
     Total(String),
+    /// A term on the base defence percentile: a value a rule may leave
+    /// open on an item with nothing unread (J33), and one that moves with
+    /// the item's lines as no sum does.
+    Ruled(String),
     And(Vec<Q>),
     Or(Vec<Q>),
     Not(Box<Q>),
@@ -379,6 +415,8 @@ pub enum TermKind {
     Group,
     Sum,
     Probe,
+    /// The percentile's: open by rule on some item with nothing unread.
+    Ruled,
 }
 
 fn slot_word() -> BoxedStrategy<String> {
@@ -455,6 +493,20 @@ fn plain() -> BoxedStrategy<Q> {
             "sockets.blue=0",
             "sockets.white>=1",
             "sockets.green<=1",
+            "category=weapon",
+            "category=\"accessory.ring\"",
+            "category=accessory",
+            "category=armour",
+            "category:chest",
+            "category:sword",
+            "has:category",
+            "-has:category",
+            "class:ring",
+            "class=\"Body Armours\"",
+            "class:sword",
+            "base:vest",
+            "is:searing",
+            "is:synthesised",
         ]),
         // an authoring error: never evaluated, and the same error however
         // the rest is written
@@ -472,13 +524,50 @@ pub const PRICE: [&str; 3] = ["priced", "price.amount", "price.currency"];
 /// derived fields over the properties, compared within the bounds of
 /// `comparison()`; `has:` of a derived field and of a reading; and — one
 /// time in fifteen — `has:` of a total, which asks its presence (C94).
-pub const PSEUDO: [&str; 5] = [
+/// Since step 9e the ranged family's three totals of cold damage, a bare
+/// name being its `avg`, and the base defence percentile, compared
+/// within the bounds of `percent()`.
+pub const PSEUDO: [&str; 9] = [
     "pseudo.total_res",
     "pseudo.count_ele_res",
     "pseudo.total_all_ele_res",
     "pseudo.dps",
     "pseudo.pdps",
+    RANGED[0],
+    RANGED[1],
+    RANGED[2],
+    PERCENTILE,
 ];
+
+/// The ranged family's totals the generated lines feed (`totals.rs`,
+/// C94): the plain and the spells' read what the item is, the attacks'
+/// does not.
+pub const RANGED: [&str; 3] = [
+    "pseudo.adds_cold",
+    "pseudo.adds_cold_to_attacks",
+    "pseudo.adds_cold_to_spells",
+];
+
+/// How a ranged total is asked: bare, which is its `avg`, or by a slot
+/// word.
+pub const SLOTS: [&str; 4] = ["", ".low", ".high", ".avg"];
+
+/// The base defence percentile (`pseudo.rs`, C101).
+pub const PERCENTILE: &str = "pseudo.defence_pct";
+
+/// The fields a base decides, as `undecided( … )` asks them.
+pub const BASED: [&str; 2] = ["class", "category"];
+
+/// A bound the percentile is compared with: the ends of its range, what
+/// the generated displays give between them, and one past each end (J34).
+fn percent() -> BoxedStrategy<String> {
+    (
+        proptest::sample::select(vec![">=", ">", "<=", "<", "="]),
+        proptest::sample::select(vec![-1, 0, 1, 27, 50, 100, 138]),
+    )
+        .prop_map(|(op, n)| format!("{op}{n}"))
+        .boxed()
+}
 
 fn pseudo_leaf() -> BoxedStrategy<Q> {
     prop_oneof![
@@ -493,6 +582,17 @@ fn pseudo_leaf() -> BoxedStrategy<Q> {
         2 => proptest::sample::select(vec!["has:pseudo.count_ele_res", "has:pseudo.total_all_ele_res"])
             .prop_map(|text| Q::Plain(text.to_string())),
         1 => Just(Q::Plain("has:pseudo.total_res".to_string())),
+        // a ranged total, bare and by each slot word, and its presence
+        4 => (
+            proptest::sample::select(RANGED.to_vec()),
+            proptest::sample::select(SLOTS.to_vec()),
+            comparison(),
+        )
+            .prop_map(|(total, slot, cmp)| Q::Total(format!("{total}{slot}{cmp}"))),
+        1 => proptest::sample::select(RANGED.to_vec())
+            .prop_map(|total| Q::Total(format!("has:{total}"))),
+        4 => percent().prop_map(|cmp| Q::Ruled(format!("{PERCENTILE}{cmp}"))),
+        1 => Just(Q::Ruled(format!("has:{PERCENTILE}"))),
     ]
     .boxed()
 }
@@ -578,6 +678,21 @@ fn alt() -> BoxedStrategy<Q> {
             "price.currency=chaos".into(),
             TermKind::Plain,
         ),
+        (
+            "CATEGORY=Weapon".into(),
+            "category=weapon".into(),
+            TermKind::Plain,
+        ),
+        (
+            "pseudo.ADDS_COLD.low>=3".into(),
+            "pseudo.adds_cold.low>=3".into(),
+            TermKind::Sum,
+        ),
+        (
+            "pseudo.Defence_PCT>=50".into(),
+            "pseudo.defence_pct>=50".into(),
+            TermKind::Ruled,
+        ),
     ];
     proptest::sample::select(pairs)
         .prop_map(|(spelled, explicit, kind)| Q::Alt(spelled, explicit, kind))
@@ -591,12 +706,15 @@ fn q_leaf(probes: bool) -> BoxedStrategy<Q> {
         3 => (group(), slot_word(), comparison()).prop_map(|(g, s, c)| Q::Sum(g, s, c)),
         2 => (group(), slot_word(), comparison()).prop_map(|(g, s, c)| Q::Proj(g, s, c)),
         open => (group(), slot_word(), any::<bool>()).prop_map(|(g, s, sum)| Q::Open(g, s, sum)),
-        open => proptest::sample::select(PSEUDO.to_vec())
-            .prop_map(|value| Q::Probe(format!("undecided({value})"))),
-        open => proptest::sample::select(PRICE.to_vec())
-            .prop_map(|value| Q::Probe(format!("undecided({value})"))),
+        // one arm: past ten the macro refuses a weight of nothing
+        open * 2 => prop_oneof![
+            4 => proptest::sample::select(PSEUDO.to_vec()),
+            2 => proptest::sample::select(PRICE.to_vec()),
+            1 => proptest::sample::select(BASED.to_vec()),
+        ]
+        .prop_map(|value| Q::Probe(format!("undecided({value})"))),
         4 => plain(),
-        3 => pseudo_leaf(),
+        5 => pseudo_leaf(),
         2 => alt(),
         2 => linked().prop_map(Q::Linked),
     ]
@@ -699,7 +817,7 @@ fn text(q: &Q, top: bool, spelling: Spelling) -> String {
             .join(joiner)
     };
     match q {
-        Q::Plain(term) | Q::Probe(term) | Q::Total(term) => term.clone(),
+        Q::Plain(term) | Q::Probe(term) | Q::Total(term) | Q::Ruled(term) => term.clone(),
         Q::Alt(spelled, explicit, _) => match spelling {
             Spelling::Authored => spelled.clone(),
             Spelling::Explicit => explicit.clone(),
@@ -729,7 +847,7 @@ fn text(q: &Q, top: bool, spelling: Spelling) -> String {
 /// levels: nested ands and ors flattened, a doubled not cancelled.
 pub fn normal(q: &Q) -> Q {
     match q {
-        Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Alt(..) => q.clone(),
+        Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Ruled(_) | Q::Alt(..) => q.clone(),
         Q::Line(g) => Q::Line(g_normal(g)),
         Q::Linked(g) => Q::Linked(g_normal(g)),
         Q::Sum(g, slot, cmp) => Q::Sum(g_normal(g), slot.clone(), cmp.clone()),
@@ -782,7 +900,7 @@ pub fn shuffled(q: &Q, seed: u64) -> Q {
             children
         };
         match q {
-            Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Alt(..) => q.clone(),
+            Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Ruled(_) | Q::Alt(..) => q.clone(),
             Q::Line(g) => Q::Line(g_shuffled(g, rng)),
             Q::Linked(g) => Q::Linked(g_shuffled(g, rng)),
             Q::Sum(g, slot, cmp) => Q::Sum(g_shuffled(g, rng), slot.clone(), cmp.clone()),
@@ -821,7 +939,9 @@ pub fn padded(q: &Q, seed: u64) -> Q {
             children.iter().map(|c| walk(c, rng)).collect()
         };
         match q {
-            Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Alt(..) | Q::Linked(_) => q.clone(),
+            Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Ruled(_) | Q::Alt(..) | Q::Linked(_) => {
+                q.clone()
+            }
             Q::Line(g) => Q::Line(g_padded(g, rng)),
             Q::Sum(g, slot, cmp) => Q::Sum(g_padded(g, rng), slot.clone(), cmp.clone()),
             Q::Proj(g, slot, cmp) => Q::Proj(g_padded(g, rng), slot.clone(), cmp.clone()),
@@ -919,7 +1039,7 @@ fn sorted(q: &Q) -> Q {
         children
     };
     match q {
-        Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Alt(..) => q.clone(),
+        Q::Plain(_) | Q::Probe(_) | Q::Total(_) | Q::Ruled(_) | Q::Alt(..) => q.clone(),
         Q::Line(g) => Q::Line(g_sorted(g)),
         Q::Linked(g) => Q::Linked(g_sorted(g)),
         Q::Sum(g, slot, cmp) => Q::Sum(g_sorted(g), slot.clone(), cmp.clone()),
@@ -952,6 +1072,7 @@ pub fn terms(q: &Q) -> Vec<(String, TermKind)> {
             Q::Line(_) | Q::Linked(_) | Q::Proj(..) => out.push((key(q), TermKind::Group)),
             Q::Sum(..) | Q::Total(_) => out.push((key(q), TermKind::Sum)),
             Q::Open(..) | Q::Probe(_) => out.push((key(q), TermKind::Probe)),
+            Q::Ruled(_) => out.push((key(q), TermKind::Ruled)),
             Q::And(children) | Q::Or(children) | Q::Holds(children, _) => {
                 children.iter().for_each(|c| walk(c, out));
             }
@@ -1031,7 +1152,7 @@ pub struct LineM {
     pub kind: u8,
     pub n: i32,
     /// The number is written with more decimals than the search reads: an
-    /// unread slot, which a completion fills with a number. Never on the
+    /// unread slot, which a completion fills with a number. Never on a
     /// ranged line, whose second number is read and must stay as it is.
     /// On a mod of several rows it is the first number, its other row's
     /// read.
@@ -1047,7 +1168,13 @@ pub struct LineM {
 }
 
 /// How many kinds of line there are.
-pub const KINDS: u8 = 11;
+pub const KINDS: u8 = 16;
+
+/// The kinds whose number is never written unread: the ranged lines,
+/// whose second number is read and must stay, and the lines with none.
+fn numbered(kind: u8) -> bool {
+    !matches!(kind, 2 | 3 | 11 | 15)
+}
 
 impl LineM {
     /// The rows the line displays, each with its numbers: one, but for a
@@ -1089,13 +1216,26 @@ impl LineM {
             ],
             // two rows, each with a number: the second row's first number
             // is the mod's second
-            _ => vec![
+            10 => vec![
                 format!("{first} to maximum Life"),
                 format!(
                     "{}% to Cold Resistance",
                     n(self.second.unwrap_or(9 - self.n), false)
                 ),
             ],
+            // the spells' own ranged line
+            11 => vec![format!(
+                "Adds {} to {} Cold Damage to Spells",
+                self.n.abs(),
+                self.n.abs() + 5
+            )],
+            // the defence table's lines: two twin texts, one that adds
+            // and one that increases, a text only a local stat displays,
+            // and the enchant
+            12 => vec![format!("{first} to Armour")],
+            13 => vec![format!("{first}% increased Armour")],
+            14 => vec![format!("{first}% increased Armour and Energy Shield")],
+            _ => vec!["Quality does not increase Defences".to_string()],
         }
     }
 
@@ -1134,15 +1274,20 @@ pub enum PropName {
     Elemental,
     Chaos,
     Quality,
+    /// Two of the four defences the percentile reads.
+    Armour,
+    EnergyShield,
 }
 
 impl PropName {
-    const ALL: [PropName; 5] = [
+    const ALL: [PropName; 7] = [
         PropName::Aps,
         PropName::Physical,
         PropName::Elemental,
         PropName::Chaos,
         PropName::Quality,
+        PropName::Armour,
+        PropName::EnergyShield,
     ];
 
     pub fn shown(self) -> &'static str {
@@ -1152,6 +1297,8 @@ impl PropName {
             PropName::Elemental => "Elemental Damage",
             PropName::Chaos => "Chaos Damage",
             PropName::Quality => "Quality",
+            PropName::Armour => "Armour",
+            PropName::EnergyShield => "Energy Shield",
         }
     }
 
@@ -1164,6 +1311,9 @@ impl PropName {
             PropName::Elemental => &["0-0", "2-4", "5-9", "10-17", "12-19"],
             PropName::Chaos => &["0-0", "1-3", "3", "8-11", "12-19"],
             PropName::Quality => &["+0%", "+20%"],
+            // the ends of each body armour's range, between them, past them
+            PropName::Armour => &["19", "23", "27", "30", "45"],
+            PropName::EnergyShield => &["9", "11", "13", "20"],
         }
     }
 }
@@ -1261,6 +1411,16 @@ pub struct Body {
     pub props: Props,
     /// The socket collection.
     pub socks: Socks,
+    /// The item's `baseType`, one of [`BASES`]; `None` is one that is no
+    /// string, which leaves the class and the category open.
+    pub base: Option<&'static str>,
+    /// The two arrays no total reads (J29), a crucible node's lines and
+    /// a flask's own, which a line's term and the percentile read.
+    pub crucible: Lines,
+    pub utility: Lines,
+    /// The marks that say whose an implicit twin text is (J8).
+    pub searing: Tri,
+    pub synthesised: Tri,
 }
 
 fn tri(holes: bool) -> BoxedStrategy<Tri> {
@@ -1283,7 +1443,7 @@ pub fn line(holes: bool) -> BoxedStrategy<LineM> {
         .prop_map(|(kind, n, unread, flags)| LineM {
             kind,
             n,
-            unread_number: unread && kind != 2 && kind != 3,
+            unread_number: unread && numbered(kind),
             flags,
             row: None,
             second: None,
@@ -1340,12 +1500,12 @@ fn socks(holes: bool) -> BoxedStrategy<Socks> {
     .boxed()
 }
 
-/// The `properties` array: some of the five names, each once, in any
+/// The `properties` array: some of the seven names, each once, in any
 /// order; with `holes`, an element that is no property among them, or
 /// no array at all.
 fn props(holes: bool) -> BoxedStrategy<Props> {
     let hole = if holes { 1 } else { 0 };
-    let elems = proptest::sample::subsequence(PropName::ALL.to_vec(), 0..=5)
+    let elems = proptest::sample::subsequence(PropName::ALL.to_vec(), 0..=PropName::ALL.len())
         .prop_flat_map(move |names| {
             names
                 .into_iter()
@@ -1354,7 +1514,7 @@ fn props(holes: bool) -> BoxedStrategy<Props> {
         })
         .prop_shuffle();
     let nameless = if holes {
-        proptest::option::weighted(0.15, 0usize..6).boxed()
+        proptest::option::weighted(0.15, 0usize..8).boxed()
     } else {
         Just(None).boxed()
     };
@@ -1407,10 +1567,62 @@ pub fn body(holes: bool) -> BoxedStrategy<Body> {
     some_body(false)
 }
 
+/// An item's base: one of [`BASES`], a body armour four times in nine;
+/// with `holes`, one that is no string.
+fn base(holes: bool) -> BoxedStrategy<Option<&'static str>> {
+    let hole = if holes { 1 } else { 0 };
+    prop_oneof![
+        3 => Just(Some(BASES[0])),
+        2 => Just(Some(BASES[1])),
+        3 => Just(Some(BASES[2])),
+        1 => Just(Some(BASES[3])),
+        hole => Just(None),
+    ]
+    .boxed()
+}
+
+/// A body as the dice give it, or — one time in five — one the
+/// percentile has something to say of: a body armour displaying its
+/// armour, with a twin text among its implicit lines, whose side the
+/// marks decide (J8). The dice alone seldom put the three together.
 fn some_body(holes: bool) -> BoxedStrategy<Body> {
-    let hybrid = prop_oneof![4 => Just(Lines::Absent), 1 => lines(holes)];
+    let defended = (any_body(holes), line(holes), any::<bool>(), 0usize..5).prop_map(
+        |(mut body, mut twin, increases, shown)| {
+            body.base = Some(BASES[2]);
+            twin.kind = if increases { 13 } else { 12 };
+            match &mut body.implicit {
+                Lines::Of(elems) => elems.insert(0, Elem::Line(twin)),
+                other => *other = Lines::Of(vec![Elem::Line(twin)]),
+            }
+            let armour = Prop::Read(
+                PropName::Armour,
+                vec![PropName::Armour.readable()[shown].to_string()],
+            );
+            match &mut body.props {
+                Props::Of(elems) => {
+                    elems.retain(|p| p.name() != Some(PropName::Armour));
+                    elems.push(armour);
+                }
+                other => *other = Props::Of(vec![armour]),
+            }
+            body
+        },
+    );
+    prop_oneof![4 => any_body(holes), 1 => defended].boxed()
+}
+
+fn any_body(holes: bool) -> BoxedStrategy<Body> {
+    let seldom = |holes: bool| prop_oneof![4 => Just(Lines::Absent), 1 => lines(holes)];
+    let hybrid = seldom(holes);
     (
         (lines(holes), lines(holes), hybrid),
+        (
+            base(holes),
+            seldom(holes),
+            seldom(holes),
+            tri(holes),
+            tri(holes),
+        ),
         (
             tri(holes),
             proptest::bool::weighted(if holes { 0.1 } else { 0.0 }),
@@ -1436,6 +1648,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
         .prop_map(
             |(
                 (explicit, implicit, hybrid),
+                (base, crucible, utility, searing, synthesised),
                 (corrupted, influences_hole, shaper, hunter),
                 ilvl,
                 reqlevel,
@@ -1457,6 +1670,11 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
                 note,
                 props,
                 socks,
+                base,
+                crucible,
+                utility,
+                searing,
+                synthesised,
             },
         )
         .boxed()
@@ -1464,7 +1682,7 @@ fn some_body(holes: bool) -> BoxedStrategy<Body> {
 
 /// A body with something unread in it, whatever the dice gave.
 pub fn holed() -> BoxedStrategy<Body> {
-    (some_body(true), 0u8..7)
+    (some_body(true), 0u8..10)
         .prop_map(|(mut body, which)| {
             if !body.has_holes() {
                 match which {
@@ -1474,6 +1692,9 @@ pub fn holed() -> BoxedStrategy<Body> {
                     3 => body.reqlevel = Known::Hole,
                     4 => body.props = Props::Hole,
                     5 => body.socks = Socks::Of(vec![Sock::Of("R", 0), Sock::Blind(0), Sock::Junk]),
+                    6 => body.base = None,
+                    7 => body.crucible = Lines::Hole,
+                    8 => body.searing = Tri::Hole,
                     _ => body.ilvl = Known::Hole,
                 }
             }
@@ -1500,6 +1721,11 @@ impl Body {
             note: Known::Absent,
             props: Props::Absent,
             socks: Socks::Absent,
+            base: Some(if flag == Tri::Yes { BASES[2] } else { BASES[0] }),
+            crucible: Lines::Absent,
+            utility: Lines::Absent,
+            searing: flag,
+            synthesised: Tri::No,
         }
     }
 
@@ -1508,7 +1734,10 @@ impl Body {
     /// of completions tries an unread number as several, a name as two and
     /// as none, and three flags every way, whatever the dice gave — and
     /// whose properties are none, a whole weapon's, an attack speed with
-    /// no damage, or a damage with no attack speed.
+    /// no damage, or a damage with no attack speed — the last two with a
+    /// defence displayed, on the body armours the round gives them — and
+    /// whose lines are in the hybrid array too, in a crucible node's or
+    /// among a flask's own, by turns.
     pub fn nth(n: usize, lines: Vec<LineM>) -> Body {
         let read = |name: PropName, values: &[&str]| {
             Prop::Read(name, values.iter().map(|v| v.to_string()).collect())
@@ -1524,6 +1753,19 @@ impl Body {
             } else {
                 Lines::Absent
             },
+            crucible: if n % 3 == 1 {
+                of(&lines)
+            } else {
+                Lines::Absent
+            },
+            utility: if n % 3 == 2 {
+                of(&lines)
+            } else {
+                Lines::Absent
+            },
+            base: Some(BASES[n % 4]),
+            searing: if n % 3 == 1 { Tri::Yes } else { Tri::No },
+            synthesised: if n % 5 == 2 { Tri::Yes } else { Tri::No },
             corrupted: flag(0),
             influences_hole: false,
             shaper: flag(1),
@@ -1568,8 +1810,13 @@ impl Body {
                 Props::Of(vec![
                     read(PropName::Quality, &["+20%"]),
                     read(PropName::Aps, &["2"]),
+                    read(PropName::Armour, &["23"]),
                 ]),
-                Props::Of(vec![read(PropName::Physical, &["10-20"])]),
+                Props::Of(vec![
+                    read(PropName::Physical, &["10-20"]),
+                    read(PropName::Armour, &["30"]),
+                    read(PropName::EnergyShield, &["11"]),
+                ]),
             ][n % 4]
                 .clone(),
             // none, one group of three, two groups, GGG's `[]`, six white
@@ -1630,6 +1877,8 @@ impl Body {
             explicit: apart(&self.explicit),
             implicit: apart(&self.implicit),
             hybrid: apart(&self.hybrid),
+            crucible: apart(&self.crucible),
+            utility: apart(&self.utility),
             ..self.clone()
         }
     }
@@ -1645,6 +1894,8 @@ impl Body {
             explicit: reversed(&self.explicit),
             implicit: reversed(&self.implicit),
             hybrid: reversed(&self.hybrid),
+            crucible: reversed(&self.crucible),
+            utility: reversed(&self.utility),
             props: match &self.props {
                 Props::Of(elems) => Props::Of(elems.iter().rev().cloned().collect()),
                 other => other.clone(),
@@ -1670,6 +1921,23 @@ impl Body {
             explicit: twice(&self.explicit),
             implicit: twice(&self.implicit),
             hybrid: twice(&self.hybrid),
+            crucible: twice(&self.crucible),
+            utility: twice(&self.utility),
+            ..self.clone()
+        }
+    }
+
+    /// The body with the two arrays no total reads (J29) as something
+    /// else: none where there was one, an array that is no array where
+    /// there was none. Every other part of it as it is.
+    pub fn without_what_no_total_reads(&self) -> Body {
+        let other = |lines: &Lines| match lines {
+            Lines::Absent => Lines::Hole,
+            _ => Lines::Absent,
+        };
+        Body {
+            crucible: other(&self.crucible),
+            utility: other(&self.utility),
             ..self.clone()
         }
     }
@@ -1694,6 +1962,11 @@ impl Body {
         of(&self.explicit)
             || of(&self.implicit)
             || of(&self.hybrid)
+            || of(&self.crucible)
+            || of(&self.utility)
+            || self.base.is_none()
+            || tri(self.searing)
+            || tri(self.synthesised)
             || tri(self.corrupted)
             || self.influences_hole
             || tri(self.shaper)
@@ -1735,17 +2008,23 @@ impl Body {
             (Tri::Hole, from) => from,
             (known, _) => known,
         };
-        let mut spare: Vec<LineM> = [&fill.explicit, &fill.implicit, &fill.hybrid]
-            .into_iter()
-            .flat_map(|lines| match lines {
-                Lines::Of(elems) => elems.clone(),
-                _ => Vec::new(),
-            })
-            .filter_map(|e| match e {
-                Elem::Line(l) => Some(l),
-                Elem::Junk => None,
-            })
-            .collect();
+        let mut spare: Vec<LineM> = [
+            &fill.explicit,
+            &fill.implicit,
+            &fill.hybrid,
+            &fill.crucible,
+            &fill.utility,
+        ]
+        .into_iter()
+        .flat_map(|lines| match lines {
+            Lines::Of(elems) => elems.clone(),
+            _ => Vec::new(),
+        })
+        .filter_map(|e| match e {
+            Elem::Line(l) => Some(l),
+            Elem::Junk => None,
+        })
+        .collect();
         let mut of = |lines: &Lines, from: &Lines| match lines {
             Lines::Absent => Lines::Absent,
             Lines::Hole => from.clone(),
@@ -1798,6 +2077,8 @@ impl Body {
         let explicit = of(&self.explicit, &fill.explicit);
         let implicit = of(&self.implicit, &fill.implicit);
         let hybrid = of(&self.hybrid, &fill.hybrid);
+        let crucible = of(&self.crucible, &fill.crucible);
+        let utility = of(&self.utility, &fill.utility);
         let known = |k: &Known<&'static str>, from: &Known<&'static str>| match (k, from) {
             (Known::Hole, Known::Hole) => Known::Absent,
             (Known::Hole, from) => from.clone(),
@@ -1881,8 +2162,14 @@ impl Body {
             explicit,
             implicit,
             hybrid,
+            crucible,
+            utility,
             props,
             socks,
+            // a base that was no string may be any base
+            base: self.base.or(fill.base).or(Some(BASES[0])),
+            searing: filled(self.searing, fill.searing),
+            synthesised: filled(self.synthesised, fill.synthesised),
             corrupted: filled(self.corrupted, fill.corrupted),
             influences_hole: false,
             shaper: influence(self.shaper, fill.shaper),
@@ -1950,6 +2237,24 @@ impl Body {
                 body.insert("hybrid".into(), hole);
             }
         }
+        for (key, lines) in [
+            ("crucibleMods", &self.crucible),
+            ("utilityMods", &self.utility),
+        ] {
+            if let Some(lines) = of(lines) {
+                body.insert(key.into(), lines);
+            }
+        }
+        // the header's `typeLine` stays the fixture's: only the base moves
+        body.insert(
+            "baseType".into(),
+            match self.base {
+                Some(base) => json!(base),
+                None => json!(5),
+            },
+        );
+        body.insert("searing".into(), tri(self.searing));
+        body.insert("synthesised".into(), tri(self.synthesised));
         body.insert("corrupted".into(), tri(self.corrupted));
         body.insert(
             "influences".into(),
@@ -2066,8 +2371,9 @@ fn fast(name: &str) -> Value {
 }
 
 /// The six items the audits' reproductions were made of, a seventh that
-/// is past every bound, and an eighth past the bound on the reasons a
-/// computed value makes beyond the item's own parts.
+/// is past every bound, an eighth past the bound on the reasons a
+/// computed value makes beyond the item's own parts, a ninth of sockets,
+/// and two of what step 9d built.
 pub fn anchors() -> Vec<Value> {
     vec![
         json!({"explicitMods": ["+95 to maximum Life"]}),
@@ -2102,6 +2408,17 @@ pub fn anchors() -> Vec<Value> {
         json!({"explicitMods": ["+50 to maximum Life"], "sockets": [
             {"group": 0, "attr": "S", "sColour": "R"}, {"group": 0, "attr": "D"},
             {"sColour": "B"}, 7]}),
+        // what step 9d built, with its holes (step 9e): a body armour
+        // displaying its defence, an implicit twin whose side a mark that
+        // is no yes or no leaves open, a resistance among a flask's own
+        // lines, and a crucible node's lines unread, which no total reads
+        json!({"baseType": "Plate Vest", "searing": "unread",
+            "properties": [{"name": "Armour", "values": [["23", 0]], "displayMode": 0}],
+            "implicitMods": ["+3 to Armour"],
+            "utilityMods": ["+30% to Cold Resistance"], "crucibleMods": "unread"}),
+        // and an item whose base is no string, with the unsuffixed ranged
+        // line: the attacks' total answers and the plain is open (J30)
+        json!({"baseType": 5, "explicitMods": ["Adds 3 to 10 Cold Damage"]}),
     ]
 }
 
