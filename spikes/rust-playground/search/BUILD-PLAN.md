@@ -131,10 +131,11 @@ it could ask and what it refused by name: this file at `880d9387`.
 
 ## The steps left — provisional, his to reorder
 
-9d was built one piece at a time — B, C and A, each closed
-(`search/LEDGER.md`) before the next was briefed. Within a piece one agent writes at a time,
-in this checkout, the tree its alone while it runs and the session
-waiting:
+A step whose answers can be written before it is built is built as 9d
+was — B, C and A, each closed (`search/LEDGER.md`) before the next was
+briefed — where the owner says so at its opening; 9e was the session's
+own work. Within such a piece one agent writes at a time, in this
+checkout, the tree its alone while it runs and the session waiting:
 
 1. **The expected answers first**: a committed table in the piece's
    track, generated from the captures by a script
@@ -158,7 +159,7 @@ the piece and bring it to the owner.
 
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
-| 10 · continuing and exchanging | in the order the seat wanted them (the sitter, 2026-09-26): `--explain` and `show --against` first — a zero answer was where they were missed; `--next` and `--request` for the MCP, an agent pages and replays; `--view locations`, `--fields`, `--rebind` and `show --basis` had no consumer at the seat and wait for one. `--next` refused across a changed basis; `--membership all` (the reference, *Membership*): the read hands removed items over with `removed_at`, every such row marked, the scope block counting each, an `id:` term that matches nothing live naming the removed id and its route, `acq show` on a removed item; `--print-request`, `--request`, `--rebind`; `show <id> --against`; `--explain`; `--context corpus`; `--view locations`; `--fields` | 4 | C98, C100, C104, C108; the reference, *Membership*, *Explain*, *Outside the first surface*; `answer.rs`, `corpus.rs`; gap 3 (the record) | AQ3 whole; AQ4 across a refresh that removed the item; M5 |
+| 10 · continuing and exchanging | in the order the seat wanted them (the sitter, 2026-09-26): `--explain` and `show <id> --against` first — a zero answer was where they were missed — and `--context corpus` with them, the zero block offering the two together (the reference, *When the total is zero*); then `--next` and `--request` for the MCP, an agent pages and replays, `--next` refused across a changed basis, and `--print-request` with `--request`, the one printing what the other reads; then `--membership all` (the reference, *Membership*), which step 11's retirement needs and no question at the seat did: the read hands removed items over with `removed_at`, every such row marked, the scope block counting each, an `id:` term that matches nothing live naming the removed id and its route, `acq show` on a removed item. Not built in this step, each waiting for a consumer that asks: `--view locations`, `--fields`, `--rebind`, `show --basis` — each stays refused by name, and the step's close rewords what the build says is "step 10" of them today | 4 | C98, C100, C104, C108; the reference, *Membership*, *Explain*, *Outside the first surface*; `answer.rs`, `corpus.rs`; gap 3 (the record) | AQ3 whole; AQ4 across a refresh that removed the item; M5 |
 | 11 · the close | the MCP tool over the same request, with an agent's seat as its own consumer (P2), `--membership all` among what it validates; `acq items search` retired (below); the closed record, and whether its rows fold back into it from `search/LEDGER.md` or stay a file looked up (the owner's); this file deleted; `search/` shrunk; `DESIGN.md`'s paragraphs into module docs | all | everything above; `decisions/frontends.md`; the kill list (`DIGEST.md`); `MCP-REFERENCE.md`; "What happens to `acq items search`" below | AQ1–AQ5 driven through the MCP; the gate; the kill-list recheck |
 
 Not in this plan: the trade translation (C99, headed "Direction"). No
