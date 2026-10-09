@@ -1342,3 +1342,47 @@ fn c97_describe_of_the_percentile_prints_its_definition() {
         asked(&s, example);
     }
 }
+
+/// A vocabulary narrowing lists the percentile by its name or by what it
+/// reads and answers — its own definition — and never by the bookkeeping
+/// its definition prints beside that: the captured lines a part rests on
+/// and the script that counted them, the table's version, its sources
+/// and its counts. By a word of those it would be listed under a text
+/// that names no line and no value (T5: a narrowing lists those it
+/// matches; the look at the build, 2026-10-08).
+#[test]
+fn c97_a_narrowing_matches_what_the_percentile_reads_and_never_its_bookkeeping() {
+    let s = worked();
+    let corpus = load(&s, Some("pc"));
+    let computed = |narrow: &str| -> Vec<String> {
+        viewed(
+            &corpus,
+            "",
+            json!({ "counts": { "keys": [format!("line:{narrow}")], "limit": 1000 } }),
+        )["view"]["counts"]["tables"][0]["buckets"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|b| b["bucket"] == "computed")
+            .map(|b| b["value"].as_str().unwrap().to_string())
+            .collect()
+    };
+    // every one of these is in the definition `--describe` prints
+    let one = serde_json::to_value(describe(&["defence_pct".to_string()]).unwrap()).unwrap();
+    let what = one["computed"][0]["what"].as_str().unwrap().to_string();
+    for word in [
+        "442",
+        "17 of 17",
+        "defence-twins",
+        "scripts",
+        "defences v1",
+        "RePoE",
+        "476",
+    ] {
+        assert!(what.contains(word), "{word}: {what}");
+        assert_eq!(computed(word), [] as [&str; 0], "line:{word}");
+    }
+    for word in ["percentile", "defence_pct", "exact half", "crucible node"] {
+        assert_eq!(computed(word), [FIELD], "line:{word}");
+    }
+}

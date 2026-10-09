@@ -202,7 +202,9 @@
 //!   name or definition its narrowing matches — a total's own
 //!   definition, its rows and its limit, never the rule the table states
 //!   of every total (J29), by a word of which every total would be
-//!   listed — and none under `line`
+//!   listed, and the percentile's what it reads and answers, never the
+//!   captured counts and the table's provenance its definition prints
+//!   beside that — and none under `line`
 //!   alone, where `--describe` names them (owner, 2026-09-24, T5 in
 //!   `search/LEDGER.md`; the reference, `--count line[:text]`;
 //!   `counts.rs`), marked computed, with the count of the matches that
@@ -323,11 +325,28 @@ impl Derived {
                 "physical damage per second: the attacks per second times the mean of `Physical Damage`; an item lacking either property lacks it".to_string()
             }
             Derived::DefencePct => format!(
-                "the trade site's Base Percentile, by the site's own rule — \"{SITE_TIP}\": each of `Armour`, `Evasion Rating`, `Energy Shield` and `Ward` that the item's base ranges is worked back from the number displayed to the roll behind it, a roll being any whole number whose display is the item's — (the roll + what the item's own lines add) × (1 + the item's own increases) × (1 + the quality displayed), rounded half up — and the value is each roll's place in the base's range as a percentage, averaged over the defences and rounded half up to a whole number. One departure from the site's words: a display at an exact half admits both whole numbers as rolls (J5). Under `Quality does not increase Defences` the quality is dropped. A line whose text a global stat displays too, a twin text, is told by where it sits: an explicit is the item's own (442 of 442 captured lines); an implicit on an eldritch item, `searing` or `tangled`, is the global stat and left out (17 of 17); an implicit on a synthesised item is the item's own (10 of 10) — counted by search/pseudo-stats/scripts/defence-twins.py. A roll out of the base's range still reads, over 100 above its maximum and below 0 under its minimum (J34), which no capture has shown: a line misread can show a number out of range. An item displaying none of the four defences lacks it. It is undecided, with the reason, wherever what the item shows does not give one value from lines whose side is established (J33): in a realm with no table, on every item; a base the table lacks, holds more than once with nothing telling which, or no row of which has every defence it ranges displayed; a property, an array or a line unread; a twin implicit on an item of neither mark, of both, or whose mark is unread; a twin text in any other array; a defence line of a crucible node, of which the site has not yet been asked; no roll giving the display; a base whose minimum is its maximum; several rolls giving different values. A defence bound on the trade site is inexact (C102). {}",
+                "{} Of the captured lines whose side the site's id names, each part holds on all: 442 of 442 explicit, 17 of 17 implicit on an eldritch item, 10 of 10 implicit on a synthesised item — counted by search/pseudo-stats/scripts/defence-twins.py. {}",
+                self.own_definition(),
                 match defences::table() {
                     Ok(table) => table.provenance(),
                     Err(e) => format!("the defence table this build ships does not load: {e}"),
                 }
+            ),
+        }
+    }
+
+    /// What a vocabulary narrowing is matched against ([`OWN`]): what the
+    /// field reads and answers, without the bookkeeping its definition
+    /// prints beside that — the captured lines a part rests on, the
+    /// table's version, sources and counts — which names no line and no
+    /// value, and by a word of which the field would be listed under a
+    /// text it does not read (T5: a narrowing lists those it matches).
+    /// One text, which [`Derived::definition`] prints whole and adds to.
+    pub fn own_definition(self) -> String {
+        match self {
+            Derived::Dps | Derived::Pdps => self.definition(),
+            Derived::DefencePct => format!(
+                "the trade site's Base Percentile, by the site's own rule — \"{SITE_TIP}\": each of `Armour`, `Evasion Rating`, `Energy Shield` and `Ward` that the item's base ranges is worked back from the number displayed to the roll behind it, a roll being any whole number whose display is the item's — (the roll + what the item's own lines add) × (1 + the item's own increases) × (1 + the quality displayed), rounded half up — and the value is each roll's place in the base's range as a percentage, averaged over the defences and rounded half up to a whole number. One departure from the site's words: a display at an exact half admits both whole numbers as rolls (J5). Under `Quality does not increase Defences` the quality is dropped. A line whose text a global stat displays too, a twin text, is told by where it sits: an explicit is the item's own; an implicit on an eldritch item, `searing` or `tangled`, is the global stat and left out; an implicit on a synthesised item is the item's own. A roll out of the base's range still reads, over 100 above its maximum and below 0 under its minimum (J34), which no capture has shown: a line misread can show a number out of range. An item displaying none of the four defences lacks it. It is undecided, with the reason, wherever what the item shows does not give one value from lines whose side is established (J33): in a realm with no table, on every item; a base the table lacks, holds more than once with nothing telling which, or no row of which fits what is displayed; a property, an array or a line unread; a twin implicit on an item of neither mark, of both, or whose mark is unread; a twin text in any other array; a line of a crucible node that the field reads, of which the site has not yet been asked; no roll giving the display; a base whose minimum is its maximum; several rolls giving different values. A defence bound on the trade site is inexact (C102)."
             ),
         }
     }
@@ -1648,13 +1667,19 @@ static DESCRIBED: LazyLock<Vec<Entry>> = LazyLock::new(|| {
 /// (`Total::own_definition`), without the rule the table states of every
 /// total (J29), which names no total and would list every one under a
 /// word of it (T5: a narrowing lists those it matches).
+/// A derived field's is its own too (`Derived::own_definition`): the
+/// percentile's without the bookkeeping its definition prints.
 static OWN: LazyLock<Vec<String>> = LazyLock::new(|| {
     let totals = totals::table().ok();
     DESCRIBED
         .iter()
         .map(|entry| {
+            let name = entry.name.trim_start_matches("pseudo.");
+            if let Some(derived) = Derived::ALL.into_iter().find(|d| d.name() == name) {
+                return derived.own_definition();
+            }
             totals
-                .and_then(|table| table.get(entry.name.trim_start_matches("pseudo.")))
+                .and_then(|table| table.get(name))
                 .map_or_else(|| entry.what.clone(), Total::own_definition)
         })
         .collect()
