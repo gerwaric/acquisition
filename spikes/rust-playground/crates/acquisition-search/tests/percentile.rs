@@ -309,7 +309,7 @@ fn kind_of(cause: &str) -> &'static str {
             "the percentile: base held more than once"
         }
         "base" if cause.contains("has every defence it ranges displayed") => {
-            "the percentile: a defence of the base not displayed"
+            "the percentile: no row of the base fits what is displayed"
         }
         "an implicit twin on an item of neither mark" => {
             "the percentile: an implicit twin on an item of neither mark"
@@ -1048,6 +1048,96 @@ fn rule_8_what_the_percentile_asks_opens_it() {
     );
 }
 
+/// Four edges the look at the build found (2026-10-08), each a rule
+/// already stated, misapplied at its edge:
+///
+/// - *A mark is unread wherever the deriver keeps it.* A mark is a yes
+///   under its own key or under `influences`, so one that is no yes or no
+///   under `influences` is unread too: a synthesised item whose
+///   `influences.searing` is unreadable may be of both marks, and its
+///   implicit twin is open — never the synthesised item's own.
+/// - *Unknown of no more than was lost* (rule 8). An item `tangled` is
+///   eldritch whatever `searing` says, so an unreadable `searing` beside
+///   it opens nothing: the implicit twin is the global stat, left out.
+/// - *A crucible node's line the field reads is undecided* (J33), the
+///   enchant that drops the quality term among them: it is no reason to
+///   drop it.
+/// - *A reason says what failed.* Under `100% reduced Armour` every roll
+///   displays 0: the display does not fix the value, which is several
+///   rolls of different values and never "no roll gives the display".
+#[test]
+fn the_edges_of_a_mark_a_crucible_enchant_and_a_display_every_roll_gives() {
+    let vest = |id: &str, properties: &[(&str, &str)], more: Value| {
+        armour(id, "Plate Vest", "Rare", properties, more)
+    };
+    let twin = json!(["19% increased Armour"]);
+    let s = one_tab(vec![
+        vest(
+            "influence",
+            &[("Armour", "23")],
+            json!({ "synthesised": true, "influences": { "searing": "x" }, "implicitMods": twin }),
+        ),
+        vest(
+            "influences",
+            &[("Armour", "23")],
+            json!({ "synthesised": true, "influences": "no object", "implicitMods": twin }),
+        ),
+        // left out: the roll is the display, 23 of 19–27
+        vest(
+            "eldritch",
+            &[("Armour", "23")],
+            json!({ "tangled": true, "searing": "yes", "implicitMods": twin }),
+        ),
+        // an eldritch item that may be synthesised too is of one mark or both
+        vest(
+            "maybe_both",
+            &[("Armour", "23")],
+            json!({ "tangled": true, "synthesised": "yes", "implicitMods": twin }),
+        ),
+        vest(
+            "enchant",
+            &[("Quality", "+20%"), ("Armour", "23")],
+            json!({ "crucibleMods": ["Quality does not increase Defences"] }),
+        ),
+        vest(
+            "nothing",
+            &[("Armour", "0")],
+            json!({ "explicitMods": ["100% reduced Armour"] }),
+        ),
+    ]);
+    let found = |text: &str| ids(&asked(&s, text));
+    assert_eq!(found("pseudo.defence_pct=50"), ["eldritch"]);
+    assert_eq!(
+        found("undecided(pseudo.defence_pct)"),
+        [
+            "enchant",
+            "influence",
+            "influences",
+            "maybe_both",
+            "nothing"
+        ]
+    );
+    let kinds = |id: &str| -> Vec<String> {
+        asked(&s, &format!("id:{id} has:pseudo.defence_pct"))["total"]["undecided_reasons"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["unread"].as_str().unwrap().to_string())
+            .collect()
+    };
+    assert_eq!(kinds("influence"), ["`influences.searing`"]);
+    assert_eq!(kinds("influences"), ["`influences`"]);
+    assert_eq!(kinds("maybe_both"), ["`synthesised`"]);
+    assert_eq!(
+        kinds("enchant"),
+        ["the percentile: a defence line of a crucible node"]
+    );
+    assert_eq!(
+        kinds("nothing"),
+        ["the percentile: several rolls of different values"]
+    );
+}
+
 /// J8, J33, over the table's composed cases (`r-j8-…`, `r-twin-…`,
 /// `r-crucible-line`): a Plate Vest, Armour ranged 19–27, displaying
 /// Armour 23 beside `19% increased Armour`, a text the local stat and the
@@ -1144,7 +1234,7 @@ fn j8_the_items_mark_tells_whose_an_implicit_twin_is() {
 /// its own kind — a slot word where none is taken — never the unknown
 /// name it was, and offers the reading that is right.
 #[test]
-fn has_with_a_slot_word_on_a_ranged_total_is_refused_under_its_own_kind() {
+fn has_with_a_slot_word_on_a_computed_value_is_refused_under_its_own_kind() {
     let s = worked();
     for slot in ["avg", "low", "high", "arg1"] {
         for (text, reading) in [
@@ -1169,6 +1259,21 @@ fn has_with_a_slot_word_on_a_ranged_total_is_refused_under_its_own_kind() {
                 "`{text}`: {e}"
             );
         }
+    }
+    // a computed value that is one number takes none either: the field
+    // this piece built, a total that is no range, a derived field
+    for (text, reading) in [
+        ("has:pseudo.defence_pct.avg", "has:pseudo.defence_pct"),
+        ("has:pseudo.total_res.avg", "has:pseudo.total_res"),
+        ("-has:pseudo.dps.low", "has:pseudo.dps"),
+    ] {
+        let e = refused(&s, text);
+        assert_eq!(e["kind"], "slot_unknown", "`{text}`: {e}");
+        assert_eq!(e["readings"], json!([reading]), "`{text}`: {e}");
+        assert!(
+            e["error"].as_str().unwrap().contains("takes no slot word"),
+            "`{text}`: {e}"
+        );
     }
     // the reading it offers binds; a name nothing defines is unknown
     // still, with a slot word as without one

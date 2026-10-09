@@ -332,9 +332,11 @@ def mark_kind(marks):
     """eldritch | synthesised | both | neither | unread — what J8 reads of the item."""
     if marks is None:
         return "unread"
-    if any(not isinstance(marks.get(k), bool) for k in MARKS if k in marks):
+    eldritch = marks.get("searing") is True or marks.get("tangled") is True
+    # rule 8: an item eldritch by one of its two marks is eldritch whatever the other says
+    asked = ("synthesised",) if eldritch else MARKS
+    if any(not isinstance(marks.get(k), bool) for k in asked if k in marks):
         return "unread"
-    eldritch = bool(marks.get("searing")) or bool(marks.get("tangled"))
     synthesised = bool(marks.get("synthesised"))
     if eldritch and synthesised:
         return "both"
@@ -490,6 +492,13 @@ def read(tables, item, broken=None):
                 line = {"array": array, "flags": shown_flags, "row": row, "template": t, "role": role[0],
                         "twin": t in tables.twins, "mark": kind}
                 lines.append(line)
+                if role[0] == "no-quality" and array == "crucibleMods":
+                    # J33: a crucible node's line the field reads, the enchant among them, is no reason
+                    # to drop the term
+                    line["became"], line["rule"] = "open", "crucible-line"
+                    steps.append("crucible-line")
+                    opened.append(line)
+                    continue
                 if role[0] == "no-quality":
                     # J6, i02: under the enchant that zeroes quality the quality term is dropped
                     line["became"], line["rule"] = "taken: the quality term dropped", "enchant"

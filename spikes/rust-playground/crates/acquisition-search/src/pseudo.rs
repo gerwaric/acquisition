@@ -235,13 +235,18 @@
 //!   a type no roll of the base reads opens nothing, whatever stat it is,
 //!   whatever its array and whether or not its number was read. A mark
 //!   is asked only of an implicit twin text a roll reads, so a mark that
-//!   is no yes or no opens the field there and nowhere else. A flag is
+//!   is no yes or no opens the field there and nowhere else. A mark is
+//!   unread wherever the deriver keeps one — under its own key, under
+//!   `influences`, or an `influences` that is no object — and an item
+//!   eldritch by one of its two marks is eldritch whatever the other
+//!   says. A flag is
 //!   never asked (J32): a line counts by its text. The quality is asked
 //!   only of an item displaying a defence. A property the deriver read
 //!   with no name is a property of no name and none of the field's; one
 //!   whose name it could not read may be any.
 //! - **A property is a whole number, once.** A defence is displayed as
-//!   digits alone and the quality as `+20%`; either displayed otherwise,
+//!   digits alone and the quality as `+20%`, its sign and its `%` each
+//!   read where written; either displayed otherwise,
 //!   with other than one value, or more than once, is unread under
 //!   `properties`, said here, as a damage field's is. A base name the
 //!   table holds on several rows is the one row all of whose defences the
@@ -343,6 +348,15 @@ const SITE_TIP: &str = "The percentile of all base defence rolls, averaged (0-10
 impl Named {
     pub fn ranged(self) -> bool {
         matches!(self, Named::Total { total, .. } if total.ranged)
+    }
+
+    /// The name after `pseudo.`, as the table or the field spells it.
+    pub fn name(self) -> &'static str {
+        match self {
+            Named::Total { total, .. } => &total.name,
+            Named::Reading { reading, .. } => &reading.name,
+            Named::Derived(derived) => derived.name(),
+        }
     }
 }
 
@@ -926,19 +940,27 @@ enum Mark<'a> {
 }
 
 fn mark_of(item: &Item) -> Mark<'_> {
+    let has = |mark: &str| item.flags.iter().any(|flag| flag == mark);
+    let eldritch = ELDRITCH.into_iter().any(has);
+    // a mark is a yes under its own key or under `influences`
+    // (`derive.rs`), so it is unread under either, and under an
+    // `influences` that is no object; an item eldritch by one of its two
+    // marks is eldritch whatever the other says (rule 8)
     let unread: Vec<&Unread> = item
         .unread
         .iter()
         .filter(|u| {
-            matches!(&u.part, Part::Field(key)
-                if ELDRITCH.contains(&key.as_str()) || key == SYNTHESISED)
+            let Part::Field(key) = &u.part else {
+                return false;
+            };
+            let mark = key.strip_prefix("influences.").unwrap_or(key);
+            key == "influences" || mark == SYNTHESISED || (!eldritch && ELDRITCH.contains(&mark))
         })
         .collect();
     if !unread.is_empty() {
         return Mark::Unread(unread);
     }
-    let has = |mark: &str| item.flags.iter().any(|flag| flag == mark);
-    match (ELDRITCH.into_iter().any(has), has(SYNTHESISED)) {
+    match (eldritch, has(SYNTHESISED)) {
         (true, true) => Mark::Both,
         (true, false) => Mark::Eldritch,
         (false, true) => Mark::Synthesised,
@@ -1126,10 +1148,17 @@ fn percentile(held: &Held) -> Result<Percentile<'_>, Inputs<'_>> {
         [] => {
             return open(vec![gap(
                 PercentileGap::BaseDefenceNotDisplayed,
-                format!(
-                    "no row of `{name}` in the defence table has every defence it ranges displayed (defences v{})",
-                    table.version()
-                ),
+                if rows.iter().all(|base| base.is_empty()) {
+                    format!(
+                        "`{name}` ranges no defence in the defence table (defences v{})",
+                        table.version()
+                    )
+                } else {
+                    format!(
+                        "no row of `{name}` in the defence table has every defence it ranges displayed (defences v{})",
+                        table.version()
+                    )
+                },
             )]);
         }
         fits => {
@@ -1186,6 +1215,12 @@ fn percentile(held: &Held) -> Result<Percentile<'_>, Inputs<'_>> {
                 continue;
             };
             if row.does == Does::DropQuality {
+                if line.source == "crucible" {
+                    // J33: a crucible node's line the field reads, the
+                    // site not asked — no reason to drop the term
+                    sides.push((Some(PercentileGap::CrucibleLine), line, None));
+                    continue;
+                }
                 // J6: under the enchant the quality term is dropped
                 quality_dropped = true;
                 taken.push(line);
@@ -1425,6 +1460,18 @@ fn rolled(
             } else {
                 None
             };
+            if mult == Ratio::whole(0) && display == Ratio::whole(0) {
+                // the lines take the defence to nothing, and every roll
+                // displays it: the display does not fix the value
+                open.push((
+                    PercentileGap::SeveralValues,
+                    format!(
+                        "every roll displays `{}` 0 under the item's lines",
+                        defence.property()
+                    ),
+                ));
+                continue;
+            }
             let Some((from, to)) = rolls else {
                 open.push((
                     PercentileGap::NoRoll,

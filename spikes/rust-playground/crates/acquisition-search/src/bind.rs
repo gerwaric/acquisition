@@ -992,23 +992,28 @@ impl Binder {
                 // `has:` asks: a derived field's is a property's (T2: "A
                 // ring has no dps"), a total's a sum of nothing (C94)
                 let short = name.get("pseudo.".len()..).unwrap_or_default();
-                // a slot word behind a ranged total: `has:` asks presence
+                // a slot word behind a computed value: `has:` asks presence
                 // and takes none, a refusal of its own kind and never the
-                // unknown name the whole spelling would be
+                // unknown name the whole spelling would be — of a ranged
+                // total, whose slot a comparison asks, and of a value that
+                // is one number, which takes none anywhere
                 if let Some((head, slot)) = short.rsplit_once('.')
                     && tree::is_slot_word(slot)
-                    && let Some(crate::pseudo::Named::Total { total, .. }) =
-                        crate::pseudo::lookup(head)?
-                    && total.ranged
+                    && let Some(named) = crate::pseudo::lookup(head)?
                 {
+                    let name = named.name();
+                    let why = if named.ranged() {
+                        format!("`{slot}` names a number of it, which a comparison asks")
+                    } else {
+                        format!("`{slot}` names no number of it, which is one number")
+                    };
                     return Err(LanguageError::new(
                         ErrorKind::SlotUnknown,
                         format!(
-                            "`has:` asks whether the item has `pseudo.{}`, and takes no slot word: `{slot}` names a number of it, which a comparison asks",
-                            total.name
+                            "`has:` asks whether the item has `pseudo.{name}`, and takes no slot word: {why}"
                         ),
                     )
-                    .with_readings(vec![format!("has:pseudo.{}", total.name)]));
+                    .with_readings(vec![format!("has:pseudo.{name}")]));
                 }
                 let (named, _) = bind_pseudo(short, None).map_err(|e| {
                     // a near name is offered as it is asked here (the

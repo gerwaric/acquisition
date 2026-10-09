@@ -314,7 +314,7 @@ impl PercentileGap {
             PercentileGap::BaseNotInTable => "the percentile: base not in the table",
             PercentileGap::BaseHeldMoreThanOnce => "the percentile: base held more than once",
             PercentileGap::BaseDefenceNotDisplayed => {
-                "the percentile: a defence of the base not displayed"
+                "the percentile: no row of the base fits what is displayed"
             }
             PercentileGap::TwinOfNeitherMark => {
                 "the percentile: an implicit twin on an item of neither mark"
