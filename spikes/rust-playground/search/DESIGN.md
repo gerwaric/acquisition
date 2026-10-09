@@ -129,6 +129,10 @@ that did not exist; `acq show` shows a removed item, marked. `removed`
 alone waits for a question. Until `all` runs, the route names the
 unbuilt construct (the plan, rule 5).
 
+`--context corpus` takes any view. The answer's query is the empty one,
+and the query typed beside it is printed on one line as set aside and
+counted nowhere.
+
 ### The query
 
 ```
@@ -505,6 +509,13 @@ contribution (`A or B` with an item satisfying both loses nothing when A
 is forced false). Inside a member group the substitution is per member:
 it never creates a member, and an unread collection is not a population.
 Opt-in, one node at a time.
+
+A path names any node of the returned query: a term, a group of terms,
+and inside `line( … )` or `linked( … )` a condition, numbered
+`<term>.<n>` as a group's children are. A path the query lacks is an
+error that lists the nodes with their paths. Explain shows counts and
+no rows: beside `--count`, `--cross`, `--sort` or `--next` it is an
+error.
 
 ### Invariants of the surface
 
