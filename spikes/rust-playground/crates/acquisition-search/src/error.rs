@@ -23,7 +23,9 @@ pub enum ErrorKind {
     /// numbers, or with none (C92): the slots are listed.
     SlotMissing,
     /// A slot the quoted template does not have: `low` on a line that is
-    /// not ranged, `arg3` on a template with two numbers.
+    /// not ranged, `arg3` on a template with two numbers. And a slot word
+    /// where none is taken: on a computed value that is one number, and
+    /// behind `has:`, which asks a ranged total's presence.
     SlotUnknown,
     /// A slot word outside a line's group: `"T" low>=15 high<=45`.
     SlotOutsideGroup,

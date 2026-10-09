@@ -12,8 +12,9 @@
 //!
 //! The language (the build plan, step 1), the derivation (step 2), the
 //! first surface (step 4), the counts view (step 5), the class table
-//! (step 6), the computed values (step 7), the sockets (step 8) and the
-//! categories (step 9d-B): a request in, an answer out.
+//! (step 6), the computed values (step 7), the sockets (step 8), the
+//! categories (step 9d-B) and the base defence percentile (step 9d-A): a
+//! request in, an answer out.
 //!
 //! - [`tree`] — the query tree (C91): one typed value, and [`check`], what
 //!   a tree must satisfy to be one the language can say.
@@ -46,7 +47,9 @@
 //! - [`totals`] — the totals table (C94): a named total as reviewed
 //!   reference data, one meaning on every surface; `pseudo` — the
 //!   computed values, `pseudo.<name>`: the totals and the derived fields
-//!   (C101), asked as a sum is.
+//!   (C101), asked as a sum is. [`defences`] — the defence table (C101,
+//!   C106): each base's defence ranges and each text a local defence
+//!   stat displays, which the base defence percentile reads.
 //! - [`sockets`] — the socket counts (C101): `sockets`, `links`,
 //!   `sockets.<colour>` and a link group's counts as intervals of what
 //!   was read; `linked( … )` is bound in `group` beside a line's group.
@@ -127,7 +130,14 @@
 //!   before it and on round n's captures, a row that reads the category
 //!   under not and or, the help),
 //!   `tests/answer.rs` (the reference's worked example whole) and
-//!   `tests/acceptance.rs` (AQ2 as worded). The sockets are [`sockets`]'s
+//!   `tests/acceptance.rs` (AQ2 as worded). The base defence percentile
+//!   — the paragraph of the contract detail and the rulings J5, J6, J8
+//!   and J33–J35, taken at step 9d-A — is `pseudo`'s doc, its reference
+//!   data [`defences`]'s and `reference/defences-v1.toml`'s header;
+//!   pinned by `tests/percentile.rs` (every row of the track's expected
+//!   answers, the worked cases asked every way a computed value is, the
+//!   field under not and or, what does not open it, the refusal of
+//!   `has:` with a slot word, the help). The sockets are [`sockets`]'s
 //!   doc, the link group `group`'s; pinned by `tests/sockets.rs` (the
 //!   counts two ways, S59, what each unread socket leaves open, the
 //!   buckets, the sort, `show`, every authoring error), `tests/derive.rs`
@@ -144,6 +154,7 @@ pub mod category;
 pub mod class;
 pub mod corpus;
 pub mod counts;
+pub mod defences;
 pub mod derive;
 pub mod describe;
 pub mod error;
@@ -166,6 +177,7 @@ pub use bind::{NOT_BUILT, NotBuilt, Query, bind, not_built, parse_query};
 pub use category::{CATEGORY_TABLE_VERSION, COLOUR_TABLE_VERSION, Category, CategoryTableError};
 pub use class::{CLASS_TABLE_VERSION, ClassGap, ClassTable, ClassTableError, Classed};
 pub use corpus::{Basis, Corpus, Realm};
+pub use defences::{DEFENCE_TABLE_VERSION, DefenceTable, DefenceTableError, PercentileGap};
 pub use derive::{
     Facts, Item, Line, Numbers, Part, Place, Property, Row, Shown, Slot, Socket, Unread, derive,
 };

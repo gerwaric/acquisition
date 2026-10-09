@@ -293,7 +293,8 @@ fn unread_for(held: &Held, thing: Thing) -> Vec<&Unread> {
                 | Part::Total(_)
                 | Part::Price(_)
                 | Part::TabType
-                | Part::Colour => false,
+                | Part::Colour
+                | Part::Percentile(_) => false,
             })
             .collect(),
         // the base, the bestiary line or the body unread leaves the class
@@ -522,7 +523,8 @@ fn unread_lines<'a>(held: &'a Held, group: &Group) -> Vec<&'a Unread> {
             | Part::Total(_)
             | Part::Price(_)
             | Part::TabType
-            | Part::Colour => false,
+            | Part::Colour
+            | Part::Percentile(_) => false,
         })
         .collect()
 }
@@ -1306,6 +1308,7 @@ fn reason(unread: &Unread) -> Reason {
             Part::Price(gap) => gap.unread().to_string(),
             Part::TabType => "the tab's type".to_string(),
             Part::Colour => crate::category::COLOUR_UNREAD.to_string(),
+            Part::Percentile(gap) => gap.unread().to_string(),
         },
         problem: unread.problem.clone(),
         hint: match &unread.part {
@@ -1313,6 +1316,7 @@ fn reason(unread: &Unread) -> Reason {
             Part::Total(_) => crate::totals::TOTAL_HINT,
             Part::Price(gap) => gap.hint(),
             Part::Colour => crate::category::COLOUR_HINT,
+            Part::Percentile(gap) => gap.hint(),
             _ => UNREAD_HINT,
         },
     }

@@ -645,7 +645,7 @@ fn c92_c95_a_computed_value_sorts_and_sums() {
 fn c97_describe_lists_every_computed_value_with_its_definition() {
     let whole = serde_json::to_value(describe(&[]).unwrap()).unwrap();
     let computed = whole["computed"].as_array().unwrap();
-    assert_eq!(computed.len(), 88);
+    assert_eq!(computed.len(), 89);
     assert_eq!(computed[0]["name"], "pseudo.total_cold_res");
     // the ranged family where the table's changes name it, before the
     // totals the later rounds added (step 9d-C)
@@ -662,6 +662,9 @@ fn c97_describe_lists_every_computed_value_with_its_definition() {
     assert_eq!(computed[85]["name"], "pseudo.total_all_attributes");
     assert_eq!(computed[86]["name"], "pseudo.dps");
     assert_eq!(computed[87]["kind"], "derived");
+    // the base defence percentile, the last derived field (step 9d-A)
+    assert_eq!(computed[88]["name"], "pseudo.defence_pct");
+    assert_eq!(computed[88]["kind"], "derived");
     assert!(
         whole["totals"].as_str().unwrap().starts_with(
             "totals v6, 82 totals and 4 readings of them over pc, xbox, sony: the trade site’s pseudo stats"
@@ -687,13 +690,11 @@ fn c97_describe_lists_every_computed_value_with_its_definition() {
         ])
     );
     let block = serde_json::to_value(describe(&["pseudo".to_string()]).unwrap()).unwrap();
-    assert_eq!(block["computed"].as_array().unwrap().len(), 88);
-    // what the reference names and no step builds is refused by that name
-    let e = describe(&["defence_pct".to_string()]).unwrap_err();
-    assert!(
-        e.message
-            .starts_with("not built: pseudo.defence_pct (no step of the plan)")
-    );
+    assert_eq!(block["computed"].as_array().unwrap().len(), 89);
+    // the percentile was refused by name until step 9d-A built it
+    // (`tests/percentile.rs` holds its definition)
+    let one = serde_json::to_value(describe(&["defence_pct".to_string()]).unwrap()).unwrap();
+    assert_eq!(one["computed"][0]["name"], "pseudo.defence_pct");
 }
 
 /// T2 (owner, 2026-09-24: "A ring has no dps"): `has:pseudo.dps` matches
@@ -758,12 +759,6 @@ fn a_computed_value_that_cannot_be_is_an_authoring_error() {
             "unknown_name",
             "pseudo.increased_cold_damage",
         ),
-        ("pseudo.defence_pct>=90", "not_built", "pseudo.defence_pct"),
-        (
-            "undecided(pseudo.defence_pct)",
-            "not_built",
-            "pseudo.defence_pct",
-        ),
         (
             "undecided(pseudo.total_rse)",
             "unknown_name",
@@ -783,7 +778,9 @@ fn a_computed_value_that_cannot_be_is_an_authoring_error() {
         ("pseudo.dps", "ok"),
         ("pseudo.total_res.high", "slot_unknown"),
         ("pseudo.nothing_here.avg", "unknown_name"),
-        ("pseudo.defence_pct", "not_built"),
+        // refused as not built until step 9d-A
+        ("pseudo.defence_pct", "ok"),
+        ("pseudo.defence_pct.avg", "slot_unknown"),
     ] {
         let result = view(&s, "", json!({ "rows": { "sort": sort } }));
         match (result, kind) {

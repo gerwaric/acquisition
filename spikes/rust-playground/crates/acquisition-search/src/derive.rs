@@ -142,6 +142,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Map, Value};
 
 pub use crate::class::ClassGap;
+pub use crate::defences::PercentileGap;
 pub use crate::price::PriceGap;
 use crate::template;
 pub use crate::totals::TotalGap;
@@ -375,6 +376,10 @@ pub enum Part {
     /// A captured beast's colour, which the beast colour table could not
     /// give its name (`category.rs`): only what asks a colour leaf.
     Colour,
+    /// The base defence percentile, which what the item displays and the
+    /// defence table do not fix (`pseudo.rs`, `defences.rs`): only what
+    /// asks that field.
+    Percentile(PercentileGap),
 }
 
 /// What a slot word names on one occurrence.

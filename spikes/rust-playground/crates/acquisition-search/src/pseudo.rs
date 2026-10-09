@@ -1,5 +1,5 @@
 //! Computed values (the reference, *Values*; C94, C101; the build plan,
-//! steps 7 and 9c3): `pseudo.<name>`, one namespace for the named totals
+//! steps 7, 9c3 and 9d-A): `pseudo.<name>`, one namespace for the named totals
 //! of the table (`totals.rs`), the readings of them and the derived fields
 //! — what a comparison, a sort, a sum or `undecided( … )` consumes when it
 //! names one, and what a row shows of it.
@@ -12,7 +12,8 @@
 //!
 //! - **C101 — the derived fields.** A missing reach is a field to add,
 //!   never a general door: a pseudo that is no sum over lines is a named
-//!   pure function over the item's properties, listed with its definition
+//!   pure function over the item's properties, its lines and reference
+//!   data, listed with its definition
 //!   under `pseudo.` by `--describe` (C97), never a total row. Built here:
 //!   `pseudo.dps` and `pseudo.pdps`, each attacks per second times the
 //!   mean of a damage range (S22), read from the properties as the game
@@ -36,14 +37,73 @@
 //!   `-has:pseudo.total_res` a total's, since a total of nothing is
 //!   lacked (`totals.rs`, C94 as ruled 2026-09-26, which takes back
 //!   T2's "every item has a total").
-//!   The base defence percentile the same paragraph names is not built
-//!   (`bind::NOT_BUILT`, its formula unpinned: `search/pseudo-stats/README.md`,
-//!   open question 3).
+//! - **C101 — the base defence percentile** (`pseudo.defence_pct`; V5,
+//!   the first seat: the trade site's Base Percentile; the build plan,
+//!   step 9d-A; taken from the contract detail there). The item's defence
+//!   against its base's range from reference data (C68, C106;
+//!   `defences.rs`). It is the site's own stated rule — each base defence
+//!   roll's percentile, averaged, rounded half up, a roll being any
+//!   integer whose display is the item's — with one departure the
+//!   definition prints: a display at an exact half admits both integers
+//!   as rolls (J5, 2026-10-01: the stated rule reproduced 541 of 543
+//!   captured items and this reading all 543, each one value). A
+//!   defence's display is (roll + the local flat additions) × (1 + the
+//!   sum of the local increases) × (1 + the quality displayed), flat
+//!   before increase and quality multiplying, as both community tools
+//!   state; the `reduced` spelling of an increase is its stat below
+//!   nothing. A roll's percentile is 100 × (roll − minimum) ÷ (maximum −
+//!   minimum). The value is a whole number and takes no slot word.
+//!   - *The shapes round i pinned (J6).* Three defence types on one base
+//!     are the average of three rolls; under the enchant that zeroes
+//!     quality, `Quality does not increase Defences`, the quality term is
+//!     dropped; ward is a roll as the others are; a defence the item
+//!     displays and its base ranges none of is no base defence roll and
+//!     is not read.
+//!   - *A twin text, which a local stat and a global one both display,
+//!     is told by the item's mark (J8, ruled 2026-10-05).* An implicit
+//!     twin on an eldritch item, `searing` or `tangled`, is the global
+//!     stat and left out, 17 of 17 captured; an explicit twin, and an
+//!     implicit twin on a synthesised item, are the item's own, 442 of
+//!     442 and 10 of 10 (`search/pseudo-stats/scripts/defence-twins.py`;
+//!     the 421 the contract detail said was of an earlier day); an
+//!     implicit twin on an item of neither mark, seen nowhere, cannot be
+//!     established and the field is undecided there with that reason
+//!     (C93). A text only a local stat displays is the item's own
+//!     whatever its array, a crucible node's apart (J33, below). The
+//!     definition prints the counts each part rests on.
+//!   - *A value only where the item fixes one (J33, 2026-10-08).* The
+//!     field is a value only where what the item shows gives one value
+//!     from lines whose side is established; anywhere else it is
+//!     undecided, the reason saying which part failed: a defence line in
+//!     `crucibleMods`, the site not asked; a twin text in another array
+//!     J8 does not name; an implicit twin on an item eldritch and
+//!     synthesised; a base ranging a defence the item does not display; a
+//!     base whose minimum is its maximum; a display several rolls give at
+//!     different values. Several rolls that give one value are that
+//!     value.
+//!   - *A roll out of the base's range still reads (J34, 2026-10-08).*
+//!     An item above its base's current maximum reads over 100 % and one
+//!     under its minimum below 0 — the owner: "keep reads over 100". It
+//!     is the stated rule's and no capture's: the site lists no armour
+//!     over 100. So a line misread shows a number out of range, and no
+//!     reason.
+//!   - *A realm with no table (J35, 2026-10-08)* is undecided with that
+//!     reason, never zero, on every item of it, one displaying no defence
+//!     among them — the owner: "undecided". The realms are the class
+//!     table's.
+//!   - *Lacked* is an item, in a realm the table covers, that displays
+//!     none of the four defences — known absence (C93), claimed only
+//!     where everything that could display one was read.
+//!   - A defence bound on the site is inexact (C102), and a
+//!     quality-normalised defence is parked (`decisions/search.md`).
 //! - **C94 — what no total reads (J29)** is `totals.rs`'s, said there
 //!   once (the owner, 2026-10-08: "Leave both out."): no total reads a
 //!   line of `crucibleMods` or `utilityMods`, and neither array unread
 //!   leaves a total open. A reading follows the totals it reads and has
-//!   no rule of its own; a derived field reads properties, never lines.
+//!   no rule of its own; a damage field reads properties, never lines.
+//!   J29 is not the percentile's rule: it reads every array of lines, is
+//!   undecided on a defence line of `crucibleMods` (J33), and an array it
+//!   reads that is no array leaves it open.
 //! - **C101 — the readings of other totals** (the build plan, step 9c3;
 //!   owner, 2026-09-26: "They should be present at launch."). Four of the
 //!   trade site's pseudos are no sum of lines and so no total: each reads
@@ -89,7 +149,10 @@
 //!   A slot word on a total that is no range, on a reading or on a
 //!   derived field, is an authoring error, and so is a slot word a range
 //!   does not take — a total has no occurrence, so no `arg1` — which
-//!   offers `avg`, `low` and `high`.
+//!   offers `avg`, `low` and `high`. `has:` asks presence and takes no
+//!   slot word: one behind a ranged total there is refused as a slot word
+//!   where none is taken (`ErrorKind::SlotUnknown`), offering `has:` of
+//!   the total, never as an unknown name (`bind.rs`).
 //! - **A ranged total with no slot word is its `avg`** (C94, the ranged
 //!   family, `totals.rs`; owner, 2026-09-26: "yes, bare means average"),
 //!   wherever a computed value is asked: a comparison, `has:`, `--sort`,
@@ -130,7 +193,8 @@
 //! - **What a row shows** of a computed value: its value, then the lines
 //!   the total's rows named on the item, the totals a reading read, each
 //!   by its name with its value, or the properties the derived field
-//!   read, bounded as every term's evidence is (`eval::evidence`). A count
+//!   read — and, of the percentile, the lines it took as the item's own
+//!   — bounded as every term's evidence is (`eval::evidence`). A count
 //!   left open prints its interval, `2..3`, as a socket count does. A
 //!   row sorted by a reading shows it first by its own name
 //!   ([`sorted_by`]).
@@ -150,6 +214,49 @@
 //!   source a row admits unread, an occurrence whose number or flag is,
 //!   the property that could not be read; a reading's are those of the
 //!   totals that leave it open.
+//! - **The percentile is one reading, in stages** ([`percentile`]): the
+//!   realm's table, the properties, the base, the arrays, the side of
+//!   each line, the rolls — each answered before the next is read, so a
+//!   reason is of the first thing that could not be established, and its
+//!   value, its reasons and what a row shows of it cannot disagree (rule
+//!   10 of the plan). What the deriver said unread is the deriver's
+//!   reason, borrowed: `properties`, an array of lines, a line's number,
+//!   the base, a mark under its own key. What only this field can say is
+//!   one kind each (`defences::PercentileGap`): the realm has no table;
+//!   the item has no base; the base is not in the table, is held more
+//!   than once with nothing telling which, or no row of it has every
+//!   defence it ranges displayed; an implicit twin on an item of neither
+//!   mark, or of both; a twin text in an array no ruling names; a
+//!   defence line of a crucible node; no roll gives the display; the
+//!   base's minimum is its maximum; several rolls give different values.
+//!   A reason of a line whose side is open says what each reading would
+//!   give, where both can be worked.
+//! - **Unknown of no more than was lost** (rule 8 of the plan). A line of
+//!   a type no roll of the base reads opens nothing, whatever stat it is,
+//!   whatever its array and whether or not its number was read. A mark
+//!   is asked only of an implicit twin text a roll reads, so a mark that
+//!   is no yes or no opens the field there and nowhere else. A flag is
+//!   never asked (J32): a line counts by its text. The quality is asked
+//!   only of an item displaying a defence. A property the deriver read
+//!   with no name is a property of no name and none of the field's; one
+//!   whose name it could not read may be any.
+//! - **A property is a whole number, once.** A defence is displayed as
+//!   digits alone and the quality as `+20%`; either displayed otherwise,
+//!   with other than one value, or more than once, is unread under
+//!   `properties`, said here, as a damage field's is. A base name the
+//!   table holds on several rows is the one row all of whose defences the
+//!   item displays.
+//! - **The arithmetic is of whole numbers** (`exact::Ratio`; the record's
+//!   shape of fault, arithmetic on floats): a displayed number, an
+//!   increase and a quality are fractions, never floats — the run that
+//!   wrote the expected answers found three items of the owner's copy a
+//!   float read wrongly, a product at an exact half landing under it. The
+//!   rolls of a display are an interval, both ends in (J5 is the upper
+//!   end), and a percentile rises with its roll, so the least rolls and
+//!   the most give the least value and the most: the display fixes the
+//!   value exactly when the two are one, and no combination is walked.
+//!   Numbers past what the whole numbers hold — no displayed item's —
+//!   are unread to the field, never rounded.
 
 use std::borrow::Cow;
 use std::sync::LazyLock;
@@ -157,11 +264,12 @@ use std::sync::LazyLock;
 use crate::bind::NumTest;
 use crate::category;
 use crate::corpus::Held;
-use crate::derive::{Part, Property, Unread};
+use crate::defences::{self, Base, Defence, Does, PercentileGap};
+use crate::derive::{Item, Line, Part, Property, Unread};
 use crate::describe::Named as Entry;
 use crate::error::{ErrorKind, LanguageError};
 use crate::eval::{self, Evidence, Outcome, Truth};
-use crate::exact::{self, Exact};
+use crate::exact::{self, Exact, Ratio};
 use crate::sockets::Counted;
 use crate::totals::{self, Reading, ReadingKind, Total, TotalsTable};
 use crate::tree::{Node, Op, Value};
@@ -186,29 +294,51 @@ pub(crate) enum Named {
 pub(crate) enum Derived {
     Dps,
     Pdps,
+    /// The base defence percentile ([`percentile`]).
+    DefencePct,
 }
 
 impl Derived {
-    const ALL: [Derived; 2] = [Derived::Dps, Derived::Pdps];
+    const ALL: [Derived; 3] = [Derived::Dps, Derived::Pdps, Derived::DefencePct];
 
     pub fn name(self) -> &'static str {
         match self {
             Derived::Dps => "dps",
             Derived::Pdps => "pdps",
+            Derived::DefencePct => "defence_pct",
         }
     }
 
-    pub fn definition(self) -> &'static str {
+    pub fn definition(self) -> String {
         match self {
             Derived::Dps => {
-                "damage per second: the attacks per second times the mean of every damage range the item displays — physical, each elemental, chaos — as `Physical Damage`, `Elemental Damage`, `Chaos Damage` and `Attacks per Second` show them, quality already applied by the game; an item with no attacks per second, or no damage range, lacks it"
+                "damage per second: the attacks per second times the mean of every damage range the item displays — physical, each elemental, chaos — as `Physical Damage`, `Elemental Damage`, `Chaos Damage` and `Attacks per Second` show them, quality already applied by the game; an item with no attacks per second, or no damage range, lacks it".to_string()
             }
             Derived::Pdps => {
-                "physical damage per second: the attacks per second times the mean of `Physical Damage`; an item lacking either property lacks it"
+                "physical damage per second: the attacks per second times the mean of `Physical Damage`; an item lacking either property lacks it".to_string()
             }
+            Derived::DefencePct => format!(
+                "the trade site's Base Percentile, by the site's own rule — \"{SITE_TIP}\": each of `Armour`, `Evasion Rating`, `Energy Shield` and `Ward` that the item's base ranges is worked back from the number displayed to the roll behind it, a roll being any whole number whose display is the item's — (the roll + what the item's own lines add) × (1 + the item's own increases) × (1 + the quality displayed), rounded half up — and the value is each roll's place in the base's range as a percentage, averaged over the defences and rounded half up to a whole number. One departure from the site's words: a display at an exact half admits both whole numbers as rolls (J5). Under `Quality does not increase Defences` the quality is dropped. A line whose text a global stat displays too, a twin text, is told by where it sits: an explicit is the item's own (442 of 442 captured lines); an implicit on an eldritch item, `searing` or `tangled`, is the global stat and left out (17 of 17); an implicit on a synthesised item is the item's own (10 of 10) — counted by search/pseudo-stats/scripts/defence-twins.py. A roll out of the base's range still reads, over 100 above its maximum and below 0 under its minimum (J34), which no capture has shown: a line misread can show a number out of range. An item displaying none of the four defences lacks it. It is undecided, with the reason, wherever what the item shows does not give one value from lines whose side is established (J33): in a realm with no table, on every item; a base the table lacks, holds more than once with nothing telling which, or no row of which has every defence it ranges displayed; a property, an array or a line unread; a twin implicit on an item of neither mark, of both, or whose mark is unread; a twin text in any other array; a defence line of a crucible node, of which the site has not yet been asked; no roll giving the display; a base whose minimum is its maximum; several rolls giving different values. A defence bound on the trade site is inexact (C102). {}",
+                match defences::table() {
+                    Ok(table) => table.provenance(),
+                    Err(e) => format!("the defence table this build ships does not load: {e}"),
+                }
+            ),
+        }
+    }
+
+    /// The bound a printed example compares the field with.
+    fn example(self) -> u32 {
+        match self {
+            Derived::Dps | Derived::Pdps => 300,
+            Derived::DefencePct => 80,
         }
     }
 }
+
+/// The site's own words for its Base Percentile: the tip of its filter
+/// (`search/trade-query/data/grammar.json`, the armour filters).
+const SITE_TIP: &str = "The percentile of all base defence rolls, averaged (0-100%)";
 
 impl Named {
     pub fn ranged(self) -> bool {
@@ -364,6 +494,10 @@ pub(crate) fn unread_of(named: Named, held: &Held) -> Vec<Cow<'_, Unread>> {
             }
             unread.into_iter().map(Cow::Borrowed).collect()
         }
+        Named::Derived(Derived::DefencePct) => match percentile(held) {
+            Ok(_) | Err(Inputs::Lacked) => Vec::new(),
+            Err(Inputs::Unread(unread)) => unread,
+        },
         Named::Derived(derived) => match inputs(derived, held) {
             Ok(_) | Err(Inputs::Lacked) => Vec::new(),
             Err(Inputs::Unread(unread)) => unread,
@@ -451,17 +585,27 @@ pub(crate) fn evidence(named: Named, held: &Held) -> Vec<Evidence> {
                 Valued::Incomplete(_) | Valued::Lacked => None,
             })
             .collect(),
-        Named::Derived(derived) => match inputs(derived, held) {
+        // the properties read, then the lines taken as the item's own
+        Named::Derived(Derived::DefencePct) => match percentile(held) {
             Ok(read) => read
                 .shown
                 .into_iter()
-                .map(|p| Evidence::Shown {
-                    part: p.array.clone(),
-                    text: p.text.clone(),
-                })
+                .map(shown_evidence)
+                .chain(read.lines.into_iter().map(eval::line_evidence))
                 .collect(),
             Err(_) => Vec::new(),
         },
+        Named::Derived(derived) => match inputs(derived, held) {
+            Ok(read) => read.shown.into_iter().map(shown_evidence).collect(),
+            Err(_) => Vec::new(),
+        },
+    }
+}
+
+fn shown_evidence(property: &Property) -> Evidence {
+    Evidence::Shown {
+        part: property.array.clone(),
+        text: property.text.clone(),
     }
 }
 
@@ -620,22 +764,28 @@ enum Inputs<'a> {
 }
 
 fn derived_of(derived: Derived, held: &Held) -> Valued {
-    match inputs(derived, held) {
-        Ok(read) => Valued::Value(read.value),
+    let read = match derived {
+        Derived::DefencePct => percentile(held).map(|read| read.value),
+        Derived::Dps | Derived::Pdps => inputs(derived, held).map(|read| read.value),
+    };
+    match read {
+        Ok(value) => Valued::Value(value),
         Err(Inputs::Lacked) => Valued::Lacked,
         Err(Inputs::Unread(_)) => Valued::Incomplete(None),
     }
 }
 
-/// The properties a derived field reads.
+/// The properties a damage field reads; the percentile's are its own
+/// ([`percentile`]).
 fn reads(derived: Derived) -> &'static [&'static str] {
     match derived {
         Derived::Pdps => &[ATTACKS_PER_SECOND, PHYSICAL],
         Derived::Dps => &[ATTACKS_PER_SECOND, PHYSICAL, ELEMENTAL, CHAOS],
+        Derived::DefencePct => &[],
     }
 }
 
-/// The one reading of a derived field's inputs: what was unread of the
+/// The one reading of a damage field's inputs: what was unread of the
 /// properties leaves the field open where it may be a property the field
 /// reads — the array itself, an element with no readable name, or one
 /// named as the field's — and a property displayed as no number and no
@@ -699,6 +849,7 @@ fn inputs(derived: Derived, held: &Held) -> Result<Read<'_>, Inputs<'_>> {
             .into_iter()
             .filter_map(property)
             .collect(),
+        Derived::DefencePct => Vec::new(),
     };
     let (Some(aps), false) = (aps, damage.is_empty()) else {
         return Err(Inputs::Lacked);
@@ -743,6 +894,583 @@ fn inputs(derived: Derived, held: &Held) -> Result<Read<'_>, Inputs<'_>> {
     let mut shown: Vec<&Property> = std::iter::once(aps).chain(damage).collect();
     shown.sort_by_key(|p| item.properties.iter().position(|q| std::ptr::eq(q, *p)));
     Ok(Read { value, shown })
+}
+
+// ---- the base defence percentile -------------------------------------------------------------------
+
+/// The property the quality is displayed under.
+const QUALITY: &str = "Quality";
+
+/// The item's marks J8 reads: an eldritch item's, and a synthesised one's.
+const ELDRITCH: [&str; 2] = ["searing", "tangled"];
+const SYNTHESISED: &str = "synthesised";
+
+/// What the percentile read on an item.
+struct Percentile<'a> {
+    value: Exact,
+    /// The properties read, in the item's order.
+    shown: Vec<&'a Property>,
+    /// The lines taken as the item's own, the enchant among them, in the
+    /// item's order.
+    lines: Vec<&'a Line>,
+}
+
+/// What J8 reads of the item: which kind of item it is.
+enum Mark<'a> {
+    Eldritch,
+    Synthesised,
+    Both,
+    Neither,
+    /// A mark is no yes or no: the deriver's own unread, under its key.
+    Unread(Vec<&'a Unread>),
+}
+
+fn mark_of(item: &Item) -> Mark<'_> {
+    let unread: Vec<&Unread> = item
+        .unread
+        .iter()
+        .filter(|u| {
+            matches!(&u.part, Part::Field(key)
+                if ELDRITCH.contains(&key.as_str()) || key == SYNTHESISED)
+        })
+        .collect();
+    if !unread.is_empty() {
+        return Mark::Unread(unread);
+    }
+    let has = |mark: &str| item.flags.iter().any(|flag| flag == mark);
+    match (ELDRITCH.into_iter().any(has), has(SYNTHESISED)) {
+        (true, true) => Mark::Both,
+        (true, false) => Mark::Eldritch,
+        (false, true) => Mark::Synthesised,
+        (false, false) => Mark::Neither,
+    }
+}
+
+/// A line the item's own stat made: what it does, to which of the
+/// defences the base ranges, and its number.
+#[derive(Clone)]
+struct Local {
+    does: Does,
+    to: Vec<Defence>,
+    number: Ratio,
+}
+
+/// What the rolls behind a display give.
+enum Rolled {
+    Value(i128),
+    /// What the display does not fix, each with its words.
+    Open(Vec<(PercentileGap, String)>),
+    /// Whole numbers past what the search computes with.
+    TooLarge,
+}
+
+/// The field left open, by these reasons.
+fn open<'a, T>(reasons: Vec<Cow<'a, Unread>>) -> Result<T, Inputs<'a>> {
+    Err(Inputs::Unread(reasons))
+}
+
+fn gap(gap: PercentileGap, problem: String) -> Cow<'static, Unread> {
+    Cow::Owned(Unread {
+        part: Part::Percentile(gap),
+        problem,
+        line: None,
+        name: None,
+        socket: None,
+    })
+}
+
+/// A whole number as a property displays it: digits alone, within the
+/// crate's rule for a number (`exact::reads`).
+fn whole(text: &str) -> Option<i128> {
+    (!text.is_empty() && text.bytes().all(|b| b.is_ascii_digit()) && exact::reads(text))
+        .then(|| text.parse().ok())
+        .flatten()
+}
+
+/// The base defence percentile of an item (the module doc, C101): the
+/// one reading of it, which its value, its reasons and what a row shows
+/// of it all ask. Each stage answers before the next is read, so a
+/// reason is of the first thing that could not be established: the
+/// realm's table, the properties, the base, the arrays, the side of each
+/// line, the rolls.
+fn percentile(held: &Held) -> Result<Percentile<'_>, Inputs<'_>> {
+    let item = &held.item;
+    let table = match defences::table() {
+        Ok(table) => table,
+        // no corpus is loaded over a table that does not load (`corpus.rs`)
+        Err(e) => return open(vec![gap(PercentileGap::NoTableForRealm, e.to_string())]),
+    };
+    // J35: a realm with no table, on every item of it
+    if let Some(reason) = table.unavailable(&item.facts.realm) {
+        return open(vec![Cow::Borrowed(reason)]);
+    }
+
+    // the properties: the four defences, and the quality
+    let properties = Part::Properties("properties".to_string());
+    let named = |name: &str| {
+        item.properties
+            .iter()
+            .filter(|p| p.array == "properties" && p.name.eq_ignore_ascii_case(name))
+            .collect::<Vec<&Property>>()
+    };
+    let unread_named = |reads: &dyn Fn(&str) -> bool, nameless: bool| -> Vec<Cow<'_, Unread>> {
+        item.unread
+            .iter()
+            .filter(|u| {
+                (nameless && u.part == Part::Body)
+                    || (u.part == properties
+                        && match u.name.as_deref() {
+                            Some(name) => reads(name),
+                            None => nameless,
+                        })
+            })
+            .map(Cow::Borrowed)
+            .collect()
+    };
+    let problem = |p: &Property, what: &str| -> Cow<'static, Unread> {
+        Cow::Owned(Unread {
+            part: properties.clone(),
+            problem: format!("`{}` is `{}`: {what}", p.name, p.values.join(", ")),
+            line: None,
+            name: Some(p.name.clone()),
+            socket: None,
+        })
+    };
+    let is_defence = |name: &str| {
+        Defence::ALL
+            .iter()
+            .any(|d| d.property().eq_ignore_ascii_case(name))
+    };
+    let mut reasons = unread_named(&is_defence, true);
+    let mut displayed: Vec<(Defence, i128, &Property)> = Vec::new();
+    for defence in Defence::ALL {
+        match named(defence.property()).as_slice() {
+            [] => {}
+            [property] => match property.values.as_slice() {
+                [value] => match whole(value) {
+                    Some(number) => displayed.push((defence, number, property)),
+                    None => reasons.push(problem(property, "no whole number the search reads")),
+                },
+                _ => reasons.push(problem(property, "not one value")),
+            },
+            [property, ..] => reasons.push(problem(property, "displayed more than once")),
+        }
+    }
+    if !reasons.is_empty() {
+        return open(reasons);
+    }
+    // known absence (C93): none of the four is displayed, and everything
+    // that could hold one was read
+    if displayed.is_empty() {
+        return Err(Inputs::Lacked);
+    }
+    // the quality is asked only of an item displaying a defence (rule 8)
+    let mut reasons = unread_named(&|name| name.eq_ignore_ascii_case(QUALITY), false);
+    let mut quality: Option<(i128, &Property)> = None;
+    match named(QUALITY).as_slice() {
+        [] => {}
+        [property] => match property.values.as_slice() {
+            [value] => {
+                let digits = value.strip_prefix('+').unwrap_or(value);
+                match whole(digits.strip_suffix('%').unwrap_or(digits)) {
+                    Some(number) => quality = Some((number, property)),
+                    None => reasons.push(problem(property, "no whole number the search reads")),
+                }
+            }
+            _ => reasons.push(problem(property, "not one value")),
+        },
+        [property, ..] => reasons.push(problem(property, "displayed more than once")),
+    }
+    if !reasons.is_empty() {
+        return open(reasons);
+    }
+
+    // the base: the one row of the table all of whose defences the item
+    // displays
+    let Some(name) = item.base.as_deref() else {
+        let unread: Vec<Cow<'_, Unread>> = item
+            .unread
+            .iter()
+            .filter(|u| matches!(&u.part, Part::Field(key) if key == "baseType"))
+            .map(Cow::Borrowed)
+            .collect();
+        return open(if unread.is_empty() {
+            vec![gap(
+                PercentileGap::NoBase,
+                format!(
+                    "the item has no base to look up in the defence table (defences v{})",
+                    table.version()
+                ),
+            )]
+        } else {
+            unread
+        });
+    };
+    let rows = table.bases(name);
+    if rows.is_empty() {
+        return open(vec![gap(
+            PercentileGap::BaseNotInTable,
+            format!(
+                "`{name}` is not in the defence table (defences v{})",
+                table.version()
+            ),
+        )]);
+    }
+    let shows = |defence: Defence| displayed.iter().any(|(d, _, _)| *d == defence);
+    let fits: Vec<&Base> = rows
+        .iter()
+        .filter(|base| !base.is_empty() && base.ranges().all(|(defence, _)| shows(defence)))
+        .collect();
+    let base = match fits.as_slice() {
+        [base] => *base,
+        [] => {
+            return open(vec![gap(
+                PercentileGap::BaseDefenceNotDisplayed,
+                format!(
+                    "no row of `{name}` in the defence table has every defence it ranges displayed (defences v{})",
+                    table.version()
+                ),
+            )]);
+        }
+        fits => {
+            return open(vec![gap(
+                PercentileGap::BaseHeldMoreThanOnce,
+                format!(
+                    "the defence table holds `{name}` {} times, and the defences displayed are those of {} of its rows (defences v{})",
+                    rows.len(),
+                    fits.len(),
+                    table.version()
+                ),
+            )]);
+        }
+    };
+
+    // the arrays: one that is no array, or an element that is no line,
+    // may hold a line the field reads (rule 8) — a crucible node's too,
+    // J29 being the totals' rule and not this field's
+    let reasons: Vec<Cow<'_, Unread>> = item
+        .unread
+        .iter()
+        .filter(|u| match &u.part {
+            Part::Lines(_) => true,
+            Part::Field(key) => key == "hybrid",
+            _ => false,
+        })
+        .map(Cow::Borrowed)
+        .collect();
+    if !reasons.is_empty() {
+        return open(reasons);
+    }
+
+    // the lines: which are the item's own (J8, J33)
+    let mark = mark_of(item);
+    let mut own: Vec<Local> = Vec::new();
+    // a line whose side is not established: its reason, and the line as
+    // it would count were it the item's own
+    let mut sides: Vec<(Option<PercentileGap>, &Line, Option<Local>)> = Vec::new();
+    let mut reasons: Vec<Cow<'_, Unread>> = Vec::new();
+    let mut taken: Vec<&Line> = Vec::new();
+    let mut quality_dropped = false;
+    for (at, line) in item.lines.iter().enumerate() {
+        // a mod displayed over several rows is read row by row
+        let names: Vec<(&str, &[Option<f64>])> = if line.rows.is_empty() {
+            vec![(line.template.as_str(), line.numbers.as_slice())]
+        } else {
+            line.rows
+                .iter()
+                .map(|row| (row.template.as_str(), row.numbers.as_slice()))
+                .collect()
+        };
+        for (template, numbers) in names {
+            let Some(row) = table.line(template) else {
+                continue;
+            };
+            if row.does == Does::DropQuality {
+                // J6: under the enchant the quality term is dropped
+                quality_dropped = true;
+                taken.push(line);
+                continue;
+            }
+            // a line of a type no roll reads changes no roll, whatever
+            // stat it is (rule 8): it opens nothing
+            let to: Vec<Defence> = row
+                .to
+                .iter()
+                .copied()
+                .filter(|defence| base.ranged(*defence))
+                .collect();
+            if to.is_empty() {
+                continue;
+            }
+            // whose the line is; `None` where it is the global stat's
+            let side: Option<Result<(), Option<PercentileGap>>> = match line.source.as_str() {
+                "crucible" => Some(Err(Some(PercentileGap::CrucibleLine))),
+                _ if !row.twin => Some(Ok(())),
+                "explicit" => Some(Ok(())),
+                "implicit" => match &mark {
+                    Mark::Eldritch => None,
+                    Mark::Synthesised => Some(Ok(())),
+                    Mark::Neither => Some(Err(Some(PercentileGap::TwinOfNeitherMark))),
+                    Mark::Both => Some(Err(Some(PercentileGap::TwinOfBothMarks))),
+                    Mark::Unread(_) => Some(Err(None)),
+                },
+                _ => Some(Err(Some(PercentileGap::TwinInAnotherArray))),
+            };
+            let Some(side) = side else {
+                continue;
+            };
+            // the `reduced` spelling is its stat below nothing
+            let local = numbers.first().copied().flatten().map(|number| {
+                let number = Ratio::of(Exact::of(match row.does {
+                    Does::Reduce => -number.abs(),
+                    Does::Add | Does::Increase | Does::DropQuality => number,
+                }));
+                Local {
+                    does: row.does,
+                    to: to.clone(),
+                    number,
+                }
+            });
+            match (side, local) {
+                (Ok(()), Some(local)) => {
+                    own.push(local);
+                    taken.push(line);
+                }
+                // the item's own line, its number unread: the deriver's
+                // own reason, of this occurrence
+                (Ok(()), None) => {
+                    let before = reasons.len();
+                    reasons.extend(
+                        item.unread
+                            .iter()
+                            .filter(|u| u.line == Some(at) && matches!(u.part, Part::Numbers(_)))
+                            .map(Cow::Borrowed),
+                    );
+                    if reasons.len() == before {
+                        reasons.push(Cow::Owned(Unread {
+                            part: Part::Numbers(line.source.clone()),
+                            problem: format!("`{}`: a number the search does not read", line.text),
+                            line: Some(at),
+                            name: None,
+                            socket: None,
+                        }));
+                    }
+                }
+                (Err(why), local) => sides.push((why, line, local)),
+            }
+        }
+    }
+    let quality_term = match quality {
+        Some((number, _)) if !quality_dropped => number,
+        _ => 0,
+    };
+    let shown_of = |defence: Defence| {
+        displayed
+            .iter()
+            .find(|(d, _, _)| *d == defence)
+            .map(|(_, number, _)| *number)
+    };
+    if !sides.is_empty() {
+        // what each reading would give, where both can be worked
+        let said = |rolled: Rolled| match rolled {
+            Rolled::Value(value) => value.to_string(),
+            Rolled::Open(_) | Rolled::TooLarge => "no value".to_string(),
+        };
+        let readings = if reasons.is_empty() && sides.iter().all(|(_, _, local)| local.is_some()) {
+            let without = said(rolled(base, &shown_of, quality_term, &own));
+            let with: Vec<Local> = own
+                .iter()
+                .chain(sides.iter().filter_map(|(_, _, local)| local.as_ref()))
+                .cloned()
+                .collect();
+            format!(
+                ": {} were it the item's own, {without} were it left out",
+                said(rolled(base, &shown_of, quality_term, &with))
+            )
+        } else {
+            String::new()
+        };
+        for (why, line, _) in &sides {
+            let text = line.text.replace('\n', " / ");
+            match why {
+                Some(PercentileGap::CrucibleLine) => reasons.push(gap(
+                    PercentileGap::CrucibleLine,
+                    format!(
+                        "`{text}` is a defence line of a crucible node, and the trade site has not been asked whether it reads one{readings}"
+                    ),
+                )),
+                Some(PercentileGap::TwinInAnotherArray) => reasons.push(gap(
+                    PercentileGap::TwinInAnotherArray,
+                    format!(
+                        "`{text}` is a text a local stat and a global one both display, among the item's {} lines, where no ruling says which it is{readings}",
+                        line.source
+                    ),
+                )),
+                Some(PercentileGap::TwinOfBothMarks) => reasons.push(gap(
+                    PercentileGap::TwinOfBothMarks,
+                    format!(
+                        "the implicit `{text}` is a text a local stat and a global one both display, on an item both eldritch and synthesised{readings}"
+                    ),
+                )),
+                Some(why) => reasons.push(gap(
+                    *why,
+                    format!(
+                        "the implicit `{text}` is a text a local stat and a global one both display, on an item neither eldritch nor synthesised{readings}"
+                    ),
+                )),
+                // the mark is the deriver's to say unread, once
+                None => {
+                    if let Mark::Unread(unread) = &mark {
+                        for u in unread {
+                            if !reasons.iter().any(|seen| std::ptr::eq(seen.as_ref(), *u)) {
+                                reasons.push(Cow::Borrowed(*u));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if !reasons.is_empty() {
+        return open(reasons);
+    }
+
+    // the rolls
+    let value = match rolled(base, &shown_of, quality_term, &own) {
+        Rolled::Value(value) => value,
+        Rolled::Open(gaps) => {
+            return open(
+                gaps.into_iter()
+                    .map(|(why, problem)| gap(why, problem))
+                    .collect(),
+            );
+        }
+        Rolled::TooLarge => return open(vec![too_large(&properties)]),
+    };
+    let Some(value) = Exact::whole(value) else {
+        return open(vec![too_large(&properties)]);
+    };
+    let mut shown: Vec<&Property> = displayed
+        .iter()
+        .filter(|(defence, _, _)| base.ranged(*defence))
+        .map(|(_, _, property)| *property)
+        .chain(quality.map(|(_, property)| property))
+        .collect();
+    shown.sort_by_key(|p| item.properties.iter().position(|q| std::ptr::eq(q, *p)));
+    let mut lines: Vec<&Line> = Vec::new();
+    for line in taken {
+        if !lines.iter().any(|seen| std::ptr::eq(*seen, line)) {
+            lines.push(line);
+        }
+    }
+    Ok(Percentile {
+        value,
+        shown,
+        lines,
+    })
+}
+
+/// The reason of whole numbers past what the search computes with: no
+/// displayed item's, said as a product the units cannot hold is said
+/// (`exact.rs`) — unread to what asked it, never rounded.
+fn too_large(properties: &Part) -> Cow<'static, Unread> {
+    Cow::Owned(Unread {
+        part: properties.clone(),
+        problem: "the defences displayed and the lines beside them give a roll of more digits than the search computes with".to_string(),
+        line: None,
+        name: None,
+        socket: None,
+    })
+}
+
+/// The value the rolls behind a display give (the module doc, C101, J5,
+/// J33, J34), in whole numbers alone. A defence displays (roll + flat) ×
+/// (1 + increase) × (1 + quality), rounded half up, so the rolls of a
+/// display `d` are the whole numbers from (d − ½) ÷ mult − flat up to
+/// (d + ½) ÷ mult − flat, both ends in: the upper end is the display at
+/// an exact half, which J5 admits. Each roll's percentile rises with the
+/// roll, so the least rolls give the least value and the most the most,
+/// and the display fixes the value exactly when the two are one.
+fn rolled(
+    base: &Base,
+    shown: &dyn Fn(Defence) -> Option<i128>,
+    quality: i128,
+    own: &[Local],
+) -> Rolled {
+    let work = || -> Option<Rolled> {
+        let hundred = Ratio::whole(100);
+        let one = Ratio::whole(1);
+        let half = Ratio::new(1, 2)?;
+        let quality = one.plus(Ratio::whole(quality).over(hundred)?)?;
+        let mut open: Vec<(PercentileGap, String)> = Vec::new();
+        let (mut least, mut most) = (Ratio::whole(0), Ratio::whole(0));
+        let mut defences: i128 = 0;
+        for (defence, (low, high)) in base.ranges() {
+            // every defence the base ranges is displayed: the base was
+            // chosen so
+            let display = Ratio::whole(shown(defence)?);
+            let (mut flat, mut increase) = (Ratio::whole(0), Ratio::whole(0));
+            for local in own.iter().filter(|local| local.to.contains(&defence)) {
+                match local.does {
+                    Does::Add => flat = flat.plus(local.number)?,
+                    Does::Increase | Does::Reduce => increase = increase.plus(local.number)?,
+                    Does::DropQuality => {}
+                }
+            }
+            let mult = one.plus(increase.over(hundred)?)?.times(quality)?;
+            let rolls = if mult.positive() {
+                let from = display.minus(half)?.over(mult)?.minus(flat)?.ceil();
+                let to = display.plus(half)?.over(mult)?.minus(flat)?.floor();
+                (from <= to).then_some((from, to))
+            } else {
+                None
+            };
+            let Some((from, to)) = rolls else {
+                open.push((
+                    PercentileGap::NoRoll,
+                    format!(
+                        "no whole number is a roll that displays `{}` {}",
+                        defence.property(),
+                        display.floor()
+                    ),
+                ));
+                continue;
+            };
+            if low == high {
+                open.push((
+                    PercentileGap::MinimumIsMaximum,
+                    format!(
+                        "the base's minimum `{}` is its maximum, {low}: a roll has no place in such a range",
+                        defence.property()
+                    ),
+                ));
+                continue;
+            }
+            let (low, width) = (i128::from(low), i128::from(high) - i128::from(low));
+            let place = |roll: i128| -> Option<Ratio> {
+                Ratio::new(roll.checked_sub(low)?.checked_mul(100)?, width)
+            };
+            least = least.plus(place(from)?)?;
+            most = most.plus(place(to)?)?;
+            defences += 1;
+        }
+        if !open.is_empty() {
+            return Some(Rolled::Open(open));
+        }
+        let count = Ratio::whole(defences);
+        let (least, most) = (least.over(count)?.half_up()?, most.over(count)?.half_up()?);
+        Some(if least == most {
+            Rolled::Value(least)
+        } else {
+            Rolled::Open(vec![(
+                PercentileGap::SeveralValues,
+                format!(
+                    "more than one roll gives what is displayed, and they give values from {least} to {most}"
+                ),
+            )])
+        })
+    };
+    work().unwrap_or(Rolled::TooLarge)
 }
 
 // ---- the vocabulary -----------------------------------------------------------------------------------
@@ -855,13 +1583,13 @@ static DESCRIBED: LazyLock<Vec<Entry>> = LazyLock::new(|| {
         let name = format!("pseudo.{}", derived.name());
         out.push(Entry {
             examples: vec![
-                leak(format!("{name}>=300")),
+                leak(format!("{name}>={}", derived.example())),
                 leak(format!("-has:{name}")),
                 leak(format!("undecided({name})")),
             ],
             name,
             kind: "derived",
-            what: derived.definition().to_string(),
+            what: derived.definition(),
             values: Vec::new(),
         });
     }

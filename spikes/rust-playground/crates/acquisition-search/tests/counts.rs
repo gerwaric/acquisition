@@ -830,10 +830,12 @@ fn a_view_that_cannot_be_is_an_authoring_error() {
             "operator_mismatch",
             "`--sum` takes a number",
         ),
+        // a derived field takes no slot word (`pseudo.defence_pct` alone
+        // was refused as not built until step 9d-A, and is summed since)
         (
-            json!({ "counts": { "keys": ["tab"], "sum": "pseudo.defence_pct" } }),
-            "not_built",
-            "pseudo.defence_pct",
+            json!({ "counts": { "keys": ["tab"], "sum": "pseudo.defence_pct.avg" } }),
+            "slot_unknown",
+            "takes no slot word",
         ),
         (
             json!({ "counts": { "keys": ["tab"], "sum": "pseudo.total_res.avg" } }),

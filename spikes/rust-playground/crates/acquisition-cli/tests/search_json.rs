@@ -1646,3 +1646,118 @@ fn step_9d_c_the_ranged_family_and_a_flask_at_a_terminal() {
             .all(|n| n["construct"] != "pseudo.<name>.<slot>")
     );
 }
+
+/// Step 9d-A at a terminal (C101, V5): the base defence percentile of a
+/// captured hybrid — the table's `e002[3]`, Ambush Mitts as the trade
+/// site listed them, which the site showed at 90 — of an item that lacks
+/// the field, and `--describe` of it. Tab `t3` gains `mitts`: quality 6,
+/// Evasion Rating 212 and Energy Shield 45 under `125% increased Evasion
+/// and Energy Shield`, on a base ranging evasion 81–91 and energy shield
+/// 17–19. By hand: the display is the roll × 2.25 × 1.06 = roll × 2.385;
+/// evasion 89 gives 212.265, shown 212, and 88 and 90 give 209.88 and
+/// 214.65; energy shield 19 gives 45.315, shown 45, and 18 gives 42.93.
+/// 100 × 8 / 10 = 80 and 100 × 2 / 2 = 100: their average 90. And
+/// `ruby`, a Ruby Ring, which displays no defence.
+#[test]
+fn step_9d_a_the_percentile_of_a_captured_hybrid_at_a_terminal() {
+    let base = base();
+    seed(&base);
+    let mut store = Store::open(&account_path(&base.join("mock"), USER)).unwrap();
+    let property =
+        |name: &str, value: &str| json!({ "name": name, "values": [[value, 0]], "displayMode": 0 });
+    store
+        .record(
+            &Endpoint::Stash {
+                realm: "pc".into(),
+                league: "Standard".into(),
+                id: "t3".into(),
+                sub: None,
+            },
+            &json!({ "realm": "pc", "league": "Standard" }),
+            200,
+            &json!({ "stash": { "id": "t3", "name": "Never", "type": "PremiumStash", "items": [
+                { "id": "mitts", "name": "", "typeLine": "Ambush Mitts", "baseType": "Ambush Mitts",
+                  "rarity": "Rare", "frameTypeId": "Rare", "identified": true, "ilvl": 0,
+                  "x": 0, "y": 0, "searing": true,
+                  "properties": [property("Quality", "+6%"), property("Evasion Rating", "212"),
+                                 property("Energy Shield", "45")],
+                  "explicitMods": ["125% increased Evasion and Energy Shield"] },
+                { "id": "ruby", "name": "", "typeLine": "Ruby Ring", "baseType": "Ruby Ring",
+                  "rarity": "Rare", "frameTypeId": "Rare", "identified": true, "ilvl": 0,
+                  "x": 1, "y": 0 },
+            ] } }),
+            40,
+        )
+        .unwrap();
+    drop(store);
+    let found = |query: &str| -> (Vec<String>, Value) {
+        let a = sole_json(&acq(&base, &["--json", "search", query]));
+        let mut ids: Vec<String> = a["rows"]
+            .as_array()
+            .unwrap_or_else(|| panic!("`{query}`: {a}"))
+            .iter()
+            .map(|r| r["id"].as_str().unwrap().to_string())
+            .collect();
+        ids.sort_unstable();
+        (ids, a)
+    };
+
+    // the captured hybrid, as the site showed it
+    let (ids, a) = found("pseudo.defence_pct=90");
+    assert_eq!(ids, ["mitts"]);
+    assert_eq!(a["basis"]["defences"], 1);
+    assert_eq!(a["query"]["text"], "pseudo.defence_pct=90");
+    assert_eq!(
+        a["rows"][0]["matched"][0]["shows"][0],
+        json!({ "value": { "name": "pseudo.defence_pct", "value": 90 } })
+    );
+    let shown = text(&acq(
+        &base,
+        &["search", "--realm", "pc", "pseudo.defence_pct>=80"],
+    ));
+    assert!(shown.contains("pseudo.defence_pct 90"), "{shown}");
+    assert!(shown.contains("defences v1"), "{shown}");
+
+    // an item that lacks the field: lacked, never zero, and never a match.
+    // A term's counts are over the scope: the seed's five items display no
+    // defence and `ruby` is the sixth, `mitts` the one that has it
+    let (ids, a) = found("id:ruby pseudo.defence_pct>=0");
+    assert_eq!(ids, [] as [&str; 0]);
+    assert_eq!(a["terms"][1]["matched"]["count"], 1);
+    assert_eq!(a["terms"][1]["lacked"]["count"], 6);
+    assert_eq!(a["terms"][1]["failed"]["count"], 0);
+    assert_eq!(a["total"]["undecided"]["count"], 0);
+    assert_eq!(found("id:ruby -has:pseudo.defence_pct").0, ["ruby"]);
+
+    // `--describe` of it
+    let d = sole_json(&acq(
+        &base,
+        &["--json", "search", "--describe", "defence_pct"],
+    ));
+    assert_eq!(d["computed"].as_array().unwrap().len(), 1);
+    assert_eq!(d["computed"][0]["name"], "pseudo.defence_pct");
+    let what = d["computed"][0]["what"].as_str().unwrap();
+    for needle in [
+        "The percentile of all base defence rolls, averaged",
+        "exact half",
+        "defences v1",
+    ] {
+        assert!(
+            what.contains(needle),
+            "the definition lacks `{needle}`: {what}"
+        );
+    }
+    let shown = text(&acq(&base, &["search", "--describe", "defence_pct"]));
+    assert!(
+        shown.contains("pseudo.defence_pct") && shown.contains("exact half"),
+        "{shown}"
+    );
+    let all = sole_json(&acq(&base, &["--json", "search", "--describe"]));
+    assert!(
+        all["not_built"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|n| n["construct"] != "pseudo.defence_pct")
+    );
+}

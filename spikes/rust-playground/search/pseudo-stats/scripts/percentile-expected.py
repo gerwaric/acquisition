@@ -350,6 +350,8 @@ def displayed(properties):
         return shown, quality, ["`properties` is no array"], quality_unread
     for element in properties:
         name, value = element if isinstance(element, (list, tuple)) and len(element) == 2 else (None, None)
+        if name is None and isinstance(element, (list, tuple)) and len(element) == 2:
+            continue  # derive.rs, `property`: a name that is absent or null is an empty name, no unread one
         if not isinstance(name, str):
             unread.append("a property's name is unread")
             continue
@@ -1056,7 +1058,7 @@ RULED = [
      None, composed("pc", "Plate Vest", "Normal", "unread")),
     ("r-property-name-unread", "pseudo.rs: an element of `properties` whose name is unread may be one the "
                                "field reads",
-     None, composed("pc", "Ruby Ring", "Rare", [(None, "23")])),
+     None, composed("pc", "Ruby Ring", "Rare", [(7, "23")])),
     ("r-defence-no-number", "pseudo.rs: a defence displayed as no number",
      None, composed("pc", "Plate Vest", "Normal", [("Armour", "many")])),
     ("r-quality-no-number", "pseudo.rs: the quality displayed as no number, on an item displaying a defence",

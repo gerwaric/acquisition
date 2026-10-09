@@ -36,6 +36,18 @@
 //! item said `.9931`, and the first fix, which read units off the float
 //! again, left nine cancelling totals and `0.0001` summing to `0.00011`
 //! (its review, 1).
+//!
+//! **A fraction is whole numbers, never a float** ([`Ratio`]). The base
+//! defence percentile (`pseudo.rs`, C101) works back from a displayed
+//! number to the roll behind it — a display divided by an increase and a
+//! quality — and asks whether a product lands on an exact half: as floats
+//! a product at an exact half lands under it, and the run that wrote the
+//! field's expected answers found three items of the owner's copy a float
+//! read wrongly (`search/pseudo-stats/README.md`, "The percentile's
+//! expected answers"). A displayed number becomes a fraction from its
+//! units, once; a product, a quotient and a rounding are of whole
+//! numbers, and one the whole numbers cannot hold is none — unread to
+//! what asked it, as [`Exact::times`] is, never rounded.
 
 /// The most whole digits and decimals a number may be displayed with.
 const WHOLE: usize = 10;
@@ -116,6 +128,115 @@ impl Exact {
     }
 }
 
+/// A fraction of whole numbers, in lowest terms, its denominator above
+/// nothing (the module doc). Every operation is exact, or none where the
+/// whole numbers cannot hold the result.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Ratio {
+    num: i128,
+    den: i128,
+}
+
+impl Ratio {
+    /// A fraction; none where the denominator is nothing.
+    pub fn new(num: i128, den: i128) -> Option<Ratio> {
+        if den == 0 {
+            return None;
+        }
+        let divisor = gcd(num, den);
+        let (num, den) = (num / divisor, den / divisor);
+        if den < 0 {
+            Some(Ratio {
+                num: num.checked_neg()?,
+                den: den.checked_neg()?,
+            })
+        } else {
+            Some(Ratio { num, den })
+        }
+    }
+
+    pub fn whole(n: i128) -> Ratio {
+        Ratio { num: n, den: 1 }
+    }
+
+    /// A displayed number, a mean or a total, from its units: the one
+    /// place units become a fraction.
+    pub fn of(exact: Exact) -> Ratio {
+        // the units of one are above nothing, so this is always a fraction
+        Ratio::new(exact.0, UNITS as i128).unwrap_or(Ratio::whole(0))
+    }
+
+    pub fn plus(self, other: Ratio) -> Option<Ratio> {
+        let num = self
+            .num
+            .checked_mul(other.den)?
+            .checked_add(other.num.checked_mul(self.den)?)?;
+        Ratio::new(num, self.den.checked_mul(other.den)?)
+    }
+
+    pub fn minus(self, other: Ratio) -> Option<Ratio> {
+        self.plus(Ratio {
+            num: other.num.checked_neg()?,
+            den: other.den,
+        })
+    }
+
+    pub fn times(self, other: Ratio) -> Option<Ratio> {
+        // cross-reduced first, so that a product that fits is not lost to
+        // an intermediate that does not
+        let (a, b) = (gcd(self.num, other.den), gcd(other.num, self.den));
+        Ratio::new(
+            (self.num / a).checked_mul(other.num / b)?,
+            (self.den / b).checked_mul(other.den / a)?,
+        )
+    }
+
+    /// The quotient; none where the divisor is nothing.
+    pub fn over(self, other: Ratio) -> Option<Ratio> {
+        self.times(Ratio::new(other.den, other.num)?)
+    }
+
+    /// Whether the fraction is above nothing.
+    pub fn positive(self) -> bool {
+        self.num > 0
+    }
+
+    /// The largest whole number not above the fraction.
+    pub fn floor(self) -> i128 {
+        self.num.div_euclid(self.den)
+    }
+
+    /// The smallest whole number not below the fraction.
+    pub fn ceil(self) -> i128 {
+        // a remainder under `div_euclid` is never below nothing
+        self.floor() + i128::from(self.num.rem_euclid(self.den) != 0)
+    }
+
+    /// The fraction rounded to a whole number, an exact half up: none
+    /// where the whole numbers cannot hold the step.
+    pub fn half_up(self) -> Option<i128> {
+        Some(self.plus(Ratio::new(1, 2)?)?.floor())
+    }
+}
+
+/// The greatest common divisor, above nothing: one where both are nothing.
+fn gcd(a: i128, b: i128) -> i128 {
+    let (mut a, mut b) = (a.unsigned_abs(), b.unsigned_abs());
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    // a divisor of an `i128` other than its minimum fits; the minimum's
+    // own magnitude does not, and is divided by nothing
+    i128::try_from(a).ok().filter(|d| *d > 0).unwrap_or(1)
+}
+
+impl Exact {
+    /// A whole number, in units; none where the units cannot hold it.
+    pub fn whole(n: i128) -> Option<Exact> {
+        n.checked_mul(UNITS as i128).map(Exact)
+    }
+}
+
 fn units(value: f64) -> i128 {
     let text = value.to_string();
     let (sign, digits) = match text.strip_prefix('-') {
@@ -161,7 +282,7 @@ pub(crate) fn mean(low: f64, high: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{Exact, mean, reads, sum};
+    use super::{Exact, Ratio, mean, reads, sum};
 
     #[test]
     fn a_sum_is_the_decimal_sum_in_any_order() {
@@ -226,6 +347,53 @@ mod tests {
         // the rule's largest number squared is within i128 and exact
         assert_eq!(times(9999999999.9999, 2.0), Some(19999999999.9998));
         assert!(times(9999999999.9999, 9999999999.9999).is_none());
+    }
+
+    /// A fraction is exact where a float is not: the product the field's
+    /// expected answers met, a display at an exact half, lands on the
+    /// half; rounding is half up, below nothing too; what the whole
+    /// numbers cannot hold is none.
+    #[test]
+    fn a_fraction_is_exact_and_an_exact_half_rounds_up() {
+        let of = |n: f64| Ratio::of(Exact::of(n));
+        // roll 45 at quality 10: 45 × 1.10 = 49.5, an exact half
+        let display = Ratio::whole(45)
+            .times(
+                of(1.0)
+                    .plus(of(10.0).over(Ratio::whole(100)).unwrap())
+                    .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(display, Ratio::new(99, 2).unwrap());
+        assert_eq!(display.half_up(), Some(50));
+        assert_eq!((display.floor(), display.ceil()), (49, 50));
+        // 0.1 + 0.2 is 0.3, and a third is a third
+        assert_eq!(of(0.1).plus(of(0.2)), Some(of(0.3)));
+        assert_eq!(Ratio::new(2, 6), Ratio::new(1, 3));
+        assert_eq!(Ratio::new(1, -2), Ratio::new(-1, 2));
+        assert_eq!(Ratio::new(1, 0), None);
+        assert_eq!(of(1.0).over(Ratio::whole(0)), None);
+        // below nothing: the floor is the whole number below, and a half
+        // rounds up, toward nothing
+        let below = Ratio::new(-5, 2).unwrap();
+        assert_eq!((below.floor(), below.ceil()), (-3, -2));
+        assert_eq!(below.half_up(), Some(-2));
+        assert_eq!(Ratio::new(-7, 2).unwrap().half_up(), Some(-3));
+        assert_eq!(Ratio::new(-25, 1).unwrap().half_up(), Some(-25));
+        assert_eq!(of(18.75).half_up(), Some(19));
+        assert_eq!(of(12.5).minus(of(0.5)), Some(Ratio::whole(12)));
+        assert!(of(0.0001).positive() && !of(0.0).positive() && !of(-1.0).positive());
+        // past the whole numbers: none, never a wrapped number
+        let large = Ratio::whole(i128::MAX);
+        assert_eq!(large.plus(Ratio::whole(1)), None);
+        assert_eq!(large.times(Ratio::whole(2)), None);
+        assert_eq!(
+            large.times(Ratio::new(1, 2).unwrap()).map(Ratio::floor),
+            Some(i128::MAX / 2)
+        );
+        assert_eq!(Exact::whole(53).map(Exact::as_f64), Some(53.0));
+        assert_eq!(Exact::whole(-25).map(Exact::as_f64), Some(-25.0));
+        assert_eq!(Exact::whole(i128::MAX), None);
     }
 
     #[test]

@@ -35,7 +35,9 @@
 //!   appears and cannot be asked for until its list gains it. A name the
 //!   language knows is known in any case, a computed value's too (F10),
 //!   and a computed value is near a misspelt one, behind `has:` as
-//!   anywhere.
+//!   anywhere. A slot word behind a ranged total under `has:` is a slot
+//!   word where none is taken (`ErrorKind::SlotUnknown`) and offers
+//!   `has:` of the total (`pseudo.rs`).
 //! - **`category` is a closed set too** (`category.rs`, C106): its list
 //!   the trade site's ids, in the site's order. An id with a dot is a
 //!   value of more than a word and is quoted, as the grammar has every
@@ -102,11 +104,6 @@ pub struct NotBuilt {
 /// The one list (the build plan, rule 1). An entry leaves in the commit
 /// that builds its construct.
 pub const NOT_BUILT: &[NotBuilt] = &[
-    NotBuilt {
-        construct: "pseudo.defence_pct",
-        step: None,
-        what: "the base defence percentile (C101): its formula is not pinned against the site's (search/pseudo-stats/README.md, open question 3)",
-    },
     NotBuilt {
         construct: "--fields",
         step: Some(10),
@@ -900,9 +897,6 @@ fn bind_pseudo(
             slot: slot.map(str::to_string),
         })
     };
-    if name.eq_ignore_ascii_case("defence_pct") {
-        return Err(not_built("pseudo.defence_pct"));
-    }
     let known = crate::pseudo::names();
     let Some(named) = crate::pseudo::lookup(name)? else {
         return Err(unknown("computed value", name, known, |near| {
@@ -998,6 +992,24 @@ impl Binder {
                 // `has:` asks: a derived field's is a property's (T2: "A
                 // ring has no dps"), a total's a sum of nothing (C94)
                 let short = name.get("pseudo.".len()..).unwrap_or_default();
+                // a slot word behind a ranged total: `has:` asks presence
+                // and takes none, a refusal of its own kind and never the
+                // unknown name the whole spelling would be
+                if let Some((head, slot)) = short.rsplit_once('.')
+                    && tree::is_slot_word(slot)
+                    && let Some(crate::pseudo::Named::Total { total, .. }) =
+                        crate::pseudo::lookup(head)?
+                    && total.ranged
+                {
+                    return Err(LanguageError::new(
+                        ErrorKind::SlotUnknown,
+                        format!(
+                            "`has:` asks whether the item has `pseudo.{}`, and takes no slot word: `{slot}` names a number of it, which a comparison asks",
+                            total.name
+                        ),
+                    )
+                    .with_readings(vec![format!("has:pseudo.{}", total.name)]));
+                }
                 let (named, _) = bind_pseudo(short, None).map_err(|e| {
                     // a near name is offered as it is asked here (the
                     // review of 9b)

@@ -57,6 +57,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::category::{self, CATEGORY_TABLE_VERSION, COLOUR_TABLE_VERSION, Category};
 use crate::class::{self, CLASS_TABLE_VERSION, ClassTable, Classed};
+use crate::defences::{self, DEFENCE_TABLE_VERSION};
 use crate::derive::{Facts, Item, Part, Unread, derive};
 use crate::error::SearchError;
 use crate::price::{self, CURRENCY_TABLE_VERSION, NOTE_PARSER_VERSION, Priced};
@@ -129,6 +130,8 @@ pub struct Basis {
     pub beast_colours: u32,
     /// The totals table's version (C94).
     pub totals: u32,
+    /// The defence table's version (C101, C106; `defences.rs`).
+    pub defences: u32,
     /// The intent file's revision the prices were read at (C98, C81).
     pub intent: i64,
     /// The currency table's version (C68).
@@ -289,6 +292,7 @@ impl Basis {
             categories: CATEGORY_TABLE_VERSION,
             beast_colours: COLOUR_TABLE_VERSION,
             totals: TOTALS_TABLE_VERSION,
+            defences: DEFENCE_TABLE_VERSION,
             intent,
             currency: CURRENCY_TABLE_VERSION,
             notes: NOTE_PARSER_VERSION,
@@ -312,6 +316,12 @@ pub(crate) fn category_tables() -> Result<&'static category::Tables, SearchError
 /// answers with (`totals.rs`).
 pub(crate) fn totals_table() -> Result<&'static TotalsTable, SearchError> {
     totals::table().map_err(|e| SearchError::scope("totals_table", e.to_string()))
+}
+
+/// The defence table, or the error a build whose table does not load
+/// answers with (`defences.rs`).
+pub(crate) fn defence_table() -> Result<&'static defences::DefenceTable, SearchError> {
+    defences::table().map_err(|e| SearchError::scope("defence_table", e.to_string()))
 }
 
 /// How many times a corpus is read again when the facts or the intent
@@ -357,6 +367,7 @@ impl Corpus {
         let table = class_table()?;
         let categories = category_tables()?;
         totals_table()?;
+        defence_table()?;
         currency_table()?;
         let intent_revision = price::intent_revision(intent)?;
         let (mut corpus, leagues) = store

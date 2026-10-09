@@ -1301,9 +1301,11 @@ fn c93_a_row_that_does_not_count_on_the_item_reads_nothing_of_it() {
 /// templates where a narrowing matches its name or what the total itself
 /// is defined as — its rows, its limit — and never by the rule the table
 /// states of every total, which every definition prints: narrowed by a
-/// word of that rule alone, `crucible` or `utility`, it lists no computed
-/// value, where it would list every one (the fault T5 was ruled on, come
-/// back by a sentence).
+/// word of that rule alone, `crucible` or `utility`, it lists no total,
+/// where it would list every one (the fault T5 was ruled on, come back by
+/// a sentence). The base defence percentile is listed under `crucible`
+/// since step 9d-A, and that is the same rule: its own definition says
+/// what it answers of a crucible node's defence line (J33).
 #[test]
 fn c97_a_narrowing_matches_a_totals_own_definition_and_never_the_tables_rule() {
     let s = arrays();
@@ -1321,15 +1323,10 @@ fn c97_a_narrowing_matches_a_totals_own_definition_and_never_the_tables_rule() {
             .map(|b| b["value"].as_str().unwrap().to_string())
             .collect()
     };
-    for word in [
-        "crucible",
-        "utility",
-        "crucibleMods",
-        "flask's own",
-        "leaves out",
-    ] {
+    for word in ["utility", "crucibleMods", "flask's own", "leaves out"] {
         assert_eq!(computed(word), [] as [&str; 0], "line:{word}");
     }
+    assert_eq!(computed("crucible"), ["pseudo.defence_pct"]);
     // a total's own definition still finds it: its rows, and a ranged
     // total's limit
     assert_eq!(

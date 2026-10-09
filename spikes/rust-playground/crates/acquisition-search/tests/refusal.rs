@@ -87,14 +87,15 @@ fn every_construct_of_the_reference_evaluates_or_is_refused_by_its_name_on_the_l
         "neither evaluated nor refused by a listed name:\n{}",
         stray.join("\n")
     );
-    assert!(evaluated > 0 && !refusals.is_empty());
-    // what the corpus can reach of the list is refused by that name; the
-    // flags are the CLI's to refuse, by the same function
-    let construct = "pseudo.defence_pct";
+    assert!(evaluated > 0);
+    // nothing the corpus can reach is on the list since step 9d-A built
+    // `pseudo.defence_pct`, the last construct of the query it held: what
+    // is left there is flags, the CLI's to refuse, by the same function
     assert!(
-        refusals.contains(construct),
-        "no case of the corpus met `{construct}`: {refusals:?}"
+        NOT_BUILT.iter().all(|n| n.construct.contains("--")),
+        "the list holds a construct of the query, and no case of the corpus met it"
     );
+    assert!(refusals.is_empty(), "{refusals:?}");
 }
 
 #[test]
