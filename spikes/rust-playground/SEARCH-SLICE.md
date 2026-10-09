@@ -286,14 +286,14 @@ filed again by the step that touches it.
   for `category`; `show` prints an item's listing, never every id
   that holds; a beast's class rests on a second field, the bestiary
   line, and a body where that line is no string is fixtures' alone.
-- *The next sitting (9d-C):* 258 of the copy's 1,831 lines under the
+- *9d-A's sitting, if it has one (the plan):* 258 of the copy's 1,831 lines under the
   ranged family's rows are in an array or under a flag no capture
   asked, each with its question
   (`search/pseudo-stats/data/ranged-expected-copy.csv`): a weapon's
   fractured, implicit, crafted and enchant lines rest on J7, the
   export and Path of Building. J29 names two arrays; a mutated line,
   one on the copy, is counted and unasked.
-- *The review's next look (9d-C):* the generated properties reach no
+- *Step 9e and 9d-A's build (the plan):* the generated properties reach no
   ranged total, no row that reads the category and neither array J29
   leaves out; `has:pseudo.<ranged>.avg` is refused as an unknown
   name, the right reading under the wrong kind.
