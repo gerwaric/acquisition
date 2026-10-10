@@ -15,7 +15,7 @@ this machine's file cache is not controlled. Warm: the median of ten
 consecutive asks. Release is judged against 500 ms; debug is what the seat
 feels. Never in the gate: the input is raw/.
 """
-import os, statistics, subprocess, sys, time
+import json, os, statistics, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 LIFE = '"# to maximum Life"'
@@ -94,6 +94,15 @@ ASKS = [
     ("the percentile", ["pseudo.defence_pct>=90"]),
     ("the percentile of a class, sorted", ["class:helmet", "--sort", "pseudo.defence_pct", "--desc", "--limit", "10"]),
     ("--count class --sum pseudo.defence_pct", ["category=armour", "--count", "class", "--sum", "pseudo.defence_pct"]),
+    # step 10: explain, the corpus context, a continuation, the request printed, membership, an id that left;
+    # TOKEN and LEFT are read from the copy before anything is timed
+    ("step 10: the empty query", [""]),
+    ("--explain 0.1", [f'{LIFE}>=90', "--explain", "0.1"]),
+    ("--context corpus", [f'{LIFE}>=90', "--context", "corpus"]),
+    ("--next of a token", ["--next", "TOKEN"]),
+    ("--print-request", ["", "--print-request"]),
+    ("the empty query --membership all", ["", "--membership", "all"]),
+    ("id: of an item that left", ["id:LEFT"]),
 ]
 
 def main():
@@ -109,18 +118,28 @@ def main():
     env = {k: v for k, v in os.environ.items() if k not in ("ACQ_ACCOUNT", "ACQ_GGG")}
     env.update(ACQ_PROVIDER="mock", ACQ_NO_KEYRING="1", ACQ_NO_SPAWN="1", ACQ_STORE_DIR=os.path.join(work, "store"))
 
+    def command(profile, args):
+        # a token names its own scope, so no realm stands beside `--next`
+        scope = [] if "--next" in args else ["--realm", realm]
+        return [os.path.join(ROOT, "target", profile, "acq"), "--json", "search", *scope, *args]
+
     def ask(profile, args):
         started = time.perf_counter()
-        done = subprocess.run([os.path.join(ROOT, "target", profile, "acq"), "--json", "search", "--realm", realm, *args],
-                              env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        done = subprocess.run(command(profile, args), env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         elapsed = (time.perf_counter() - started) * 1000
         if done.returncode != 0:
             sys.exit(f"{args}: {done.stderr.decode()}")
         return elapsed
 
+    def answer(args):
+        return json.loads(subprocess.run(command("release", args), env=env, check=True, capture_output=True).stdout)
+
     print(f"first ask after the copy was written, release, the empty query: {ask('release', ['']):.0f} ms")
+    token = answer([""])["view"]["rows"]["next"]["token"]
+    left = min(row["id"] for row in answer(["", "--membership", "all", "--limit", "100000"])["rows"] if "removed_at" in row)
     print(f"{'ask':<32}{'release':>10}{'debug':>10}   (ms, the median of ten)")
     for name, args in ASKS:
+        args = [arg.replace("TOKEN", token).replace("LEFT", left) for arg in args]
         medians = [statistics.median(ask(profile, args) for _ in range(10)) for profile in ("release", "debug")]
         print(f"{name:<32}{medians[0]:>10.0f}{medians[1]:>10.0f}")
 
