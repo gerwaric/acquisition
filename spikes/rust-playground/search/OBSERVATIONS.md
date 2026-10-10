@@ -240,3 +240,24 @@ filed again by the step that touches it.
   and another realm rests on the look's own property over 400
   generated queries, kept nowhere; `Query::at` is a second walk beside
   `tree::walk`, no disagreement found.
+- *Step 11's opening (step 10b), three questions of the basis for one
+  sitting:* whether it names the build — a digest of the search crate's
+  sources by a build script, as C84's contract revision is made, is the
+  candidate, and a token carries the basis whole, so it would be covered
+  with every answer; until then a token carried across two builds at one
+  basis may skip or repeat a row. Whether it names the facts file by an
+  id the file carries (`decisions/search.md`, "Parked", fired by
+  `--next`): a token continues across a file deleted and refetched to
+  the same revision, shown by the look, and a held corpus would pass the
+  check the same way; it is a facts migration. Whether the basis is
+  repeated on every count in `--json`.
+- *A seat, or the review's next look (step 10b):* `--print-request`
+  loads the corpus to resolve an account and a realm, some half a second
+  on the copy, and asks nothing. A hand-edited token runs: it carries no
+  check of its own. `desc` with no sort is carried by a request file,
+  where the terminal requires `--sort`. The generated paging property
+  meets a sort that reorders more than one page once or twice in 48
+  cases, the fixed case holding the rest; it draws no `--context
+  corpus` and no tree. No mutant was run against the terminal's test.
+  A changed basis by a price written was not run, a fetch and a file
+  replaced were.
