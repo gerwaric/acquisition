@@ -247,7 +247,7 @@ Options:
       --context <WHICH>        What the answer is of: `matches`, the query's, as every answer is; or `corpus`, the empty query over the same scope under rows or a count, with the query typed printed as set aside and counted nowhere; beside `--explain`, which is of the query typed, an error
       --view <WHAT>            Not built, waiting for a consumer that asks: `locations`, the full coverage list
       --print-request          Print the request as JSON, its account and realm resolved, and do not run it: what `--request` reads
-      --request <FILE|->       Run a request read from a file, or from stdin with `-`: what `--print-request` printed, a `next` or an offer of an answer's `--json`, or a count's route — which, run on a later basis than it was counted at, reports both counts. A request is whole: no word of scope, query or view stands beside it
+      --request <FILE|->       Run a request read from a file, or from stdin with `-`: what `--print-request` printed, a `next` or an offer of an answer's `--json`, or a count's route — which reports both counts where its count has moved since, and wherever the basis has where the answer's `basis` is sent beside it as `counted_at`. A request is whole: no word of scope, query or view stands beside it
       --rebind                 Not built, waiting for a consumer that asks: run another account's request deliberately
   -h, --help                   Print help
 ```

@@ -63,9 +63,6 @@ filed again by the step that touches it.
   cross-checks 54 s, completion 8 s, beside the routes' 9 s and the
   rows' 8 s. 256, 192 and 256 cases; `PROPTEST_CASES` runs any of them
   longer by hand. The cross-checks were 37 s before the step.
-- The basis names no evaluator, so two builds can label different
-  answers with one basis — true of every evaluator fix since step 4;
-  `DERIVATION` moves only when a body derives to another item.
 
 **Step 6.**
 
@@ -124,9 +121,7 @@ filed again by the step that touches it.
 
 - The six lines, each kept (C91, C92, C93 with V8's display, C104 by
   V7). Still open of them: C95, a bucket whose every item lacks the
-  value prints `sum 0 · N lacking`, the 0 reading as measured; C98, the
-  basis repeated on every count in `--json` where it equals the
-  answer's, and no evaluator version in it.
+  value prints `sum 0 · N lacking`, the 0 reading as measured.
 - `class:sword` and `class:map` reach past their word too, but print
   every pick; an open field's `:` prints five of 87 (the checklist's
   silent reach).
@@ -245,25 +240,6 @@ filed again by the step that touches it.
   and another realm rests on the look's own property over 400
   generated queries, kept nowhere; `Query::at` is a second walk beside
   `tree::walk`, no disagreement found.
-- *Step 11's opening (step 10b), three questions of the basis for one
-  sitting:* whether it names the build — a digest of the search crate's
-  sources by a build script, as C84's contract revision is made, is the
-  candidate, and a token carries the basis whole, so it would be covered
-  with every answer; until then a token carried across two builds at one
-  basis may skip or repeat a row. Whether it names the facts file by an
-  id the file carries (`decisions/search.md`, "Parked", fired by
-  `--next`): a token continues across a file deleted and refetched to
-  the same revision, shown by the look, and a held corpus would pass the
-  check the same way; it is a facts migration. Whether the basis is
-  repeated on every count in `--json`. The owner's leaning, given
-  before the sitting and no ruling (2026-10-10): the build named in
-  the basis and the basis stated once, yes ("i agree"); the store
-  file's identity "an edge case we might not want to spend much effort
-  on supporting" — so the candidate to try is the timestamp of the
-  highest response beside its id, untested, taken only if it is one
-  field and no migration, the file-id park staying parked otherwise;
-  and with no migration the scan below has nothing to ride on and
-  stays.
 - *A seat, or the review's next look (step 10b):* `--print-request`
   loads the corpus to resolve an account and a realm, some half a second
   on the copy, and asks nothing. A hand-edited token runs: it carries no
@@ -274,8 +250,7 @@ filed again by the step that touches it.
   corpus` and no tree. No mutant was run against the terminal's test.
   A changed basis by a price written was not run, a fetch and a file
   replaced were.
-- *Step 11's opening, with the facts migration if one is ruled (step
-  10c):* the live read names the ids it left out by a scan of `items`,
+- *Step 11d, with its facts migration (step 10c):* the live read names the ids it left out by a scan of `items`,
   6 ms by sqlite alone over the copy's 22,727 rows, the load 491 ms
   where it was 483; a partial index on `removed_at` would make it
   nothing, and is a migration. A prune of removed items changes what

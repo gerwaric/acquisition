@@ -479,11 +479,13 @@ may*; r6 — *pseudo.total_res: implicit lines unread; a refresh may
 help*. These are hints, never guarantees.
 
 **The same route under `--json`** — directly resubmittable, carrying its
-denominator and the basis it was counted at; run on a later basis it
-reports both counts:
+count and its denominator; the basis it was counted at is the answer's,
+stated once (B3, 2026-10-10). Run where its count has moved it reports
+both counts, and a caller who sends the answer's `basis` beside it as
+`counted_at` is told wherever the basis has moved:
 
 ```json
-{ "count": 1, "counted_at": { "snapshot": 41 }, "denominator": "scope",
+{ "count": 1, "denominator": "scope",
   "request": { "scope": { "account": "A", "realm": "pc", "membership": "live" },
                "query": { "text": "line(\"# to maximum Life\") -line(\"# to maximum Life\" arg1>=90)" },
                "view":  { "rows": {} } } }

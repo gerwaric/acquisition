@@ -112,8 +112,9 @@
 //!   (AQ3 whole). The continuation and a route read back are
 //!   [`mod@answer`]'s doc; pinned by `tests/next.rs` (the pages in order
 //!   are the answer at a limit past the total, fixed and generated; the
-//!   refusal across a changed basis; both counts of a route on a later
-//!   basis). Membership is [`corpus`]'s doc and the store's
+//!   refusal across a changed basis, another build's and a refetched
+//!   file's among them; both counts of a route read back, with its
+//!   basis sent or without). Membership is [`corpus`]'s doc and the store's
 //!   (`acquisition-store/src/corpus.rs`, C108); pinned by
 //!   `tests/membership.rs` (the removed beside the live, each marked at
 //!   the place it was last seen; a removed item's price; every route

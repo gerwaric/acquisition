@@ -263,53 +263,87 @@ fn a_token_that_is_none_is_refused() {
     }
 }
 
-/// A route is a request that runs on any basis: resubmitted where it was
-/// counted it says nothing more, and on a later basis it reports both
-/// counts (the reference, *One worked example*).
+/// The basis is stated once in an answer (C98; B3, `search/LEDGER.md`): a
+/// route carries its count and its request and no basis. Read back, it
+/// says what it said when it was printed only where the count has moved
+/// since; a caller who sends the answer's basis beside it is told
+/// whenever the basis has moved, each part named, the count the same or
+/// not (the reference, *One worked example*).
 #[test]
-fn a_route_resubmitted_on_a_later_basis_reports_both_counts() {
+fn a_route_read_back_reports_both_counts_with_its_basis_or_without() {
     let mut s = worked();
     let corpus = load(&s, Some("pc"));
     let a = as_json(&ask(&corpus, "rarity=rare").unwrap());
     let route = a["terms"][0]["matched"].clone();
     assert_eq!(route["count"], 6);
+    assert!(route.get("counted_at").is_none(), "{route}");
+    let mut labelled = route.clone();
+    labelled["counted_at"] = a["basis"].clone();
 
     let read = |corpus: &Corpus, value: &Value| -> Value {
         let asked = Asked::read(value).unwrap();
         as_json(&asked.answer(corpus).unwrap())
     };
-    let same = read(&corpus, &route);
-    assert_eq!(same["total"]["matched"], 6);
-    assert!(same.get("before").is_none(), "{}", same["before"]);
+    for sent in [&route, &labelled] {
+        let same = read(&corpus, sent);
+        assert_eq!(same["total"]["matched"], 6);
+        assert!(same.get("before").is_none(), "{}", same["before"]);
+    }
 
-    // a rare ring more, in the tab never fetched
+    // a magic ring more, in the tab never fetched: the basis moves and
+    // the count of rares does not
     fetch_tab(
         &mut s,
         "pc",
         "Standard",
         "t3",
         "Never",
-        vec![item("r8", "Ring r8", "Two-Stone Ring", "Rare", json!({}))],
+        vec![item("m8", "", "Two-Stone Ring", "Magic", json!({}))],
         40,
     );
     let later = load(&s, Some("pc"));
-    let moved = read(&later, &route);
-    assert_eq!(moved["total"]["matched"], 7);
+    assert!(read(&later, &route).get("before").is_none());
+    let told = read(&later, &labelled);
+    assert_eq!(told["total"]["matched"], 6);
     assert_eq!(
-        moved["before"],
-        json!({ "count": 6, "counted_at": route["counted_at"] })
+        told["before"],
+        json!({ "count": 6, "counted_at": a["basis"] })
     );
-    assert_ne!(moved["basis"], route["counted_at"]);
+    assert_ne!(told["basis"], a["basis"]);
 
-    // a bare request is read as one, and what is neither is refused
-    let bare = read(&later, &route["request"]);
+    // a rare ring more: the count moves
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "t3",
+        "Never",
+        vec![
+            item("m8", "", "Two-Stone Ring", "Magic", json!({})),
+            item("r8", "Ring r8", "Two-Stone Ring", "Rare", json!({})),
+        ],
+        50,
+    );
+    let last = load(&s, Some("pc"));
+    let moved = read(&last, &route);
+    assert_eq!(moved["total"]["matched"], 7);
+    assert_eq!(moved["before"], json!({ "count": 6 }));
+    assert_eq!(
+        read(&last, &labelled)["before"],
+        json!({ "count": 6, "counted_at": a["basis"] })
+    );
+
+    // a bare request is read as one, and what is neither is refused: a
+    // basis beside no count is a label on nothing
+    let bare = read(&last, &route["request"]);
     assert_eq!(bare["total"]["matched"], 7);
     assert!(bare.get("before").is_none());
     for bad in [
         json!([]),
         json!({ "count": 6 }),
         json!({ "query": 3 }),
-        json!({ "count": 6, "request": {} }),
+        json!({ "counted_at": a["basis"], "request": route["request"] }),
+        json!({ "count": 6, "counted_at": 3, "request": route["request"] }),
     ] {
         assert!(Asked::read(&bad).is_err(), "{bad}");
     }

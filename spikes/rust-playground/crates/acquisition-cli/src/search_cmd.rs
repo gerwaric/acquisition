@@ -165,8 +165,10 @@ pub struct SearchArgs {
     pub print_request: bool,
     /// Run a request read from a file, or from stdin with `-`: what
     /// `--print-request` printed, a `next` or an offer of an answer's
-    /// `--json`, or a count's route — which, run on a later basis than it
-    /// was counted at, reports both counts. A request is whole: no word
+    /// `--json`, or a count's route — which reports both counts where its
+    /// count has moved since, and wherever the basis has where the
+    /// answer's `basis` is sent beside it as `counted_at`. A request is
+    /// whole: no word
     /// of scope, query or view stands beside it.
     #[arg(long, value_name = "FILE|-")]
     pub request: Option<String>,
@@ -744,11 +746,17 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
     }
     line(basis_text(&a.basis));
     if let Some(before) = &a.before {
-        line(format!(
-            "then    {} where this route was printed — {}",
-            plural(before.count, "match", "matches"),
-            before.counted_at.against(&a.basis)
-        ));
+        line(match &before.counted_at {
+            Some(basis) => format!(
+                "then    {} where this route was printed — {}",
+                plural(before.count, "match", "matches"),
+                basis.against(&a.basis)
+            ),
+            None => format!(
+                "then    {} where this route was printed",
+                plural(before.count, "match", "matches")
+            ),
+        });
     }
 
     if !a.terms.is_empty() {

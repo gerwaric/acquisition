@@ -152,7 +152,8 @@ fn c100_the_worked_example_whole_counts_as_printed_there() {
     assert_eq!(follow(&corpus, &terms[1]["undecided"]), ["r5"]);
     assert_eq!(follow(&corpus, &terms[4]["undecided"]), ["r6"]);
     assert_eq!(follow(&corpus, &a["total"]["undecided"]), ["r5", "r6"]);
-    assert_eq!(terms[3]["failed"]["counted_at"], a["basis"]);
+    // the basis is stated once, on the answer (B3)
+    assert!(terms[3]["failed"].get("counted_at").is_none());
 }
 
 /// Invariant 4, and rule 5 of the plan: every count an answer shows has a

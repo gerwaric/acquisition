@@ -13,8 +13,9 @@
 //! - **Every term is counted over the whole scope** — matched, failed,
 //!   lacked, undecided — before composition and before the limit, with no
 //!   short circuit (C93). A count that is not zero carries its **route**:
-//!   the request that returns exactly its members, with the basis it was
-//!   counted at and its denominator, the scope (invariant 4). A route is
+//!   the request that returns exactly its members, with its
+//!   denominator, the scope (invariant 4); the basis it was counted at
+//!   is the answer's, stated once (B3, `search/LEDGER.md`). A route is
 //!   a request and never a fragment: a term's failed members are asked of
 //!   the scope, not appended to the query that counted them.
 //! - **The routes of a term**: matched is the term; undecided is
@@ -83,10 +84,11 @@
 //!   continue; a table's values past
 //!   its limit are a larger limit's. The token a terminal carries is
 //!   that request and nothing else, encoded ([`Request::token`]).
-//! - **A route read back** ([`Asked`]) is the request inside it; run
-//!   where the basis has moved since it was counted, the answer carries
-//!   what it said then — the count and its basis — beside what it says
-//!   now (the reference, *One worked example*).
+//! - **A route read back** ([`Asked`]) is the request inside it; the
+//!   answer carries what it said when it was printed beside what it says
+//!   now (the reference, *One worked example*) — where the count has
+//!   moved, or, for a caller who sent the answer's basis with it,
+//!   wherever the basis has, each part named.
 //! - **A zero total** prints, in place of rows: the selectors that
 //!   resolved to nothing in this scope — a group's bound selector picked
 //!   no occurrence, a field's term matched no item — each with the values
@@ -452,26 +454,32 @@ impl Request {
 const TOKEN_PREFIX: &str = "acq1.";
 
 /// What `--request` reads: a request, or what an answer holds one in —
-/// a count's route, the request with the count and the basis it was
-/// counted at (the reference, *One worked example*); a `next`; an offer.
+/// a count's route, the request with its count, and beside them the
+/// basis it was counted at where the caller sends the answer's (the
+/// reference, *One worked example*); a `next`; an offer.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Asked {
     pub request: Request,
     pub before: Option<Before>,
 }
 
-/// What a route said when it was printed: its count, and the basis.
+/// What a route said when it was printed: its count, and the basis
+/// where the caller sent one with it — an answer states its basis once,
+/// and a route cut out of one carries none (B3, `search/LEDGER.md`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Before {
     pub count: usize,
-    pub counted_at: Basis,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counted_at: Option<Basis>,
 }
 
 impl Asked {
     /// A request, or an object with the request inside it — and where
-    /// that object says a count, the basis it was counted at beside it,
-    /// which makes it a route; what is neither is the tree's error, as a
-    /// request that does not read is.
+    /// that object says a count it is a route, with the basis it was
+    /// counted at where one is sent; a basis beside no count labels
+    /// nothing, and what is neither is the tree's error, as a request
+    /// that does not read is.
     pub fn read(value: &Json) -> Result<Asked, LanguageError> {
         let unread = |e: serde_json::Error| {
             LanguageError::new(
@@ -488,15 +496,25 @@ impl Asked {
         match value.get("request") {
             Some(request) => Ok(Asked {
                 request: serde_json::from_value(request.clone()).map_err(unread)?,
-                before: match value.get("count") {
-                    Some(count) => Some(
+                before: match (value.get("count"), value.get("counted_at")) {
+                    (Some(count), None) => Some(
+                        serde_json::from_value(serde_json::json!({ "count": count }))
+                            .map_err(unread)?,
+                    ),
+                    (Some(count), Some(counted_at)) => Some(
                         serde_json::from_value(serde_json::json!({
                             "count": count,
-                            "counted_at": value.get("counted_at"),
+                            "counted_at": counted_at,
                         }))
                         .map_err(unread)?,
                     ),
-                    None => None,
+                    (None, Some(_)) => {
+                        return Err(LanguageError::new(
+                            crate::error::ErrorKind::Tree,
+                            "this is no request and no route an answer printed: a basis beside no count labels nothing",
+                        ));
+                    }
+                    (None, None) => None,
                 },
             }),
             None if value.get("count").is_some() || value.get("counted_at").is_some() => {
@@ -512,14 +530,20 @@ impl Asked {
         }
     }
 
-    /// The answer, and beside it what the route said where the basis has
-    /// moved since: both counts, each with its basis.
+    /// The answer, and beside it what the route said when it was
+    /// printed: where its basis was sent, wherever the basis has moved
+    /// since, the count the same or not; where none was, wherever the
+    /// count has.
     pub fn answer(&self, corpus: &Corpus) -> Result<Answer, SearchError> {
         let mut answered = answer(corpus, &self.request)?;
+        let matched = answered.total.matched;
         answered.before = self
             .before
             .clone()
-            .filter(|before| before.counted_at != corpus.basis);
+            .filter(|before| match &before.counted_at {
+                Some(basis) => *basis != corpus.basis,
+                None => before.count != matched,
+            });
         Ok(answered)
     }
 }
@@ -734,7 +758,6 @@ pub struct Count {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Route {
-    pub counted_at: Basis,
     /// What the count is a part of: always the scope.
     pub denominator: &'static str,
     pub request: Request,
@@ -1098,7 +1121,6 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
     };
 
     let router = Router {
-        corpus,
         scope: Scope {
             account: Some(
                 corpus
@@ -1582,9 +1604,8 @@ fn label(held: &Held) -> Option<String> {
 // ---- routes ------------------------------------------------------------------------------------------
 
 /// The one maker of a route (invariant 4): a request over the answer's
-/// scope, labelled with the basis it was counted at.
+/// scope. The basis it was counted at is the answer's, stated once.
 pub(crate) struct Router<'a> {
-    corpus: &'a Corpus,
     scope: Scope,
     /// The query answered: what a bucket's route is a request under.
     root: &'a Node,
@@ -1612,7 +1633,6 @@ impl Router<'_> {
 
     fn route(&self, node: &Node, realm: Option<&str>) -> Route {
         Route {
-            counted_at: self.corpus.basis.clone(),
             denominator: "scope",
             request: self.request(node, realm, View::default(), Context::Matches),
         }
