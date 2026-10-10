@@ -112,9 +112,11 @@ pub struct SearchArgs {
     /// texts to narrow by, a table each, and `~` before one makes it a
     /// pattern: `--count tab,line:resist,life`. An item with no value is
     /// counted under `none`, one whose value could not be read under
-    /// `undecided` (C105); every count has its route (`--routes`).
+    /// `undecided` (C105); every count has its route (`--routes`). Given
+    /// again, the flag starts a list of its own, so a field can follow a
+    /// narrowed vocabulary: `--count line:resist,life --count rarity`.
     #[arg(long, value_name = "KEY,…")]
-    pub count: Option<String>,
+    pub count: Vec<String>,
     /// Count the matches by two fields at once, one table of the cells
     /// that hold an item: `--cross league,tab`.
     #[arg(long, value_name = "KEY,KEY")]
@@ -243,7 +245,7 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         ("--realm", args.realm.is_some()),
         ("--membership", args.membership.is_some()),
         ("--sort", args.sort.is_some()),
-        ("--count", args.count.is_some()),
+        ("--count", !args.count.is_empty()),
         ("--cross", args.cross.is_some()),
         ("--sum", args.sum.is_some()),
         ("--explain", args.explain.is_some()),
@@ -360,7 +362,17 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         .transpose()
     };
     let view = View::of(
-        keys(args.count.as_deref())?,
+        // each `--count` is a list of its own, read apart and joined
+        match args.count.as_slice() {
+            [] => None,
+            lists => {
+                let mut all = Vec::new();
+                for list in lists {
+                    all.extend(keys(Some(list))?.unwrap_or_default());
+                }
+                Some(all)
+            }
+        },
         keys(args.cross.as_deref())?,
         args.sum.clone(),
         args.explain.clone(),

@@ -2182,10 +2182,19 @@ impl Request {
         // `line:` the rest are texts, so a text key is its text alone — and
         // a text is quoted in the list's own grammar where the list would
         // read it otherwise (`search_cmd::keys`): a comma, a quote, a
-        // backslash, a row break, a leading `~`, whitespace at an end
-        let mut keys = Vec::new();
+        // backslash, a row break, a leading `~`, whitespace at an end. A
+        // key that is no text after one that is — a field, or `line`
+        // alone — cannot stand in that list, where it would be read as
+        // one more text: it opens a list of its own, the flag given again
+        // (outside audit, 2026-10-10)
+        let mut lists: Vec<Vec<String>> = vec![Vec::new()];
         let mut narrowing = false;
         for key in &counts.keys {
+            let narrows = key.starts_with("line:") || key.starts_with("line~");
+            if narrowing && !narrows {
+                lists.push(Vec::new());
+                narrowing = false;
+            }
             let spelled = match (narrowing, key.split_once(['~', ':'])) {
                 (true, Some((_, text))) if key.starts_with("line~") => {
                     format!("~{}", listed_text(text))
@@ -2198,10 +2207,14 @@ impl Request {
                 }
                 _ => key.clone(),
             };
-            narrowing |= key.starts_with("line:") || key.starts_with("line~");
-            keys.push(spelled);
+            narrowing |= narrows;
+            if let Some(list) = lists.last_mut() {
+                list.push(spelled);
+            }
         }
-        out.push_str(&format!(" {flag} {}", shell_quoted(&keys.join(","))));
+        for list in &lists {
+            out.push_str(&format!(" {flag} {}", shell_quoted(&list.join(","))));
+        }
         if let Some(sum) = &counts.sum {
             out.push_str(&format!(" --sum {}", shell_quoted(sum)));
         }

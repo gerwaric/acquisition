@@ -2317,3 +2317,70 @@ fn step_10_membership_all_at_a_terminal() {
         assert_eq!(sole_json(&acq(&base, &args))["kind"], kind, "{args:?}");
     }
 }
+
+/// A command printed for a count view is the view it was printed for
+/// (rule 5, and more than that it runs): a request may name a field
+/// after a narrowed vocabulary, which one `--count` list cannot say —
+/// after `line:` the rest of a list are texts — so the printer opens a
+/// second list. Outside audit, 2026-10-10: `["line:life", "rarity"]`
+/// was printed as `--count 'line:life,rarity'`, which reads as the
+/// vocabulary narrowed twice, and both commands ran.
+#[test]
+fn a_printed_count_command_names_the_keys_it_was_printed_for() {
+    let base = base();
+    seed(&base);
+    let dir = base.join("requests");
+    std::fs::create_dir_all(&dir).unwrap();
+    for (n, keys) in [
+        json!(["line:life", "rarity"]),
+        json!(["line:life", "line", "tab", "line~^adds", "league", "rarity"]),
+        json!(["tab", "line:life", "league"]),
+        json!(["line:life, or more", "rarity", "line:~odd"]),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // nothing is unique and magic at once: a zero answer, whose corpus
+        // offer keeps the view
+        let file = dir.join(format!("keys-{n}.json"));
+        std::fs::write(
+            &file,
+            json!({ "scope": { "realm": "pc" },
+                    "query": { "text": "rarity=unique rarity=magic" },
+                    "view": { "counts": { "keys": keys } } })
+            .to_string(),
+        )
+        .unwrap();
+        let args = ["search", "--request", file.to_str().unwrap()];
+        let offered = sole_json(&acq(&base, &[&["--json"], &args[..]].concat()))["zero"]["offers"]
+            ["context"]["request"]
+            .clone();
+        assert_eq!(offered["view"]["counts"]["keys"], keys);
+        let shown = text(&acq(&base, &args));
+        let command = printed_commands(&shown)
+            .into_iter()
+            .find(|c| c.contains("--context corpus"))
+            .unwrap_or_else(|| panic!("{shown}"));
+        let ran = run_printed(&base, &command);
+        assert!(ran.status.success(), "{command}");
+        let by_command = sole_json(&ran);
+        // the same view, table for table, as the offer's own request gives
+        let offer = dir.join(format!("offer-{n}.json"));
+        std::fs::write(&offer, offered.to_string()).unwrap();
+        let by_request = sole_json(&acq(
+            &base,
+            &["--json", "search", "--request", offer.to_str().unwrap()],
+        ));
+        let tables: Vec<Value> = by_command["view"]["counts"]["tables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["key"].clone())
+            .collect();
+        assert_eq!(json!(tables), keys, "{command}");
+        assert!(
+            by_command["view"] == by_request["view"],
+            "{keys}: the views differ: {command}"
+        );
+    }
+}
