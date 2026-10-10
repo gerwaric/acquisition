@@ -13,7 +13,9 @@ the `copy-as-store` example, so the owner's store is never opened (the
 plan's rule 7). First: the first ask after the copy is written, as seen —
 this machine's file cache is not controlled. Warm: the median of ten
 consecutive asks. Release is judged against 500 ms; debug is what the seat
-feels. Never in the gate: the input is raw/.
+feels. Never in the gate: the input is raw/. The whole run was 39 minutes
+at 67 asks (`e5e32adb`); run alone, since asks beside other work read some
+10 to 20 ms high.
 """
 import json, os, statistics, subprocess, sys, time
 

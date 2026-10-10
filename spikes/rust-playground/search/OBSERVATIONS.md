@@ -175,6 +175,11 @@ filed again by the step that touches it.
 - *The totals batch park (V9, step 11):* what it was parked on has
   moved, M3's verdict above; the table's 284 rows are bound at every
   ask (`search/MEASUREMENTS.md`, the step's block).
+- *The totals batch park (V9, step 11), or the next M3:* at
+  `e5e32adb` the percentile asked alone is 500 and 504 where it was
+  486 at `a9733264`, 14 and 18 more where the empty query is 11 and 12
+  more; the two binaries were not asked in turn, so the 2 to 7 between
+  is not told from the noise.
 - *The next sitting, or a seat:* of 9d-B's seven name rules the
   tattoo's alone is asked of the site (J23, two families of five);
   the other five rest on the research script and one ruled row each.
