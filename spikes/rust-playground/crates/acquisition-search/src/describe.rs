@@ -3,7 +3,8 @@
 //! value, how terms compose, operators, closed value sets, slots, computed
 //! values, what a count takes, what explains an answer, what is not built,
 //! and the limits it states
-//! (C102). An entry is a name, a line and an example: the language on one
+//! (C102). An entry is a name, a line and, where one teaches, an example —
+//! every construct has a case in `tests/language.toml` — the language on one
 //! page, so that the owner's seat, an agent and the parser's round-trip
 //! test read the same thing and nobody invents notation. Shapes bind;
 //! flag and key names are the builder's, and this prints them. Every

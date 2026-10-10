@@ -24,11 +24,11 @@ Inputs (read-only, committed):
 
 Rules, each a reading of the source and never a judgment (C106):
   1. A table becomes one total; its name is the builder's (the plan, rule 4):
-     `total_res` as the reference writes it, and the rest in that style, in
+     `total_res` as the worked example writes it, and the rest in that style, in
      NAMES below — a name is never derived from the site's id, which is
      carried on the row as `site` for the translation to read (C99).
   2. A listed template becomes a row: the crate's template form — a `+`
-     before a `#` is spelling and is dropped (the reference, *Strings*, H2) —
+     before a `#` is spelling and is dropped (`parse.rs`, H2) —
      with `slot = "arg1"` (every listed template has one number) and its
      weight the number of times the source lists it: the all-elemental line
      three times in `+#% total Elemental Resistance` is one row, weight 3

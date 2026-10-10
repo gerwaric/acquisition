@@ -690,7 +690,7 @@ impl Item {
                 (Some(Value::String(colour)), _) if !colour.is_empty() => Some(colour.clone()),
                 (None | Some(Value::Null), None | Some(Value::Null)) => None,
                 // an attribute and no colour: a shape this deriver does not
-                // decode (C101's contract detail, S16)
+                // decode (the module doc, "Sockets"; S16)
                 (None | Some(Value::Null), Some(_)) => {
                     colour_unread = true;
                     of_this(

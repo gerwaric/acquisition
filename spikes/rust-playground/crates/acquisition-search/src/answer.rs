@@ -169,7 +169,8 @@
 //!   now (*The worked example*, above) — where the count has
 //!   moved, or, for a caller who sent the answer's basis with it,
 //!   wherever the basis has, each part named.
-//! - **A zero total** prints, in place of rows: the selectors that
+//! - **A zero total** prints, in place of rows — the coverage being the
+//!   scope block's, as in every answer: the selectors that
 //!   resolved to nothing in this scope — a group's bound selector picked
 //!   no occurrence, a field's term matched no item — each with the values
 //!   sharing its words — a suggestion to type, never a match made for the author
@@ -210,7 +211,9 @@
 //!   name, the occurrence whose slot is the largest, a sum's
 //!   contributors, a computed value's inputs — shown as a matched term's
 //!   evidence is, bounded the same way (`eval::sorted_by`).
-//! - **Membership is the corpus's** (`corpus.rs`; C108;
+//! - **Membership is the corpus's**, a scope value beside realm and
+//!   never a term — `is:removed` is refused toward it (`bind.rs`)
+//!   (`corpus.rs`; C108;
 //!   the build plan, steps 10 and 11d): `live`; `all`, where the store's
 //!   read hands over every item at the place it was last seen; or
 //!   `removed`, the removed of that read alone. A request naming another

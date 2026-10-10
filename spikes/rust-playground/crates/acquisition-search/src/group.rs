@@ -56,7 +56,7 @@
 //!   whose template is `T` and on a mod displayed over several rows one of
 //!   which is — a property of the occurrence, so that a not of it is a no
 //!   on both. `template:` and `template~` test the whole text, across its
-//!   rows.
+//!   rows, and a pattern's `^` and `$` are its ends.
 //! - **The numbers a slot word names are those of the part the quoted
 //!   templates conjoined with it name.** A group is read as its
 //!   alternatives spread out — `("T" arg1>=5) or arg2=3` is two, `("T" or

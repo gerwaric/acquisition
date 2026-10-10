@@ -59,7 +59,8 @@
 //! - **Membership is the read's** (C108):
 //!   a corpus holds the live items, or all of them, a removed one at the
 //!   place it was last seen with when it left (`Facts::removed_at`) and a
-//!   price that is lacked (`price.rs`) — or the removed alone, which are
+//!   price that is lacked (`price.rs`), while `note:` still reads its
+//!   body — or the removed alone, which are
 //!   the removed of the store's read of all: the live rows of that read
 //!   are counted and passed over, never derived. Coverage and the listing
 //!   states are the live locations' whichever it holds, and the scope's
