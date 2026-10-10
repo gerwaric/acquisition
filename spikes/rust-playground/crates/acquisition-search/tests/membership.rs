@@ -499,3 +499,74 @@ fn an_id_live_elsewhere_in_the_scope_has_not_left_and_all_names_every_league() {
     );
     assert_eq!(a["rows"][1]["place"]["league"], "Old");
 }
+
+/// A removed character item is in the league it was last seen in, as a
+/// removed stash item is in its tab's: `gone` left a character in
+/// Settlers, the character was then listed and fetched in Standard, and
+/// under `all` the one character has an item in each — its gear in the
+/// league it is in today, what left it in the league it left in. The
+/// scope names both leagues. Live, the character's items are in its
+/// league today, as they were (S131).
+#[test]
+fn a_removed_character_item_is_in_the_league_it_was_last_seen_in() {
+    let mut s = store();
+    let in_league = |league: &str, equipment: Vec<Value>| json!({ "id": "c1", "name": "Mover", "league": league, "equipment": equipment });
+    let listed = |league: &str| json!([{ "id": "c1", "name": "Mover", "league": league }]);
+    list_characters(&mut s, "pc", listed("Settlers"), 10);
+    let both = vec![ring("kept", "Rare", 90), ring("gone", "Rare", 80)];
+    fetch_character(&mut s, "pc", in_league("Settlers", both), 20);
+    fetch_character(
+        &mut s,
+        "pc",
+        in_league("Settlers", vec![ring("kept", "Rare", 90)]),
+        30,
+    );
+    // the league ends: the character is in Standard, and is fetched there
+    list_characters(&mut s, "pc", listed("Standard"), 40);
+    fetch_character(
+        &mut s,
+        "pc",
+        in_league("Standard", vec![ring("kept", "Rare", 90)]),
+        50,
+    );
+
+    let live = as_json(&ask(&load(&s, Some("pc")), "").unwrap());
+    assert_eq!(in_order(&live), ["kept"]);
+    assert_eq!(live["rows"][0]["place"]["league"], "Standard");
+    assert_eq!(live["scope"]["leagues"], json!(["Standard"]));
+
+    let everything = all(&s);
+    let a = under_all(&everything, "");
+    let leagued: Vec<(String, Value, Value)> = a["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| {
+            (
+                r["id"].as_str().unwrap().to_string(),
+                r["place"]["league"].clone(),
+                r["place"]["name"].clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        leagued,
+        [
+            ("gone".to_string(), json!("Settlers"), json!("Mover")),
+            ("kept".to_string(), json!("Standard"), json!("Mover")),
+        ]
+    );
+    assert_eq!(a["rows"][0]["removed_at"], 30);
+    assert_eq!(
+        in_order(&under_all(&everything, "league=Settlers")),
+        ["gone"]
+    );
+    assert_eq!(
+        in_order(&under_all(&everything, "league=Standard")),
+        ["kept"]
+    );
+    assert_eq!(a["scope"]["leagues"], json!(["Settlers", "Standard"]));
+    // and `show` says the same of it
+    let shown = serde_json::to_value(show(&s, "gone", false).unwrap()).unwrap();
+    assert_eq!(shown["place"]["league"], "Settlers");
+}

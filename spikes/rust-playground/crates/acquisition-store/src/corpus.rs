@@ -44,8 +44,10 @@
 //!   earlier read never looks like one the file never held.
 //! - **All** ([`Store::read_corpus_of`], [`Membership::All`]) is every
 //!   item the file holds, at the place it was last seen: the same joins
-//!   without the tests of liveness, in the same order, each removed item
-//!   with when it left — its own time, or its location's where only that
+//!   without the tests of liveness, in the same order — but a removed
+//!   character item's league, which is the one its last sighting stamped
+//!   on it and never the league its character has moved to since — each
+//!   removed item with when it left — its own time, or its location's where only that
 //!   says so, which no ingest path leaves and no item of the owner's copy
 //!   shows (2026-10-09) — and the retired locations in the header,
 //!   marked, a substash that went with its tab among them. A read that
@@ -270,9 +272,13 @@ fn corpus_item(r: &rusqlite::Row<'_>) -> rusqlite::Result<CorpusItem> {
 
 /// Every item the file holds, at the place it was last seen: the same
 /// joins without the tests of liveness, and when each removed one left —
-/// its own time, or its location's where only that says so.
+/// its own time, or its location's where only that says so. A live
+/// character item's league is its character's today, as the live read
+/// joins it (S131); a removed one's is the league its last sighting
+/// stamped on it, as a removed stash item's is its tab's.
 const ALL_ITEMS_SQL: &str = "SELECT i.id, i.realm,
-        CASE WHEN i.location_kind = 'character' THEN c.league ELSE i.league END,
+        CASE WHEN i.location_kind = 'character' AND i.removed_at IS NULL AND c.removed_at IS NULL
+             THEN c.league ELSE i.league END,
         i.location_kind, i.location_id, i.container, i.socketed_in, i.first_seen, i.last_seen, i.json,
         COALESCE(i.removed_at, t.removed_at, c.removed_at,
                  (SELECT p.removed_at FROM tabs p WHERE p.realm = t.realm AND p.league = t.league AND p.id = t.parent))

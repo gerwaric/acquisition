@@ -572,6 +572,14 @@ impl Corpus {
                         .iter()
                         .filter(|l| in_realm(&l.realm))
                         .filter_map(|l| l.league.clone())
+                        // a removed character item sits in the league it left in,
+                        // which its character may have left since
+                        .chain(
+                            items
+                                .iter()
+                                .filter(|h| h.item.facts.removed_at.is_some())
+                                .filter_map(|h| h.place.league.clone()),
+                        )
                         .collect();
                     sat_in.sort();
                     sat_in.dedup();

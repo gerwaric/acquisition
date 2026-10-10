@@ -261,14 +261,6 @@ filed again by the step that touches it.
   corpus` and no tree. No mutant was run against the terminal's test.
   A changed basis by a price written was not run, a fetch and a file
   replaced were.
-- *The owner's, at a seat or step 11's opening (step 10c):* a removed
-  character item is leagued as C108 joins every character item, by the
-  league the character is listed in today, where the reference says
-  the place it was last seen: one that left a character in a league
-  the character has since left is found under the new league and not
-  the old, the item's own stamp still the old one. No item of the copy
-  is such a one, its six removed all at characters that have not
-  moved.
 - *Step 11's opening, with the facts migration if one is ruled (step
   10c):* the live read names the ids it left out by a scan of `items`,
   6 ms by sqlite alone over the copy's 22,727 rows, the load 491 ms
