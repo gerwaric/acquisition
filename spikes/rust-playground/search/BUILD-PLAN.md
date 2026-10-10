@@ -159,7 +159,13 @@ the piece and bring it to the owner.
 
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
-| 11 · the close | the MCP tool over the same request, with an agent's seat as its own consumer (P2), `--membership all` among what it validates; `acq items search` retired (below); the closed record, and whether its rows fold back into it from `search/LEDGER.md` or stay a file looked up (the owner's); this file deleted; `search/` shrunk; `DESIGN.md`'s paragraphs into module docs | all | everything above; `decisions/frontends.md`; the kill list (`DIGEST.md`); `MCP-REFERENCE.md`; "What happens to `acq items search`" below | AQ1–AQ5 driven through the MCP; the gate; the kill-list recheck |
+| 11a · the basis | the build named in the basis, a digest of what an answer is computed by (B1); the highest response's time beside its id (B2); the basis stated once, a route carrying no `counted_at` and read back with or without one (B3) | all | `corpus.rs` of both crates; `answer.rs`; `search/OBSERVATIONS.md`, "Step 11's opening"; the protocol crate's `build.rs` | a file deleted and refetched to a revision a token names refuses it; a token of another build is refused; a route is read both ways; the worked example as amended; no diff in `--describe --json`; the two park entries deleted; the gate |
+| 11b · the MCP tools | search, describe and show over the same request (H1–H5), the server's instructions; an error's offers as requests beside its readings; a missing store names the directory it looked in | 11a | `decisions/frontends.md`; `MCP-REFERENCE.md`; `search/agent-seat/README.md`, F10 and F11 | AQ1–AQ5 through the tool over a fixture, its JSON the CLI's `--json`; the tool texts read against F11; one look; the gate |
+| 11c · the MCP seat | an agent's seat as the tool's own consumer (P2): a subagent blind to the reference, under a committed brief, driving `acq-mcp` over stdio on the copy; then its fix round | 11b | `search/agent-seat/` (the twelve questions, `scripts/call.py`); the research-track skill | the twelve driven through the MCP alone, calls and bytes counted beside 2026-09-14's; `--membership all` among them; the owner's reaction, once |
+| 11d · the retirement | `acq items`, the MCP's `search_items` and `get_item` (H6), `Store::search`, and facts v8: `items_names` dropped, a partial index on `removed_at` (B4) — one commit, the migration run on a copy first; the two refusals that name the old verbs (H7) | 11c | "What happens to `acq items search`" below; the kill list (`DIGEST.md`); `REFRESH-SLICE.md` | the gate; no name of the old verbs outside history; the kill-list recheck |
+| 11e · the reference to its homes | `DESIGN.md`'s paragraphs into module docs, the clap help and `--describe` | 11d | `DESIGN.md` whole; rule 6 | every paragraph has a home or a recorded reason; one look reads the last whole `DESIGN.md` against the homes |
+| 11f · `search/` shrunk | what the build does not name deleted, by a census the owner reads first | 11e | `search/README.md`, rule 4; the kill list | the deletion list read; the gate |
+| 11g · the close | the closed record, and whether its rows fold back into it from `search/LEDGER.md` or stay a file looked up (the owner's); observations and parks routed; M3 last; this file deleted | all | the session-close skill, §3; `PRICING-SLICE.md` | the gate; the three parks the step fires disposed of (pricing on the MCP, the totals batch, the projection) |
 
 Not in this plan: the trade translation (C99, headed "Direction"). No
 acceptance question needs it; whether it is a step here or the next
@@ -242,5 +248,5 @@ ruling (an outside audit's finding, 2026-09-20); a ruled one becomes a
 line in `search/LEDGER.md`, "Holes ruled", its rule in `search/DESIGN.md`.
 T3 and J1–J35, what the two tracks run before 9d and the three pieces'
 expected answers surfaced (2026-09-30 to 2026-10-08), are all ruled: `search/LEDGER.md`, "Holes ruled", the
-seat, 9c and 9d rows; K1–K11 are step 10's, its three rows. None
-is unruled today.
+seat, 9c and 9d rows; K1–K11 are step 10's, its three rows; B1–B4 and
+H1–H7 are step 11's, ruled at its opening. None is unruled today.
