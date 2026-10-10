@@ -125,8 +125,11 @@ under `all` says when it left; the scope block states membership and the
 count of each. An `id:` term that matches nothing live says whether the
 id is among the removed, with its removal time, and prints the `all`
 route, so a handle held from an earlier answer never reads as an item
-that did not exist; `acq show` shows a removed item, marked. `removed`
-alone waits for a question. Until `all` runs, the route names the
+that did not exist; `acq show` shows a removed item, marked. A removed
+item sits at the place it was last seen, named from that tab's or
+character's row where it is retired too, and its price is lacked: an
+item not in the stash has no listing state, and `note:` still reads its
+body. `removed` alone waits for a question. Until `all` runs, the route names the
 unbuilt construct (the plan, rule 5).
 
 `--context corpus` takes any view but explain, which is of the query
