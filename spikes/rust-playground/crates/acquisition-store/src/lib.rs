@@ -325,10 +325,14 @@ const SCHEMA: &str = include_str!("schema.sql");
 /// version 6 (same day) made it nullable — NULL is "not withheld", so an
 /// empty withheld fetch is still marked; version 7 (same day) added the
 /// `refused` table — a body `record` refuses as malformed is kept there
-/// verbatim, as evidence, in a table no basis query reads. 0 is both
+/// verbatim, as evidence, in a table no basis query reads; version 8
+/// (2026-10-10; B4, `search/LEDGER.md`) dropped the `items_names` index,
+/// which no query used once the substring search retired and none had
+/// used before (S124, S136), and added `items_removed`, a partial index
+/// on `removed_at`, for the search read's list of what it left out. 0 is both
 /// "fresh file" and "pre-versioning file" — the DDL and column checks are
 /// idempotent, so one migration path serves both.
-const FACT_SCHEMA_VERSION: i64 = 7;
+const FACT_SCHEMA_VERSION: i64 = 8;
 
 /// A facts file written by a newer build than this one. Facts are
 /// refetchable, but guessing at an unknown schema is how a file gets
@@ -927,6 +931,9 @@ impl Store {
                     "UPDATE items SET container = 'items' WHERE location_kind = 'stash' AND container IS NULL",
                     [],
                 )?;
+                // v8: the index the retired substring search was given and
+                // never used goes; `items_removed` came with the DDL above.
+                tx.execute("DROP INDEX IF EXISTS items_names", [])?;
                 tx.pragma_update(None, "user_version", FACT_SCHEMA_VERSION)?;
             }
         }
@@ -1717,55 +1724,6 @@ impl Store {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
-    /// Case-insensitive substring search over name, type line, and base
-    /// type, live items only unless `include_removed`.
-    pub fn search(
-        &self,
-        text: &str,
-        realm: Option<&str>,
-        league: Option<&str>,
-        include_removed: bool,
-        limit: usize,
-    ) -> Result<Vec<ItemRow>> {
-        let pattern = format!("%{}%", text.replace('%', "\\%").replace('_', "\\_"));
-        let mut stmt = self.conn.prepare(
-            "SELECT id, league, location_kind, location_id, socketed_in, COALESCE(name, ''), COALESCE(type_line, ''),
-                    COALESCE(base_type, ''), rarity, stack_size, first_seen, last_seen, removed_at, json, realm, container
-               FROM items
-              WHERE (name LIKE ?1 ESCAPE '\\' OR type_line LIKE ?1 ESCAPE '\\' OR base_type LIKE ?1 ESCAPE '\\')
-                AND (?5 IS NULL OR realm = ?5)
-                AND (?2 IS NULL OR league = ?2)
-                AND (?3 OR removed_at IS NULL)
-              ORDER BY location_kind, location_id, y, x
-              LIMIT ?4",
-        )?;
-        let rows = stmt.query_map(
-            params![pattern, league, include_removed, limit as i64, realm],
-            |r| {
-                let json: String = r.get(13)?;
-                Ok(ItemRow {
-                    id: r.get(0)?,
-                    realm: r.get(14)?,
-                    league: r.get(1)?,
-                    location_kind: r.get(2)?,
-                    location_id: r.get(3)?,
-                    container: r.get(15)?,
-                    socketed_in: r.get(4)?,
-                    name: r.get(5)?,
-                    type_line: r.get(6)?,
-                    base_type: r.get(7)?,
-                    rarity: r.get(8)?,
-                    stack_size: r.get(9)?,
-                    first_seen: r.get(10)?,
-                    last_seen: r.get(11)?,
-                    removed_at: r.get(12)?,
-                    json: serde_json::from_str(&json).unwrap_or(Value::Null),
-                })
-            },
-        )?;
-        Ok(rows.collect::<Result<_, _>>()?)
-    }
-
     /// One item by id, removed or not.
     pub fn item(&self, id: &str) -> Result<Option<ItemRow>> {
         let mut stmt = self.conn.prepare(
@@ -2444,7 +2402,7 @@ mod tests {
         let tabs = s.tabs("pc", "Standard").unwrap();
         assert_eq!(tabs.len(), 1);
         assert_eq!((tabs[0].id.as_str(), tabs[0].item_count), ("a", 2));
-        assert_eq!(s.search("foo", None, None, false, 10).unwrap().len(), 1);
+        assert!(s.item("i1").unwrap().unwrap().removed_at.is_none());
     }
 
     #[test]
@@ -2494,8 +2452,6 @@ mod tests {
             .unwrap();
         assert_eq!(ing.removed, 1);
         assert_eq!(s.item("i1").unwrap().unwrap().removed_at, Some(300));
-        assert!(s.search("foo", None, None, false, 10).unwrap().is_empty());
-        assert_eq!(s.search("foo", None, None, true, 10).unwrap().len(), 1);
         // And comes back: a move event from its removed state.
         let ing = s
             .record(
@@ -2654,12 +2610,7 @@ mod tests {
                 .get("socketedItems")
                 .is_none()
         );
-        assert_eq!(
-            s.search("determination", None, None, false, 10)
-                .unwrap()
-                .len(),
-            1
-        );
+        assert!(gem.removed_at.is_none());
         // Re-fetch with the gem unsocketed and gone: the gem is removed, the bow unchanged.
         let ing = s
             .record(
@@ -2951,14 +2902,10 @@ mod tests {
             (tabs[0].id.as_str(), tabs[0].realm.as_str()),
             ("old1", "pc")
         );
-        // Pre-realm items are pc too — not null: a realm-filtered search
-        // and the item's own row both say so (review finding 2026-09-02).
+        // Pre-realm items are pc too — not null: the tab's count and the
+        // item's own row both say so (review finding 2026-09-02).
         assert_eq!(tabs[0].item_count, 1);
         assert_eq!(s.item("old-item").unwrap().unwrap().realm, "pc");
-        assert_eq!(
-            s.search("foo", Some("pc"), None, false, 10).unwrap().len(),
-            1
-        );
         assert_eq!(
             s.item("old-item").unwrap().unwrap().container.as_deref(),
             Some("items")
@@ -3036,6 +2983,70 @@ mod tests {
                 supported: FACT_SCHEMA_VERSION
             })
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Facts v8 (B4): a v7 file loses `items_names` and gains
+    /// `items_removed`, every row where it was; a second open changes
+    /// nothing, and a fresh file has the same two.
+    #[test]
+    fn v7_to_v8_swaps_the_index_and_moves_no_row() {
+        let dir =
+            std::env::temp_dir().join(format!("acq-store-v8-{}-{}", std::process::id(), now()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("facts.db");
+        let indexes = |s: &Store| -> Vec<String> {
+            let mut stmt = s
+                .conn
+                .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'items' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+                .unwrap();
+            stmt.query_map([], |r| r.get(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        let rows = |s: &Store| -> Vec<(String, Option<i64>)> {
+            let mut stmt = s
+                .conn
+                .prepare("SELECT id, removed_at FROM items ORDER BY id")
+                .unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        let mut s = Store::open(&path).unwrap();
+        let fresh = indexes(&s);
+        assert_eq!(
+            fresh,
+            ["items_location", "items_removed", "items_socketed_in"]
+        );
+        let both = stash("a", vec![item("i1", "Foo", 0), item("i2", "Bar", 2)]);
+        s.record(&stash_ep("a"), &json!({}), 200, &both, 100)
+            .unwrap();
+        let one = stash("a", vec![item("i1", "Foo", 0)]);
+        s.record(&stash_ep("a"), &json!({}), 200, &one, 200)
+            .unwrap();
+        let before = rows(&s);
+        assert_eq!(
+            before,
+            [("i1".to_string(), None), ("i2".to_string(), Some(200))]
+        );
+        // the file as a v7 build left it
+        s.conn
+            .execute_batch(
+                "DROP INDEX items_removed;
+                 CREATE INDEX items_names ON items (name, type_line, base_type);
+                 PRAGMA user_version = 7;",
+            )
+            .unwrap();
+        drop(s);
+        for _ in 0..2 {
+            let s = Store::open(&path).unwrap();
+            assert_eq!(indexes(&s), fresh);
+            assert_eq!(rows(&s), before);
+            assert_eq!(s.revision().unwrap().facts_version, 8);
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -3143,17 +3154,6 @@ mod tests {
             .unwrap();
         assert_eq!(ing.added, 1);
         assert_eq!(s.item("i1").unwrap().unwrap().realm, "sony");
-        assert_eq!(
-            s.search("foo", Some("sony"), None, false, 10)
-                .unwrap()
-                .len(),
-            1
-        );
-        assert!(
-            s.search("foo", Some("pc"), None, false, 10)
-                .unwrap()
-                .is_empty()
-        );
         // A poe2 character listing leaves pc's characters alone.
         s.record(
             &Endpoint::Characters { realm: "pc".into() },
@@ -3313,11 +3313,9 @@ mod tests {
             ("c2", None, 0)
         );
         // The retired character's items went with it: retired, with a
-        // removed event, and no longer live in search.
+        // removed event.
         assert_eq!(ing.removed, 1);
         assert!(s.item("eq1").unwrap().unwrap().removed_at.is_some());
-        assert!(s.search("helm", None, None, false, 10).unwrap().is_empty());
-        assert_eq!(s.search("helm", None, None, true, 10).unwrap().len(), 1);
         let removed_events: i64 = s
             .conn
             .query_row(
@@ -3443,16 +3441,15 @@ mod tests {
             s.item("sup").unwrap().unwrap().socketed_in.as_deref(),
             Some("spark")
         );
-        assert!(
-            s.search("skeletal", None, None, false, 10)
-                .unwrap()
-                .is_empty()
-        );
-        assert!(
-            s.search("meat shield", None, None, false, 10)
-                .unwrap()
-                .is_empty()
-        );
+        let granted_rows: i64 = s
+            .conn
+            .query_row(
+                "SELECT count(*) FROM items WHERE type_line LIKE '%Skeletal%' OR type_line LIKE '%Meat Shield%'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(granted_rows, 0);
         // The host's json keeps the granted subtree; the rune was lifted
         // out of the focus as usual.
         let sceptre_row = s.item("sceptre").unwrap().unwrap();
@@ -3606,7 +3603,6 @@ mod tests {
         );
         assert!(s.characters(None, None).unwrap().is_empty());
         assert!(s.item("eq1").unwrap().unwrap().removed_at.is_some());
-        assert!(s.search("helm", None, None, false, 10).unwrap().is_empty());
         // The row was not touched (its fetched_at is still the live
         // fetch's), and the whole body — arrays included — sits verbatim
         // on the response row, marked withheld.

@@ -105,7 +105,7 @@ fn realm_of(targets: &[&PriceTarget], given: Option<Realm>) -> Result<Realm> {
 fn not_on_record(r: &ListingReport, target: &PriceTarget) -> anyhow::Error {
     anyhow::anyhow!(
         "{target} is not in the facts for {}{} ({} items, {} tabs and characters on record); \
-         `acq items search` finds an item's id, `acq tabs` a tab's",
+         `acq search` finds an item's id, `acq tabs` a tab's",
         realm_prefix(r.header.realm),
         r.header.league,
         r.counts.items,

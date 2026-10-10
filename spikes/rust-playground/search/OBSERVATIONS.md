@@ -250,12 +250,12 @@ filed again by the step that touches it.
   corpus` and no tree. No mutant was run against the terminal's test.
   A changed basis by a price written was not run, a fetch and a file
   replaced were.
-- *Step 11d, with its facts migration (step 10c):* the live read names the ids it left out by a scan of `items`,
-  6 ms by sqlite alone over the copy's 22,727 rows, the load 491 ms
-  where it was 483; a partial index on `removed_at` would make it
-  nothing, and is a migration. A prune of removed items changes what
-  `all` returns and the revision does not move when rows are deleted
-  (the store's `corpus.rs`; the prune park).
+- *The prune park's trigger (steps 10c, 11d):* a prune of removed
+  items changes what `all` and `removed` return and the revision does
+  not move when rows are deleted (the store's `corpus.rs`). Facts v8
+  dropped an index and reclaimed nothing: 313 free pages on the copy,
+  1.3 MB of its 54.4, the file's until a vacuum, which no verb runs.
+  The load was not timed again in a release build after the index.
 - *The review's next look (step 10c):* an item with no removal time of
   its own at a retired location takes the location's, which no ingest
   path leaves and no test reaches. The generated properties do not
@@ -322,11 +322,9 @@ filed again by the step that touches it.
   terminal's `membership_unknown` and a request's `tree`. The
   removed are read as the store's `all` with the live rows passed
   over, a whole read of the bodies for the copy's six; unmeasured.
-- *Step 11d (step 11c):* neither run called `search_items`; each
-  called `get_item` once, to find an item by id, and read there what
-  no row said. Q7's 481 items with the rarity line has no twin in
-  2026-09-14's numbers (473 by jq over six arrays, 497 by a LIKE over
-  the body), unreconciled.
+- *A seat that asks it (step 11c):* Q7's 481 items with the rarity
+  line has no twin in 2026-09-14's numbers (473 by jq over six
+  arrays, 497 by a LIKE over the body), unreconciled.
 - *The review's next look (step 11b):* two readers say which account
   a selector names — the store's `account_matches`, by Unicode case,
   and `answer.rs`'s `account_is`, by ASCII case — so an account name

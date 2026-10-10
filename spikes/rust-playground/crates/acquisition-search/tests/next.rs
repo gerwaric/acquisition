@@ -430,7 +430,7 @@ fn a_file_deleted_and_refetched_to_the_same_revision_is_another_basis() {
     let first = asked(&load(&s, Some("pc")), &page).unwrap();
     assert_eq!(
         first["basis"]["snapshot"],
-        json!({ "response": 3, "at": 20, "facts_version": 7 })
+        json!({ "response": 3, "at": 20, "facts_version": 8 })
     );
     let next = first["view"]["rows"]["next"]["request"].clone();
     drop(s);

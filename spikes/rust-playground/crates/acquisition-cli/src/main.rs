@@ -217,11 +217,6 @@ enum Cmd {
         #[arg(long, default_value = "pc", value_parser = parse_realm)]
         realm: Realm,
     },
-    /// Items in the shared store.
-    Items {
-        #[command(subcommand)]
-        cmd: ItemsCmd,
-    },
     /// Search the items the store holds (no daemon): a query over every
     /// live item of one realm, answered with the canonical query, the
     /// scope searched, the basis, each term's counts over the scope —
@@ -571,26 +566,6 @@ enum ReferenceCmd {
 }
 
 #[derive(Subcommand)]
-enum ItemsCmd {
-    /// Substring search over name, type line, and base type.
-    Search {
-        text: String,
-        #[arg(long)]
-        league: Option<String>,
-        /// Restrict to one realm (pc, xbox, sony, poe2).
-        #[arg(long, value_parser = parse_realm)]
-        realm: Option<Realm>,
-        /// Include items no longer seen at their last location.
-        #[arg(long)]
-        removed: bool,
-        #[arg(long, default_value_t = 50)]
-        limit: usize,
-    },
-    /// One item by id, verbatim.
-    Show { id: String },
-}
-
-#[derive(Subcommand)]
 enum StoreCmd {
     /// Path, size, and row counts.
     Status,
@@ -833,16 +808,6 @@ async fn run(cli: Cli) -> Result<()> {
         }
         Cmd::Accounts => store_cmd::accounts(cli.json),
         Cmd::Tabs { league, realm } => store_cmd::tabs(realm, &league, cli.json),
-        Cmd::Items { cmd } => match cmd {
-            ItemsCmd::Search {
-                text,
-                league,
-                realm,
-                removed,
-                limit,
-            } => store_cmd::search(&text, realm, league.as_deref(), removed, limit, cli.json),
-            ItemsCmd::Show { id } => store_cmd::show(&id, cli.json),
-        },
         Cmd::Search(args) => search_cmd::search(*args, cli.json),
         Cmd::Show(args) => search_cmd::show_item(args, cli.json),
         Cmd::Store { cmd } => match cmd {

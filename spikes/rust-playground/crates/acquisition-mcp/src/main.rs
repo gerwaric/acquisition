@@ -468,28 +468,6 @@ struct CharactersParams {
     account: Option<String>,
 }
 
-#[derive(Deserialize, schemars::JsonSchema)]
-struct SearchParams {
-    /// Substring matched against item name, type line, and base type.
-    text: String,
-    /// Restrict to one league.
-    league: Option<String>,
-    /// Restrict to one realm (pc, xbox, sony, poe2).
-    realm: Option<String>,
-    /// Include items no longer seen at their last location.
-    include_removed: Option<bool>,
-    /// Maximum rows (default 50).
-    limit: Option<usize>,
-    account: Option<String>,
-}
-
-#[derive(Deserialize, schemars::JsonSchema)]
-struct ItemParams {
-    /// The GGG item id (from search results).
-    id: String,
-    account: Option<String>,
-}
-
 /// The arguments of `search`: the request, read by the search crate's
 /// own reader and by nothing here (H1). The schema says what a request
 /// holds; the reader refuses what is none.
@@ -785,43 +763,6 @@ impl AcqMcp {
         } {
             Ok(shown) => told(&shown),
             Err(e) => Ok(refused(e)),
-        }
-    }
-
-    #[tool(
-        description = "Substring search over item name/type/base in the shared store; socketed gems are rows too (no daemon, no network)."
-    )]
-    fn search_items(
-        &self,
-        Parameters(p): Parameters<SearchParams>,
-    ) -> Result<Json<Value>, ErrorData> {
-        let store = open_store(p.account.as_deref()).map_err(err)?;
-        let items = store
-            .search(
-                &p.text,
-                p.realm
-                    .as_deref()
-                    .map(|r| realm_param(Some(r)))
-                    .transpose()?
-                    .map(Realm::as_str),
-                p.league.as_deref(),
-                p.include_removed.unwrap_or(false),
-                p.limit.unwrap_or(50),
-            )
-            .map_err(err)?;
-        serde_json::to_value(items)
-            .map(Json)
-            .map_err(|e| err(e.into()))
-    }
-
-    #[tool(description = "One item by id, verbatim as GGG returned it (no daemon, no network).")]
-    fn get_item(&self, Parameters(p): Parameters<ItemParams>) -> Result<Json<Value>, ErrorData> {
-        let store = open_store(p.account.as_deref()).map_err(err)?;
-        match store.item(&p.id).map_err(err)? {
-            Some(item) => serde_json::to_value(item)
-                .map(Json)
-                .map_err(|e| err(e.into())),
-            None => Err(ErrorData::internal_error(format!("no item {}", p.id), None)),
         }
     }
 
@@ -1150,7 +1091,7 @@ impl ServerHandler for AcqMcp {
              [\"fields\"], for what a query may ask: describe whole is over 100 KB. No \
              tool says what an item is worth: a price is the owner's own listing. The \
              store tools (search, show, accounts, tabs, characters, \
-             search_items, get_item, store_status, item_events) read the shared SQLite \
+             store_status, item_events) read the shared SQLite \
              store directly — no daemon, no network. \
              The refresh slice: sync_policy / \
              set_sync_policy declare intent (local, sends nothing; replacing a policy \

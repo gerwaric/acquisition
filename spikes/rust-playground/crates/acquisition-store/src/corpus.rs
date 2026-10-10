@@ -56,8 +56,7 @@
 //!   hands the removed over changes under a prune (below).
 //! - **The body is text, unparsed**, exactly as `items.json` holds it (the
 //!   item minus its lifted `socketedItems`). One that does not parse is
-//!   the search crate's to report on that item; [`Store::search`] turns it
-//!   into a silent null.
+//!   the search crate's to report on that item.
 //! - **The realms** are those the file has a tab or a character under,
 //!   live or retired, whatever the scope: what C96's "a search names its
 //!   realm" is asked of. An item lands only beside its location's row, so
@@ -68,8 +67,8 @@
 //!
 //! ## C108, C98 — the revision is the highest `responses.id`
 //!
-//! Ruled 2026-09-19 (owner: "I agree with (a)"): no schema change, facts
-//! stay v7, and a stamped counter stays the fallback. It advances in the
+//! Ruled 2026-09-19 (owner: "I agree with (a)"): no schema change for
+//! it, and a stamped counter stays the fallback. It advances in the
 //! transaction that changes bodies, locations or membership, as read line
 //! by line on 2026-09-20:
 //!
@@ -997,7 +996,7 @@ mod tests {
         let path = tmp();
         let mut s = Store::open(&path).unwrap();
         let empty = s.revision().unwrap();
-        assert_eq!((empty.response, empty.facts_version), (0, 7));
+        assert_eq!((empty.response, empty.facts_version), (0, 8));
         let mut last = empty.response;
         fn moved(s: &Store, last: &mut i64, what: &str) {
             let now = s.revision().unwrap().response;

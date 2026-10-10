@@ -115,7 +115,9 @@ CREATE TABLE IF NOT EXISTS items (
 );
 CREATE INDEX IF NOT EXISTS items_location ON items (location_kind, location_id);
 CREATE INDEX IF NOT EXISTS items_socketed_in ON items (socketed_in);
-CREATE INDEX IF NOT EXISTS items_names ON items (name, type_line, base_type);
+-- What the search read's live pass names as gone (facts v8): the removed
+-- are few beside the live, and the index holds them alone.
+CREATE INDEX IF NOT EXISTS items_removed ON items (removed_at) WHERE removed_at IS NOT NULL;
 
 -- What each ingest concluded, so "what changed since last time" is a query.
 CREATE TABLE IF NOT EXISTS item_events (

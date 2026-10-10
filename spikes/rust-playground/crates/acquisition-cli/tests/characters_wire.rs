@@ -208,37 +208,29 @@ fn a_character_only_poe2_policy_closes_its_loop_on_the_poe2_routes() {
 
     // The PoE2 body's `skills` array was lifted: the skill is an item at
     // the character (located by id, container `skills`), under poe2 only.
-    let out = acq(
-        &base,
-        &[
-            "items",
-            "search",
-            "Falling Thunder",
-            "--realm",
-            "poe2",
-            "--json",
-        ],
-    );
-    assert!(out.status.success(), "{out:?}");
-    let items = sole_json(&out);
-    let items = items.as_array().unwrap();
-    assert_eq!(items.len(), 1, "{items:?}");
-    assert_eq!(items[0]["location_kind"], "character");
-    assert_eq!(items[0]["location_id"], "fake2001");
-    assert_eq!(items[0]["container"], "skills");
-    assert_eq!(items[0]["realm"], "poe2");
-    let out = acq(
-        &base,
-        &[
-            "items",
-            "search",
-            "Falling Thunder",
-            "--realm",
-            "pc",
-            "--json",
-        ],
-    );
-    assert_eq!(sole_json(&out), json!([]));
+    let named = |realm: &str| {
+        let out = acq(
+            &base,
+            &[
+                "--json",
+                "search",
+                "--realm",
+                realm,
+                r#"typeline:"Falling Thunder""#,
+            ],
+        );
+        assert!(out.status.success(), "{out:?}");
+        sole_json(&out)
+    };
+    let found = named("poe2");
+    let rows = found["rows"].as_array().unwrap();
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    let place = &rows[0]["place"];
+    assert_eq!(place["kind"], "character");
+    assert_eq!(place["id"], "fake2001");
+    assert_eq!(place["container"], "skills");
+    assert_eq!(place["realm"], "poe2");
+    assert_eq!(named("pc")["total"]["matched"], 0);
     let out = acq(&base, &["store", "characters", "--realm", "poe2", "--json"]);
     let rows = sole_json(&out);
     assert_eq!(rows.as_array().unwrap().len(), 1, "{rows}");

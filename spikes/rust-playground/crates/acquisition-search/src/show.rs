@@ -41,7 +41,7 @@ use acquisition_store::corpus::{LocationRow, Membership, RealmScope};
 use acquisition_store::{Annotations, Store};
 use serde::Serialize;
 
-use crate::answer::{QueryInput, QueryOut, command};
+use crate::answer::{QueryInput, QueryOut};
 use crate::bind::{Bound, Query};
 use crate::class::Classed;
 use crate::corpus::Held;
@@ -383,12 +383,15 @@ fn not_shown(
     match store.item(id) {
         Ok(Some(_)) => SearchError::scope(
             "item_not_live",
-            format!("item `{id}` is in the store and at no tab or character the store holds: the search reads an item at its place"),
-        )
-        .with_offers(vec![command("items show", Some(account), None, id)]),
+            format!(
+                "item `{id}` is in the store and at no tab or character the store holds: the search reads an item at its place"
+            ),
+        ),
         Ok(None) => SearchError::scope(
             "item_not_found",
-            format!("no item `{id}` in this store: an id is given whole, as an answer printed it ({live} live items, every realm)"),
+            format!(
+                "no item `{id}` in this store: an id is given whole, as an answer printed it ({live} live items, every realm)"
+            ),
         ),
         Err(e) => SearchError::store(e),
     }

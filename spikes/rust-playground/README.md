@@ -105,7 +105,6 @@ acq search [--realm R] ['<query>'] [--sort V [--desc]] [--limit N] [--routes]   
 acq search ['<query>'] --count KEY,… | --cross KEY,KEY [--sum V]   # the matches counted by key, one table each or one crossed; line[:text,…] is the vocabulary
 acq search --describe [name,…]   # the query language, what a count takes, and what is not built yet
 acq show <id> [--body]   # one item as the search derives it; the stored body on request
-acq items search <text> [--removed] | show <id>   # substring search; one item verbatim
 acq store status | events [--hours N] | refused [id]   # counts; ingest events; malformed bodies
 acq store import <snapshot.json> | rebuild   # replay a retired-pull snapshot; re-extract columns
 

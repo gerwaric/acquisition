@@ -162,14 +162,6 @@ pub struct Offered {
 }
 
 impl Offered {
-    fn words(reading: String) -> Offered {
-        Offered {
-            reading,
-            request: None,
-            realm: None,
-        }
-    }
-
     fn request(request: Request) -> Offered {
         Offered {
             reading: request.command(),
@@ -186,14 +178,6 @@ impl SearchError {
             message: message.into(),
             offers: Vec::new(),
         }
-    }
-
-    /// Ways on that are words alone: no search runs them.
-    pub(crate) fn with_offers(mut self, offered: Vec<String>) -> SearchError {
-        if let SearchError::Scope { offers, .. } = &mut self {
-            *offers = offered.into_iter().map(Offered::words).collect();
-        }
-        self
     }
 
     /// Ways on that are searches: each a request, read as its command.
