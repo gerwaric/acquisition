@@ -1019,7 +1019,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
         return Err(SearchError::scope(
             "account_mismatch",
             format!(
-                "this request is bound to account `{account}` and the store selected is {}'s: rebinding is deliberate (--rebind, not built: step 10)",
+                "this request is bound to account `{account}` and the store selected is {}'s: rebinding is deliberate (--rebind, not built: it waits for a consumer that asks)",
                 corpus
                     .account_name
                     .as_deref()

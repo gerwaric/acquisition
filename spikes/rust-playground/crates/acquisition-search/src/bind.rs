@@ -95,8 +95,8 @@ use crate::tree::{self, Collection, Node, Number, Op, Probe, Value, ValueRef};
 // ---- what is not built -------------------------------------------------------
 
 /// A construct of the reference this build refuses, and the step of
-/// `search/BUILD-PLAN.md` that builds it — none, where no step of the plan
-/// names it.
+/// `search/BUILD-PLAN.md` that builds it — none, where it waits for a
+/// consumer that asks: the plan's step 10 left four so.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct NotBuilt {
     pub construct: &'static str,
@@ -109,22 +109,22 @@ pub struct NotBuilt {
 pub const NOT_BUILT: &[NotBuilt] = &[
     NotBuilt {
         construct: "--fields",
-        step: Some(10),
+        step: None,
         what: "the caller names a row's fields",
     },
     NotBuilt {
         construct: "--view locations",
-        step: Some(10),
+        step: None,
         what: "the full coverage list the scope block summarises",
     },
     NotBuilt {
         construct: "--rebind",
-        step: Some(10),
+        step: None,
         what: "run another account's request deliberately",
     },
     NotBuilt {
         construct: "show --basis",
-        step: Some(10),
+        step: None,
         what: "one item as a named basis held it",
     },
 ];
@@ -134,7 +134,7 @@ impl NotBuilt {
     pub fn step_text(&self) -> String {
         match self.step {
             Some(step) => format!("step {step}"),
-            None => "no step of the plan".to_string(),
+            None => "waits for a consumer that asks".to_string(),
         }
     }
 }

@@ -286,3 +286,9 @@ filed again by the step that touches it.
   for an item at no tab or character the store holds is reached by
   nothing. A removed item's price says "no longer where it was" of a
   gem taken out of its socket as of an item sold.
+- *The GUI's stream, or a resident consumer (step 10d):* a held corpus
+  is 214 MB at its peak on the copy, unsplit between what is held and
+  what the load holds for a moment (M7); each response a refresh
+  commits costs it one whole load, and M5 could not make a store of 31
+  items show the reload or reach the error a corpus gives when the
+  facts keep moving under its price join.

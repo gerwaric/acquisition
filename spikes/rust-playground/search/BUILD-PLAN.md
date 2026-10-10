@@ -159,7 +159,6 @@ the piece and bring it to the owner.
 
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
-| 10 · continuing and exchanging | in the order the seat wanted them (the sitter, 2026-09-26): `--explain` and `show <id> --against` first — a zero answer was where they were missed — and `--context corpus` with them, the zero block offering the two together (the reference, *When the total is zero*); then `--next` and `--request` for the MCP, an agent pages and replays, `--next` refused across a changed basis, and `--print-request` with `--request`, the one printing what the other reads; then `--membership all` (the reference, *Membership*), which step 11's retirement needs and no question at the seat did: the read hands removed items over with `removed_at`, every such row marked, the scope block counting each, an `id:` term that matches nothing live naming the removed id and its route, `acq show` on a removed item. Not built in this step, each waiting for a consumer that asks: `--view locations`, `--fields`, `--rebind`, `show --basis` — each stays refused by name, and the step's close rewords what the build says is "step 10" of them today | 4 | C98, C100, C104, C108; the reference, *Membership*, *Explain*, *Outside the first surface*; `answer.rs`, `corpus.rs`; gap 3 (the record) | AQ3 whole; AQ4 across a refresh that removed the item; M5 |
 | 11 · the close | the MCP tool over the same request, with an agent's seat as its own consumer (P2), `--membership all` among what it validates; `acq items search` retired (below); the closed record, and whether its rows fold back into it from `search/LEDGER.md` or stay a file looked up (the owner's); this file deleted; `search/` shrunk; `DESIGN.md`'s paragraphs into module docs | all | everything above; `decisions/frontends.md`; the kill list (`DIGEST.md`); `MCP-REFERENCE.md`; "What happens to `acq items search`" below | AQ1–AQ5 driven through the MCP; the gate; the kill-list recheck |
 
 Not in this plan: the trade translation (C99, headed "Direction"). No
@@ -243,4 +242,5 @@ ruling (an outside audit's finding, 2026-09-20); a ruled one becomes a
 line in `search/LEDGER.md`, "Holes ruled", its rule in `search/DESIGN.md`.
 T3 and J1–J35, what the two tracks run before 9d and the three pieces'
 expected answers surfaced (2026-09-30 to 2026-10-08), are all ruled: `search/LEDGER.md`, "Holes ruled", the
-seat, 9c and 9d rows. None is unruled today.
+seat, 9c and 9d rows; K1–K11 are step 10's, its three rows. None
+is unruled today.

@@ -125,7 +125,8 @@ pub struct SearchArgs {
     /// subtotal marked incomplete (C95).
     #[arg(long, value_name = "VALUE")]
     pub sum: Option<String>,
-    /// Not built (step 10): the caller names a row's fields.
+    /// Not built, waiting for a consumer that asks: the caller names a
+    /// row's fields.
     #[arg(long, value_name = "NAME,…")]
     pub fields: Option<String>,
     /// Continue an answer past its limit: the token its `more` line
@@ -152,7 +153,8 @@ pub struct SearchArgs {
     /// nowhere; beside `--explain`, which is of the query typed, an error.
     #[arg(long, value_name = "WHICH")]
     pub context: Option<String>,
-    /// Not built (step 10): `locations`, the full coverage list.
+    /// Not built, waiting for a consumer that asks: `locations`, the full
+    /// coverage list.
     #[arg(long, value_name = "WHAT")]
     pub view: Option<String>,
     /// Print the request as JSON, its account and realm resolved, and do
@@ -166,7 +168,8 @@ pub struct SearchArgs {
     /// of scope, query or view stands beside it.
     #[arg(long, value_name = "FILE|-")]
     pub request: Option<String>,
-    /// Not built (step 10): run another account's request deliberately.
+    /// Not built, waiting for a consumer that asks: run another account's
+    /// request deliberately.
     #[arg(long)]
     pub rebind: bool,
 }
@@ -186,7 +189,8 @@ pub struct ShowArgs {
     /// language's not, is taken as typed: `--against '-is:corrupted'`.
     #[arg(long, value_name = "QUERY", allow_hyphen_values = true)]
     pub against: Option<String>,
-    /// Not built (step 10): the item as a named basis held it.
+    /// Not built, waiting for a consumer that asks: the item as a named
+    /// basis held it.
     #[arg(long, value_name = "BASIS")]
     pub basis: Option<String>,
 }
@@ -705,7 +709,7 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
     }
     line(first);
     line(format!(
-        "        {} location{} never fetched · location list seen {} · the full list: --view locations, not built (step 10)",
+        "        {} location{} never fetched · location list seen {} · the full list: --view locations, not built",
         scope.coverage.never_fetched,
         if scope.coverage.never_fetched == 1 {
             ""

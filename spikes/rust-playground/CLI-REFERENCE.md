@@ -241,14 +241,14 @@ Options:
       --count <KEY,…>          Count the matches by a key, one table for each key named, and show no rows: a field (`tab`, `league`, `rarity`, `base`, …; `--describe counts` lists them), or `line`, the vocabulary — the templates the matching items carry, ranked, each with the term that selects it and the range of its numbers. `line:` takes the rest of the list as texts to narrow by, a table each, and `~` before one makes it a pattern: `--count tab,line:resist,life`. An item with no value is counted under `none`, one whose value could not be read under `undecided` (C105); every count has its route (`--routes`)
       --cross <KEY,KEY>        Count the matches by two fields at once, one table of the cells that hold an item: `--cross league,tab`
       --sum <VALUE>            Beside each count, the sum of one number over its items: `stack`, `ilvl`, `'sum("T")'`, `pseudo.total_res`. An item lacking the thing adds nothing and is counted as lacking; one unread leaves a subtotal marked incomplete (C95)
-      --fields <NAME,…>        Not built (step 10): the caller names a row's fields
+      --fields <NAME,…>        Not built, waiting for a consumer that asks: the caller names a row's fields
       --next <TOKEN>           Continue an answer past its limit: the token its `more` line printed, whole. The token names the query, the view, the order and the basis it continues, so no word of scope, query or view stands beside it but `--limit`; across a changed basis — a refresh, a price written — it is refused, both named, and the way on is the search from its start
       --explain <PATH>         Explain one node of the query, named by its path — a term's as the terms block prints it (`3`), a group of terms', or a condition's inside `line( … )` or `linked( … )` (`3.1`): the root's matched and undecided counts as given, with that node forced true, and with it forced false, each beside its transformed query, the node replaced by `true()` or `false()` and nothing else changed. Counts and no rows: an error beside `--count`, `--cross`, `--sum` or `--sort`. A path the query lacks lists the query's nodes with their paths
       --context <WHICH>        What the answer is of: `matches`, the query's, as every answer is; or `corpus`, the empty query over the same scope under rows or a count, with the query typed printed as set aside and counted nowhere; beside `--explain`, which is of the query typed, an error
-      --view <WHAT>            Not built (step 10): `locations`, the full coverage list
+      --view <WHAT>            Not built, waiting for a consumer that asks: `locations`, the full coverage list
       --print-request          Print the request as JSON, its account and realm resolved, and do not run it: what `--request` reads
       --request <FILE|->       Run a request read from a file, or from stdin with `-`: what `--print-request` printed, a `next` or an offer of an answer's `--json`, or a count's route — which, run on a later basis than it was counted at, reports both counts. A request is whole: no word of scope, query or view stands beside it
-      --rebind                 Not built (step 10): run another account's request deliberately
+      --rebind                 Not built, waiting for a consumer that asks: run another account's request deliberately
   -h, --help                   Print help
 ```
 
@@ -265,7 +265,7 @@ Arguments:
 Options:
       --body               Also print the body as the store holds it, verbatim
       --against <QUERY>    Why the item does or does not match a query: beside the item, the query's canonical text, the root's outcome on it — match, no match, undecided — and each term's and each group's, with what the term touched or why it is undecided. One that starts with `-`, the language's not, is taken as typed: `--against '-is:corrupted'`
-      --basis <BASIS>      Not built (step 10): the item as a named basis held it
+      --basis <BASIS>      Not built, waiting for a consumer that asks: the item as a named basis held it
   -h, --help               Print help
 ```
 

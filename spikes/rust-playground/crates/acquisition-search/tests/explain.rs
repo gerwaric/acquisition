@@ -732,13 +732,13 @@ fn describe_says_what_explain_context_and_against_do() {
             "{construct}"
         );
     }
-    // the four that wait keep their names and their step
+    // the four that wait keep their names, and no step builds them
     let waiting: Vec<&str> = NOT_BUILT.iter().map(|n| n.construct).collect();
     assert_eq!(
         waiting,
         ["--fields", "--view locations", "--rebind", "show --basis"]
     );
-    assert!(NOT_BUILT.iter().all(|n| n.step == Some(10)));
+    assert!(NOT_BUILT.iter().all(|n| n.step.is_none()));
 }
 
 /// `--sum` stands beside a count, and explain shows none: the pair is the

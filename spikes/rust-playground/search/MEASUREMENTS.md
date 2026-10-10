@@ -256,6 +256,7 @@ medians in ms; a step's empty query is its floor.
 | `dc262f71`, 9d-B | `category=armour` · `category:beast` · `(category=armour or category=accessory) (reqlevel=..30 or -has:reqlevel)` · `--count category` | 476 · 476 · 475 · 478 | 2,595 · 2,588 · 2,599 · 2,609 |
 | `3eae4b4e`, 9d-C | `pseudo.adds_fire_to_attacks>=20` · `pseudo.adds_damage_to_spells.high>=30` · `has:pseudo.adds_damage --sort pseudo.adds_damage --desc --limit 10` · `pseudo.increased_movement_speed>=20` | 496 · 557 · 497 · 487 | 2,976 · 3,883 · 2,966 · 2,823 |
 | `a9733264`, 9d-A | `pseudo.defence_pct>=90` · `class:helmet --sort pseudo.defence_pct --desc --limit 10` · `category=armour --count class --sum pseudo.defence_pct` | 489 · 486 · 487 | 2,751 · 2,728 · 2,751 |
+| `5a087d37`, step 10 | the empty query · `"# to maximum Life">=90 --explain 0.1` · the same `--context corpus` · `--next` of a token · `--print-request` · the empty query `--membership all` · `id:` of an item that left | 492 · 522 · 495 · 492 · 502 · 490 · 498 | — |
 
 **The price join's cost (step 9, `57c2f78b`): the floor rose from 276
 to 445 ms release, and two totals asks crossed 500 ms with it.** The
@@ -556,3 +557,46 @@ lack it, 99 are undecided — 98 by the realm and 1 by a crucible line
 none reads over 100 or below 0. The M3 run itself ran while the
 session edited beside it, and its first asks read high; six were asked
 again alone, as its row says.
+
+**Step 10 — what explaining, continuing and membership cost an ask (`5a087d37`, 2026-10-09, the session's measurement): explain two more evaluations and no second load; a continuation nothing; the live read some 9 ms more for the ids it leaves out.**
+The release build over the M3 copy, the median of ten, in ms, each
+asked alone, the row above. Before 10c the empty query was 483 and at
+10a `--explain 0.1` of the life line 514 beside its ask at 489; the
+ids the live read names — every removed item and retired location —
+are a scan of `items`, 6.02 ms by sqlite alone over the copy's 22,727
+rows, the median of twenty. `--print-request` loads the corpus to
+resolve an account and a realm and asks nothing. Under `all` the copy
+returns 22,727 rows where live returns 22,721 — 22,629 and 22,623
+under pc — the 6 removed each marked, each at a live character and
+named; no item of the copy sits at a retired tab or character, and
+none removed has an item socketed in it.
+
+**M5 — a re-derive while a refresh is writing (step 10, `5a087d37`, 2026-10-09; a mock session, the debug build): 126 asks answered across 18 responses committed, none refused, none slower than idle.**
+`ACQ_PROVIDER=mock`, a world of its own under the session's scratch
+directory (`.claude/skills/mock-session/SKILL.md`): the mock's eight
+tabs, 31 items once fetched. `acq refresh --all --deep` run again and
+again from one thread for 45 s — three rounds, the limiter pacing the
+third — while another asked `acq --json search --limit 0` without
+pause. The asks saw four distinct snapshots, 33 to 51, and each took
+350 to 389 ms, the median 357, where eleven asks with nothing writing
+took a median of 351: at 31 items an ask is the process and the
+tables, and the reload itself is not seen. No ask met the error a
+corpus gives when the facts keep moving under its price join
+(`corpus.rs`, three reads and then `moved`), which a store this small
+cannot be made to reach. What a resident consumer pays for each
+committed tab is one whole load — the revision moves with every
+response, a listing among them — which on the owner's copy is the
+empty query's 492 ms release: the park for an incremental update
+(`decisions/search.md`) is where that goes, its trigger a GUI feeling
+it.
+
+**M7 — the resident memory of a held corpus (step 10, `5a087d37`, 2026-10-09): an ask over the copy peaks at 214 MB, some 9.5 KB an item.**
+`/usr/bin/time -l ./target/release/acq --json search --realm pc
+--limit 0` over the M3 copy, the facts file 51.9 MB: maximum resident
+set 214.2 to 214.6 MB, peak footprint 208.5 to 208.8 MB, the same
+under `--membership all` and with a life line asked. It is the peak
+of a process that loads, joins the prices and answers once, so what
+the price join and sqlite hold for a moment is in it: the steady
+figure a consumer holding the corpus all day would show is at most
+this and was not measured apart. M1's 8.7 MB was the streaming read
+alone, no item kept.

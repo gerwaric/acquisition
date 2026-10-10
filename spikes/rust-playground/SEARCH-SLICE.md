@@ -59,8 +59,8 @@ first: the shapes of fault that came back until they were named.
 | **One thing counted under two names, and two taken for one.** The mod's first number and its first row's first, two parts read by two alternatives, added twice to a sum and to the together count; then, a place being added once, a number that is either of two rows' given the first row's place and dropped for the number read there | 9c4's review, the second look and the third; the builder had seen the first case and let it pass | `derive::Place`, a number known by where it sits in its mod, and none where it sits in no one place; `eval::Read`; `tests/rows.rs` (`c95_…`, `c93_a_number_that_is_either_…`), the rows-apart oracle |
 | **Unknown said at the wrong grain.** A whole object unread for one flag that is no boolean, a whole array for one number too long, a whole requirements list for one bad row: too wide leaves open terms that never needed it, too narrow reads as absence, which a not makes a witness of | steps 4, 4b, 6, 7, 8, 9d-B | rule 8; `derive::Slot`, `Line::flags_unknown`, `Unread::line`, `Unread::name`; `sockets::Groups`; the completion property |
 | **Two statuses for one thing.** A number kept beside the unread that may replace it, so a comparison, the sort and the sum disagreed; a total exact on the item and rounded again in the bucket | steps 5, 6, 9d-B | rule 8 (`reqlevel`'s one status; `class::unread`, a class reason only where the class has no name); `exact::Exact`, units carried to the print |
-| **A second maker.** A route, a printed command, a reason, a selector's resolved list, each made in two places that then disagreed — a lacked count of 1 whose route returned 0, a `show` continuation that dropped the account | steps 4, 4b, 5, 9d-B | rule 10; `answer::command`, `answer::Router`, `eval::why`; the CLI test that runs every printed command with a second account known |
-| **A printed command the build refuses.** A route starting with `-` at a shell, a reading that does not parse (`class=Body Armours`), a slot word the same build's slot check refuses, a continuation the key parser could not read back; a ranged total's slot word carried into its lacked route, where `has:` takes none | steps 4, 5, 6, 9e | rule 5; the route property; every offered reading bound by a test; `bind::closed` offering through the printer |
+| **A second maker.** A route, a printed command, a reason, a selector's resolved list, each made in two places that then disagreed — a lacked count of 1 whose route returned 0, a `show` continuation that dropped the account | steps 4, 4b, 5, 9d-B, 10b, 10c | rule 10; `answer::command`, `answer::Router`, `eval::why`; the CLI test that runs every printed command with a second account known; one opening for every command (`answer.rs`), `show`'s offer made by `Request::command` |
+| **A printed command the build refuses.** A route starting with `-` at a shell, a reading that does not parse (`class=Body Armours`), a slot word the same build's slot check refuses, a continuation the key parser could not read back; a ranged total's slot word carried into its lacked route, where `has:` takes none | steps 4, 5, 6, 9e, 10a, 10b | rule 5; the route property; every offered reading bound by a test; `bind::closed` offering through the printer |
 | **Arithmetic on floats.** A sum whose value depended on the order of its occurrences; a fallback whose use depended on how the integers cancelled; units read back off a float that does not print its decimal | steps 4b, 5 | `exact.rs`: a number read once, within a measured rule, and whole units from then on |
 | **A cut in the query's order.** A reason made beyond the item's parts took its place from the term that met it first, so two spellings of one query showed different sixes | step 7 | rule 9; `eval::why` orders such a reason by what it says; the audit test in `tests/pseudo.rs` asks two spellings |
 | **A block past its bound.** Rows appended after the cut — the vocabulary's computed values, 39 under a limit of 1 — with the omission uncounted | step 7 | invariant 5; every list an answer holds is cut by the limit and counts its rest, a new kind of row with its own count; the audit test |
@@ -92,11 +92,21 @@ number there was measured, never recalled. The verdicts:
   evaluator's cost, the totals batch park's (V9, revisited at step 11):
   an ask pays some 1 ms for each row of every total it reads. The
   owner, 2026-10-08: the slice is wrapped up before anything is
-  optimized, and the budget was never a hard number. The category
+  optimized, and the budget was never a hard number. At step 10
+  (`5a087d37`) the load is 492: the live read names the ids it left
+  out by a scan of `items`, some 9 ms; explain is two more
+  evaluations, 522; a continuation and `all` cost nothing more. The category
   asks cost no more than the empty query. The six asks the seat saw at
   695–715 ms did not recur on the copy, their cause unmeasured. The
   debug build is 2.6 to 3.9 s. What each rerun showed is the block's.
 - M4 (step 4): `~` over all text adds 9 ms.
+- M5 (step 10): over a mock session, 126 asks answered across 18
+  responses committed, none refused and none slower than idle; a
+  resident consumer pays one whole load for each committed tab, 492 ms
+  on the copy, which is the incremental-update park's.
+- M7 (step 10): an ask that holds the copy's corpus peaks at 214 MB
+  resident, some 9.5 KB an item, where the streaming read alone was
+  8.7; the steady figure was not measured apart.
 - The class table (step 6): 56 of 82 classes carried, 681 of 22,721
   undecided, the buckets summing to the copy (C105).
 - M6 (step 7, the park fired): every row of the totals table carried by

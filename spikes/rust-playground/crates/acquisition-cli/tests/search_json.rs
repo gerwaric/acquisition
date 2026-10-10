@@ -665,7 +665,7 @@ fn c53_search_json_is_the_answer_whole_and_the_text_is_a_function_of_it() {
         "query   line(\"# to maximum Life\" arg1>=90)",
         "scope   account Alice#1234 · pc · live · 5 items · 2 locations fetched",
         "1 location never fetched",
-        "--view locations, not built (step 10)",
+        "--view locations, not built",
         &format!(
             "basis   store {} · snapshot {} · facts v",
             a["basis"]["store"].as_str().unwrap(),
@@ -948,7 +948,7 @@ fn c11_a_failure_is_structured_and_a_later_steps_flag_is_refused_by_name() {
         refused["error"]
             .as_str()
             .unwrap()
-            .starts_with("not built: --fields (step 10)")
+            .starts_with("not built: --fields (waits for a consumer that asks)")
     );
 }
 
