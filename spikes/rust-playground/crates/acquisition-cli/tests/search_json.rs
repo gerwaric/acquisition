@@ -667,8 +667,9 @@ fn c53_search_json_is_the_answer_whole_and_the_text_is_a_function_of_it() {
         "1 location never fetched",
         "--view locations, not built",
         &format!(
-            "basis   store {} · snapshot {} · facts v",
+            "basis   store {} · build {} · snapshot {} · facts v",
             a["basis"]["store"].as_str().unwrap(),
+            a["basis"]["build"].as_str().unwrap(),
             a["basis"]["snapshot"]["response"]
         ),
         "2 matched · 1 failed · 1 lacked · 1 undecided · 1 reaches 90 only together",

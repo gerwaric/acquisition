@@ -580,8 +580,9 @@ fn open_store_and_intent() -> Result<(Store, acquisition_store::Annotations)> {
 /// The basis line every answer and every `show` prints (C98).
 fn basis_text(b: &acquisition_search::Basis) -> String {
     format!(
-        "basis   store {} · snapshot {} · facts v{} · intent {} · derivation {} · classes v{} · categories v{} · beast colours v{} · totals v{} · defences v{} · currency v{} · notes v{}",
+        "basis   store {} · build {} · snapshot {} · facts v{} · intent {} · derivation {} · classes v{} · categories v{} · beast colours v{} · totals v{} · defences v{} · currency v{} · notes v{}",
         b.store,
+        b.build,
         b.snapshot.response,
         b.snapshot.facts_version,
         b.intent,

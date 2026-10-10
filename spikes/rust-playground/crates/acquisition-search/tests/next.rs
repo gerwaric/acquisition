@@ -421,3 +421,37 @@ fn a_file_deleted_and_refetched_to_the_same_revision_is_another_basis() {
         "{e}"
     );
 }
+
+/// The basis names the build (C98; B1, `search/LEDGER.md`): twelve hex
+/// digits, the same in every answer of one build, and a continuation an
+/// answer of another build printed is refused, both builds named — two
+/// builds may order or count one request differently.
+#[test]
+fn a_continuation_of_another_build_is_refused_and_names_both() {
+    let s = worked();
+    let corpus = load(&s, Some("pc"));
+    let first = asked(
+        &corpus,
+        &json!({ "query": { "text": "" }, "view": { "rows": { "limit": 3 } } }),
+    )
+    .unwrap();
+    let build = first["basis"]["build"].as_str().unwrap().to_string();
+    assert!(
+        build.len() == 12 && build.chars().all(|c| c.is_ascii_hexdigit()),
+        "{build}"
+    );
+    let mut next = first["view"]["rows"]["next"]["request"].clone();
+    assert_eq!(next["basis"]["build"], build);
+    assert!(asked(&corpus, &next).is_ok());
+
+    next["basis"]["build"] = json!("0123456789ab");
+    let e = asked(&corpus, &next).unwrap_err();
+    assert_eq!(e["kind"], "basis_changed", "{e}");
+    assert!(
+        e["error"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("build 0123456789ab then, build {build} now")),
+        "{e}"
+    );
+}

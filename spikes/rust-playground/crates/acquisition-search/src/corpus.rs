@@ -10,7 +10,11 @@
 //!   describe one state, and each body is derived as it streams past, so
 //!   no body outlives its item. Nothing is persisted and nothing is cached
 //!   between processes (C98, C48).
-//! - **The basis** names the store, the account, the facts revision — the
+//! - **The basis** names the store, the account, the build — a digest
+//!   of the sources an answer is computed by (`build.rs`; B1,
+//!   `search/LEDGER.md`), so that two builds never label different
+//!   answers with one basis, as every evaluator fix did while the
+//!   versions below were all that named one — the facts revision — the
 //!   highest response id, when it was recorded and the facts schema
 //!   beside them — the
 //!   derivation's version ([`DERIVATION`]), the class table's
@@ -133,6 +137,9 @@ pub struct Basis {
     /// The facts file, by a short hash of its canonical path.
     pub store: String,
     pub account: String,
+    /// The build that answered: a digest of the sources an answer is
+    /// computed by (`build.rs`).
+    pub build: String,
     /// The facts revision: the highest response id, when it was recorded,
     /// and the facts schema.
     pub snapshot: Revision,
@@ -159,9 +166,10 @@ impl Basis {
     /// What differs between this basis and another, each part named
     /// with both its values: what a refusal across a change says.
     pub fn against(&self, now: &Basis) -> String {
-        let parts: [(&str, String, String); 13] = [
+        let parts: [(&str, String, String); 14] = [
             ("store", self.store.clone(), now.store.clone()),
             ("account", self.account.clone(), now.account.clone()),
+            ("build", self.build.clone(), now.build.clone()),
             (
                 "snapshot",
                 self.snapshot.response.to_string(),
@@ -397,6 +405,7 @@ impl Basis {
         Basis {
             store: digest.iter().take(6).map(|b| format!("{b:02x}")).collect(),
             account: header.account_uuid.clone(),
+            build: env!("ACQ_SEARCH_BUILD").to_string(),
             snapshot: header.revision,
             derivation: DERIVATION,
             classes: CLASS_TABLE_VERSION,
