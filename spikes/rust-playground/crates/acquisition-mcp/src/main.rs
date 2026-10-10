@@ -508,7 +508,7 @@ impl schemars::JsonSchema for RequestParams {
             "properties": {
                 "scope": {
                     "type": "object",
-                    "description": "What is searched: {\"account\": a username or uuid, needed only when several accounts are known; \"realm\": pc, xbox, sony, poe2 or all, needed only when the store holds several; \"membership\": \"live\" (the default) or \"all\", which adds removed items, each row marked with when it left}."
+                    "description": "What is searched: {\"account\": a username or uuid, needed only when several accounts are known; \"realm\": pc, xbox, sony, poe2 or all, needed only when the store holds several; \"membership\": \"live\" (the default); \"all\", which adds removed items, each row marked with when it left; or \"removed\", the removed items alone: what has left the stash and the characters}. Under all and removed the answer's scope counts the live items as `items` and the removed as `removed`, whichever were searched."
                 },
                 "query": {
                     "type": "object",

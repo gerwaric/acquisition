@@ -1039,6 +1039,12 @@ impl Binder {
                     format!("`is:{name}` is said of a line, inside its group"),
                 )
                 .with_readings(vec![format!("line(is:{name})")])),
+                // what has left is the scope's: no reading of a query
+                // reaches it, so the message names the membership
+                None if name.eq_ignore_ascii_case("removed") => Err(LanguageError::new(
+                    ErrorKind::UnknownName,
+                    "`is:removed` is no flag: what has left the stash is a membership of the scope, never a term — --membership removed searches the removed alone, --membership all the removed beside the live",
+                )),
                 None => Err(unknown("is:", name, ITEM_FLAGS, |near| {
                     format!("is:{near}")
                 })),

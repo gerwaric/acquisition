@@ -73,10 +73,11 @@ pub struct SearchArgs {
     /// several it is required, one of them or `all` (C96).
     #[arg(long)]
     pub realm: Option<String>,
-    /// Which items are searched: `live`, the default, or `all`, which
-    /// adds the removed — each row marked with when it left, at the place
-    /// it was last seen — and counts the two apart in the scope block.
-    #[arg(long, value_name = "live|all")]
+    /// Which items are searched: `live`, the default; `all`, which adds
+    /// the removed — each row marked with when it left, at the place it
+    /// was last seen; or `removed`, the removed alone. The scope block
+    /// counts the live and the removed apart under either.
+    #[arg(long, value_name = "live|all|removed")]
     pub membership: Option<String>,
     /// Read the query from a file, or from stdin with `-`: a query with an
     /// apostrophe needs no shell quoting this way.
@@ -384,20 +385,22 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         None => Context::default(),
     };
     let membership = match args.membership.as_deref() {
-        None | Some("live") => Membership::Live,
-        Some("all") => Membership::All,
-        Some(other) => {
-            return Err(fail(
-                SearchError::Scope {
-                    kind: "membership_unknown",
-                    message: format!(
-                        "`{other}` is no membership: live, the items in the stash, or all, the removed beside them"
-                    ),
-                    offers: Vec::new(),
-                },
-                json,
-            ));
-        }
+        None => Membership::Live,
+        Some(word) => match Membership::parse(word) {
+            Some(membership) => membership,
+            None => {
+                return Err(fail(
+                    SearchError::Scope {
+                        kind: "membership_unknown",
+                        message: format!(
+                            "`{word}` is no membership: live, the items in the stash; all, the removed beside them; or removed, the removed alone"
+                        ),
+                        offers: Vec::new(),
+                    },
+                    json,
+                ));
+            }
+        },
     };
     let request = Request {
         scope: Scope {
@@ -698,13 +701,17 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
     let mut first = format!(
         "scope   account {account} · {} · {} · {} fetched",
         scope.realm.as_str(),
-        match scope.coverage.removed {
-            Some(removed) => format!(
+        match (scope.membership, scope.coverage.removed) {
+            (Membership::Removed, Some(removed)) => format!(
+                "removed · {removed} removed · {} live not searched",
+                plural(scope.coverage.items, "item", "items"),
+            ),
+            (_, Some(removed)) => format!(
                 "all · {} live · {} removed",
                 plural(scope.coverage.items, "item", "items"),
                 removed
             ),
-            None => format!("live · {}", plural(scope.coverage.items, "item", "items")),
+            (_, None) => format!("live · {}", plural(scope.coverage.items, "item", "items")),
         },
         plural(scope.coverage.fetched, "location", "locations"),
     );
@@ -756,10 +763,10 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
     if !a.terms.is_empty() {
         line(format!(
             "terms   each term evaluated independently over {} {} in all leagues",
-            if scope.coverage.removed.is_some() {
-                "live and removed"
-            } else {
-                "live"
+            match scope.membership {
+                Membership::Live => "live",
+                Membership::All => "live and removed",
+                Membership::Removed => "removed",
             },
             match &scope.realm {
                 Realm::All => "items of every realm".to_string(),

@@ -131,21 +131,23 @@
 //!   contributors, a computed value's inputs — shown as a matched term's
 //!   evidence is, bounded the same way (`eval::sorted_by`).
 //! - **Membership is the corpus's** (the reference, *Membership*; C108;
-//!   the build plan, step 10): `live`, or `all`, where the store's read
-//!   hands over every item at the place it was last seen. A request
-//!   naming the other than the corpus holds is refused, as a realm is.
-//!   Under `all` a removed item is a row like any other, marked with
-//!   when it left and counted by every term; the scope block counts the
-//!   live and the removed apart; its price is lacked (`price.rs`); every
-//!   route and every command carries the membership. No count says how
-//!   many of its items are removed: nothing selects the removed alone,
-//!   so such a count would have no route (invariant 4). Under `live` an
-//!   `id:` term that matches nothing says whether the id is among what
+//!   the build plan, steps 10 and 11d): `live`; `all`, where the store's
+//!   read hands over every item at the place it was last seen; or
+//!   `removed`, the removed of that read alone. A request naming another
+//!   than the corpus holds is refused, as a realm is. Under `all` and
+//!   `removed` a removed item is a row like any other, marked with when
+//!   it left and counted by every term; the scope block counts the live
+//!   and the removed apart, whichever of them was searched; its price is
+//!   lacked (`price.rs`); every route and every command carries the
+//!   membership. No count of an answer under `all` says how many of its
+//!   items are removed: the same request under `removed` does. Under
+//!   `live` an `id:` term that matches nothing says whether the id is among what
 //!   the read left out — an item removed, a tab or a character retired
 //!   — with what it was, when it left and the route under `all`,
-//!   whatever the total; under `all` the same is said of a retired tab
-//!   or character that held no item, with no route, there being nothing
-//!   more to find. Never of an id that is also a live location's.
+//!   whatever the total; under `all` and `removed` the same is said of
+//!   a retired tab or character that held no item, with no route, there
+//!   being nothing more to find. Never of an id that is also a live
+//!   location's, and never of a live item's asked under `removed`.
 
 use std::collections::HashMap;
 
@@ -251,22 +253,33 @@ pub enum Membership {
     Live,
     /// Removed items too, each row marked with when it left.
     All,
+    /// The removed items alone: what has left, and nothing live.
+    Removed,
 }
 
-impl From<acquisition_store::Membership> for Membership {
-    fn from(membership: acquisition_store::Membership) -> Membership {
-        match membership {
-            acquisition_store::Membership::Live => Membership::Live,
-            acquisition_store::Membership::All => Membership::All,
+impl Membership {
+    /// The word a request, an answer and a terminal's flag spell it by.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Membership::Live => "live",
+            Membership::All => "all",
+            Membership::Removed => "removed",
         }
     }
-}
 
-impl From<Membership> for acquisition_store::Membership {
-    fn from(membership: Membership) -> acquisition_store::Membership {
-        match membership {
+    /// A terminal's word for one, or none where it is no membership.
+    pub fn parse(word: &str) -> Option<Membership> {
+        [Membership::Live, Membership::All, Membership::Removed]
+            .into_iter()
+            .find(|m| m.as_str() == word)
+    }
+
+    /// The store's read that hands its items over: the removed alone are
+    /// the removed of the read that holds every item.
+    pub(crate) fn read(self) -> acquisition_store::Membership {
+        match self {
             Membership::Live => acquisition_store::Membership::Live,
-            Membership::All => acquisition_store::Membership::All,
+            Membership::All | Membership::Removed => acquisition_store::Membership::All,
         }
     }
 }
@@ -452,7 +465,7 @@ impl Request {
             store,
             intent,
             self.scope.realm.as_ref(),
-            self.scope.membership.into(),
+            self.scope.membership,
         )
         .map_err(|e| e.asked_by(self))
     }
@@ -812,6 +825,7 @@ pub struct TermOut {
     pub resolved: Option<Resolved>,
     /// Of an `id:` term that matches nothing live: that the id is among
     /// what left, when, and the route to it under membership `all`.
+    /// Under `all` and `removed`, of a retired place's that held nothing.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed: Option<Removed>,
 }
@@ -963,8 +977,8 @@ pub struct Row {
     pub base: Option<String>,
     pub rarity: Option<String>,
     pub place: Place,
-    /// When the item left, under membership `all`: a fetch of its place
-    /// no longer had it, or the place was retired.
+    /// When the item left, under membership `all` or `removed`: a fetch
+    /// of its place no longer had it, or the place was retired.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed_at: Option<i64>,
     pub matched: Vec<Touched>,
@@ -1081,21 +1095,17 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
             ),
         ));
     }
-    if request.scope.membership != corpus.membership.into() {
+    if request.scope.membership != corpus.membership {
         return Err(SearchError::scope(
             "membership_mismatch",
             format!(
-                "this corpus holds {} items and the request names membership `{}`",
-                if corpus.membership == acquisition_store::Membership::All {
-                    "all"
-                } else {
-                    "live"
+                "this corpus holds {} and the request names membership `{}`",
+                match corpus.membership {
+                    Membership::Live => "live items",
+                    Membership::All => "all items",
+                    Membership::Removed => "the removed items alone",
                 },
-                if request.scope.membership == Membership::All {
-                    "all"
-                } else {
-                    "live"
-                },
+                request.scope.membership.as_str(),
             ),
         ));
     }
@@ -1123,7 +1133,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                 .unwrap_or_else(|| corpus.basis.account.clone()),
         ),
         realm: Some(corpus.realm.clone()),
-        membership: corpus.membership.into(),
+        membership: corpus.membership,
     };
     // a continuation is a place in one basis's order: across a change it
     // is refused, both named, and the way on is the request from its start
@@ -1161,7 +1171,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                     .unwrap_or_else(|| corpus.basis.account.clone()),
             ),
             realm: Some(corpus.realm.clone()),
-            membership: corpus.membership.into(),
+            membership: corpus.membership,
         },
         root: &query.root,
     };
@@ -1257,13 +1267,11 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                                 _ => "character",
                             },
                             removed_at: left.removed_at,
-                            route: (corpus.membership == acquisition_store::Membership::Live).then(
-                                || {
-                                    let mut route = router.route(&term.node, None);
-                                    route.request.scope.membership = Membership::All;
-                                    route
-                                },
-                            ),
+                            route: (corpus.membership == Membership::Live).then(|| {
+                                let mut route = router.route(&term.node, None);
+                                route.request.scope.membership = Membership::All;
+                                route
+                            }),
                         })
                     }
                     _ => None,
@@ -1507,7 +1515,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                 name: corpus.account_name.clone(),
             },
             realm: corpus.realm.clone(),
-            membership: corpus.membership.into(),
+            membership: corpus.membership,
             realm_not_held: match &corpus.realm {
                 Realm::One(realm) => !corpus.coverage.realms_held.contains(realm),
                 Realm::All => false,
@@ -2192,8 +2200,9 @@ impl Request {
     pub fn command(&self) -> String {
         let scope = &self.scope;
         let mut out = String::new();
-        if scope.membership == Membership::All {
-            out.push_str(" --membership all");
+        if scope.membership != Membership::Live {
+            out.push_str(" --membership ");
+            out.push_str(scope.membership.as_str());
         }
         self.view_flags(&mut out);
         if self.context == Context::Corpus {

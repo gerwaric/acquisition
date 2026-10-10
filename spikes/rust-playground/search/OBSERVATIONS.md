@@ -308,14 +308,20 @@ filed again by the step that touches it.
   Blindness was each runner's word. An unknown `describe` name's
   listing, some 3 KB, and `limits` and `not_built`, keys no name asks
   for, are 11b's and unmet.
-- *Step 11d, its first piece (step 11c):* what the two runs met
-  where nothing selected the removed alone: `scope.removed` holds a
-  count and no request, where every other count that is not zero
-  holds one; `is:removed` and a membership of `removed` are refused
-  with no reading toward the way on, the second under the kind
-  `tree`; each run reached the copy's six by `-has:container`, which
-  no rule states; `answer.rs`'s doc says no count says how many of
-  its items are removed for want of a route, which this gives.
+- *A seat that asks it (step 11d, `removed` alone):* not taken, each
+  the session's under 11c's ruling. Under `removed` an `id:` that is
+  a live item's or a live tab's matches nothing and reads as an id
+  the store never held, the zero block's note the one `id:nope`
+  gets: the mirror of what `live` says of an id that left, and it
+  wants the live ids kept beside a corpus that passes them over.
+  `scope.removed` is still a count with no request beside it, and
+  `is:removed`'s refusal names the membership in its message and
+  offers no request: the binder holds a query and no scope.
+  `scope.leagues` under `removed` is `all`'s, a league that holds
+  nothing removed among them. A word that is no membership is the
+  terminal's `membership_unknown` and a request's `tree`. The
+  removed are read as the store's `all` with the live rows passed
+  over, a whole read of the bodies for the copy's six; unmeasured.
 - *Step 11d (step 11c):* neither run called `search_items`; each
   called `get_item` once, to find an item by id, and read there what
   no row said. Q7's 481 items with the rarity line has no twin in

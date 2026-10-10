@@ -1,16 +1,16 @@
 //! Membership (`search/DESIGN.md`, *Membership*; C108, C100; the build
-//! plan, step 10 and gap 3): `live` by default, `all` on request — the
-//! removed beside the live, each marked with when it left, at the place
-//! it was last seen — through the crate's boundary, a request in, an
+//! plan, step 10 and gap 3, step 11d): `live` by default, `all` on
+//! request — the removed beside the live, each marked with when it left,
+//! at the place it was last seen — or `removed`, those alone; through the crate's boundary, a request in, an
 //! answer out, as JSON. Every count is worked by hand on a store built
 //! through the store's own ingest: a fetch that no longer has an item,
 //! and a listing that no longer names a tab.
 
 mod common;
 
-use acquisition_search::answer::Request;
+use acquisition_search::answer::{Membership, Request};
 use acquisition_search::{Corpus, answer};
-use acquisition_store::{Membership, Store};
+use acquisition_store::Store;
 use common::*;
 use serde_json::{Value, json};
 
@@ -569,4 +569,347 @@ fn a_removed_character_item_is_in_the_league_it_was_last_seen_in() {
     // and `show` says the same of it
     let shown = serde_json::to_value(show(&s, "gone", false).unwrap()).unwrap();
     assert_eq!(shown["place"]["league"], "Settlers");
+}
+
+// ---- `removed` alone (ruled 2026-10-10; `search/LEDGER.md`, "Holes ruled", 11c) --------------
+
+/// The corpus a request under `removed` is asked of, as an adapter
+/// loads it.
+fn removed_alone(s: &Store) -> Corpus {
+    let request: Request =
+        serde_json::from_value(json!({ "scope": { "realm": "pc", "membership": "removed" } }))
+            .unwrap();
+    request.corpus(s, &intent(s)).unwrap()
+}
+
+fn under_removed(corpus: &Corpus, text: &str) -> Value {
+    asked(
+        corpus,
+        json!({ "scope": { "membership": "removed" }, "query": { "text": text } }),
+    )
+    .unwrap_or_else(|e| panic!("{text}: {e}"))
+}
+
+/// What has left, asked in one request: the removed and nothing live,
+/// each row marked with when it left at the place it was last seen. The
+/// scope counts the live and the removed as `all` counts them, and the
+/// membership says which were searched; every term counts over the
+/// removed alone.
+#[test]
+fn removed_is_what_has_left_and_nothing_live() {
+    let s = left();
+    let corpus = removed_alone(&s);
+    let a = under_removed(&corpus, "");
+    assert_eq!(in_order(&a), ["b", "c"]);
+    assert_eq!(a["total"]["matched"], 2);
+    let scope = &a["scope"];
+    assert_eq!(scope["membership"], "removed");
+    assert_eq!((&scope["items"], &scope["removed"]), (&json!(1), &json!(2)));
+    assert_eq!(
+        (&scope["fetched"], &scope["never_fetched"]),
+        (&json!(1), &json!(0))
+    );
+    let rows = a["rows"].as_array().unwrap();
+    assert_eq!(
+        (&rows[0]["removed_at"], &rows[0]["place"]["name"]),
+        (&json!(50), &json!("Rings"))
+    );
+    assert_eq!(
+        (&rows[1]["removed_at"], &rows[1]["place"]["name"]),
+        (&json!(60), &json!("Gone"))
+    );
+
+    assert_eq!(in_order(&under_removed(&corpus, "tab:Rings")), ["b"]);
+    assert_eq!(in_order(&under_removed(&corpus, "id:t2")), ["c"]);
+    assert_eq!(in_order(&under_removed(&corpus, "id:b")), ["b"]);
+    assert_eq!(
+        in_order(&under_removed(&corpus, r##""+# to maximum Life">=75"##)),
+        ["b"]
+    );
+    // `a` is in the stash: failed by no term, counted by none
+    let a = under_removed(&corpus, "rarity=rare");
+    assert_eq!(in_order(&a), ["b"]);
+    assert_eq!(
+        (
+            &a["terms"][0]["matched"]["count"],
+            &a["terms"][0]["failed"]["count"]
+        ),
+        (&json!(1), &json!(1))
+    );
+    // a removed item's price is lacked here as under `all`
+    let a = under_removed(&corpus, "-has:priced");
+    assert_eq!(in_order(&a), ["b", "c"]);
+    assert_eq!(a["total"]["undecided"]["count"], 0);
+}
+
+/// The removed alone are the rows `all` marks, on every store this file
+/// builds: one answer never names an item as having left that the other
+/// does not.
+#[test]
+fn removed_is_the_rows_all_marks() {
+    let mut back = left();
+    let both = vec![ring("a", "Rare", 95), ring("b", "Rare", 80)];
+    fetch_tab(&mut back, "pc", "Standard", "t1", "Rings", both, 70);
+    for (s, expected) in [(left(), vec!["b", "c"]), (back, vec!["c"])] {
+        let everything = under_all(&all(&s), "");
+        let marked: Vec<String> = everything["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r.get("removed_at").is_some())
+            .map(|r| r["id"].as_str().unwrap().to_string())
+            .collect();
+        let alone = under_removed(&removed_alone(&s), "");
+        assert_eq!(in_order(&alone), marked);
+        assert_eq!(marked, expected);
+        assert_eq!(alone["scope"]["removed"], everything["scope"]["removed"]);
+        assert_eq!(alone["scope"]["items"], everything["scope"]["items"]);
+        assert_eq!(alone["scope"]["leagues"], everything["scope"]["leagues"]);
+    }
+}
+
+/// Every route of an answer under `removed` is a request under
+/// `removed`, a continuation and a table's bucket among them, and the
+/// command says so; a corpus holds one membership, and a request naming
+/// another is refused, both named.
+#[test]
+fn a_route_under_removed_is_under_removed() {
+    let s = left();
+    let corpus = removed_alone(&s);
+    let a = under_removed(&corpus, "rarity=rare");
+    let route = &a["terms"][0]["failed"];
+    assert_eq!(route["request"]["scope"]["membership"], "removed");
+    let request: Request = serde_json::from_value(route["request"].clone()).unwrap();
+    assert_eq!(
+        in_order(&as_json(&answer(&corpus, &request).unwrap())),
+        ["c"]
+    );
+    assert!(
+        request.command().contains(" --membership removed"),
+        "{}",
+        request.command()
+    );
+    let cut = asked(
+        &corpus,
+        json!({ "scope": { "membership": "removed" }, "view": { "rows": { "limit": 1 } } }),
+    )
+    .unwrap();
+    assert_eq!(in_order(&cut), ["b"]);
+    let next = cut["view"]["rows"]["next"]["request"].clone();
+    assert_eq!(next["scope"]["membership"], "removed");
+    assert_eq!(in_order(&asked(&corpus, next).unwrap()), ["c"]);
+    // counted by tab: one in each, the retired tab by its name
+    let counted = asked(
+        &corpus,
+        json!({ "scope": { "membership": "removed" }, "view": { "counts": { "keys": ["tab"] } } }),
+    )
+    .unwrap();
+    // a bucket's request sent back is its members
+    let tables = counted["view"]["counts"]["tables"].as_array().unwrap();
+    let buckets = tables[0]["buckets"].as_array().unwrap();
+    assert_eq!(buckets.len(), 2, "{buckets:?}");
+    for bucket in buckets {
+        assert_eq!(bucket["count"], 1, "{bucket}");
+        let back = asked(&corpus, bucket["request"].clone()).unwrap();
+        assert_eq!(back["total"]["matched"], 1, "{bucket}");
+        assert!(back["rows"][0].get("removed_at").is_some(), "{back}");
+    }
+    let text = counted.to_string();
+    assert!(!text.contains(r#""membership":"all""#), "{text}");
+    assert!(!text.contains(r#""membership":"live""#), "{text}");
+    assert!(
+        text.matches(r#""membership":"removed""#).count() >= 3,
+        "{text}"
+    );
+
+    for (held, named) in [
+        (&corpus, "all"),
+        (&corpus, "live"),
+        (&all(&s), "removed"),
+        (&load(&s, Some("pc")), "removed"),
+    ] {
+        let e = asked(held, json!({ "scope": { "membership": named } })).unwrap_err();
+        assert_eq!(e["kind"], "membership_mismatch", "{e}");
+        assert!(
+            e["error"]
+                .as_str()
+                .unwrap()
+                .contains(&format!("names membership `{named}`")),
+            "{e}"
+        );
+    }
+    let e = asked(&corpus, json!({ "scope": { "membership": "all" } })).unwrap_err();
+    assert!(
+        e["error"].as_str().unwrap().contains("holds the removed"),
+        "{e}"
+    );
+}
+
+/// A store nothing has left answers zero under `removed`, its scope
+/// saying so; and what came back is no longer among the removed.
+#[test]
+fn nothing_removed_is_zero_and_what_came_back_is_not_among_them() {
+    let mut s = store();
+    list_tabs(&mut s, "pc", "Standard", json!([tab("t1", "Rings")]), 10);
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "t1",
+        "Rings",
+        vec![ring("a", "Rare", 95)],
+        20,
+    );
+    let a = under_removed(&removed_alone(&s), "");
+    assert_eq!(a["total"]["matched"], 0);
+    assert_eq!(
+        (&a["scope"]["items"], &a["scope"]["removed"]),
+        (&json!(1), &json!(0))
+    );
+    assert!(a["rows"].as_array().unwrap().is_empty());
+
+    let mut s = left();
+    let both = vec![ring("a", "Rare", 95), ring("b", "Rare", 80)];
+    fetch_tab(&mut s, "pc", "Standard", "t1", "Rings", both, 70);
+    let a = under_removed(&removed_alone(&s), "");
+    assert_eq!(in_order(&a), ["c"]);
+    assert_eq!(
+        (&a["scope"]["items"], &a["scope"]["removed"]),
+        (&json!(2), &json!(1))
+    );
+}
+
+/// An id under `removed`: a live item's matches nothing and is not said
+/// to have left; a retired tab's that held nothing is said to have, with
+/// no route, as under `all`.
+#[test]
+fn an_id_under_removed_is_said_to_have_left_only_where_it_did() {
+    let mut s = store();
+    list_tabs(
+        &mut s,
+        "pc",
+        "Standard",
+        json!([tab("t1", "Rings"), tab("t2", "Gone"), tab("t4", "Empty")]),
+        10,
+    );
+    let both = vec![ring("a", "Rare", 95), ring("b", "Rare", 80)];
+    fetch_tab(&mut s, "pc", "Standard", "t1", "Rings", both, 20);
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "t1",
+        "Rings",
+        vec![ring("a", "Rare", 95)],
+        50,
+    );
+    list_tabs(&mut s, "pc", "Standard", json!([tab("t1", "Rings")]), 60);
+    let corpus = removed_alone(&s);
+    let a = under_removed(&corpus, "id:a");
+    assert_eq!(a["total"]["matched"], 0);
+    assert!(a["terms"][0].get("removed").is_none(), "{}", a["terms"][0]);
+    let a = under_removed(&corpus, "id:t4");
+    let said = &a["terms"][0]["removed"];
+    assert_eq!(
+        (&said["what"], &said["removed_at"]),
+        (&json!("tab"), &json!(60))
+    );
+    assert!(said.get("request").is_none(), "{said}");
+    // under live, an id that left still prints the route under `all`
+    let a = as_json(&ask(&load(&s, Some("pc")), "id:b").unwrap());
+    assert_eq!(
+        a["terms"][0]["removed"]["request"]["scope"]["membership"],
+        "all"
+    );
+}
+
+/// A removed character item under `removed` is in the league it left
+/// in, as under `all`.
+#[test]
+fn a_removed_character_item_alone_is_in_the_league_it_left_in() {
+    let mut s = store();
+    let in_league = |league: &str, equipment: Vec<Value>| json!({ "id": "c1", "name": "Mover", "league": league, "equipment": equipment });
+    let listed = |league: &str| json!([{ "id": "c1", "name": "Mover", "league": league }]);
+    list_characters(&mut s, "pc", listed("Settlers"), 10);
+    let both = vec![ring("kept", "Rare", 90), ring("gone", "Rare", 80)];
+    fetch_character(&mut s, "pc", in_league("Settlers", both), 20);
+    fetch_character(
+        &mut s,
+        "pc",
+        in_league("Settlers", vec![ring("kept", "Rare", 90)]),
+        30,
+    );
+    list_characters(&mut s, "pc", listed("Standard"), 40);
+    fetch_character(
+        &mut s,
+        "pc",
+        in_league("Standard", vec![ring("kept", "Rare", 90)]),
+        50,
+    );
+    let corpus = removed_alone(&s);
+    let a = under_removed(&corpus, "");
+    assert_eq!(in_order(&a), ["gone"]);
+    assert_eq!(a["rows"][0]["place"]["league"], "Settlers");
+    assert_eq!(a["rows"][0]["removed_at"], 30);
+    assert_eq!(
+        in_order(&under_removed(&corpus, "league=Settlers")),
+        ["gone"]
+    );
+    assert!(in_order(&under_removed(&corpus, "league=Standard")).is_empty());
+}
+
+/// `is:removed` is no flag, and its refusal says where the removed are:
+/// a membership of the scope, never a term.
+#[test]
+fn is_removed_is_refused_toward_the_membership() {
+    let s = left();
+    let e = ask(&load(&s, Some("pc")), "is:removed")
+        .unwrap_err()
+        .to_json();
+    assert_eq!(e["kind"], "unknown_name", "{e}");
+    let said = e["error"].as_str().unwrap();
+    assert!(said.contains("--membership removed"), "{e}");
+    assert!(said.contains("never a term"), "{e}");
+}
+
+/// Over two realms: the live items the scope counts and does not search
+/// are its realm's alone, and `all` realms under `removed` is the
+/// removed of each.
+#[test]
+fn removed_over_two_realms_counts_each_realms_own() {
+    let mut s = left();
+    list_tabs(&mut s, "xbox", "Standard", json!([tab("x1", "Box")]), 70);
+    let two = vec![ring("xa", "Rare", 50), ring("xb", "Rare", 51)];
+    fetch_tab(&mut s, "xbox", "Standard", "x1", "Box", two, 80);
+    fetch_tab(
+        &mut s,
+        "xbox",
+        "Standard",
+        "x1",
+        "Box",
+        vec![ring("xa", "Rare", 50)],
+        90,
+    );
+    let of = |realm: &str| {
+        let request: Request =
+            serde_json::from_value(json!({ "scope": { "realm": realm, "membership": "removed" } }))
+                .unwrap();
+        let corpus = request.corpus(&s, &intent(&s)).unwrap();
+        as_json(&answer(&corpus, &request).unwrap())
+    };
+    for (realm, rows, items, removed) in [
+        ("pc", vec!["b", "c"], 1, 2),
+        ("xbox", vec!["xb"], 1, 1),
+        ("all", vec!["b", "c", "xb"], 2, 3),
+    ] {
+        let a = of(realm);
+        let mut got = in_order(&a);
+        got.sort();
+        assert_eq!(got, rows, "{realm}");
+        assert_eq!(
+            (&a["scope"]["items"], &a["scope"]["removed"]),
+            (&json!(items), &json!(removed)),
+            "{realm}"
+        );
+    }
 }

@@ -2319,6 +2319,104 @@ fn step_10_membership_all_at_a_terminal() {
     }
 }
 
+/// `--membership removed` at a terminal: what has left and nothing
+/// live, the scope block saying which were searched and counting both;
+/// every command printed runs and stays under `removed`; a word that is
+/// no membership names the three.
+#[test]
+fn membership_removed_at_a_terminal() {
+    let base = base();
+    seed(&base);
+    // a fetch of Rings that no longer has r2
+    let mock = base.join("mock");
+    let mut store = Store::open(&account_path(&mock, USER)).unwrap();
+    store
+        .record(
+            &Endpoint::Stash {
+                realm: "pc".into(),
+                league: "Standard".into(),
+                id: "t1".into(),
+                sub: None,
+            },
+            &json!({ "realm": "pc", "league": "Standard" }),
+            200,
+            &json!({ "stash": { "id": "t1", "name": "Rings", "type": "PremiumStash", "items": [
+                { "id": "r1", "name": "Doom Loop", "typeLine": "Two-Stone Ring", "baseType": "Two-Stone Ring",
+                  "rarity": "Rare", "frameTypeId": "Rare", "identified": true, "ilvl": 84, "x": 0, "y": 0,
+                  "explicitMods": ["+95 to maximum Life"] } ] } }),
+            40,
+        )
+        .unwrap();
+    drop(store);
+
+    let left = sole_json(&acq(
+        &base,
+        &[
+            "--json",
+            "search",
+            "--realm",
+            "pc",
+            "--membership",
+            "removed",
+        ],
+    ));
+    let ids: Vec<&str> = left["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, ["r2"]);
+    assert_eq!(left["rows"][0]["removed_at"], 40);
+    assert_eq!(left["scope"]["membership"], "removed");
+    assert_eq!(
+        (&left["scope"]["items"], &left["scope"]["removed"]),
+        (&json!(4), &json!(1))
+    );
+
+    let shown = text(&acq(
+        &base,
+        &[
+            "search",
+            "--realm",
+            "pc",
+            "rarity=rare",
+            "--membership",
+            "removed",
+            "--routes",
+        ],
+    ));
+    assert!(
+        shown.contains(" · removed · 1 removed · 4 items live not searched · "),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("each term evaluated independently over removed pc items"),
+        "{shown}"
+    );
+    assert!(
+        shown
+            .lines()
+            .any(|l| l.contains("Rune Coil") && l.contains(" · removed ")),
+        "{shown}"
+    );
+    assert!(!shown.contains("Doom Loop"), "{shown}");
+    let commands = printed_commands(&shown);
+    assert!(!commands.is_empty());
+    for command in &commands {
+        if command.starts_with("acq search") {
+            assert!(command.contains(" --membership removed"), "{command}");
+        }
+        assert!(run_printed(&base, command).status.success(), "{command}");
+    }
+
+    let e = sole_json(&acq(&base, &["--json", "search", "--membership", "gone"]));
+    assert_eq!(e["kind"], "membership_unknown");
+    for word in ["live", "all", "removed"] {
+        assert!(e["error"].as_str().unwrap().contains(word), "{e}");
+    }
+}
+
 /// A command printed for a count view is the view it was printed for
 /// (rule 5, and more than that it runs): a request may name a field
 /// after a narrowed vocabulary, which one `--count` list cannot say —

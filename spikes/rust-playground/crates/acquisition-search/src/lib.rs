@@ -122,7 +122,8 @@
 //!   (`acquisition-store/src/corpus.rs`, C108); pinned by
 //!   `tests/membership.rs` (the removed beside the live, each marked at
 //!   the place it was last seen; a removed item's price; every route
-//!   under `all`; AQ4 across a refresh that removed the item).
+//!   under `all`; AQ4 across a refresh that removed the item; the
+//!   removed alone, the rows `all` marks).
 //! - **C95, C97, C105.** The counts view and the vocabulary are
 //!   [`counts`]'s doc; pinned by `tests/counts.rs`: AQ1, C105's two
 //!   invariants on a one-value key, C95's sum over the three kinds, the

@@ -61,7 +61,7 @@ the site's pseudo stats, and neither promises the other (owner,
 
 ```
 acq search [--account A] [--realm pc|xbox|sony|poe2|all] ['<query>']    no query: every item in scope
-   [--membership live|all]    live by default; all adds removed items, each row marked with when it left
+   [--membership live|all|removed]    live by default; all adds removed items, each row marked with when it left; removed is those alone
    a query that starts with -, the language's not, goes after --, as every route prints it:
        acq search --realm pc -- '-is:corrupted'
    view       rows (default) | --count key,…  (one table each) | --cross key,key  (one table)   [--sum value]
@@ -120,8 +120,8 @@ the same day) are defined in `acquisition-search/src/counts.rs`,
 "As built"; zero undecided does not assert that every line was readable.
 
 Membership (gap 3 accepted 2026-09-23) is a scope value beside realm,
-never a term: `live` by default, `all` on request, and every removed row
-under `all` says when it left; the scope block states membership and the
+never a term: `live` by default, `all` or `removed` on request, and every
+removed row says when it left; the scope block states membership and the
 count of each. An `id:` term that matches nothing live says whether the
 id is among the removed, with its removal time, and prints the `all`
 route, so a handle held from an earlier answer never reads as an item
@@ -129,8 +129,9 @@ that did not exist; `acq show` shows a removed item, marked. A removed
 item sits at the place it was last seen, named from that tab's or
 character's row where it is retired too, and its price is lacked: an
 item not in the stash has no listing state, and `note:` still reads its
-body. `removed` alone waits for a question. Until `all` runs, the route names the
-unbuilt construct (the plan, rule 5).
+body. `removed` is the removed alone, the rows `all` marks: what has
+left asked in one request (ruled 2026-10-10), its scope counting the
+live it did not search; `is:removed` is refused toward it.
 
 `--context corpus` takes any view but explain, which is of the query
 typed: the two together are an error. The answer's query is the empty one,

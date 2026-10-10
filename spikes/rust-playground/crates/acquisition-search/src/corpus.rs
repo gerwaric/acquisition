@@ -1,5 +1,6 @@
 //! The held corpus (C98, C103): every item of a scope — the live ones,
-//! or under membership `all` the removed beside them — derived once
+//! under membership `all` the removed beside them, or under `removed`
+//! the removed alone — derived once
 //! from one snapshot of the store's read (C108), with the basis that
 //! snapshot is labelled by and the places the items sit at.
 //!
@@ -56,9 +57,11 @@
 //! - **Membership is the read's** (C108; the reference, *Membership*):
 //!   a corpus holds the live items, or all of them, a removed one at the
 //!   place it was last seen with when it left (`Facts::removed_at`) and a
-//!   price that is lacked (`price.rs`). Coverage and the listing states
-//!   are the live locations' either way, and the scope's items are the
-//!   live ones, the removed counted beside them. Under `live` the corpus
+//!   price that is lacked (`price.rs`) — or the removed alone, which are
+//!   the removed of the store's read of all: the live rows of that read
+//!   are counted and passed over, never derived. Coverage and the listing
+//!   states are the live locations' whichever it holds, and the scope's
+//!   items are the live ones, the removed counted beside them. Under `live` the corpus
 //!   keeps the ids the read left out, each with when it left, for an
 //!   `id:` term that matches nothing (`answer.rs`).
 //! - **Coverage is stated from the header**: a folder is a row no fetch
@@ -67,12 +70,11 @@
 
 use std::collections::HashMap;
 
-use acquisition_store::corpus::{
-    CorpusHeader, CorpusItem, LocationRow, Membership, RealmScope, Revision,
-};
+use acquisition_store::corpus::{CorpusHeader, CorpusItem, LocationRow, RealmScope, Revision};
 use acquisition_store::{Annotations, Store};
 use serde::{Deserialize, Serialize};
 
+use crate::answer::Membership;
 use crate::category::{self, CATEGORY_TABLE_VERSION, COLOUR_TABLE_VERSION, Category};
 use crate::class::{self, CLASS_TABLE_VERSION, ClassTable, Classed};
 use crate::defences::{self, DEFENCE_TABLE_VERSION};
@@ -306,8 +308,8 @@ pub struct Held {
 pub struct Coverage {
     /// The live items in scope.
     pub items: usize,
-    /// Under membership `all`, the removed items beside them: each is a
-    /// row marked with when it left.
+    /// Under membership `all` and `removed`, the removed items: each is
+    /// a row marked with when it left.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub removed: Option<usize>,
     /// Every realm the store holds, whatever the scope.
@@ -330,13 +332,13 @@ pub struct Corpus {
     pub account_name: Option<String>,
     pub realm: Realm,
     pub coverage: Coverage,
-    /// Which items it holds: the live ones, or every item with the
-    /// removed marked (the reference, *Membership*).
+    /// Which items it holds: the live ones, every item with the removed
+    /// marked, or the removed alone (the reference, *Membership*).
     pub membership: Membership,
     /// The ids the scope held and no item of this corpus answers to: under
     /// `live`, an item removed and a tab or a character retired; under
-    /// `all`, where the removed items are rows, the retired locations
-    /// alone. Each with what it was and when it left; never an id that is
+    /// `all` and `removed`, where the removed items are rows, the retired
+    /// locations alone. Each with what it was and when it left; never an id that is
     /// also a live location's, and the latest time where two rows share
     /// one. What an `id:` that matches nothing is looked up in.
     pub(crate) gone: HashMap<String, Left>,
@@ -488,7 +490,8 @@ impl Corpus {
     }
 
     /// [`Corpus::load`] over a membership: under `all`, every item the
-    /// file holds at the place it was last seen, the removed marked.
+    /// file holds at the place it was last seen, the removed marked;
+    /// under `removed`, those alone.
     pub fn load_of(
         store: &Store,
         intent: &Annotations,
@@ -528,7 +531,7 @@ impl Corpus {
         let intent_revision = price::intent_revision(intent)?;
         let (mut corpus, leagues) =
             store
-                .read_corpus_of(scope, membership, |header, rows| {
+                .read_corpus_of(scope, membership.read(), |header, rows| {
                     let realm = match named {
                         Some(realm) => realm,
                         None => match header.realms.as_slice() {
@@ -548,6 +551,9 @@ impl Corpus {
                     };
                     let index = locations(header);
                     let mut items = Vec::new();
+                    // under `removed`, the live items the read hands over:
+                    // counted for the scope block and never derived
+                    let mut passed_over = 0usize;
                     for row in rows {
                         let mut row = row?;
                         // no realm named over a store holding one reads every
@@ -555,6 +561,10 @@ impl Corpus {
                         if let Realm::One(only) = &realm
                             && row.realm != *only
                         {
+                            continue;
+                        }
+                        if membership == Membership::Removed && row.removed_at.is_none() {
+                            passed_over += 1;
                             continue;
                         }
                         let body = std::mem::take(&mut row.body);
@@ -638,9 +648,14 @@ impl Corpus {
                             basis: Basis::of(store, header, intent_revision),
                             account_name: header.account_name.clone(),
                             coverage: Coverage {
-                                removed: (membership == Membership::All).then_some(removed),
+                                removed: (membership != Membership::Live).then_some(removed),
                                 leagues: sat_in,
-                                ..coverage(header, &realm, &locations, items.len() - removed)
+                                ..coverage(
+                                    header,
+                                    &realm,
+                                    &locations,
+                                    items.len() - removed + passed_over,
+                                )
                             },
                             realm,
                             membership,

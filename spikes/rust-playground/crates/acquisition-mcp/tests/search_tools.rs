@@ -601,6 +601,44 @@ fn a_key_is_one_entry_and_a_comma_inside_it_is_its_text() {
     assert_eq!(tables[0]["values"], 0);
 }
 
+/// The seat's X1 in one request (both runs of step 11c reached the
+/// removed by a term no rule states): `removed` is a membership, the
+/// answer is what has left and nothing live, each row with when it left
+/// and where it was last seen; and the term an agent tries first is
+/// refused toward it.
+#[test]
+fn what_has_left_is_asked_in_one_request() {
+    let base = scratch();
+    seed(&base);
+    let mut store = Store::open(&account_path(&stores(&base), USER)).unwrap();
+    // a fetch of Rings that no longer has r2
+    record(
+        &mut store,
+        stash("pc", "t1"),
+        "pc",
+        json!({ "stash": { "id": "t1", "name": "Rings", "type": "PremiumStash", "items": [
+            item("r1", "Doom Loop", "Two-Stone Ring", "Rare", json!({ "explicitMods":
+                ["+95 to maximum Life", "+65% to Fire Resistance"] })),
+        ] } }),
+        40,
+    );
+    drop(store);
+    let mut seat = Seat::over(base);
+    let left = seat.answer(&json!({ "scope": { "membership": "removed" } }));
+    assert_eq!(ids(&left), ["r2"]);
+    assert_eq!(left["rows"][0]["removed_at"], 40);
+    assert_eq!(left["rows"][0]["place"]["name"], "Rings");
+    let scope = &left["scope"];
+    assert_eq!(scope["membership"], "removed");
+    assert_eq!((&scope["items"], &scope["removed"]), (&json!(4), &json!(1)));
+
+    let refused = seat.refusal(&json!({ "query": { "text": "is:removed" } }));
+    assert!(
+        refused["error"].as_str().unwrap().contains("membership"),
+        "{refused}"
+    );
+}
+
 /// An authoring error is the CLI's document in a result marked an error,
 /// never a protocol error: its readings are what an agent reads next.
 #[test]
