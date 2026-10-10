@@ -451,7 +451,10 @@ fn a_file_deleted_and_refetched_to_the_same_revision_is_another_basis() {
         e["error"]
             .as_str()
             .unwrap()
-            .contains("recorded at 20 then, recorded at 3620 now"),
+            // a time is said as a time, never as an epoch (C53)
+            .contains(
+                "recorded 1970-01-01 00:00:20 UTC then, recorded 1970-01-01 01:00:20 UTC now"
+            ),
         "{e}"
     );
 }

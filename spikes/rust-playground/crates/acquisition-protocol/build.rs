@@ -27,6 +27,10 @@
 //! of the listed files and claims nothing about the binary — that is the
 //! artifact's job.
 //!
+//! Which files of a source tree are hashed is the routine's rule, stated
+//! there: a closed list of kinds, a dotfile passed over, any other file
+//! a stop.
+//!
 //! The routine is `digest.rs`, included here and by the search crate's
 //! build script, which names a build by the same rule
 //! (`acquisition-search/build.rs`): one maker of a digest of sources.

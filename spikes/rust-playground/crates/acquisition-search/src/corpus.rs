@@ -162,6 +162,34 @@ pub struct Basis {
     pub notes: u32,
 }
 
+/// An epoch as the time it is, to the second, in UTC: what a message
+/// says where the JSON beside it carries the epoch (C53). The civil
+/// date is counted from days since 1970 in the proleptic Gregorian
+/// calendar, 400 years at a time.
+pub(crate) fn utc(epoch: i64) -> String {
+    let (days, second) = (epoch.div_euclid(86_400), epoch.rem_euclid(86_400));
+    let shifted = days + 719_468;
+    let era = shifted.div_euclid(146_097);
+    let day_of_era = shifted.rem_euclid(146_097);
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_from_march = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_from_march + 2) / 5 + 1;
+    let month = if month_from_march < 10 {
+        month_from_march + 3
+    } else {
+        month_from_march - 9
+    };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02} {:02}:{:02}:{:02} UTC",
+        second / 3_600,
+        second % 3_600 / 60,
+        second % 60
+    )
+}
+
 impl Basis {
     /// What differs between this basis and another, each part named
     /// with both its values: what a refusal across a change says.
@@ -175,11 +203,7 @@ impl Basis {
                 self.snapshot.response.to_string(),
                 now.snapshot.response.to_string(),
             ),
-            (
-                "recorded at",
-                self.snapshot.at.to_string(),
-                now.snapshot.at.to_string(),
-            ),
+            ("recorded", utc(self.snapshot.at), utc(now.snapshot.at)),
             (
                 "facts v",
                 self.snapshot.facts_version.to_string(),
@@ -771,5 +795,35 @@ fn coverage(
             })
             .map(|l| l.fetched_at)
             .min(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::utc;
+
+    /// The calendar is counted by hand, so it is held to dates worked
+    /// outside it (Python's `datetime`): the epoch and the second before
+    /// it, a leap day and the days around one, the century that is no
+    /// leap year, a year's last second, and the year 2400.
+    #[test]
+    fn an_epoch_is_said_as_its_time_in_utc() {
+        for (epoch, said) in [
+            (0, "1970-01-01 00:00:00 UTC"),
+            (-1, "1969-12-31 23:59:59 UTC"),
+            (20, "1970-01-01 00:00:20 UTC"),
+            (951782400, "2000-02-29 00:00:00 UTC"),
+            (951868799, "2000-02-29 23:59:59 UTC"),
+            (1709251199, "2024-02-29 23:59:59 UTC"),
+            (1709251200, "2024-03-01 00:00:00 UTC"),
+            (1760000000, "2025-10-09 08:53:20 UTC"),
+            (4107542399, "2100-02-28 23:59:59 UTC"),
+            (4107542400, "2100-03-01 00:00:00 UTC"),
+            (1798761599, "2026-12-31 23:59:59 UTC"),
+            (1798761600, "2027-01-01 00:00:00 UTC"),
+            (13569465600, "2400-01-01 00:00:00 UTC"),
+        ] {
+            assert_eq!(utc(epoch), said, "{epoch}");
+        }
     }
 }
