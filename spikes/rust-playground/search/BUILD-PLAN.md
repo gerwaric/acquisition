@@ -157,7 +157,6 @@ the piece and bring it to the owner.
 
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
-| 11e · the reference to its homes | `DESIGN.md`'s paragraphs into module docs, the clap help and `--describe` | 11d | `DESIGN.md` whole; rule 6 | every paragraph has a home or a recorded reason; one look reads the last whole `DESIGN.md` against the homes |
 | 11f · `search/` shrunk | what the build does not name deleted, by a census the owner reads first | 11e | `search/README.md`, rule 4; the kill list | the deletion list read; the gate |
 | 11g · the close | the closed record, and whether its rows fold back into it from `search/LEDGER.md` or stay a file looked up (the owner's); observations and parks routed; M3 last; this file deleted | all | the session-close skill, §3; `PRICING-SLICE.md` | the gate; the three parks the step fires disposed of (pricing on the MCP, the totals batch, the projection) |
 

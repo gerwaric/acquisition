@@ -191,6 +191,21 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
                     f.what.to_string(),
                     vec!["tab.type=MapStash", "tab.type:map", "-has:tab.type"],
                 ),
+                Thing::Text => (
+                    f.what.to_string(),
+                    vec!["text:life", "text~\"^Item Level\""],
+                ),
+                Thing::Name => (
+                    f.what.to_string(),
+                    vec!["name:kaom", "name=\"Kaom's Heart\"", "name~\"^Kaom\""],
+                ),
+                Thing::Typeline => (f.what.to_string(), vec!["typeline:staunching"]),
+                Thing::Base => (f.what.to_string(), vec!["base=\"Divine Life Flask\""]),
+                Thing::Frame => (f.what.to_string(), vec!["frame=gem"]),
+                Thing::Ilvl => (
+                    f.what.to_string(),
+                    vec!["ilvl>=84", "ilvl=80..84", "ilvl=..84"],
+                ),
                 _ => (f.what.to_string(), Vec::new()),
             };
             Named {
@@ -242,7 +257,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
                 "template",
                 "text",
                 &format!(
-                    "the displayed line with each number a #, the sign in the number — a + typed before a #, as the game and the trade site write a line, is spelling and is dropped; a bare \"T\" means template=\"T\". A mod displayed over several rows is one line: `=` names it by its whole text, a row break written \\n, or by any one of its rows, and named by a row its numbers are that row's; `:` and `~` test the whole text. {}",
+                    "the displayed line with each number a #, the sign in the number — a + typed before a #, as the game and the trade site write a line, is spelling and is dropped; a bare \"T\" means template=\"T\". A mod displayed over several rows is one line: `=` names it by its whole text, a row break written \\n, or by any one of its rows, and named by a row its numbers are that row's; `:` and `~` test the whole text, and there a pattern's ^ and $ are the ends of that text. {}",
                     limit("S52")
                 ),
             )
@@ -301,7 +316,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             ..named(
                 "sum",
                 "value",
-                "the item's sum of a slot over the occurrences P selects, exact in decimals; nothing sums to zero; with a possible contributor unread it is incomplete and its comparison undecided",
+                "the item's sum of a slot over the occurrences P selects, exact in decimals; nothing sums to zero; with a possible contributor unread it is incomplete and its comparison undecided. A sum over lines a pattern selects is your arithmetic, never a reviewed total: a line naming all three elements counts once in it and three times in pseudo.total_res",
             )
         },
     ];
