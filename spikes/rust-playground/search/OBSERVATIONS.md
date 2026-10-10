@@ -250,7 +250,15 @@ filed again by the step that touches it.
   `--next`): a token continues across a file deleted and refetched to
   the same revision, shown by the look, and a held corpus would pass the
   check the same way; it is a facts migration. Whether the basis is
-  repeated on every count in `--json`.
+  repeated on every count in `--json`. The owner's leaning, given
+  before the sitting and no ruling (2026-10-10): the build named in
+  the basis and the basis stated once, yes ("i agree"); the store
+  file's identity "an edge case we might not want to spend much effort
+  on supporting" — so the candidate to try is the timestamp of the
+  highest response beside its id, untested, taken only if it is one
+  field and no migration, the file-id park staying parked otherwise;
+  and with no migration the scan below has nothing to ride on and
+  stays.
 - *A seat, or the review's next look (step 10b):* `--print-request`
   loads the corpus to resolve an account and a realm, some half a second
   on the copy, and asks nothing. A hand-edited token runs: it carries no
