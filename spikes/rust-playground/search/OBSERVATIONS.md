@@ -362,3 +362,13 @@ filed again by the step that touches it.
   reading its body is the page's rule, said in `corpus.rs`
   ("Membership is the read's") and held by no test: the look inferred
   it from the deriver taking the body whatever the membership.
+- *Step 11g, from 11f's census:* 20 scripts stay under `search/` in
+  place, one of them printed by `--describe`
+  (`pseudo-stats/scripts/defence-twins.py`), while `search/README.md`,
+  rule 4, has a script die at the close unless promoted to `tools/`:
+  promote or reword, the owner's. Notes 22, 24 to 28 and 31 are cited by
+  path from `search/LEDGER.md` alone, note 20 from `search/repoe/README.md`
+  alone: either file's fate is those notes'. The kept scripts were
+  parsed at 11f, never run. `agent-seat/`, `engine-bench/` and
+  `item-filter/` hold a local `raw/` each and no tracked file that
+  describes it.
