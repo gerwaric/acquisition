@@ -115,7 +115,8 @@
 //!   are the answer at a limit past the total, fixed and generated; the
 //!   refusal across a changed basis, another build's and a refetched
 //!   file's among them; both counts of a route read back, with its
-//!   basis sent or without). What a refusal offers is [`error`]'s
+//!   basis sent or without) and `tests/build_name.rs` (which files the
+//!   build's name is a digest of). What a refusal offers is [`error`]'s
 //!   doc; pinned by `tests/offers.rs` (each offer the request its
 //!   reading is, and one that runs). Membership is [`corpus`]'s doc and the store's
 //!   (`acquisition-store/src/corpus.rs`, C108); pinned by

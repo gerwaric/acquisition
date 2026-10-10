@@ -272,11 +272,34 @@ filed again by the step that touches it.
   commits costs it one whole load, and M5 could not make a store of 31
   items show the reload or reach the error a corpus gives when the
   facts keep moving under its price join.
-- *The look of 11b, or the review's next look (step 11a):* no look
-  was taken of 11a and no mutant run. A token an earlier build printed
-  names no build and is refused as no token, never as a changed basis.
-  No test edits a source to see the build's name move; the contract
-  revision was compared before and after its routine was shared, by
-  hand. The text's `then` line with no basis was read on the copy and
-  is held by no test. M3 was not run: the piece adds a column to one
-  statement and a constant.
+- *The review's next look (step 11a, after its look):* a token, a
+  route or a `next` an earlier build printed is refused as no token
+  or as missing `at`, never as a changed basis. The text's `then`
+  line with no basis was read on the copy and on a fixture and is
+  held by no test. M3 was not run for 11a or 11b. An untracked file of
+  a listed kind under a digest's input is in the digest (B5).
+- *The MCP seat (step 11b):* a tool's result carries its document
+  twice, as structured content and again as one text block (the SDK's
+  `structured`, read in its source, not measured on a host): a byte
+  count says which it counts. `describe` whole is 111,843 bytes
+  compact, 82,815 of them `computed`. `describe` and the crate's
+  messages name a terminal's flags (`--count`, `--realm pc | poe2`,
+  `--next`); the `search` tool's text maps each to its request field.
+  An unknown `describe` name is refused with every name inline, some
+  3 KB, a near name only for some; `limits` and `not_built` are keys
+  of the output no name asks for. A refusal's `readings` hold terminal
+  commands beside the requests under `offers`. `search_items` and
+  `get_item` stand beside the three until 11d. H4's size on a real
+  store is unmeasured.
+- *The review's next look (step 11b):* two readers say which account
+  a selector names — the store's `account_matches`, by Unicode case,
+  and `answer.rs`'s `account_is`, by ASCII case — so an account name
+  with a cased letter outside ASCII, selected in another case, is
+  refused by the answer after the adapter selected it; whether such a
+  name occurs is unmeasured. Four hundred nested parentheses abort
+  the server, which is resident; `acq search` survives 800 (the
+  look's run). The account refusals and `arguments` are the
+  adapter's own, where the CLI prints no kind. No test sends a
+  typed-path realm offer through the tool with two accounts known:
+  the crate's test holds the account on the offer. The no-daemon test
+  sees a daemon started, never one reached for.
