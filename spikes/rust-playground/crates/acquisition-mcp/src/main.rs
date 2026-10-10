@@ -516,7 +516,7 @@ impl schemars::JsonSchema for RequestParams {
                 },
                 "view": {
                     "type": "object",
-                    "description": "One of: {\"rows\": {\"limit\": N, \"sort\": a value, \"desc\": true}}, the default, 20 rows where no limit is given; {\"counts\": {\"keys\": [a key, …], \"sum\": a value, \"limit\": N}}, a table for each key and no rows; {\"cross\": {\"keys\": [two keys]}}, one crossed table; {\"explain\": {\"path\": a node's path, a term's as `terms[].path` gives it}}, the total with that node forced true and forced false. `describe` with names [\"counts\"] lists the keys."
+                    "description": "One of: {\"rows\": {\"limit\": N, \"sort\": a value, \"desc\": true}}, the default, 20 rows where no limit is given; {\"counts\": {\"keys\": [a key, …], \"sum\": a value, \"limit\": N}}, a table for each key and no rows; {\"cross\": {\"keys\": [two keys]}}, one crossed table; {\"explain\": {\"path\": a node's path, a term's as `terms[].path` gives it}}, the total with that node forced true and forced false. `describe` with names [\"counts\"] lists the keys. A sort's value is a field (reqlevel), a computed value (pseudo.total_res) or a line's number (line(\"# to maximum Life\").arg1); an item that lacks it is last, ascending or descending."
                 },
                 "context": {
                     "type": "string",
@@ -710,7 +710,7 @@ impl AcqMcp {
     }
 
     #[tool(
-        description = "Item search over the shared store (no daemon, no network): a query in the language `describe` prints, asked of every item in scope. The arguments are the request: {} is every item; {\"query\": {\"text\": \"class:ring rarity=rare\"}} is a query. The answer is one JSON document: `query` (the text as understood, and its tree), `scope` (account, realm, what was and was not fetched), `basis` (what the answer was computed from), `terms` (for each term how many items matched, failed, lacked the thing or were undecided), `total`, `view`, and `rows` — id, name, base, rarity, place by name and id, and the lines each term touched, never the item's body, which is `show`. Rows past the limit are counted in `view.rows.left_out`, and `view.rows.next` is the request for the rows after: send it back whole. Every count that is not zero holds the request that returns exactly its members, and a zero total offers requests under `zero.offers`: any of them is sent back as printed. A count-first look is {\"view\": {\"counts\": {\"keys\": [\"tab\", \"rarity\"]}}}; the vocabulary of lines is the key `line`, or `line:<text>` narrowed. `describe` and the messages name a terminal's flags: --count, --cross, --sum, --sort, --desc, --limit and --explain are `view`'s fields, --context is `context`, --realm and --membership are `scope`'s, and --next is `view.rows.next` sent back. A refusal is a result marked isError: `error`, `kind`, `readings` (what may have been meant, as a terminal would type it: a query text, a name, a flag or a whole `acq` command) and, where a way on is a search, `offers` (the same as requests to send instead)."
+        description = "Item search over the shared store (no daemon, no network): a query in the language `describe` prints, asked of every item in scope. The arguments are the request: {} is every item; {\"query\": {\"text\": \"class:ring rarity=rare\"}} is a query. The answer is one JSON document: `query` (the text as understood, and its tree), `scope` (account, realm, what was and was not fetched), `basis` (what the answer was computed from), `terms` (for each term how many items matched, failed, lacked the thing or were undecided), `total`, `view`, and `rows` — id, name, base, rarity, place by name and id, and the lines each term touched, never the item's body, which is `show`. Rows past the limit are counted in `view.rows.left_out`, and `view.rows.next` is the request for the rows after: send it back whole. Every count that is not zero holds the request that returns exactly its members, and a zero total offers requests under `zero.offers`: any of them is sent back as printed. A count-first look is {\"view\": {\"counts\": {\"keys\": [\"tab\", \"rarity\"]}}}; the vocabulary of lines is the key `line`, or `line:<text>` narrowed. A key is one entry of `keys`: a terminal's list `line:resist,life` is [\"line:resist\", \"line:life\"], and a comma inside an entry is part of its text. A time is seconds since 1970, UTC. `describe` and the messages name a terminal's flags: --count, --cross, --sum, --sort, --desc, --limit and --explain are `view`'s fields, --context is `context`, --realm and --membership are `scope`'s, and --next is `view.rows.next` sent back. A refusal is a result marked isError: `error`, `kind`, `readings` (what may have been meant, as a terminal would type it: a query text, a name, a flag or a whole `acq` command) and, where a way on is a search, `offers` (the same as requests to send instead)."
     )]
     fn search(&self, Parameters(RequestParams(args)): Parameters<RequestParams>) -> Told {
         let asked = match Asked::read(&Value::Object(args)) {
@@ -1144,9 +1144,12 @@ impl ServerHandler for AcqMcp {
              Their arguments and answers are JSON; a term's or a table's count that is \
              not zero holds the request that returns its members, sent back as printed, \
              and a refusal is a result marked isError with readings and offers to go on \
-             from. Begin with search with no arguments, for what the store holds, and \
-             describe with names [\"fields\"], for what a query may ask: describe whole \
-             is over 100 KB. The store tools (search, show, accounts, tabs, characters, \
+             from. Begin with search with no arguments, for what the store holds — over a \
+             store of several realms that is refused, and the refusal's offers are the \
+             request in each realm: send one back — and describe with names \
+             [\"fields\"], for what a query may ask: describe whole is over 100 KB. No \
+             tool says what an item is worth: a price is the owner's own listing. The \
+             store tools (search, show, accounts, tabs, characters, \
              search_items, get_item, store_status, item_events) read the shared SQLite \
              store directly — no daemon, no network. \
              The refresh slice: sync_policy / \

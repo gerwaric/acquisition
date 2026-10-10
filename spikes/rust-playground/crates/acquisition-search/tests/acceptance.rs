@@ -299,6 +299,9 @@ fn oq2_a_unique_by_name_its_place_and_every_line_through_show() {
     let shown = serde_json::to_value(common::show(&s, "ash", false).unwrap()).unwrap();
     assert_eq!(shown["item"]["name"], "Ashes of the Stars");
     assert_eq!(shown["place"]["name"], "Gear");
+    // the lines are said once: an empty list under `item` beside them read
+    // as an item with none (the MCP seat, step 11c)
+    assert!(shown["item"].get("lines").is_none(), "{}", shown["item"]);
     let lines: Vec<(&str, &str, &Value)> = shown["lines"]
         .as_array()
         .unwrap()

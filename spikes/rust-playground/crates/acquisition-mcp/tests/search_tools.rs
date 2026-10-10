@@ -544,6 +544,63 @@ fn a_realm_needed_is_offered_as_the_request_in_each_realm() {
     assert_eq!(all["total"]["matched"], 5);
 }
 
+/// The instructions' first step, `search` with no arguments, over a store
+/// of two realms (the MCP seat, step 11c: the instructions said to begin
+/// there and said nothing of the refusal): refused, and each offer sent
+/// back is every item of its realm.
+#[test]
+fn no_arguments_over_two_realms_offers_every_item_of_each() {
+    let base = scratch();
+    seed(&base);
+    seed_poe2(&base);
+    let mut seat = Seat::over(base);
+    let e = seat.refusal(&json!({}));
+    assert_eq!(e["kind"], "realm_needed", "{e}");
+    let offers = e["offers"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{e}"))
+        .clone();
+    let held: Vec<(String, u64)> = offers
+        .iter()
+        .map(|offer| {
+            let a = seat.answer(offer);
+            (
+                a["scope"]["realm"].as_str().unwrap().to_string(),
+                a["total"]["matched"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(held, [("pc".to_string(), 5), ("poe2".to_string(), 1)]);
+}
+
+/// A key is one entry of `keys` (the MCP seat, step 11c: `describe`'s
+/// `line:resist,life`, a terminal's list, sent as one entry answered a
+/// table of nothing and `none` for every item): the terminal's list is
+/// two entries, and a comma inside one is part of its text.
+#[test]
+fn a_key_is_one_entry_and_a_comma_inside_it_is_its_text() {
+    let mut seat = Seat::new();
+    let two =
+        seat.answer(&json!({ "view": { "counts": { "keys": ["line:resist", "line:life"] } } }));
+    let (typed, _) = cli(&seat.base, &["search", "--count", "line:resist,life"]);
+    assert_eq!(
+        two["view"]["counts"]["tables"],
+        typed["view"]["counts"]["tables"]
+    );
+    let tables = two["view"]["counts"]["tables"].as_array().unwrap();
+    assert_eq!(tables.len(), 2, "{tables:?}");
+    assert!(
+        tables.iter().all(|t| t["values"].as_u64().unwrap() > 0),
+        "{tables:?}"
+    );
+
+    let one = seat.answer(&json!({ "view": { "counts": { "keys": ["line:resist,life"] } } }));
+    let tables = one["view"]["counts"]["tables"].as_array().unwrap();
+    assert_eq!(tables.len(), 1, "{tables:?}");
+    assert_eq!(tables[0]["key"], "line:resist,life");
+    assert_eq!(tables[0]["values"], 0);
+}
+
 /// An authoring error is the CLI's document in a result marked an error,
 /// never a protocol error: its readings are what an agent reads next.
 #[test]

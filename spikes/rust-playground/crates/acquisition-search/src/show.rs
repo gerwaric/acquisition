@@ -56,11 +56,22 @@ use crate::eval::number_json;
 use crate::eval::{self, Evidence, Outcome, Truth};
 use crate::price::{self, Priced};
 
+fn without_lines<S: serde::Serializer>(item: &Item, to: S) -> Result<S::Ok, S::Error> {
+    let mut item = serde_json::to_value(item).map_err(serde::ser::Error::custom)?;
+    if let Some(fields) = item.as_object_mut() {
+        fields.remove("lines");
+    }
+    item.serialize(to)
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Shown {
     pub basis: Basis,
     pub place: Place,
-    /// The item without its lines, which follow with their slots.
+    /// The item without its lines, which follow with their slots: no
+    /// `lines` is printed under it, an empty list there having read as an
+    /// item with none (the MCP seat, step 11c).
+    #[serde(serialize_with = "without_lines")]
     pub item: Item,
     /// What the class table says of it (`class.rs`).
     pub class: Classed,
