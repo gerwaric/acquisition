@@ -77,10 +77,9 @@
 //!   is compared with nothing, since a route runs on any basis. No
 //!   answer is held between asks: the order is a function of the basis,
 //!   the store's stable order or a stable sort over it, so a place in
-//!   it needs nothing kept — but where a facts file was deleted and
-//!   refetched, or restored from a copy, to a revision the basis already
-//!   names, which the basis cannot tell (`corpus.rs`; parked in
-//!   `decisions/search.md`, its trigger fired by this). Rows alone
+//!   it needs nothing kept; a facts file deleted and refetched, or
+//!   restored from a copy, to an id the basis already names is another
+//!   basis by when that response was recorded (`corpus.rs`). Rows alone
 //!   continue; a table's values past
 //!   its limit are a larger limit's. The token a terminal carries is
 //!   that request and nothing else, encoded ([`Request::token`]).

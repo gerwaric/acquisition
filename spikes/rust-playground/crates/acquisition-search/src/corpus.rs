@@ -11,15 +11,17 @@
 //!   no body outlives its item. Nothing is persisted and nothing is cached
 //!   between processes (C98, C48).
 //! - **The basis** names the store, the account, the facts revision — the
-//!   highest response id and the facts schema beside it — the
+//!   highest response id, when it was recorded and the facts schema
+//!   beside them — the
 //!   derivation's version ([`DERIVATION`]), the class table's
 //!   (`class.rs`; C106), the category table's and the beast colour
 //!   table's (`category.rs`; C106) and the totals table's (`totals.rs`; C94). The store is named by twelve
 //!   hex digits of the SHA-256 of its file's canonical path, as C83 names
 //!   a world (owner, 2026-09-20: "(a') now and park (c)"): no path in an
 //!   answer, no migration, and two files of one account are two stores. A
-//!   file moved is another store, which costs a reload; an id the file
-//!   itself carries is parked (`decisions/search.md`). Stores that are no
+//!   file moved is another store, which costs a reload; a file
+//!   deleted and refetched at one path is told by when its highest
+//!   response was recorded (the store's `corpus.rs`). Stores that are no
 //!   file — a test's, in memory — share one name. The intent file's
 //!   revision joins it with the price (`price.rs`; the build plan, step
 //!   9), with the currency table's and the note parser's versions the
@@ -131,7 +133,8 @@ pub struct Basis {
     /// The facts file, by a short hash of its canonical path.
     pub store: String,
     pub account: String,
-    /// The facts revision: the highest response id, and the facts schema.
+    /// The facts revision: the highest response id, when it was recorded,
+    /// and the facts schema.
     pub snapshot: Revision,
     pub derivation: u32,
     /// The class table's version (C106).
@@ -156,13 +159,18 @@ impl Basis {
     /// What differs between this basis and another, each part named
     /// with both its values: what a refusal across a change says.
     pub fn against(&self, now: &Basis) -> String {
-        let parts: [(&str, String, String); 12] = [
+        let parts: [(&str, String, String); 13] = [
             ("store", self.store.clone(), now.store.clone()),
             ("account", self.account.clone(), now.account.clone()),
             (
                 "snapshot",
                 self.snapshot.response.to_string(),
                 now.snapshot.response.to_string(),
+            ),
+            (
+                "recorded at",
+                self.snapshot.at.to_string(),
+                now.snapshot.at.to_string(),
             ),
             (
                 "facts v",

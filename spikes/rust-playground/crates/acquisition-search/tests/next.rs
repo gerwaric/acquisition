@@ -349,3 +349,75 @@ proptest! {
         prop_assert_eq!(asks, total.div_ceil(limit).max(1));
     }
 }
+
+/// A facts file deleted and refetched to the id a token already names is
+/// another basis (C98; B2, `search/LEDGER.md`): the same three responses
+/// land again an hour later, another item second, and the token is
+/// refused where it would have continued into that file's rows. The same
+/// responses at the same times are the same state, and it continues.
+#[test]
+fn a_file_deleted_and_refetched_to_the_same_revision_is_another_basis() {
+    let path = tmp();
+    let build = |shift: i64, second: &str| {
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+        let mut s = acquisition_store::Store::open(&path).unwrap();
+        s.record(
+            &acquisition_store::Endpoint::Profile,
+            &json!({}),
+            200,
+            &json!({ "uuid": "u-1", "name": "A" }),
+            1 + shift,
+        )
+        .unwrap();
+        list_tabs(
+            &mut s,
+            "pc",
+            "Standard",
+            json!([tab("t1", "Rings")]),
+            10 + shift,
+        );
+        let ring = |id: &str| ring(id, "Rare", json!({ "explicitMods": lines(&[95], 65) }));
+        fetch_tab(
+            &mut s,
+            "pc",
+            "Standard",
+            "t1",
+            "Rings",
+            vec![ring("r1"), ring(second), ring("r3")],
+            20 + shift,
+        );
+        s
+    };
+    let page = json!({ "query": { "text": "" }, "view": { "rows": { "limit": 1 } } });
+
+    let s = build(0, "r2");
+    let first = asked(&load(&s, Some("pc")), &page).unwrap();
+    assert_eq!(
+        first["basis"]["snapshot"],
+        json!({ "response": 3, "at": 20, "facts_version": 7 })
+    );
+    let next = first["view"]["rows"]["next"]["request"].clone();
+    drop(s);
+
+    let s = build(0, "r2");
+    assert_eq!(
+        in_order(&asked(&load(&s, Some("pc")), &next).unwrap()),
+        ["r2"]
+    );
+    drop(s);
+
+    let s = build(3600, "zz");
+    let later = load(&s, Some("pc"));
+    assert_eq!(later.basis.snapshot.response, 3);
+    let e = asked(&later, &next).unwrap_err();
+    assert_eq!(e["kind"], "basis_changed", "{e}");
+    assert!(
+        e["error"]
+            .as_str()
+            .unwrap()
+            .contains("recorded at 20 then, recorded at 3620 now"),
+        "{e}"
+    );
+}

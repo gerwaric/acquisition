@@ -100,11 +100,18 @@
 //!   response id does not move when rows are deleted, so that prune
 //!   brings the stamped counter with it or writes a response of its own
 //!   (`decisions/store.md`, "Parked").
-//! - Not covered, by this number or by a stamped counter: a facts file
-//!   deleted and refetched, or restored from a copy, counts from an earlier
-//!   number again (`decisions/search.md`, "Parked").
+//! - A facts file deleted and refetched, or restored from a copy, counts
+//!   from an earlier number again, so the revision carries the time the
+//!   highest response was recorded beside its id (B2, `search/LEDGER.md`;
+//!   owner, 2026-10-10): no schema change, `fetched_at` being every
+//!   response's since the first version. An id the file itself carried
+//!   would travel with a copy and miss the restore. Not covered: two
+//!   histories whose last response has one id and one second. The same
+//!   snapshot imported again lands at the same ids and times, and is the
+//!   same state.
 
 use anyhow::Result;
+use rusqlite::OptionalExtension as _;
 use serde::{Deserialize, Serialize};
 
 use crate::{Store, TAB_ORDER_KEYS};
@@ -116,6 +123,9 @@ use crate::{Store, TAB_ORDER_KEYS};
 pub struct Revision {
     /// The highest `responses.id`; 0 before any response has landed.
     pub response: i64,
+    /// When that response was recorded; 0 before any. It tells one file's
+    /// history from another's that reached the same id.
+    pub at: i64,
     /// The facts schema the file is stamped with: a migration moves rows
     /// and writes no response.
     pub facts_version: i64,
@@ -311,10 +321,17 @@ const ITEMS_SQL: &str = "SELECT i.id, i.realm,
   ORDER BY i.location_kind, i.location_id, i.realm, i.id";
 
 fn read_revision(tx: &rusqlite::Transaction) -> Result<Revision> {
+    let (response, at) = tx
+        .query_row(
+            "SELECT id, fetched_at FROM responses ORDER BY id DESC LIMIT 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+        .unwrap_or((0, 0));
     Ok(Revision {
-        response: tx.query_row("SELECT COALESCE(MAX(id), 0) FROM responses", [], |r| {
-            r.get(0)
-        })?,
+        response,
+        at,
         facts_version: tx.query_row("PRAGMA user_version", [], |r| r.get(0))?,
     })
 }
