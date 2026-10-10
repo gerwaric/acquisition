@@ -362,7 +362,3 @@ filed again by the step that touches it.
   reading its body is the page's rule, said in `corpus.rs`
   ("Membership is the read's") and held by no test: the look inferred
   it from the deriver taking the body whatever the membership.
-- *Step 11f's census:* the crate's doc now names
-  `search/search-forms/11-owner-amendments.md` for the owner's words
-  whole with their reasoning, so the build names that one file of
-  `search-forms/`.

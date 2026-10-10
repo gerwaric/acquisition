@@ -157,7 +157,6 @@ the piece and bring it to the owner.
 
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
-| 11f · `search/` shrunk | what the build does not name deleted, by a census the owner reads first | 11e | `search/README.md`, rule 4; the kill list | the deletion list read; the gate |
 | 11g · the close | the closed record, and whether its rows fold back into it from `search/LEDGER.md` or stay a file looked up (the owner's); observations and parks routed; M3 last; this file deleted | all | the session-close skill, §3; `PRICING-SLICE.md` | the gate; the three parks the step fires disposed of (pricing on the MCP, the totals batch, the projection) |
 
 Not in this plan: the trade translation (C99, headed "Direction"). No
@@ -193,7 +192,7 @@ evidence at step 1. Names are illustrative, as in the reference.
 | the totals coverage trial | step 7, before the first recipe was accepted — fired 2026-09-23 | `search/pseudo-stats/scripts/coverage-trial.py` over the deriver's census; the rows stood (M6, `search/MEASUREMENTS.md`) |
 | a grouping above class | step 6 reaching OQ5 — fired 2026-09-23; the seat — fired 2026-09-26 (V1: the beasts follow the trade site's categories; OQ5 took 18 terms) | built at 9d-B (`category.rs`), the park deleted; OQ5 is asked by category beside its class spelling |
 | a unique's variant as a field (C107) | step 4 reaching OQ2 | the trigger reopens the question, not the build: brought to the owner with his Ashes of the Stars as the first test |
-| the digest's kill list | step 11, the last acceptance test written — fired at 11d, 2026-10-10 | rechecked: no test and no line of the reference rests on any of the 24; four are kept for what cites or still needs them (`decisions/search.md`, "Parked"), and the twenty wait for 11f's census |
+| the digest's kill list | step 11, the last acceptance test written — fired at 11d, 2026-10-10 | rechecked: no test and no line of the reference rests on any of the 24; four are kept for what cites or still needs them (`decisions/search.md`, "Parked"), and the twenty went at 11f |
 | a persisted projection; the store's search-at-scale park | M3, only if the load exceeds 500 ms — an evaluator cost over budget is the totals batch park's (owner, 2026-09-24, `decisions/search.md`) | reported with the numbers; it opens the experiment among the candidates, never persistence by default. The seat goes ahead: slow is not wrong |
 | the totals batch (`decisions/search.md`) | M3, a totals ask over 500 ms; or a consumer that holds the corpus asking — fired at step 9 by the letter | V9 (2026-09-26): stays parked, the spikes measured first; revisited at step 11 with a corpus's join time fixed |
 | a tab's type as a field (`decisions/search.md`) | the first seat behind it — fired 2026-09-26 | V10: built at 9b (`tab.type`), the entry deleted |

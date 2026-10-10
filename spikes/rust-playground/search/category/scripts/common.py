@@ -31,7 +31,7 @@ POE1_COMMIT = "e2bd511a0133bbe6c1ab548ef1285cb99f3cf0e9"  # search/repoe/MANIFES
 POB = os.path.join(CLONES, "PathOfBuilding")
 POB_COMMIT = "16de4b82d57f1c0de6eb40f37143c32d4da36a02"  # search/repoe/MANIFEST.md
 APT = os.path.join(CLONES, "awakened-poe-trade")
-APT_COMMIT = "ce551eb7a9b704fbdcc2478eebb26be8f91786c7"  # search/prior-art/MANIFEST.md
+APT_COMMIT = "ce551eb7a9b704fbdcc2478eebb26be8f91786c7"  # search/prior-art/MANIFEST.md at 40b55e79
 
 TQ = os.path.join(SEARCH, "trade-query", "data")
 TQ_FETCHES = os.path.join(SEARCH, "trade-query", "raw", "searches")
