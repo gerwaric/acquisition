@@ -100,6 +100,11 @@ owner's words verbatim — is the record at `aeeba6d3` and the ruling
 commit's message. One line each, with the owner's words where they
 state the rule or its reason, and never a bare assent.
 
+A row that names "the reference" or `search/DESIGN.md` for where its
+rule is names the page as it stood, the file at `0d71054f`: since step
+11e the rule is in the module doc beside it on the row, or the one the
+crate's doc (`acquisition-search/src/lib.rs`) names for it.
+
 | Step | Hole, as ruled | The rule is in | Ruled at |
 | --- | --- | --- | --- |
 | 1 | H1 a template alone means the line; H2 `+#` is spelling and dropped, `-#` an error offering `argN<0` | the reference, *Item-level*, *Strings* | `c58728a6` |

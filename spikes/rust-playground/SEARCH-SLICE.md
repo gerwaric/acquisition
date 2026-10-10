@@ -13,8 +13,8 @@ round in its own section, the step 4b brief, the first showing of the
 store's read — is the plan at `2d25cb03`.
 
 The rulings are `decisions/search.md` (C89–C107) and `decisions/store.md`
-(C108); the language reference and the contract detail are
-`search/DESIGN.md`; the acceptance set and the limits register are
+(C108); the language is `acq search --describe` and the contract
+detail the crate's module docs; the acceptance set and the limits register are
 `search/DIGEST.md`; the properties are pinned by the tests named below.
 Nothing here is a second authority. A step writes once, at its
 close — its ledger line and its holes to `search/LEDGER.md`, the

@@ -7,7 +7,7 @@ name, "the next sitting", "the review's next look" — and never loaded
 whole; no budget. A step writes its observations here once, at its
 close, and removes or brings to a ruling each one it used. Nothing
 here is a second authority: an observation is data for the step or the
-seat that touches it, and a rule is in the reference, the registry or a
+seat that touches it, and a rule is in the registry or a
 module doc. Moved from the record whole, no line cut, when the record
 reached its budget at 9d-A's close (the owner, 2026-10-09); the record
 with them is `SEARCH-SLICE.md` at `7506c785`.
@@ -337,3 +337,24 @@ filed again by the step that touches it.
   typed-path realm offer through the tool with two accounts known:
   the crate's test holds the account on the offer. The no-daemon test
   sees a daemon started, never one reached for.
+
+**Step 11e — the directions outside the first surface.**
+
+- *Step 11g, which routes each as a park with its trigger or drops
+  it:* six rows of the reference's "Outside the first surface", moved
+  whole when the page went to its homes (the page is
+  `search/DESIGN.md` at `0d71054f`). Directions agreed in the design
+  dialogue, nothing specified; none is a park, since none has a trigger
+  yet. The table's other two rows have homes: a refresh plan from a
+  selection of uncovered locations is `decisions/plans.md`'s park
+  (C76), and continuing a retained basis is `answer.rs`'s and
+  `show.rs`'s docs with `show --basis` on the not-built list.
+
+  | Thing | State |
+  | --- | --- |
+  | alternatives for a node | deferred. If built: evaluate the query with the leaf replaced, by the normal evaluator; any optimisation must reproduce that. |
+  | a slot's distribution under the rest of the query | deferred; an edited bound and another search serve. |
+  | user-authored weighted sums | direction agreed — an unnamed total; operands are anything with a value, a definition and a status. Range weights, negative weights on ranges and guarded trade groups need their own definition first. |
+  | cross-currency price comparison | needs an explicit valuation input; the currency table holds no rates. |
+  | `in pc: …` as a scope-bearing text | untested; try copying the full invocation and the JSON request first. |
+  | substring over a displayed occurrence inside `line(…)` | unavailable; item-level phrase search reaches displayed lines. |

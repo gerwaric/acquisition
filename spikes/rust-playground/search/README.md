@@ -6,9 +6,8 @@ track per directory, and later where the design and the build point.
 It is evidence and working material, not deliberation and not rulings:
 a session that thinks out loud writes a numbered `brainstorming-notes/`
 note that cites a track by path; a ruling lands in `decisions/`. Nothing
-here is an authority for either — with one exception the registry cites:
-`DESIGN.md`, the language reference and the binding contract detail of
-the search rulings until code takes each paragraph (owner, 2026-09-18).
+here is an authority for either; `DESIGN.md`, the one exception until
+step 11e, is the crate's module docs now.
 
 **Bootstrap:** load this file. `DIGEST.md` (accepted 2026-09-17) is
 where an `S<n>` citation is looked up, by id, and is never loaded whole:

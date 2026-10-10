@@ -21,11 +21,13 @@ this file whole; `decisions/search.md`; what its row's *Reads* names;
 the record; `search/LEDGER.md` by the row — a hole's id before one is
 brought; `search/MEASUREMENTS.md` by the block it will repeat; a
 module doc before touching
-its module; the reference by the section a row names. `search/DIGEST.md`
+its module. `search/DIGEST.md`
 is looked up by `S<n>` and never loaded; a closed track by citation.
 
 Authorities, not restated here: `decisions/search.md` (C89–C107),
-`search/DESIGN.md` (the language reference and the contract detail),
+the crate's module docs and `--describe` (the language and the contract
+detail since 11e; the page they were, "the reference" in a rule below,
+is `search/DESIGN.md` at `0d71054f`),
 `search/DIGEST.md` (the acceptance set, the limits register), note 23
 (row 6, decision 15). Under decision 15 everything after the first seat
 is provisional, this plan's later steps included. This file is deleted
@@ -65,14 +67,10 @@ at the slice's close and cited by hash.
    prints that route only when it runs; until then it prints the count
    left out and names the unbuilt construct. The route property's test
    covers it: every command an answer prints parses and is not refused.
-6. **The language reference stays whole in `search/DESIGN.md` until the
-   first seat has ruled.** Module docs cite it by section and take no
-   paragraph of it before then: the seat may reopen that page, and two
-   copies would rot. Owner, 2026-09-19: "accepted". The contract detail
-   below it leaves as its header says, when a module doc carries the
-   paragraph — the delay was withdrawn for the detail 2026-09-23, since
-   a seat reads the tool and not the page (five blind seats opened
-   neither), and the detail had grown to three copies.
+6. **Spent at step 11e.** The language reference stayed whole in
+   `search/DESIGN.md` until the first seat had ruled, and is the module
+   docs, the clap help and `--describe` now; the rule as it stood is
+   this file at `0d71054f`.
 7. **Whose store.** The agent tests on fixtures built through the
    store's own ingest, and measures on a sqlite `.backup` copy under a
    track's `raw/`, always with `ACQ_STORE_DIR` set. The owner's store is
@@ -229,7 +227,7 @@ submit the job (C98) — a resident client's question, the GUI's.
 
 Each under rule 4, with the builder's recommendation, which is no
 ruling (an outside audit's finding, 2026-09-20); a ruled one becomes a
-line in `search/LEDGER.md`, "Holes ruled", its rule in `search/DESIGN.md`.
+line in `search/LEDGER.md`, "Holes ruled", its rule in a module doc.
 T3 and J1–J35, what the two tracks run before 9d and the three pieces'
 expected answers surfaced (2026-09-30 to 2026-10-08), are all ruled: `search/LEDGER.md`, "Holes ruled", the
 seat, 9c and 9d rows; K1–K11 are step 10's, its three rows; B1–B4 and
