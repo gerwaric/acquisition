@@ -279,14 +279,10 @@ filed again by the step that touches it.
   held by no test. M3 was not run for 11a or 11b. An untracked file of
   a listed kind under a digest's input is in the digest (B5).
 - *The MCP's next testing, after the slice's close (step 11c):* what
-  two runs of the seat asked for and the round left, the first four
-  touching a line the owner ruled. Nothing selects the removed alone
-  (the reference, *Membership*: "`removed` alone waits for a
-  question"): both runs asked, `scope.removed` holds a count and no
-  request, `is:removed` is refused with no reading toward membership,
-  and each reached the copy's six by `-has:container`, which no rule
-  states. A whole id without a realm is refused where `show` needs
-  none (C96). A lacking item is last in an ascending sort, where for a
+  two runs of the seat asked for and the round left, the first three
+  touching a line the owner ruled; a fourth, the removed alone, is
+  ruled since and is 11d's below. A whole id without a realm is
+  refused where `show` needs none (C96). A lacking item is last in an ascending sort, where for a
   required level it is the lowest (C92). A row carries no flag — the
   first run offered a corrupted glove and learned so from `get_item` —
   and no position in its tab, which `show` prints only with `body`
@@ -312,6 +308,14 @@ filed again by the step that touches it.
   Blindness was each runner's word. An unknown `describe` name's
   listing, some 3 KB, and `limits` and `not_built`, keys no name asks
   for, are 11b's and unmet.
+- *Step 11d, its first piece (step 11c):* what the two runs met
+  where nothing selected the removed alone: `scope.removed` holds a
+  count and no request, where every other count that is not zero
+  holds one; `is:removed` and a membership of `removed` are refused
+  with no reading toward the way on, the second under the kind
+  `tree`; each run reached the copy's six by `-has:container`, which
+  no rule states; `answer.rs`'s doc says no count says how many of
+  its items are removed for want of a route, which this gives.
 - *Step 11d (step 11c):* neither run called `search_items`; each
   called `get_item` once, to find an item by id, and read there what
   no row said. Q7's 481 items with the rarity line has no twin in
