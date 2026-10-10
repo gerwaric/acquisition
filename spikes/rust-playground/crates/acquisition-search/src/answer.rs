@@ -62,10 +62,32 @@
 //!   eighteen times under eighteen `class:` terms (F9).
 //! - **Rows** are the matching items in the store's stable order, or by
 //!   the sort scalar with items that have none last either way; past the
-//!   limit they are counted, and the way on is a larger limit until
-//!   `--next` is built. A counts view shows none: the matches are handed
-//!   to `counts.rs` instead, with the one maker of a route (`Router`,
-//!   private), so a bucket's route is made as a term's is.
+//!   limit they are counted, and the way on is the answer's `next`. A
+//!   counts view shows none: the matches are handed to `counts.rs`
+//!   instead, with the one maker of a route (`Router`, private), so a
+//!   bucket's route is made as a term's is.
+//! - **A continuation is a request with its basis and its place** (C98,
+//!   C100; the reference, *Two values*, *Outside the first surface*; the
+//!   build plan, step 10): the answer's own request, scope resolved and
+//!   query canonical, with the basis it was counted at and how many rows
+//!   of the order came before. The place is what makes a request a
+//!   continuation: with one, a basis that differs in any part from the
+//!   corpus's is refused, both named part by part (`Basis::against`),
+//!   and the offer is the request from its start; without one a basis
+//!   is compared with nothing, since a route runs on any basis. No
+//!   answer is held between asks: the order is a function of the basis,
+//!   the store's stable order or a stable sort over it, so a place in
+//!   it needs nothing kept — but where a facts file was deleted and
+//!   refetched, or restored from a copy, to a revision the basis already
+//!   names, which the basis cannot tell (`corpus.rs`; parked in
+//!   `decisions/search.md`, its trigger fired by this). Rows alone
+//!   continue; a table's values past
+//!   its limit are a larger limit's. The token a terminal carries is
+//!   that request and nothing else, encoded ([`Request::token`]).
+//! - **A route read back** ([`Asked`]) is the request inside it; run
+//!   where the basis has moved since it was counted, the answer carries
+//!   what it said then — the count and its basis — beside what it says
+//!   now (the reference, *One worked example*).
 //! - **A zero total** prints, in place of rows: the selectors that
 //!   resolved to nothing in this scope — a group's bound selector picked
 //!   no occurrence, a field's term matched no item — each with the values
@@ -155,6 +177,11 @@ pub struct Request {
     /// empty query over the same scope, the query typed set aside.
     #[serde(default, skip_serializing_if = "Context::is_matches")]
     pub context: Context,
+    /// The basis a continuation was counted at (C98, C100): what its
+    /// place in the rows is a place in. Beside no place it is carried
+    /// and compared with nothing — a route runs on any basis.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub basis: Option<Basis>,
 }
 
 /// What an answer is of (the reference, *The request at a terminal*):
@@ -272,6 +299,11 @@ pub struct Rows {
     pub sort: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub desc: bool,
+    /// A continuation's place: how many rows of this order the answers
+    /// before it returned. It is what makes a request a continuation,
+    /// refused across a changed basis.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<usize>,
 }
 
 impl QueryInput {
@@ -321,12 +353,141 @@ impl Request {
         })
     }
 
+    /// A continuation's place, where the request is one: a place names
+    /// the basis it is a place in.
+    fn place(&self) -> Result<Option<(usize, &Basis)>, LanguageError> {
+        match (&self.view, &self.basis) {
+            (
+                View::Rows(Rows {
+                    after: Some(after), ..
+                }),
+                Some(basis),
+            ) => Ok(Some((*after, basis))),
+            (View::Rows(Rows { after: Some(_), .. }), None) => Err(LanguageError::new(
+                crate::error::ErrorKind::View,
+                "a place in the rows is a place at a basis: a continuation names the basis its answer was counted at, as an answer's `next` does",
+            )),
+            _ => Ok(None),
+        }
+    }
+
+    /// The request as a token a terminal carries: `--next` takes it.
+    pub fn token(&self) -> String {
+        use base64::Engine as _;
+        let json = serde_json::to_vec(self).unwrap_or_default();
+        format!(
+            "{TOKEN_PREFIX}{}",
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json)
+        )
+    }
+
+    /// The continuation a token is: a request with its basis and its
+    /// place, and nothing that is not one.
+    pub fn from_token(token: &str) -> Result<Request, LanguageError> {
+        use base64::Engine as _;
+        let no_token = || {
+            LanguageError::new(
+                crate::error::ErrorKind::Token,
+                "this is no token an answer printed: `--next` takes one whole, as the answer's `more` line gives it",
+            )
+        };
+        let encoded = token
+            .trim()
+            .strip_prefix(TOKEN_PREFIX)
+            .ok_or_else(no_token)?;
+        let json = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(encoded)
+            .map_err(|_| no_token())?;
+        let request: Request = serde_json::from_slice(&json).map_err(|_| no_token())?;
+        match request.place() {
+            Ok(Some(_)) => Ok(request),
+            _ => Err(no_token()),
+        }
+    }
+
     /// Every authoring error the request holds — the query's, the sort's,
     /// the view's, a path the query lacks — with no store read: what an
     /// adapter asks before it opens one.
     pub fn check(&self) -> Result<(), LanguageError> {
+        self.place()?;
         let (query, _) = self.asked()?;
         self.view.bound()?.of(&query).map(|_| ())
+    }
+}
+
+/// What a token starts with: the format, so that another is told apart.
+const TOKEN_PREFIX: &str = "acq1.";
+
+/// What `--request` reads: a request, or what an answer holds one in —
+/// a count's route, the request with the count and the basis it was
+/// counted at (the reference, *One worked example*); a `next`; an offer.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Asked {
+    pub request: Request,
+    pub before: Option<Before>,
+}
+
+/// What a route said when it was printed: its count, and the basis.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Before {
+    pub count: usize,
+    pub counted_at: Basis,
+}
+
+impl Asked {
+    /// A request, or an object with the request inside it — and where
+    /// that object says a count, the basis it was counted at beside it,
+    /// which makes it a route; what is neither is the tree's error, as a
+    /// request that does not read is.
+    pub fn read(value: &Json) -> Result<Asked, LanguageError> {
+        let unread = |e: serde_json::Error| {
+            LanguageError::new(
+                crate::error::ErrorKind::Tree,
+                format!("this is no request and no route an answer printed: {e}"),
+            )
+        };
+        if !value.is_object() {
+            return Err(LanguageError::new(
+                crate::error::ErrorKind::Tree,
+                "this is no request and no route an answer printed: a request is an object",
+            ));
+        }
+        match value.get("request") {
+            Some(request) => Ok(Asked {
+                request: serde_json::from_value(request.clone()).map_err(unread)?,
+                before: match value.get("count") {
+                    Some(count) => Some(
+                        serde_json::from_value(serde_json::json!({
+                            "count": count,
+                            "counted_at": value.get("counted_at"),
+                        }))
+                        .map_err(unread)?,
+                    ),
+                    None => None,
+                },
+            }),
+            None if value.get("count").is_some() || value.get("counted_at").is_some() => {
+                Err(LanguageError::new(
+                    crate::error::ErrorKind::Tree,
+                    "this is no request and no route an answer printed: a route holds its request",
+                ))
+            }
+            None => Ok(Asked {
+                request: serde_json::from_value(value.clone()).map_err(unread)?,
+                before: None,
+            }),
+        }
+    }
+
+    /// The answer, and beside it what the route said where the basis has
+    /// moved since: both counts, each with its basis.
+    pub fn answer(&self, corpus: &Corpus) -> Result<Answer, SearchError> {
+        let mut answered = answer(corpus, &self.request)?;
+        answered.before = self
+            .before
+            .clone()
+            .filter(|before| before.counted_at != corpus.basis);
+        Ok(answered)
     }
 }
 
@@ -492,6 +653,10 @@ pub struct Answer {
     pub set_aside: Option<QueryOut>,
     pub scope: ScopeOut,
     pub basis: Basis,
+    /// What a route said when it was printed, where it is run on a later
+    /// basis (`Asked::answer`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before: Option<Before>,
     pub terms: Vec<TermOut>,
     pub total: Total,
     pub view: ViewOut,
@@ -655,14 +820,29 @@ pub struct Forced {
     pub undecided: Count,
 }
 
+/// A continuation (C100): the request that returns the rows after
+/// these, naming the basis, the query, the view and the order it
+/// continues, and refused across a change (C98).
+#[derive(Debug, Clone, Serialize)]
+pub struct Next {
+    pub token: String,
+    pub request: Request,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct RowsOut {
     pub limit: usize,
     pub returned: usize,
-    /// Matching items past the limit: a larger limit returns them.
+    /// Where this answer's rows begin in the order: a continuation's
+    /// place, absent on a first answer.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub after: usize,
+    /// Matching items past these rows.
     pub left_out: usize,
+    /// How to go on, where rows are left out: the continuation as a
+    /// request, and as the token a terminal carries.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub left_out_needs: Option<&'static str>,
+    pub next: Option<Next>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort: Option<String>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -806,6 +986,43 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
     let (query, set_aside) = request.asked()?;
     let view = request.view.bound()?;
     let explained = view.of(&query)?;
+    let typed = set_aside.as_ref().unwrap_or(&query).text();
+    let resolved = Scope {
+        account: Some(
+            corpus
+                .account_name
+                .clone()
+                .unwrap_or_else(|| corpus.basis.account.clone()),
+        ),
+        realm: Some(corpus.realm.clone()),
+        membership: request.scope.membership,
+    };
+    // a continuation is a place in one basis's order: across a change it
+    // is refused, both named, and the way on is the request from its start
+    let after = match request.place()? {
+        Some((_, basis)) if *basis != corpus.basis => {
+            let mut start = request.clone();
+            start.scope = resolved;
+            start.query = QueryInput {
+                text: Some(typed),
+                tree: None,
+            };
+            start.basis = None;
+            if let View::Rows(rows) = &mut start.view {
+                rows.after = None;
+            }
+            return Err(SearchError::scope(
+                "basis_changed",
+                format!(
+                    "this continues an answer counted at another basis, and its place is no place in this one — {}: ask again from the start",
+                    basis.against(&corpus.basis)
+                ),
+            )
+            .with_offers(vec![start.command()]));
+        }
+        Some((after, _)) => after,
+        None => 0,
+    };
 
     let router = Router {
         corpus,
@@ -999,6 +1216,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
     }
     let rows: Vec<Row> = order
         .iter()
+        .skip(after)
         .take(limit)
         .map(|&m| {
             let (at, outcomes) = &matches[m];
@@ -1066,13 +1284,36 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
         undecided: count(n_undecided, root_undecided.as_ref()),
         offers: offers(&router, &query, &part_matched, request),
     });
-    let left_out = total.matched - rows.len();
+    let left_out = total.matched.saturating_sub(after + rows.len());
     let view = match &view {
         BoundView::Rows { .. } => ViewOut::Rows(RowsOut {
             limit,
             returned: rows.len(),
+            after,
             left_out,
-            left_out_needs: (left_out > 0).then_some("--next"),
+            // a limit of nothing returns nothing from any place: the way
+            // on is a larger limit, never a continuation that stands still
+            next: (left_out > 0 && limit > 0).then(|| {
+                let request = Request {
+                    scope: resolved.clone(),
+                    query: QueryInput {
+                        text: Some(typed.clone()),
+                        tree: None,
+                    },
+                    view: View::Rows(Rows {
+                        limit: Some(limit),
+                        sort: sort.map(|(text, _)| text.clone()),
+                        desc,
+                        after: Some(after + rows.len()),
+                    }),
+                    context: request.context,
+                    basis: Some(corpus.basis.clone()),
+                };
+                Next {
+                    token: request.token(),
+                    request,
+                }
+            }),
             sort: sort.map(|(text, _)| text.clone()),
             desc,
         }),
@@ -1103,6 +1344,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
         }
     };
     Ok(Answer {
+        before: None,
         query: QueryOut {
             text: query.text(),
             tree: json::to_json(&query.root),
@@ -1157,6 +1399,7 @@ fn forced(
                 ..Rows::default()
             }),
             context: Context::Matches,
+            basis: None,
         },
     )?;
     let undecided = Node::Undecided(Probe::Term(Box::new(transformed.clone())));
@@ -1211,6 +1454,12 @@ fn offers(router: &Router<'_>, query: &Query, part_matched: &[usize], request: &
                 None,
                 match &request.view {
                     View::Explain(_) => View::default(),
+                    // a place is a place in the answer continued, never
+                    // in the corpus's
+                    View::Rows(rows) => View::Rows(Rows {
+                        after: None,
+                        ..rows.clone()
+                    }),
                     view => view.clone(),
                 },
                 Context::Corpus,
@@ -1263,6 +1512,7 @@ impl Router<'_> {
             },
             view,
             context,
+            basis: None,
         }
     }
 
@@ -1740,13 +1990,7 @@ fn command_with(
     last: &str,
     flags: &str,
 ) -> String {
-    let mut out = format!("acq {verb}");
-    if let Some(account) = account {
-        out.push_str(&format!(" --account {}", shell_quoted(account)));
-    }
-    if let Some(realm) = realm {
-        out.push_str(&format!(" --realm {realm}"));
-    }
+    let mut out = opening(verb, account, realm);
     if last.starts_with('-') {
         out.push_str(flags);
         out.push_str(" -- ");
@@ -1757,6 +2001,30 @@ fn command_with(
         out.push_str(flags);
     }
     out
+}
+
+/// How every command the search prints opens: the verb, the account it
+/// was answered for, the realm.
+fn opening(verb: &str, account: Option<&str>, realm: Option<&str>) -> String {
+    let mut out = format!("acq {verb}");
+    if let Some(account) = account {
+        out.push_str(&format!(" --account {}", shell_quoted(account)));
+    }
+    if let Some(realm) = realm {
+        out.push_str(&format!(" --realm {realm}"));
+    }
+    out
+}
+
+impl Next {
+    /// The continuation as a command a terminal takes: the token whole,
+    /// and the account it was answered for (`command`).
+    pub fn command(&self) -> String {
+        // the realm is the token's to carry
+        let mut out = opening("search", self.request.scope.account.as_deref(), None);
+        out.push_str(&format!(" --next {}", shell_quoted(&self.token)));
+        out
+    }
 }
 
 impl Route {

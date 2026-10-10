@@ -296,6 +296,28 @@ fn rule_5_every_command_printed_runs_with_a_second_account_known() {
             ran += 1;
         }
     }
+    // an answer cut at its limit: the continuation it prints, and what a
+    // continuation refused across a changed basis offers
+    let shown = text(&acq(
+        &base,
+        &[
+            "--account",
+            USER,
+            "search",
+            "--realm",
+            "all",
+            "--limit",
+            "2",
+        ],
+    ));
+    let more: Vec<String> = printed_commands(&shown)
+        .into_iter()
+        .filter(|command| command.contains("--next"))
+        .collect();
+    assert_eq!(more.len(), 1, "{shown}");
+    assert!(run_printed(&base, &more[0]).status.success(), "{}", more[0]);
+    ran += 1;
+
     // what a zero answer offers, where the query starts with the
     // language's not and goes after `--`, the flags before it; and the
     // routes of an explained node's forced counts
@@ -890,7 +912,15 @@ fn c11_a_failure_is_structured_and_a_later_steps_flag_is_refused_by_name() {
             vec!["search", "rarity=rare", "--explain", "1"],
             "no_such_path",
         ),
-        (vec!["search", "--explain", "0", "--next", "x"], "not_built"),
+        // built at step 10: a continuation is whole, and a token is one
+        (vec!["search", "--explain", "0", "--next", "x"], "view"),
+        (vec!["search", "rarity=rare", "--next", "x"], "view"),
+        (vec!["search", "--next", "x"], "token"),
+        (vec!["search", "--request", "-", "--limit", "3"], "view"),
+        (vec!["search", "--request", "-", "--realm", "pc"], "view"),
+        (vec!["search", "--request", "-", "--describe"], "view"),
+        (vec!["search", "--next", "x", "--describe"], "view"),
+        (vec!["search", "--print-request", "--describe"], "view"),
         (vec!["search", "--context", "nowhere"], "view"),
         (vec!["search", "rare", "--context", "corpus"], "bare_word"),
     ] {
@@ -2005,4 +2035,149 @@ fn show_against_takes_a_query_that_starts_with_a_not() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert_eq!(sole_json(&out)["against"]["query"]["text"], "-rarity=magic");
+}
+
+/// Step 10's second piece at a terminal: an answer cut at its limit
+/// prints the command that goes on, and the pages are the whole;
+/// `--print-request` prints what `--request` reads, the one answering as
+/// the search typed does; a count's route read back from an answer's
+/// `--json` runs.
+#[test]
+fn step_10_next_request_and_print_request_at_a_terminal() {
+    let base = base();
+    seed(&base);
+    let rows = |a: &Value| a["rows"].as_array().unwrap().clone();
+
+    // the pages, each by the command the one before printed
+    let whole = sole_json(&acq(
+        &base,
+        &["--json", "search", "--realm", "pc", "--limit", "100"],
+    ));
+    let total = whole["total"]["matched"].as_u64().unwrap();
+    assert!(total >= 5, "{total}");
+    let shown = text(&acq(&base, &["search", "--realm", "pc", "--limit", "2"]));
+    let more = shown
+        .lines()
+        .find(|line| line.starts_with("more    "))
+        .unwrap_or_else(|| panic!("no more line:\n{shown}"));
+    assert!(
+        more.starts_with(&format!(
+            "more    rows 1–2 of {total} shown: acq search --account 'Alice#1234' --next acq1."
+        )),
+        "{more}"
+    );
+    let mut command = printed_commands(more).remove(0);
+    // the command printed is the token behind the account, so the later
+    // pages below, spelled so from each answer's token, are as printed
+    assert_eq!(
+        command,
+        format!(
+            "acq search --account '{USER}' --next {}",
+            sole_json(&acq(
+                &base,
+                &["--json", "search", "--realm", "pc", "--limit", "2"]
+            ))["view"]["rows"]["next"]["token"]
+                .as_str()
+                .unwrap()
+        )
+    );
+    let first = sole_json(&acq(
+        &base,
+        &["--json", "search", "--realm", "pc", "--limit", "2"],
+    ));
+    let mut paged = rows(&first);
+    loop {
+        let out = run_printed(&base, &command);
+        assert!(out.status.success(), "{command}");
+        let page = sole_json(&out);
+        paged.extend(rows(&page));
+        match page["view"]["rows"]["next"]["token"].as_str() {
+            Some(token) => command = format!("acq search --account '{USER}' --next {token}"),
+            None => break,
+        }
+    }
+    assert_eq!(paged, rows(&whole));
+    // `--limit` alone stands beside a token, and the place is kept
+    let token = first["view"]["rows"]["next"]["token"].as_str().unwrap();
+    let wide = sole_json(&acq(
+        &base,
+        &["--json", "search", "--next", token, "--limit", "100"],
+    ));
+    assert_eq!(rows(&wide), rows(&whole)[2..].to_vec());
+    assert!(wide["view"]["rows"].get("next").is_none());
+
+    // `--print-request` prints what `--request` reads: the answer is the
+    // one the same words typed give
+    let dir = base.join("requests");
+    std::fs::create_dir_all(&dir).unwrap();
+    for (n, args) in [
+        vec!["search", "--realm", "pc", LIFE],
+        vec![
+            "search",
+            "rarity=rare",
+            "--sort",
+            "ilvl",
+            "--desc",
+            "--limit",
+            "3",
+        ],
+        vec!["search", "--realm", "pc", "--count", "rarity,tab"],
+        vec![
+            "search",
+            "rarity=rare",
+            "--cross",
+            "rarity,tab",
+            "--sum",
+            "ilvl",
+        ],
+        vec!["search", LIFE, "--explain", "0.1"],
+        vec!["search", LIFE, "--context", "corpus", "--count", "rarity"],
+        vec!["search", "--", "-rarity=rare"],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut printing = vec!["search", "--print-request"];
+        printing.extend(&args[1..]);
+        let out = acq(&base, &printing);
+        assert!(out.status.success(), "{args:?}");
+        let request = sole_json(&out);
+        // resolved, though the words typed named neither
+        assert_eq!(request["scope"]["realm"], "pc", "{args:?}");
+        assert_eq!(request["scope"]["account"], USER, "{args:?}");
+        assert!(request.get("basis").is_none());
+        let file = dir.join(format!("{n}.json"));
+        std::fs::write(&file, &out.stdout).unwrap();
+        let mut direct = vec!["--json"];
+        direct.extend(&args);
+        assert_eq!(
+            sole_json(&acq(
+                &base,
+                &["--json", "search", "--request", file.to_str().unwrap()]
+            )),
+            sole_json(&acq(&base, &direct)),
+            "{args:?}"
+        );
+    }
+
+    // a count's route, as an answer's `--json` holds it, is a request
+    // file: on the basis it was counted at it says nothing more
+    let a = sole_json(&acq(&base, &["--json", "search", "rarity=rare"]));
+    let route = &a["terms"][0]["matched"];
+    let file = dir.join("route.json");
+    std::fs::write(&file, route.to_string()).unwrap();
+    let routed = sole_json(&acq(
+        &base,
+        &["--json", "search", "--request", file.to_str().unwrap()],
+    ));
+    assert_eq!(routed["total"]["matched"], route["count"]);
+    assert!(routed.get("before").is_none());
+    // and a continuation's request is one too
+    let file = dir.join("next.json");
+    std::fs::write(&file, first["view"]["rows"]["next"]["request"].to_string()).unwrap();
+    let next = sole_json(&acq(
+        &base,
+        &["--json", "search", "--request", file.to_str().unwrap()],
+    ));
+    assert_eq!(rows(&next), rows(&whole)[2..4].to_vec());
 }

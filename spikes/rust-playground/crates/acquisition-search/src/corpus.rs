@@ -140,6 +140,74 @@ pub struct Basis {
     pub notes: u32,
 }
 
+impl Basis {
+    /// What differs between this basis and another, each part named
+    /// with both its values: what a refusal across a change says.
+    pub fn against(&self, now: &Basis) -> String {
+        let parts: [(&str, String, String); 12] = [
+            ("store", self.store.clone(), now.store.clone()),
+            ("account", self.account.clone(), now.account.clone()),
+            (
+                "snapshot",
+                self.snapshot.response.to_string(),
+                now.snapshot.response.to_string(),
+            ),
+            (
+                "facts v",
+                self.snapshot.facts_version.to_string(),
+                now.snapshot.facts_version.to_string(),
+            ),
+            ("intent", self.intent.to_string(), now.intent.to_string()),
+            (
+                "derivation",
+                self.derivation.to_string(),
+                now.derivation.to_string(),
+            ),
+            (
+                "classes v",
+                self.classes.to_string(),
+                now.classes.to_string(),
+            ),
+            (
+                "categories v",
+                self.categories.to_string(),
+                now.categories.to_string(),
+            ),
+            (
+                "beast colours v",
+                self.beast_colours.to_string(),
+                now.beast_colours.to_string(),
+            ),
+            ("totals v", self.totals.to_string(), now.totals.to_string()),
+            (
+                "defences v",
+                self.defences.to_string(),
+                now.defences.to_string(),
+            ),
+            (
+                "currency v",
+                self.currency.to_string(),
+                now.currency.to_string(),
+            ),
+        ];
+        let mut differing: Vec<String> = parts
+            .iter()
+            .filter(|(_, then, now)| then != now)
+            .map(|(name, then, now)| {
+                let gap = if name.ends_with('v') { "" } else { " " };
+                format!("{name}{gap}{then} then, {name}{gap}{now} now")
+            })
+            .collect();
+        if self.notes != now.notes {
+            differing.push(format!(
+                "notes v{} then, notes v{} now",
+                self.notes, now.notes
+            ));
+        }
+        differing.join("; ")
+    }
+}
+
 /// Where an item sits, by name and id.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Place {

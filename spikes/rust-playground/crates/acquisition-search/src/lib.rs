@@ -14,8 +14,9 @@
 //! first surface (step 4), the counts view (step 5), the class table
 //! (step 6), the computed values (step 7), the sockets (step 8), the
 //! categories (step 9d-B), the base defence percentile (step 9d-A) and
-//! the why-not (step 10: `--explain`, `--context corpus`, `show
-//! --against`): a request in, an answer out.
+//! the why-not and the continuation (step 10: `--explain`, `--context
+//! corpus`, `show --against`; a `next`, a route read back): a request
+//! in, an answer out.
 //!
 //! - [`tree`] — the query tree (C91): one typed value, and [`check`], what
 //!   a tree must satisfy to be one the language can say.
@@ -108,7 +109,11 @@
 //!   worked example), `tests/generated_explain.rs` (each forced answer
 //!   is the transformed query's, asked alone, at every path, and a
 //!   term's is the same in every spelling) and `tests/acceptance.rs`
-//!   (AQ3 whole).
+//!   (AQ3 whole). The continuation and a route read back are
+//!   [`mod@answer`]'s doc; pinned by `tests/next.rs` (the pages in order
+//!   are the answer at a limit past the total, fixed and generated; the
+//!   refusal across a changed basis; both counts of a route on a later
+//!   basis).
 //! - **C95, C97, C105.** The counts view and the vocabulary are
 //!   [`counts`]'s doc; pinned by `tests/counts.rs`: AQ1, C105's two
 //!   invariants on a one-value key, C95's sum over the three kinds, the

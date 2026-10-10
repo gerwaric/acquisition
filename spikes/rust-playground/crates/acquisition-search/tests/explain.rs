@@ -313,6 +313,7 @@ fn explain_beside_a_count_a_cross_or_a_sort_is_an_authoring_error() {
                 limit: Some(20),
                 sort: sort.clone(),
                 desc: false,
+                after: None,
             },
         )
         .unwrap_err();
@@ -731,19 +732,11 @@ fn describe_says_what_explain_context_and_against_do() {
             "{construct}"
         );
     }
-    // the seven that wait keep their names and their step
+    // the four that wait keep their names and their step
     let waiting: Vec<&str> = NOT_BUILT.iter().map(|n| n.construct).collect();
     assert_eq!(
         waiting,
-        [
-            "--fields",
-            "--next",
-            "--view locations",
-            "--print-request",
-            "--request",
-            "--rebind",
-            "show --basis"
-        ]
+        ["--fields", "--view locations", "--rebind", "show --basis"]
     );
     assert!(NOT_BUILT.iter().all(|n| n.step == Some(10)));
 }

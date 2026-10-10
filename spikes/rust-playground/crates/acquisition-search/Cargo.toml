@@ -16,6 +16,8 @@ regex = "1"
 regex-syntax = "0.8"
 # the basis names the store by a short hash of its path, as C83 names a world
 sha2 = "0.10"
+# a continuation's token is its request, encoded for a terminal (answer.rs)
+base64 = "0.22"
 serde.workspace = true
 serde_json.workspace = true
 # the class table, a reviewed TOML file compiled into the binary (class.rs, C106)

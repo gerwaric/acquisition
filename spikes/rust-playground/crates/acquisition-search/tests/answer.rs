@@ -380,13 +380,13 @@ fn c92_the_sort_scalar_and_an_item_without_one_last_either_way() {
     let order: Vec<&str> = up.iter().map(|(id, _)| id.as_str()).collect();
     assert_eq!(order, ["r2", "r1", "r5", "r3", "r6", "r7"]);
 
-    // the limit counts what it leaves out, and names no command this build refuses
+    // the limit counts what it leaves out, and says how to go on
     let request = serde_json::from_value(json!({ "view": { "rows": { "limit": 2 } } })).unwrap();
     let a = as_json(&answer(&corpus, &request).unwrap());
-    assert_eq!(
-        a["view"]["rows"],
-        json!({ "limit": 2, "returned": 2, "left_out": 5, "left_out_needs": "--next" })
-    );
+    let mut rows = a["view"]["rows"].clone();
+    let next = rows.as_object_mut().unwrap().remove("next").unwrap();
+    assert_eq!(rows, json!({ "limit": 2, "returned": 2, "left_out": 5 }));
+    assert_eq!(next["request"]["view"]["rows"]["after"], 2);
     assert_eq!(a["total"]["matched"], 7);
 }
 

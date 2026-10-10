@@ -113,24 +113,9 @@ pub const NOT_BUILT: &[NotBuilt] = &[
         what: "the caller names a row's fields",
     },
     NotBuilt {
-        construct: "--next",
-        step: Some(10),
-        what: "continue an answer past its limit, refused across a changed basis",
-    },
-    NotBuilt {
         construct: "--view locations",
         step: Some(10),
         what: "the full coverage list the scope block summarises",
-    },
-    NotBuilt {
-        construct: "--print-request",
-        step: Some(10),
-        what: "print the request as JSON without running it",
-    },
-    NotBuilt {
-        construct: "--request",
-        step: Some(10),
-        what: "run a request read from a file",
     },
     NotBuilt {
         construct: "--rebind",

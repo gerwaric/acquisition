@@ -234,19 +234,19 @@ Options:
       --query-file <FILE|->  Read the query from a file, or from stdin with `-`: a query with an apostrophe needs no shell quoting this way
       --sort <VALUE>         Order the rows by a value: `ilvl`, `stack`, `'line("T").arg1'`, `'sum("T")'`, `pseudo.total_res`. A line's scalar is its largest satisfying occurrence; an item with none sorts last either way (C92)
       --desc                 Largest first
-      --limit <LIMIT>        How many rows to return — or, of a count, how many values a table lists; the rest are counted [default: 20]
+      --limit <LIMIT>        How many rows to return — or, of a count, how many values a table lists; the rest are counted. Twenty where none is given
       --routes               Print every count's route — the command that returns exactly its members — instead of the first few
       --describe [<NAME,…>]  The language as this build knows it: fields, what a line has, operators, closed value sets, slots, the computed values with their definitions, what is not built and the limits stated; or only the entries named (`--describe league,line,total_res`)
       --count <KEY,…>        Count the matches by a key, one table for each key named, and show no rows: a field (`tab`, `league`, `rarity`, `base`, …; `--describe counts` lists them), or `line`, the vocabulary — the templates the matching items carry, ranked, each with the term that selects it and the range of its numbers. `line:` takes the rest of the list as texts to narrow by, a table each, and `~` before one makes it a pattern: `--count tab,line:resist,life`. An item with no value is counted under `none`, one whose value could not be read under `undecided` (C105); every count has its route (`--routes`)
       --cross <KEY,KEY>      Count the matches by two fields at once, one table of the cells that hold an item: `--cross league,tab`
       --sum <VALUE>          Beside each count, the sum of one number over its items: `stack`, `ilvl`, `'sum("T")'`, `pseudo.total_res`. An item lacking the thing adds nothing and is counted as lacking; one unread leaves a subtotal marked incomplete (C95)
       --fields <NAME,…>      Not built (step 10): the caller names a row's fields
-      --next <TOKEN>         Not built (step 10): continue an answer past its limit
+      --next <TOKEN>         Continue an answer past its limit: the token its `more` line printed, whole. The token names the query, the view, the order and the basis it continues, so no word of scope, query or view stands beside it but `--limit`; across a changed basis — a refresh, a price written — it is refused, both named, and the way on is the search from its start
       --explain <PATH>       Explain one node of the query, named by its path — a term's as the terms block prints it (`3`), a group of terms', or a condition's inside `line( … )` or `linked( … )` (`3.1`): the root's matched and undecided counts as given, with that node forced true, and with it forced false, each beside its transformed query, the node replaced by `true()` or `false()` and nothing else changed. Counts and no rows: an error beside `--count`, `--cross`, `--sum` or `--sort`. A path the query lacks lists the query's nodes with their paths
       --context <WHICH>      What the answer is of: `matches`, the query's, as every answer is; or `corpus`, the empty query over the same scope under rows or a count, with the query typed printed as set aside and counted nowhere; beside `--explain`, which is of the query typed, an error
       --view <WHAT>          Not built (step 10): `locations`, the full coverage list
-      --print-request        Not built (step 10): print the request as JSON without running it
-      --request <FILE|->     Not built (step 10): run a request read from a file
+      --print-request        Print the request as JSON, its account and realm resolved, and do not run it: what `--request` reads
+      --request <FILE|->     Run a request read from a file, or from stdin with `-`: what `--print-request` printed, a `next` or an offer of an answer's `--json`, or a count's route — which, run on a later basis than it was counted at, reports both counts. A request is whole: no word of scope, query or view stands beside it
       --rebind               Not built (step 10): run another account's request deliberately
   -h, --help                 Print help
 ```

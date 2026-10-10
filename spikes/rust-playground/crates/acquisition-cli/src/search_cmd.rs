@@ -17,6 +17,15 @@
 //!   prints the count left out and the unbuilt construct's name. The flags
 //!   of later steps exist, so that typing one is refused by that name
 //!   (`acquisition_search::not_built`) and never as an unknown flag.
+//! - **`--next`, `--request` and `--print-request` exchange the
+//!   request** (the reference, *Two values*; C104, C100): a token is a
+//!   continuation's request and `--next` runs it, `--request` runs one
+//!   read from a file — or a count's route, as an answer's `--json`
+//!   holds it — and `--print-request` prints the request the words
+//!   typed make, account and realm resolved by the store it would run
+//!   on, and asks nothing. A token and a request read are whole: any
+//!   word of scope, query or view beside one is an error, but `--limit`
+//!   beside a token, whose place does not depend on it.
 //! - **`--explain`, `--context` and `show --against` are encodings** of
 //!   what the request and `show` carry (`answer.rs`, `show.rs`; the
 //!   reference, *Explain*): the view's conflicts are the crate's to say
@@ -34,7 +43,9 @@
 
 use std::io::Read as _;
 
-use acquisition_search::answer::{Answer, Context, Count, Request, Rows, Scope, View, ViewOut};
+use acquisition_search::answer::{
+    Answer, Asked, Context, Count, DEFAULT_LIMIT, Request, Rows, Scope, View, ViewOut,
+};
 use acquisition_search::corpus::Realm;
 use acquisition_search::counts::{Bucket, CrossOut, Label, SumOf, Summed, Table};
 use acquisition_search::describe::Describe;
@@ -75,8 +86,9 @@ pub struct SearchArgs {
     pub desc: bool,
     /// How many rows to return — or, of a count, how many values a table
     /// lists; the rest are counted.
-    #[arg(long, default_value_t = acquisition_search::answer::DEFAULT_LIMIT)]
-    pub limit: usize,
+    /// Twenty where none is given.
+    #[arg(long)]
+    pub limit: Option<usize>,
     /// Print every count's route — the command that returns exactly its
     /// members — instead of the first few.
     #[arg(long)]
@@ -111,7 +123,12 @@ pub struct SearchArgs {
     /// Not built (step 10): the caller names a row's fields.
     #[arg(long, value_name = "NAME,…")]
     pub fields: Option<String>,
-    /// Not built (step 10): continue an answer past its limit.
+    /// Continue an answer past its limit: the token its `more` line
+    /// printed, whole. The token names the query, the view, the order and
+    /// the basis it continues, so no word of scope, query or view stands
+    /// beside it but `--limit`;
+    /// across a changed basis — a refresh, a price written — it is
+    /// refused, both named, and the way on is the search from its start.
     #[arg(long, value_name = "TOKEN")]
     pub next: Option<String>,
     /// Explain one node of the query, named by its path — a term's as the
@@ -133,10 +150,15 @@ pub struct SearchArgs {
     /// Not built (step 10): `locations`, the full coverage list.
     #[arg(long, value_name = "WHAT")]
     pub view: Option<String>,
-    /// Not built (step 10): print the request as JSON without running it.
+    /// Print the request as JSON, its account and realm resolved, and do
+    /// not run it: what `--request` reads.
     #[arg(long)]
     pub print_request: bool,
-    /// Not built (step 10): run a request read from a file.
+    /// Run a request read from a file, or from stdin with `-`: what
+    /// `--print-request` printed, a `next` or an offer of an answer's
+    /// `--json`, or a count's route — which, run on a later basis than it
+    /// was counted at, reports both counts. A request is whole: no word
+    /// of scope, query or view stands beside it.
     #[arg(long, value_name = "FILE|-")]
     pub request: Option<String>,
     /// Not built (step 10): run another account's request deliberately.
@@ -198,16 +220,93 @@ fn emit<T: Serialize>(value: &T, json: bool, text: impl FnOnce(&T) -> String) ->
 pub fn search(args: SearchArgs, json: bool) -> Result<()> {
     let unbuilt = [
         ("--fields", args.fields.is_some()),
-        ("--next", args.next.is_some()),
         ("--view locations", args.view.is_some()),
-        ("--print-request", args.print_request),
-        ("--request", args.request.is_some()),
         ("--rebind", args.rebind),
     ];
     if let Some((construct, _)) = unbuilt.iter().find(|(_, typed)| *typed) {
         return Err(fail(not_built(construct).into(), json));
     }
+    // a continuation and a request read are whole: what else was typed
+    // has nowhere to stand
+    let typed = [
+        ("a query", args.query.is_some()),
+        ("--query-file", args.query_file.is_some()),
+        ("--realm", args.realm.is_some()),
+        ("--sort", args.sort.is_some()),
+        ("--count", args.count.is_some()),
+        ("--cross", args.cross.is_some()),
+        ("--sum", args.sum.is_some()),
+        ("--explain", args.explain.is_some()),
+        ("--context", args.context.is_some()),
+        ("--print-request", args.print_request),
+        ("--describe", args.describe.is_some()),
+        ("--next", args.next.is_some() && args.request.is_some()),
+        ("--limit", args.limit.is_some() && args.request.is_some()),
+    ];
+    let whole = |flag: &str, names: &str| -> Result<()> {
+        match typed.iter().find(|(_, typed)| *typed) {
+            Some((beside, _)) => Err(fail(
+                SearchError::Scope {
+                    kind: "view",
+                    message: format!("`{flag}` {names}: {beside} has nowhere to stand beside it"),
+                    offers: Vec::new(),
+                },
+                json,
+            )),
+            None => Ok(()),
+        }
+    };
+    if let Some(path) = &args.request {
+        whole(
+            "--request",
+            "runs a request whole, its scope, its query and its view",
+        )?;
+        let text = if path == "-" {
+            let mut text = String::new();
+            std::io::stdin().read_to_string(&mut text)?;
+            text
+        } else {
+            std::fs::read_to_string(path)
+                .with_context(|| format!("reading the request from {path}"))?
+        };
+        let value: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+            fail(
+                SearchError::Scope {
+                    kind: "tree",
+                    message: format!("the request is no JSON: {e}"),
+                    offers: Vec::new(),
+                },
+                json,
+            )
+        })?;
+        let asked = Asked::read(&value).map_err(|e| fail(e.into(), json))?;
+        asked.request.check().map_err(|e| fail(e.into(), json))?;
+        let (store, intent) = open_store_and_intent()?;
+        let corpus = Corpus::load(&store, &intent, asked.request.scope.realm.as_ref())
+            .map_err(|e| fail(e, json))?;
+        let answered = asked.answer(&corpus).map_err(|e| fail(e, json))?;
+        return emit(&answered, json, |a| answer_text(a, args.routes));
+    }
+    if let Some(token) = &args.next {
+        whole(
+            "--next",
+            "continues an answer whole, the token naming its query, its view and its order",
+        )?;
+        let mut request = Request::from_token(token).map_err(|e| fail(e.into(), json))?;
+        if let (Some(limit), View::Rows(rows)) = (args.limit, &mut request.view) {
+            rows.limit = Some(limit);
+        }
+        request.check().map_err(|e| fail(e.into(), json))?;
+        let (store, intent) = open_store_and_intent()?;
+        let corpus = Corpus::load(&store, &intent, request.scope.realm.as_ref())
+            .map_err(|e| fail(e, json))?;
+        let answered = answer(&corpus, &request).map_err(|e| fail(e, json))?;
+        return emit(&answered, json, |a| answer_text(a, args.routes));
+    }
     if let Some(names) = &args.describe {
+        if args.print_request {
+            whole_describe(json)?;
+        }
         let described = describe(names).map_err(|e| fail(e.into(), json))?;
         return emit(&described, json, describe_text);
     }
@@ -246,9 +345,10 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         args.sum.clone(),
         args.explain.clone(),
         Rows {
-            limit: Some(args.limit),
+            limit: Some(args.limit.unwrap_or(DEFAULT_LIMIT)),
             sort: args.sort.clone(),
             desc: args.desc,
+            after: None,
         },
     )
     .map_err(|e| fail(e.into(), json))?;
@@ -264,13 +364,41 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         },
         view,
         context,
+        basis: None,
     };
     // an authoring error is said before the store is read
     request.check().map_err(|e| fail(e.into(), json))?;
     let (store, intent) = open_store_and_intent()?;
     let corpus = Corpus::load(&store, &intent, realm.as_ref()).map_err(|e| fail(e, json))?;
+    if args.print_request {
+        // the request as it was bound, its account and its realm
+        // resolved by the store it would be run on; nothing is asked
+        let mut request = request;
+        request.scope.account = Some(
+            corpus
+                .account_name
+                .clone()
+                .unwrap_or_else(|| corpus.basis.account.clone()),
+        );
+        request.scope.realm = Some(corpus.realm.clone());
+        println!("{}", serde_json::to_string_pretty(&request)?);
+        return Ok(());
+    }
     let answered = answer(&corpus, &request).map_err(|e| fail(e, json))?;
     emit(&answered, json, |a| answer_text(a, args.routes))
+}
+
+/// `--print-request` prints the request the words typed make, and
+/// `--describe` makes none.
+fn whole_describe(json: bool) -> Result<()> {
+    Err(fail(
+        SearchError::Scope {
+            kind: "view",
+            message: "`--print-request` prints the request a search would run: --describe has nowhere to stand beside it".to_string(),
+            offers: Vec::new(),
+        },
+        json,
+    ))
 }
 
 /// The keys of `--count`, as a terminal spells them: a comma list, where
@@ -555,6 +683,13 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         ));
     }
     line(basis_text(&a.basis));
+    if let Some(before) = &a.before {
+        line(format!(
+            "then    {} where this route was printed — {}",
+            plural(before.count, "match", "matches"),
+            before.counted_at.against(&a.basis)
+        ));
+    }
 
     if !a.terms.is_empty() {
         line(format!(
@@ -733,8 +868,17 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
     }
     match &a.view {
         ViewOut::Rows(rows) if rows.left_out > 0 => line(format!(
-            "more    {} of {} shown: a larger --limit returns the rest (--next: not built, step 10)",
-            rows.returned, a.total.matched
+            "more    {} of {} shown: {}",
+            if rows.returned == 0 {
+                "none".to_string()
+            } else {
+                format!("rows {}–{}", rows.after + 1, rows.after + rows.returned)
+            },
+            a.total.matched,
+            match &rows.next {
+                Some(next) => next.command(),
+                None => "a larger --limit returns the rest".to_string(),
+            }
         )),
         ViewOut::Rows(_) => {}
         ViewOut::Counts(counts) => {

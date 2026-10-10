@@ -72,6 +72,8 @@ pub enum ErrorKind {
     /// A path `--explain` was given that the query has no node at: the
     /// query's nodes are listed with their paths.
     NoSuchPath,
+    /// What `--next` was given is no token an answer printed.
+    Token,
     /// A construct of the reference this build does not evaluate yet: an
     /// error of its own, never the unknown-name error, never undecided,
     /// never an empty answer (the build plan, rule 1).
