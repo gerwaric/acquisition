@@ -1,7 +1,7 @@
 //! `acq search` and `acq show`: the clap adapter of `acquisition-search`
 //! and its rendering. No daemon, no network: the store is read directly,
-//! as `acq tabs` reads it. Rulings: `decisions/search.md`; the surface:
-//! `search/DESIGN.md`, "The request at a terminal".
+//! as `acq tabs` reads it. Rulings: `decisions/search.md`; the surface is
+//! the clap help below, which `CLI-REFERENCE.md` holds whole.
 //!
 //! # As built
 //!
@@ -15,12 +15,12 @@
 //!   text prints the message and each reading on a line of its own,
 //!   ready to paste.
 //! - **An answer never prints a command this build refuses** (the build
-//!   plan, rule 5): a block the reference bounds with a route to the whole
+//!   plan, rule 5): a block invariant 5 bounds with a route to the whole
 //!   prints the count left out and the unbuilt construct's name. The flags
 //!   of later steps exist, so that typing one is refused by that name
 //!   (`acquisition_search::not_built`) and never as an unknown flag.
 //! - **`--next`, `--request` and `--print-request` exchange the
-//!   request** (the reference, *Two values*; C104, C100): a token is a
+//!   request** (`answer.rs`; C104, C100): a token is a
 //!   continuation's request and `--next` runs it, `--request` runs one
 //!   read from a file — or a count's route, as an answer's `--json`
 //!   holds it — and `--print-request` prints the request the words
@@ -29,8 +29,8 @@
 //!   word of scope, query or view beside one is an error, but `--limit`
 //!   beside a token, whose place does not depend on it.
 //! - **`--explain`, `--context` and `show --against` are encodings** of
-//!   what the request and `show` carry (`answer.rs`, `show.rs`; the
-//!   reference, *Explain*): the view's conflicts are the crate's to say
+//!   what the request and `show` carry (`answer.rs`, `show.rs`): the
+//!   view's conflicts are the crate's to say
 //!   (`View::of`), the context's word is the crate's to read, and what a
 //!   zero answer offers is printed as the commands the crate makes of its
 //!   requests (`Request::command`), each run by the test that runs every
@@ -454,8 +454,8 @@ fn whole_describe(json: bool) -> Result<()> {
 
 /// The keys of `--count`, as a terminal spells them: a comma list, where
 /// `line:` takes the rest of the list as its texts — `line:resist,life` is
-/// the vocabulary narrowed twice, a table each (the reference's synopsis,
-/// `--count line[:text,…]`) — and a text is a pattern after `~`. A text
+/// the vocabulary narrowed twice, a table each (`--count`'s help,
+/// `line[:text,…]`) — and a text is a pattern after `~`. A text
 /// with a comma, or a `~` of its own, is quoted, `"…"`, with the
 /// language's three escapes (`\"`, `\\`, `\n`) and no other; what is
 /// quoted is the text as written, never syntax, and a quote that does not
@@ -615,7 +615,7 @@ fn slot_number(n: Option<f64>) -> String {
 }
 
 /// A name and a type line as the game shows them together; a rendering,
-/// never a field (the reference, *Item-level*).
+/// never a field (`derive.rs`).
 fn title(name: Option<&str>, typeline: Option<&str>) -> String {
     match (name, typeline) {
         (Some(name), Some(typeline)) => format!("{name} {typeline}"),
@@ -989,7 +989,7 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                 .for_each(&mut line);
         }
         // one node, forced each way: the words are literal — forced,
-        // never removed, never a contribution (the reference, *Explain*)
+        // never removed, never a contribution (`answer.rs`)
         ViewOut::Explain(explain) => {
             let counted = |matched: usize, undecided: usize| {
                 let mut out = plural(matched, "match", "matches");
@@ -1694,7 +1694,7 @@ mod tests {
 
     /// The count list's grammar, both ways: every spelling a continuation
     /// prints (`answer::listed_text`) reads back as the key it encodes,
-    /// and what the reference's synopsis shows reads as it says.
+    /// and what `--count`'s help shows reads as it says.
     #[test]
     fn a_count_list_reads_back_what_a_continuation_prints() {
         for (typed, read) in [

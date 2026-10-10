@@ -2,12 +2,10 @@
 //! that answers, defined once as reviewed reference data (C68, C106), so
 //! that it has one meaning on every surface.
 //!
-//! The words are `search/DESIGN.md`'s reference (*Values*, *A sum's
-//! status*); the rule that decides a total is this doc's (C94, taken from
-//! the contract detail 2026-09-23). How a computed value is asked for,
-//! evaluated and shown is `pseudo.rs`; what reference data admits, and the
-//! admission test the table passed, is the contract detail (C106), cited
-//! and not restated.
+//! The rule that decides a total is this doc's (C94). How a computed
+//! value is asked for, evaluated and shown, and a sum's status, is
+//! `pseudo.rs`; what reference data admits, and the admission test the
+//! table passed, is the crate's doc (C106), cited and not restated.
 //!
 //! # Decisions as recorded
 //!
@@ -131,7 +129,7 @@
 //!   of a mean, so the loader refuses a half weight on a row whose slot is
 //!   `avg` and on a ranged total, whose `avg` is a mean. A total is never
 //!   rounded: `94.5` prints as `94.5`, and `>=94.5` is the comparison the
-//!   reference's arithmetic rule gives it (*Slots*: exact in decimals).
+//!   arithmetic rule gives it (`exact.rs`: exact in decimals).
 //! - **What no total reads is said once, in the table's header** (J29):
 //!   `leaves_out`, the arrays by GGG's key, and `leaves_out_rule`, the
 //!   rule as the table's source states it — on no row, since it is no

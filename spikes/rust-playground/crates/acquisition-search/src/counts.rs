@@ -2,10 +2,34 @@
 //! items of an answer grouped by a key, one table for each key or one
 //! crossed table of two, with one summed value beside each count.
 //!
-//! The shapes are `search/DESIGN.md`'s reference (*The request at a
-//! terminal*, the worked example); the rules that decide a count are this
-//! doc's (C95, C105; taken from the contract detail 2026-09-23). The
-//! totals table a sum may name is `totals.rs` (C94).
+//! The rules that decide a count are this doc's (C95, C105); the flags
+//! are the clap help's. The totals table a sum may name is `totals.rs`
+//! (C94).
+//!
+//! # Decisions as recorded
+//!
+//! Count views (C95; E4 and E5 accepted 2026-09-22): choose `--count` or
+//! `--cross`, never both. `--cross` takes exactly two fields; `line` is
+//! counted in its own vocabulary table. `--sort` orders item rows and is an
+//! error with either count view; tables are ranked by their counts.
+//! `--sum` requires one of those count views: no standalone grand total.
+//! It adds one number per item: a numeric field or an explicit item
+//! `sum( … )`. A raw line projection is an error offering the item sum,
+//! never an implicit choice of its largest occurrence (C95; E2 accepted
+//! 2026-09-22). For example, `--sum 'sum("# to maximum Life")'` adds all
+//! matching life lines on each item before adding the items' totals.
+//! A computed value (`pseudo.<name>`; C94, C101) defines its own
+//! contributors and is summed as a numeric field is; a ranged one with no
+//! slot word is its `avg` (`pseudo.rs`).
+//! `--limit` bounds rows or each table's values (a crossed table's cells),
+//! while `none` and `undecided` remain visible. The bucket selectors and
+//! the vocabulary's presence-based `undecided` (C105; E1 and E3 accepted
+//! the same day) are defined below, under
+//! "As built"; zero undecided does not assert that every line was readable.
+//!
+//! Computed values in the vocabulary read — owner, 2026-09-19: "agreed and
+//! we will see what this does to implementation, but it's always easier to
+//! cut stuff out than add it in".
 //!
 //! # As built
 //!
@@ -53,7 +77,7 @@
 //! - **A value outside a closed list has a count and no route**, and says
 //!   what it needs: a rarity, a source or a flag GGG adds is derived and
 //!   counted the day it appears and cannot be asked for until the list
-//!   gains it (the build plan, rule 5; the reference, *Item-level*).
+//!   gains it (the build plan, rule 5; `bind.rs`).
 //! - **A table is bounded** (invariant 5): its values ranked by how many
 //!   items carry each, then by the value, the first `limit` listed and the
 //!   rest counted — in values, the unit cut. `none` and `undecided` are
@@ -89,7 +113,7 @@
 //!   every total's definition prints of what no total reads (J29;
 //!   owner, 2026-10-08: "i approve your recommendation") — none under
 //!   `line` alone (T5, `search/LEDGER.md`,
-//!   "Holes ruled"; the reference: "marked computed"; `pseudo::matching`),
+//!   "Holes ruled"; `pseudo::matching`), marked computed,
 //!   each with the count of the
 //!   matches carrying it — its value established, as `has:` of it asks —
 //!   its route, and the sum beside it; ranked by that count, then by
@@ -999,7 +1023,7 @@ struct Row {
 }
 
 /// The words a template's numbers go by, in order: `low` and `high` for a
-/// ranged pair, `arg<N>` for the rest (the reference, *Slots*).
+/// ranged pair, `arg<N>` for the rest (`template.rs`).
 fn slot_names(template: &str) -> Vec<String> {
     let slots = crate::template::slots(template);
     (1..=slots.count)

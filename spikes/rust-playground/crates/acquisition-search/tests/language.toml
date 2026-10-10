@@ -1,5 +1,5 @@
 # The language corpus (C104; search/LEDGER.md, step 1): every
-# construct of the reference (search/DESIGN.md, "The language reference")
+# construct of the language
 # at least once, every error the grammar defines with the readings it
 # shows, and the acceptance set's queries. `tests/language.rs` runs it and
 # refuses a construct of its list that has no case here.
@@ -8,7 +8,7 @@
 # back as (its tree must then print and parse to itself), or `error`, the
 # kind, with `readings` when the error shows them — exactly, in order. A
 # `[[value]]` is the same for what `--sort` and `--sum` take. Expectations
-# are written by hand from the reference, never pasted from the printer.
+# are written by hand from the rules, never pasted from the printer.
 # Literal strings ('''…''') throughout: a backslash here is a backslash.
 
 # ---- composition -----------------------------------------------------------
@@ -721,7 +721,7 @@ construct = "sort.computed"
 text = '''sum("# to maximum Life")'''
 canonical = '''sum(line("# to maximum Life").arg1)'''
 
-# ---- the reference's worked example ---------------------------------------------------------
+# ---- the worked example (answer.rs) ---------------------------------------------------------
 
 [[case]]
 construct = "worked_example"

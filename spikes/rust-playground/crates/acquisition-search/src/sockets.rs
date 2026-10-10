@@ -5,9 +5,7 @@
 //! tree: what `linked( … )` means is `group.rs`'s, which reads the counts
 //! here.
 //!
-//! The words are `search/DESIGN.md`'s reference (*Members*, *Values*);
-//! the rules that decide a count are this doc's (C101; taken from the
-//! contract detail 2026-09-24).
+//! The rules that decide a count are this doc's (C101).
 //!
 //! # Decisions as recorded
 //!
@@ -22,7 +20,7 @@
 //!   `size` its own count. Every socket counts in `sockets`, whatever its
 //!   colour: an abyssal socket (GGG's `A`) and a resonator's (`DV`) are
 //!   sockets, each in a group of its own on the census's copy; the
-//!   colours a query names are the reference's four, so an abyssal
+//!   colours a query names are four, so an abyssal
 //!   socket is asked for by the line every such item displays (`"Has #
 //!   Abyssal Sockets"`) and a resonator by its base (K1; owner,
 //!   2026-09-24: "agreed").

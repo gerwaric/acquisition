@@ -125,7 +125,7 @@ fn a_line_is_kind_template_numbers() {
     assert!(implicit.flags.is_empty());
 }
 
-/// The reference, *Slots*: exactly one `# to #` is ranged; a further number
+/// `template.rs`: exactly one `# to #` is ranged; a further number
 /// is positional; two pairs are not ranged; `(#-#)` never reads `# to #`.
 #[test]
 fn the_ranged_rule_names_low_high_and_avg() {
@@ -177,7 +177,7 @@ fn the_ranged_rule_names_low_high_and_avg() {
     assert_eq!(line(&it, "Base duration is # seconds").numbers, [Some(1.6)]);
 }
 
-/// The reference, *Strings*: a mod over several rows is one occurrence with
+/// `derive.rs`: a mod over several rows is one occurrence with
 /// one template, its row break `\n` whatever the body wrote; a phrase
 /// tests each row on its own.
 #[test]
@@ -407,7 +407,7 @@ fn properties_and_requirements_are_displayed_strings() {
     assert!(ring.unread.is_empty());
 }
 
-/// The reference, *Item-level*: what a phrase is tested against — and the
+/// `derive.rs`: what a phrase is tested against — and the
 /// flavour text, the description and the note are not.
 #[test]
 fn displayed_is_the_header_the_properties_and_every_line() {
@@ -436,7 +436,7 @@ fn displayed_is_the_header_the_properties_and_every_line() {
     assert!(matches!(wheres[6], Shown::Line(l) if l.numbers == [Some(92.0)]));
 }
 
-/// The reference, *Item-level*: an item with no name lacks it — known
+/// `derive.rs`: an item with no name lacks it — known
 /// absence. A gem carries no rarity; the deriver reads and does not
 /// interpret, so the frame sits beside it.
 #[test]

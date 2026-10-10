@@ -1,4 +1,4 @@
-//! Membership (`search/DESIGN.md`, *Membership*; C108, C100; the build
+//! Membership (`corpus.rs`, `answer.rs`; C108, C100; the build
 //! plan, step 10 and gap 3, step 11d): `live` by default, `all` on
 //! request — the removed beside the live, each marked with when it left,
 //! at the place it was last seen — or `removed`, those alone; through the crate's boundary, a request in, an

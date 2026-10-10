@@ -211,7 +211,7 @@ fn c90_an_exact_template_names_a_mod_by_its_whole_text_or_by_a_row() {
     assert_eq!(follow(&s, &term["undecided"]), ["long", "twice"]);
 }
 
-/// The reference, *Strings* (owner, 2026-09-19: "it makes sense they are
+/// `derive.rs` (owner, 2026-09-19: "it makes sense they are
 /// a single occurrence"): a mod named by a row is one occurrence — its
 /// source and its flags are its rows', a row shows it whole, and it is
 /// shown once however many of its rows a term names.
@@ -257,7 +257,7 @@ fn a_mod_named_by_a_row_is_one_occurrence() {
     assert_eq!(twice["matched"][0]["shows"].as_array().unwrap().len(), 1);
 }
 
-/// C92, the reference's *Slots*: named by a row, a slot word names that
+/// C92, `template.rs`: named by a row, a slot word names that
 /// row's numbers — `arg1` is the row's first number, whatever the rows
 /// before it display — and named by its whole text, the mod's in order.
 /// A comparison, a sum, a largest and the together count read the same
@@ -619,7 +619,7 @@ fn c92_a_number_beside_two_rows_named_together_is_refused() {
     );
 }
 
-/// C92, the reference's *Slots* (the same look, finding 1): what is not
+/// C92, `template.rs` (the same look, finding 1): what is not
 /// refused is read as it was — two rows named with no number beside
 /// them, alternatives each naming its own row, a row asked of the mod's
 /// text, a not of a name, a mod named by its whole text beside a row of

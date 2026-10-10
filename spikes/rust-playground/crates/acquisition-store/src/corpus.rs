@@ -138,8 +138,8 @@ pub enum RealmScope<'a> {
     All,
 }
 
-/// Which items a read hands over (C108; the search reference,
-/// *Membership*): the live ones, or every item the file holds, each
+/// Which items a read hands over (C108; the search crate's
+/// `corpus.rs`): the live ones, or every item the file holds, each
 /// removed one with when it left.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Membership {

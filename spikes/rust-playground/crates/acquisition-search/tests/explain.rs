@@ -1,8 +1,7 @@
-//! Why not (`search/DESIGN.md`, *Explain*, *When the total is zero*, *The
-//! request at a terminal*; the build plan, step 10): `--explain`,
+//! Why not (`answer.rs`, `tree.rs`; the build plan, step 10): `--explain`,
 //! `--context corpus` and the zero block's offer of them, through the
 //! crate's boundary — a request in, an answer out, as JSON. Every count
-//! is worked by hand on the reference's seven items (`common::worked`)
+//! is worked by hand on the worked example's seven items (`common::worked`)
 //! before it was run: a forced node is the query with that node replaced
 //! by `true()` or `false()`, so each cell is what the build answers the
 //! transformed query, typed.

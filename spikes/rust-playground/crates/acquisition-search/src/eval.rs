@@ -1,11 +1,9 @@
 //! Evaluation (C92, C93): one bound term asked of one held item, and the
 //! tree composed over the answers.
 //!
-//! The words are `search/DESIGN.md`'s reference (*Slots*, *Composition*,
-//! *A sum's status*); the rules that decide an answer are this doc's,
-//! taken from the contract detail 2026-09-23 (C92 — slots, the sort
+//! The rules that decide an answer are this doc's (C92 — slots, the sort
 //! scalar, the together count; C93 — composition and witnesses; C95 — a
-//! sum's status).
+//! sum's status, whose table is `pseudo.rs`'s).
 //!
 //! # Decisions as recorded
 //!
@@ -18,6 +16,11 @@
 //!   fixed item scope, before any limit, with no short-circuit omission;
 //!   root matches and root undecided are separate answer counts
 //!   (`answer.rs`).
+//! - **C93 — `undecided(x)`**, `x` a thing or a term, is true when its
+//!   value or its truth cannot be established. Always decided itself;
+//!   known absence does not satisfy it. A reason says why and what might
+//!   help — *a refresh will not help, a reference update may*; *a refresh
+//!   may help* — and these are hints, never guarantees.
 //! - **C92 — the together count** is a diagnostic beside C93's counts,
 //!   never a fifth bucket: for a lower bound on a one-slot line selector,
 //!   an item counts once when no occurrence meets the bound and the

@@ -6,8 +6,8 @@
 //! the term, the count, `show` and the help all ask it.
 //!
 //! What reference data admits, and the admission test both tables passed,
-//! is `search/DESIGN.md`'s contract detail (C106 — what reference data
-//! admits, and the test), cited and not restated. The class is `class.rs`'s
+//! is the crate's doc (C106 — what reference data admits, and the
+//! test), cited and not restated. The class is `class.rs`'s
 //! and the buckets of a count are `counts.rs`'s (C105).
 //!
 //! # Decisions as recorded

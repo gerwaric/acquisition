@@ -3,11 +3,16 @@
 //! evaluator, the answer's routes, what a selector resolved to, the zero
 //! block, the sort.
 //!
-//! The words are `search/DESIGN.md`'s reference (*Members*, *Slots*); the
-//! rules that decide what a group means are this doc's and `eval.rs`'s
-//! (C92, C93; taken from the contract detail 2026-09-23).
+//! The words a group takes are `--describe line` and `--describe linked`;
+//! the rules that decide what a group means are this doc's and
+//! `eval.rs`'s (C92, C93).
 //!
 //! # Decisions as recorded
+//!
+//! The owner's words (2026-09-19, verbatim but for spelling):
+//!
+//! - `line(…)` keeps its name over `stat(…)` and `mod(…)` — the word says
+//!   what the search sees, what the item displays: "I agree with line()".
 //!
 //! **A group's meaning has one reader (the build plan, step 4b).** Four
 //! outside audits of the first surface found one fault five times: what a
@@ -859,8 +864,7 @@ pub(crate) enum LineKind<'a> {
 /// The exact term that selects one template's occurrences of one kind, as
 /// a vocabulary row carries it (C97). `=` is any-case, so where the corpus
 /// holds another spelling of the template — `twin` — the term is a pattern
-/// that turns case back on, which selects this spelling alone (the
-/// reference, *Members*).
+/// that turns case back on, which selects this spelling alone (the module doc).
 pub(crate) fn line_exactly(template: &str, twin: bool, kind: LineKind<'_>) -> Node {
     let test = |attr: &str, op: Op, text: String| Member::Test {
         attr: attr.to_string(),

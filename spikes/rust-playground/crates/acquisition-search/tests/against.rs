@@ -2,7 +2,7 @@
 //! step 10): the item as `show` reads it, and beside it the query's
 //! canonical text, the root's outcome on this item and each node's, with
 //! what a row shows of a matched term and what an undecided item says of
-//! its reason. The seven items of the reference's worked example against
+//! its reason. The seven items of the worked example against
 //! its query, each worked by hand.
 
 mod common;

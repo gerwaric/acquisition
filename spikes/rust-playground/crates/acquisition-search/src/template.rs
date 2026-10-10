@@ -1,7 +1,40 @@
-//! What a quoted template says about its own numbers (C90, C92; the
-//! reference, *Slots*). A template is the displayed English with each
+//! What a quoted template says about its own numbers (C90, C92): the
+//! words that name a number. A template is the displayed English with each
 //! number replaced by `#`, so its slots are a property of the string and
 //! every check here needs no corpus: validity never depends on one.
+//!
+//! # The slot words
+//!
+//! ```text
+//!   arg1 arg2 arg3 …    every number of a template by position, counting from 1 (arg2 is the
+//!                       second # of the template), a ranged pair's two numbers included
+//!   low  high  avg      on a ranged line: a template with exactly one `# to #`. low and high are
+//!                       that pair, avg their mean.
+//!                         "Adds # to # Cold Damage"                  low=arg1  high=arg2
+//!                         "# to # Added Physical Damage per # Armour or Evasion Rating on Shield"
+//!                                                                    low=arg1  high=arg2  arg3 the per-N
+//!   two `# to #`        not ranged: low, high or avg on it is an error that lists arg1 … arg4
+//!   (#-#)               "Bow: Adds (#-#) to (#-#) Cold Damage" describes possible rolls and never
+//!                       reads `# to #`: positional only — a line, and searchable, like any other
+//! ```
+//!
+//! # The owner's words (2026-09-19, verbatim but for spelling)
+//!
+//! - Positions are `arg<N>`, his form, after he asked whether `#1` and `#2`
+//!   could lose the special character: the template is a format string and
+//!   its numbers are the arguments filled into it, so every slot word is a
+//!   plain word and `#` means one thing, the placeholder inside a quoted
+//!   template.
+//! - The ranged line. On the shield line: "average is of the first two
+//!   numbers". On `(#-#)`: "real items will only ever have 'Adds # to # Cold
+//!   Damager'. The ranges-of-range are the underlying mods that allow the
+//!   upper and lower limits to be randomized, but they will not appear in
+//!   real items." The two-pair error was proposed at the harvest and agreed
+//!   the same day. The census (`item-facts/scripts/ranged-split.py`): 167
+//!   templates with one pair alone, 17 with a further number — the pair
+//!   first in every one — 2 with two pairs (two lines in the corpus), 423
+//!   with several numbers and no pair, 166 `(#-#)`, every one under a slot
+//!   prefix in `explicitMods`.
 
 use crate::error::{ErrorKind, LanguageError};
 use crate::tree::{Member, Op, Value, arg_index};

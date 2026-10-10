@@ -3,10 +3,6 @@
 //! store type, no file, no clock — so it can move under the store
 //! unchanged if persistence ever fires (C98).
 //!
-//! What the words mean is `search/DESIGN.md`'s reference (*Strings*,
-//! *Item-level*, *Slots*), cited here by section and not restated (the
-//! build plan, rule 6).
-//!
 //! # As built
 //!
 //! **The deriver reads; it does not interpret.** A field is what GGG
@@ -17,6 +13,23 @@
 //! spellings GGG has for nothing: an empty string, and an `ilvl` of 0,
 //! which the game shows no item level for (owner, 2026-09-19).
 //!
+//! - **The header** is three text things, each what GGG gives (`name`,
+//!   `typeLine`, `baseType`) under the normalisation every displayed
+//!   string gets. An item with no name — a magic or normal item, an
+//!   unidentified rare — lacks it: known absence, so `name:` is false and
+//!   `-has:name` finds it; an unread body is undecided. `typeline`
+//!   carries what the base does not, a magic item's affix names among it.
+//!   A renderer may print name and type line together; that never changes
+//!   what the fields mean, and a phrase never matches across them.
+//! - **What a phrase is tested against** ([`Item::displayed`]): each
+//!   displayed string on its own, never across two — the name, the type
+//!   line, the base, and every line as shown with its numbers:
+//!   properties, requirements, every mod line. Numbers are characters —
+//!   `"Level 1"` also finds `"Level 10"` — where `template:` sees only
+//!   the `#`-form and never a number. Not searched: flavour text,
+//!   description text, the note (its own field). A socketed gem is its
+//!   own item, found by its own text, its place showing what it sits in;
+//!   the parent's text does not include it.
 //! - **Place is never read from a body (C103).** [`Facts`] is handed in
 //!   and handed back; a body's own `league` or `realm` is ignored.
 //! - **Displayed strings** (`shown`): a row break is `\n` whatever the
@@ -137,6 +150,32 @@
 //! `nextLevelRequirements`, `weaponRequirements`,
 //! `supportGemRequirements`, and poe2's `gemTabs` and `grantedSkills` (the
 //! plan's holes table, D4).
+//!
+//! # The owner's words (2026-09-19, verbatim but for spelling)
+//!
+//! - A mod displayed over several rows: "the two-line mods should
+//!   contribute to relevant pseudo-lines, but it makes sense they are a
+//!   single occurrence." On the header, asking for the third field: "should we
+//!   add something like type line to the search in addition to name and
+//!   base?" — the C++ app's pretty name, the two joined, is a rendering,
+//!   never a field.
+//! - Rarity and the frame: "Rarity is now a first-class field in Item
+//!   objects, and it can be Normal, Magic, Rare, or Unique. However, there
+//!   is also a frameType (deprecated enum int, but still present) and a
+//!   frameTypeId string … I think this means we need to support both
+//!   'rarity' and 'frame' or 'frameType' as a search." On an ilvl of 0 as
+//!   absent, and on a vaal gem's base skill as lines and displayed strings
+//!   of their own: "Agreed", each. On the requirements, after the builder
+//!   had made each its own string: "In the trade site, item level is
+//!   rendered as "Item Level: \<N>" and the required level is "Requires
+//!   Level \<N>"", then "I agree on the display row for requirements with
+//!   each requirement kept separately." The C++ app builds the same row
+//!   (`src/ui/itemtooltiptext.cpp`, name before value throughout); here
+//!   GGG's `displayMode` orders each, `159 Str`. On the item level, a
+//!   field only until then: "Let's make the item level a displayed string."
+//!   Measured over the census's store copy
+//!   (22,721 live items): 8,297 carry no rarity, 7,903 an ilvl of 0, 457 a
+//!   base skill of 2,251 lines.
 
 use serde::{Deserialize, Serialize, Serializer};
 use serde_json::{Map, Value};
@@ -173,7 +212,7 @@ pub struct Facts {
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Item {
     pub facts: Facts,
-    /// The header (the reference, *Item-level*): GGG's `name`, `typeLine`
+    /// The header (the module doc): GGG's `name`, `typeLine`
     /// and `baseType`; an empty string is an item without one.
     pub name: Option<String>,
     pub typeline: Option<String>,
@@ -291,7 +330,7 @@ pub struct Row {
     pub first: Option<usize>,
 }
 
-/// The numbers a slot word names (the reference, *Slots*): a mod's, in
+/// The numbers a slot word names (`template.rs`): a mod's, in
 /// order, or those of one row of it.
 #[derive(Debug, Clone, Copy)]
 pub struct Numbers<'a> {
@@ -552,7 +591,7 @@ impl Item {
     }
 
     /// Every displayed string a phrase is tested against, row by row (the
-    /// reference, *Item-level*): the header, each property, the item
+    /// module doc): the header, each property, the item
     /// level, the requirements' row, each row of each line. Never the flavour text,
     /// the description or the note.
     pub fn displayed(&self) -> impl Iterator<Item = (Shown<'_>, &str)> {
@@ -1042,7 +1081,7 @@ impl<'a> Numbers<'a> {
         self.numbers
     }
 
-    /// The number a slot word names (the reference, *Slots*); absent when
+    /// The number a slot word names (`template.rs`); absent when
     /// the template has no such slot, or when the numbers are not the
     /// template's `#`s.
     pub fn slot(&self, word: &str) -> Slot {
@@ -1165,8 +1204,8 @@ fn property(array: &str, element: &Value) -> Result<Option<Property>, String> {
     }))
 }
 
-/// A displayed string as the player sees it (C90; the reference,
-/// *Item-level*: "markup reduced to what the player sees").
+/// A displayed string as the player sees it (C90; the module
+/// doc: markup reduced to what the player sees).
 pub(crate) fn shown(raw: &str) -> String {
     let text = raw.replace("\r\n", "\n").replace('\r', "\n");
     unbracketed(&unstyled(&text))

@@ -53,8 +53,10 @@
 //!   tab's) from the header. An item whose location the header does not
 //!   list cannot occur — the read hands over live items at live
 //!   locations, and under `all` the retired locations with the removed
-//!   items — and would carry its ids and no names.
-//! - **Membership is the read's** (C108; the reference, *Membership*):
+//!   items — and would carry its ids and no names. A folder's name is no
+//!   part of an item's place. A stash item has no character and a
+//!   character's no tab: known absence.
+//! - **Membership is the read's** (C108):
 //!   a corpus holds the live items, or all of them, a removed one at the
 //!   place it was last seen with when it left (`Facts::removed_at`) and a
 //!   price that is lacked (`price.rs`) — or the removed alone, which are
@@ -333,7 +335,7 @@ pub struct Corpus {
     pub realm: Realm,
     pub coverage: Coverage,
     /// Which items it holds: the live ones, every item with the removed
-    /// marked, or the removed alone (the reference, *Membership*).
+    /// marked, or the removed alone (the module doc).
     pub membership: Membership,
     /// The ids the scope held and no item of this corpus answers to: under
     /// `live`, an item removed and a tab or a character retired; under

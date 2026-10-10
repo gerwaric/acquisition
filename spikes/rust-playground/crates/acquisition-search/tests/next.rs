@@ -1,5 +1,4 @@
-//! Continuing and exchanging (`search/DESIGN.md`, *Two values*, *The
-//! request at a terminal*, *Outside the first surface*; C98, C100; the
+//! Continuing and exchanging (`answer.rs`; C98, C100; the
 //! build plan, step 10): an answer cut at its limit says how to go on, a
 //! continuation names its basis and is refused across a change, and a
 //! route resubmitted on a later basis reports both counts — through the
@@ -268,7 +267,7 @@ fn a_token_that_is_none_is_refused() {
 /// says what it said when it was printed only where the count has moved
 /// since; a caller who sends the answer's basis beside it is told
 /// whenever the basis has moved, each part named, the count the same or
-/// not (the reference, *One worked example*).
+/// not (`answer.rs`).
 #[test]
 fn a_route_read_back_reports_both_counts_with_its_basis_or_without() {
     let mut s = worked();

@@ -1,14 +1,46 @@
-//! Computed values (the reference, *Values*; C94, C101; the build plan,
+//! Computed values (C94, C101; the build plan,
 //! steps 7, 9c3 and 9d-A): `pseudo.<name>`, one namespace for the named totals
 //! of the table (`totals.rs`), the readings of them and the derived fields
 //! — what a comparison, a sort, a sum or `undecided( … )` consumes when it
 //! names one, and what a row shows of it.
 //!
-//! The words are `search/DESIGN.md`'s reference (*Values*, *A sum's
-//! status*); the rules that decide a computed value are this doc's and
-//! `totals.rs`'s (C94, C101; taken from the contract detail 2026-09-23).
+//! The rules that decide a computed value are this doc's and
+//! `totals.rs`'s (C94, C101). `pseudo.<name>` means computed here, from
+//! this definition; the translation report (C99) says where it
+//! corresponds to one of the site's pseudo stats. The site's 298 pseudo
+//! stats by the mechanism each needs, with the input that admits each, is
+//! `search/pseudo-stats/README.md` (2026-09-18; 109 unresolved, each with
+//! the one read that closes it).
 //!
 //! # Decisions as recorded
+//!
+//! **A sum's status.** One rule for computed totals and item sums, but
+//! what nothing sums to:
+//!
+//! | Situation | Value | A comparison | `undecided(…)` |
+//! | --- | --- | --- | --- |
+//! | contributors complete, and something | the number | ordinary — matched or failed | false |
+//! | contributors complete, and nothing — none, or lines that cancel | an item's `sum( … )`: zero. A total: lacked | a sum: ordinary. A total: lacked, false | false |
+//! | a required contribution cannot be established | incomplete subtotal | undecided | true |
+//! | the total has no definition for this realm | unavailable, with the reason | undecided | true |
+//!
+//! Absent is false and never zero for a *line or property* the item lacks
+//! (C93), and for a *total* of nothing, which the trade site shows no
+//! pseudo for (owner, 2026-09-26: "Yes, let's make it absent to match the
+//! site"); an item's own `sum( … )` of nothing is an honest zero.
+//!
+//! The owner's words (2026-09-19, verbatim but for spelling):
+//!
+//! - One namespace for every computed value, never a kind of line: "i agree
+//!   with 'pseudo' as the namespace now, which means we can fit stuff like
+//!   the various kinds of dps and other calculated items." A line the item
+//!   lacks is false and a sum of nothing is zero; a condition binds to one
+//!   occurrence and a total has none (C92) — so the reuse is at the value,
+//!   where the same `.<slot>` reads a line and a ranged computed value.
+//! - `has:` on a derived field (T2, 2026-09-24: "A ring has no dps"), and
+//!   on a total since a total of nothing is lacked (2026-09-26, above). It
+//!   was refused on a total while every item had one: "agree, no
+//!   has:pseudo".
 //!
 //! - **C101 — the derived fields.** A missing reach is a field to add,
 //!   never a general door: a pseudo that is no sum over lines is a named
@@ -170,8 +202,8 @@
 //!   category's own reasons for the id asked (`category::unread`, the one
 //!   maker a category term reads; [`unread_of`]). What a row shows of a
 //!   total is the lines of the rows that count on the item.
-//! - **A value has the sum's three statuses** ([`Valued`]; the reference,
-//!   *A sum's status*): complete, an incomplete subtotal, or lacked — a
+//! - **A value has the sum's three statuses** ([`Valued`]; *A sum's
+//!   status*, above): complete, an incomplete subtotal, or lacked — a
 //!   derived field whose input the item lacks, a total whose lines sum
 //!   to nothing. Unavailable, a total with no definition for the
 //!   item's realm, is incomplete with nothing readable, as a field that
@@ -206,7 +238,7 @@
 //!   captured counts and the table's provenance its definition prints
 //!   beside that — and none under `line`
 //!   alone, where `--describe` names them (owner, 2026-09-24, T5 in
-//!   `search/LEDGER.md`; the reference, `--count line[:text]`;
+//!   `search/LEDGER.md`;
 //!   `counts.rs`), marked computed, with the count of the matches that
 //!   have it, as `has:` of it asks ([`present`]): one whose value is
 //!   established, and a count one of whose totals is — never one lacked,

@@ -323,7 +323,7 @@ def main():
         "# (search/pseudo-stats/data/table-changes.csv: a change a row, each with the",
         "# captures that ask for it). Every total counts what the site's pseudo of",
         "# that name counts, but where the owner ruled the site wrong. Reviewed as a",
-        "# diff at each change (the admission test, search/DESIGN.md, C106): a",
+        "# diff at each change (the admission test, the crate's doc, C106): a",
         "# convention with a definition — never a judgment. Its rules are the",
         "# script's docstring.",
         "#",

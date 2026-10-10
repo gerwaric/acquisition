@@ -1,5 +1,5 @@
-//! Explain over generated queries and generated items (`search/DESIGN.md`,
-//! *Explain*; the build plan, step 10), through the crate's boundary
+//! Explain over generated queries and generated items (`answer.rs`,
+//! `tree.rs`; the build plan, step 10), through the crate's boundary
 //! alone. Nothing explain answers is new arithmetic: a forced node is the
 //! query with that node replaced by `true()` or `false()`, which a user
 //! could type. So, at every path the answer names:
@@ -36,7 +36,7 @@ fn child(parent: &str, n: usize) -> String {
 }
 
 /// Every path of a returned tree, by this file's own reading of the
-/// reference: the root's children are `0`, `1`, …, a root that is no and
+/// rule (`tree.rs`): the root's children are `0`, `1`, …, a root that is no and
 /// is `0`; a child of an and, an or or a `holds` is `<parent>.<n>`; what a
 /// not negates or `undecided( … )` asks about is `<parent>.0`; inside
 /// `line( … )` or `linked( … )` the group's conjuncts are `<term>.<n>`, a

@@ -3,8 +3,10 @@
 //! value, how terms compose, operators, closed value sets, slots, computed
 //! values, what a count takes, what explains an answer, what is not built,
 //! and the limits it states
-//! (C102). An entry is a name, a line and an example: the reference is
-//! `search/DESIGN.md`, and this is what a terminal can ask of it. Every
+//! (C102). An entry is a name, a line and an example: the language on one
+//! page, so that the owner's seat, an agent and the parser's round-trip
+//! test read the same thing and nobody invents notation. Shapes bind;
+//! flag and key names are the builder's, and this prints them. Every
 //! example printed is a query this build binds, or a key a count takes
 //! (`tests/surface_faults.rs`, `tests/counts.rs`), and every word an entry is
 //! named by can be asked for alone. Printed from the binder's own tables,
@@ -41,7 +43,7 @@ pub struct Describe {
     /// What `--count`, `--cross` and `--sum` take (C95, C97).
     pub counts: Vec<Named>,
     /// What says why an answer is what it is: `--explain`, `--context`
-    /// and `show --against` (the reference, *Explain*).
+    /// and `show --against`.
     pub explain: Vec<Named>,
     /// Every category id with the site's text for it and what makes it
     /// hold (C106; `category.rs`): printed whole, and beside the field
@@ -239,7 +241,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
                 "template",
                 "text",
                 &format!(
-                    "the displayed line with each number a #, the sign in the number; a bare \"T\" means template=\"T\". A mod displayed over several rows is one line: `=` names it by its whole text, a row break written \\n, or by any one of its rows, and named by a row its numbers are that row's; `:` and `~` test the whole text. {}",
+                    "the displayed line with each number a #, the sign in the number — a + typed before a #, as the game and the trade site write a line, is spelling and is dropped; a bare \"T\" means template=\"T\". A mod displayed over several rows is one line: `=` names it by its whole text, a row break written \\n, or by any one of its rows, and named by a row its numbers are that row's; `:` and `~` test the whole text. {}",
                     limit("S52")
                 ),
             )
@@ -490,7 +492,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             })
             || (entry.starts_with("arg1") && crate::tree::arg_index(asked).is_some())
     };
-    // `pseudo` names the computed block, as the reference's namespace does
+    // `pseudo` names the computed block, as the namespace does
     const BLOCKS: [&str; 11] = [
         "fields",
         "line",

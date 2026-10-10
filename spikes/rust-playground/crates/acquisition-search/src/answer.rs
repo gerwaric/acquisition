@@ -2,14 +2,95 @@
 //! and a view in, one answer shape out — the canonical query, the scope,
 //! the basis, the terms block, the total, the rows, and how to go on.
 //!
-//! The shapes are `search/DESIGN.md`'s reference (*Two values*, *One
-//! worked example*, *Explain*, *Invariants of the surface*), cited and not restated
-//! (the build plan, rule 6). This is the crate's boundary: tests pin a
+//! The shapes are shown once, in *The worked example* below; the
+//! invariants cited by number are the crate's doc's. This is the crate's
+//! boundary: tests pin a
 //! request in and an answer out, as JSON, and a frontend's text is a
 //! function of that JSON (C53).
 //!
+//! # The worked example
+//!
+//! Seven pc items: rare rings r1 (life 95, res 65), r2 (20 implicit + 75
+//! explicit, 60), r3 (100, 55), r6 (readable 95, implicit array unread, res
+//! subtotal 65 incomplete), r7 (no life line, 65); r4 a *magic* ring (95,
+//! 70); r5 rare, life 95, res 65, its base missing from the class table.
+//! Two fetched locations, one never fetched. Every count below is worked by
+//! hand from those facts.
+//!
+//! **The request** (shape, not the Rust layout; a request sends `text` *or*
+//! `tree`, an answer returns both):
+//!
+//! ```json
+//! { "scope":  { "account": "A", "realm": "pc", "membership": "live" },
+//!   "query":  { "tree": { "all": [
+//!       { "field": "league", "op": "=", "value": "Standard" },
+//!       { "field": "class",  "op": "=", "value": "Rings" },
+//!       { "field": "rarity", "op": "=", "value": "rare" },
+//!       { "exists": "lines", "where": { "all": [
+//!           { "attr": "template", "op": "=",  "value": "# to maximum Life" },
+//!           { "attr": "arg1",     "op": ">=", "value": 90 } ] } },
+//!       { "value": { "pseudo": "total_res" }, "op": ">=", "number": 60 } ] } },
+//!   "view":   { "rows": { "limit": 20 } } }
+//! ```
+//!
+//! **The answer at a terminal:**
+//!
+//! ```text
+//! query   league=Standard class=Rings rarity=rare line("# to maximum Life" arg1>=90) pseudo.total_res>=60
+//! scope   account A · pc · live · 7 items · 2 locations fetched (oldest 3d, newest 2h)
+//!         1 never fetched · location list seen 2h ago                       more: --view locations
+//! basis   store 3f9a1c0be27d · snapshot 41 · intent 12 · totals v1 · classes v3
+//! terms   each term evaluated independently over live pc items in all leagues
+//!   0    league=Standard                        7 matched
+//!   1    class=Rings                            6 matched · 1 undecided
+//!   2    rarity=rare                            6 matched · 1 failed
+//!   3    line("# to maximum Life" arg1>=90)     5 matched · 1 failed · 1 lacked · 1 reaches 90 only together
+//!   4    pseudo.total_res>=60                   5 matched · 1 failed · 1 undecided
+//! total   1 match · 2 undecided
+//! rows    r1  Two-Stone Ring · rare · Standard / Rings
+//!             +95 to maximum Life (explicit) · pseudo.total_res 65
+//! next    1 of 1
+//! routes  (--routes prints all; one shown)
+//!   term 3 failed, over the scope:
+//!     acq search --account A --realm pc 'line("# to maximum Life") -line("# to maximum Life" arg1>=90)'
+//! ```
+//!
+//! The two undecided items say why and what might help: r5 — *class: base
+//! not in the class table; a refresh will not help, a reference update
+//! may*; r6 — *pseudo.total_res: implicit lines unread; a refresh may
+//! help*. These are hints, never guarantees.
+//!
+//! **The same route under `--json`** — directly resubmittable, carrying its
+//! count and its denominator; the basis it was counted at is the answer's,
+//! stated once (B3, 2026-10-10). Run where its count has moved it reports
+//! both counts, and a caller who sends the answer's `basis` beside it as
+//! `counted_at` is told wherever the basis has moved:
+//!
+//! ```json
+//! { "count": 1, "denominator": "scope",
+//!   "request": { "scope": { "account": "A", "realm": "pc", "membership": "live" },
+//!                "query": { "text": "line(\"# to maximum Life\") -line(\"# to maximum Life\" arg1>=90)" },
+//!                "view":  { "rows": {} } } }
+//! ```
+//!
+//! It returns r2. Appending it to the original query instead would return
+//! nothing, which is why a route is a request and never a fragment. A
+//! bucket of a count view routes *under the query*: counting every item by
+//! class gives `ring 6 · undecided 1`, and the undecided bucket's request
+//! has the query `undecided(class)` and returns r5, which no root-undecided
+//! list would ever contain; a `none` bucket routes by `-has:<key>` (C105).
+//! A crossed cell's route carries both keys. Paths (`0`…`4`, `3.1`) belong
+//! to this exact returned query; after an edit, use the next answer's.
+//!
 //! # As built
 //!
+//! - **The request** — `{account, realm | all, membership}`, the query, a
+//!   view, and a basis when it continues (C98, C100; a route carries none, B3). A
+//!   receiver whose selected account differs refuses it; rebinding is
+//!   deliberate and shown. A request always carries its realm resolved: at
+//!   a terminal an omitted `--realm` over a store holding one realm
+//!   resolves to it and the answer prints it; over a store holding more
+//!   than one it is C96's error.
 //! - **Every term is counted over the whole scope** — matched, failed,
 //!   lacked, undecided — before composition and before the limit, with no
 //!   short circuit (C93). A count that is not zero carries its **route**:
@@ -68,8 +149,7 @@
 //!   instead, with the one maker of a route (`Router`, private), so a
 //!   bucket's route is made as a term's is.
 //! - **A continuation is a request with its basis and its place** (C98,
-//!   C100; the reference, *Two values*, *Outside the first surface*; the
-//!   build plan, step 10): the answer's own request, scope resolved and
+//!   C100; the build plan, step 10): the answer's own request, scope resolved and
 //!   query canonical, with the basis it was counted at and how many rows
 //!   of the order came before. The place is what makes a request a
 //!   continuation: with one, a basis that differs in any part from the
@@ -86,7 +166,7 @@
 //!   that request and nothing else, encoded ([`Request::token`]).
 //! - **A route read back** ([`Asked`]) is the request inside it; the
 //!   answer carries what it said when it was printed beside what it says
-//!   now (the reference, *One worked example*) — where the count has
+//!   now (*The worked example*, above) — where the count has
 //!   moved, or, for a caller who sent the answer's basis with it,
 //!   wherever the basis has, each part named.
 //! - **A zero total** prints, in place of rows: the selectors that
@@ -95,7 +175,7 @@
 //!   sharing its words — a suggestion to type, never a match made for the author
 //!   (S107: never fuzzy-matched); an `id:` that matched nothing, with the
 //!   note that an id is whole (F7); the root's undecided route; and the
-//!   offers (the reference, *When the total is zero*): explain of each
+//!   offers — never their output: explain of each
 //!   part of the query — a child of the root, a root that is no and its
 //!   one part — the part fewest items match first and by path where two
 //!   are equal, ten listed and the rest counted (invariant 5), then the
@@ -103,8 +183,7 @@
 //!   typed. An offer is a request, made by the one maker of a route's
 //!   (`Router::request`), and a command only as every route is one
 //!   ([`Request::command`]): the block computes no forced count.
-//! - **Explain is a view** (the reference, *Explain*; the build plan,
-//!   step 10): it travels in the request as the rows and the counts do,
+//! - **Explain is a view** (the build plan, step 10): it travels in the request as the rows and the counts do,
 //!   so it stands beside neither, and an adapter's flag is an encoding
 //!   of it. The path names a node of the query as returned
 //!   (`tree::nodes`, the one walk that numbers them); the substitution
@@ -118,9 +197,10 @@
 //!   paths; a substitution the binder refuses is the binder's error;
 //!   both are said before any item is read. The answer keeps its terms
 //!   block and its total, shows no rows, and no zero block: its three
-//!   pairs of counts stand where the rows would.
-//! - **The corpus context** (the reference, *The request at a
-//!   terminal*): the answer is the empty query's under whatever view the
+//!   pairs of counts stand where the rows would. Inside a member group
+//!   the substitution is per member: it never creates a member, and an
+//!   unread collection is not a population. Opt-in, one node at a time.
+//! - **The corpus context**: the answer is the empty query's under whatever view the
 //!   request has, and the query typed is carried as set aside — read
 //!   first, so that one that does not bind is the error it is in any
 //!   context, and counted nowhere: no term, no route and no bucket holds
@@ -130,7 +210,7 @@
 //!   name, the occurrence whose slot is the largest, a sum's
 //!   contributors, a computed value's inputs — shown as a matched term's
 //!   evidence is, bounded the same way (`eval::sorted_by`).
-//! - **Membership is the corpus's** (the reference, *Membership*; C108;
+//! - **Membership is the corpus's** (`corpus.rs`; C108;
 //!   the build plan, steps 10 and 11d): `live`; `all`, where the store's
 //!   read hands over every item at the place it was last seen; or
 //!   `removed`, the removed of that read alone. A request naming another
@@ -201,7 +281,7 @@ pub struct Request {
     pub basis: Option<Basis>,
 }
 
-/// What an answer is of (the reference, *The request at a terminal*):
+/// What an answer is of (the clap help):
 /// `matches`, what every answer is unless it says otherwise, or `corpus`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -297,8 +377,7 @@ pub struct QueryInput {
 /// What an answer shows of its matches: rows, or counts of them — one
 /// table for each key, or one crossed table of two (C95) — or, of one
 /// node of the query, the root's counts with it forced true and forced
-/// false, and no rows (the reference, *Explain*). One of the four, as the
-/// reference's synopsis has it.
+/// false, and no rows (the module doc). One of the four views.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum View {
@@ -485,8 +564,8 @@ const TOKEN_PREFIX: &str = "acq1.";
 
 /// What `--request` reads: a request, or what an answer holds one in —
 /// a count's route, the request with its count, and beside them the
-/// basis it was counted at where the caller sends the answer's (the
-/// reference, *One worked example*); a `next`; an offer.
+/// basis it was counted at where the caller sends the answer's
+/// (the module doc); a `next`; an offer.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Asked {
     pub request: Request,
@@ -910,7 +989,7 @@ pub enum ViewOut {
     Explain(Box<ExplainOut>),
 }
 
-/// One node explained (the reference, *Explain*): the root's matched and
+/// One node explained (the module doc): the root's matched and
 /// undecided counts as given, with the node forced true and with it
 /// forced false, each forced pair beside its transformed query. The
 /// words are literal: forced, never removed, never a contribution.
@@ -1026,7 +1105,7 @@ pub struct Zero {
     pub resolved_to_nothing: Vec<Nothing>,
     pub said: &'static str,
     pub undecided: Count,
-    /// What the reference offers here (*When the total is zero*): each a
+    /// What a zero answer offers (the module doc, "A zero total"): each a
     /// request, never its output.
     pub offers: Offers,
 }
@@ -1533,8 +1612,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
 
 /// The root's counts of a transformed query: the query bound and answered
 /// as any query is, by the one evaluator — this function asks it as the
-/// request it is, and reads its total (the reference, *Outside the first
-/// surface*: "by the normal evaluator").
+/// request it is, and reads its total (the module doc, "Explain is a view").
 fn forced(
     corpus: &Corpus,
     router: &Router<'_>,
@@ -1742,7 +1820,7 @@ fn routes(term: &Term) -> Routes {
             };
             // a selector that asks a flag may be open on an occurrence whose
             // flags are unread: such an item did not lack the line, so the
-            // failed route admits it, and stays as short as the reference's
+            // failed route admits it, and stays as short as the worked example's
             // wherever no flag is asked
             let picked = if group.selector_asks_a_flag {
                 Node::Any(vec![

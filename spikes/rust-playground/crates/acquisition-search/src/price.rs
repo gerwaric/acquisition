@@ -45,8 +45,8 @@
 //! - **`price.amount` is the number the price states**: a decimal price's
 //!   decimal, a bulk ratio's `wanted` (C67); `price.lot` is the ratio's
 //!   lot, and a decimal price lacks it — what the owner or the game wrote,
-//!   never a lot of one invented (the plan's foot, P2, the builder's
-//!   recommendation). `price.currency` is the tag of the currency table
+//!   never a lot of one invented (P2, ruled 2026-09-25: 5 and 5/1 stay
+//!   two spellings, as the game keeps them). `price.currency` is the tag of the currency table
 //!   (C68), a closed set whose legal values the table's rows are.
 //! - **What a row shows** of a price term: the price as the listing state
 //!   prints it, the side that decided it, and the target it came from
@@ -187,7 +187,7 @@ impl Priced {
     }
 
     /// A removed item's: resolved, and no price — an item not in the
-    /// stash has no listing state (the reference, *Membership*).
+    /// stash has no listing state (`corpus.rs`).
     pub(crate) fn removed() -> Priced {
         Priced::None {
             kind: "removed".to_string(),

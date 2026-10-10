@@ -422,7 +422,7 @@ fn c92_a_selector_is_the_groups_meaning_wherever_its_comparisons_sit() {
     );
     let request = serde_json::from_value(term["failed"]["request"].clone()).unwrap();
     assert_eq!(ids(&as_json(&answer(&corpus, &request).unwrap())), ["only"]);
-    // the ordinary group's selector is as short as the reference's
+    // the ordinary group's selector is as short as the worked example's
     let plain = as_json(&ask(&corpus, "\"+# to maximum Life\">=90").unwrap());
     assert_eq!(
         plain["terms"][0]["failed"]["request"]["query"]["text"],

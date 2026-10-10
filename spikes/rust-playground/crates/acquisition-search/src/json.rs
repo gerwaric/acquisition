@@ -1,6 +1,6 @@
 //! The tree's JSON form (C104: the tree is accepted and always returned).
 //!
-//! The shapes are the reference's worked example: `{"all": […]}`,
+//! The shapes are the worked example's (`answer.rs`): `{"all": […]}`,
 //! `{"field", "op", "value"}`, `{"exists": "lines", "where": …}` with
 //! `{"attr", "op", "value"}` inside, `{"value": {"pseudo": …}, "op",
 //! "number"}`. Reading is strict — an unknown key or a missing one is an

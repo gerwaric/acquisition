@@ -192,7 +192,7 @@ fn c101_sockets_counts_every_socket_and_a_count_is_decided_where_its_interval_ag
     assert_eq!(row[1]["shown"]["text"], "R 1 element unread");
 }
 
-/// C101: a colour counted over the whole item, in the reference's words
+/// C101: a colour counted over the whole item, in the language's words
 /// for GGG's letters; an abyssal socket is a socket of no colour word; a
 /// socket whose colour could not be read leaves only the colour counts
 /// open, and one whose group could not be read leaves only `links`.

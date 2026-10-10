@@ -1,4 +1,4 @@
-//! `show <id>` (C100, C103; the reference's `acq show`): one item as the
+//! `show <id>` (C100, C103): one item as the
 //! search derives it — its fields, its place, every line with its kind,
 //! template and numbers, what was unread — and the stored body on request,
 //! which is still there when deriving fails.
@@ -12,7 +12,7 @@
 //! the body, turns one that does not parse into a null, and carries the
 //! league the item was stamped with. What the item is socketed in is given
 //! by id, which `show` accepts in turn. The read is over membership
-//! `all` (the reference, *Membership*): a removed item is shown as it
+//! `all` (`corpus.rs`): a removed item is shown as it
 //! was last seen, at the place it left, marked with when
 //! (`Facts::removed_at`), its price lacked; and an id that names a tab or
 //! a character, retired or not, is said to be one, with the search that
@@ -23,8 +23,7 @@
 //! (`category.rs`): the ids a count lists it under, and what left an id
 //! open.
 //!
-//! **`--against '<query>'`** (C100: the why-not; the reference, *The
-//! request at a terminal*) puts beside the item the query's canonical
+//! **`--against '<query>'`** (C100: the why-not) puts beside the item the query's canonical
 //! text and tree, the root's outcome on this item — match, no match,
 //! undecided — and the outcome of each node of the query that has one on
 //! an item (`tree::nodes`: a term, a group of terms; never a condition

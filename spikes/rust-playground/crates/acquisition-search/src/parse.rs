@@ -1,7 +1,6 @@
 //! The parser: a query's text to its tree (C91, C104), over the whole
-//! language of the reference (`search/DESIGN.md`, "The language
-//! reference") — composition, strings, item-level terms, member groups,
-//! slots and values.
+//! language — composition, strings, item-level terms, member groups,
+//! slots and values; `--describe` prints it as this build knows it.
 //!
 //! What it knows and what it leaves. It knows the grammar, the words the
 //! grammar keeps (`and or not`, the calls, `has: is: pseudo. realm:`, the
@@ -27,6 +26,33 @@
 //! template typed with its numbers, and slot words outside their group are
 //! each an error that shows its readings, and every reading is a text this
 //! parser accepts.
+//!
+//! Whitespace is and at the level you are in, and never binds across
+//! levels. Inside quotes `\"`, `\\` and `\n` are the only escapes; `\n` is
+//! the row break of a mod displayed over several rows (`derive.rs`). In a
+//! quoted template a dash after a `#` or a `)` is a range dash, `(#-#)`,
+//! never a sign, and `#%` needs nothing: the `%` is the template's. Names
+//! are words of letters, digits and underscores; a hyphen is never part of
+//! a name, so `-` only ever means not, or a minus sign. Quotes are the
+//! deliberate signal for text: an adapter may offer a plain text box that
+//! wraps its input in `text:` — the query itself never does.
+//!
+//! # The owner's words (2026-09-19, verbatim but for spelling)
+//!
+//! - Names: "for named pseudo-mods, let's use underscored, because dashes
+//!   have meaning elsewhere." With it, the language is shown to be formally
+//!   constructible: a parser and printer with a round-trip test (C104) is
+//!   the first thing built.
+//! - Bare words: "I approve your proposed rule on bare words." It is C91's
+//!   own rule, and it passes the break-later test in the right direction —
+//!   allowing bare words later breaks nothing, forbidding them later would.
+//! - The trade site's spelling of a line: "The trade site accepts "+# ...",
+//!   "#% ...", and "+#% ...", so our grammar should accept those because
+//!   agents and humans will expect it." On a template alone meaning the
+//!   line: "users may want to search for the presence of the line without a
+//!   value constraint", and on its negation: "critical for some builds.
+//!   allow." No displayed string on the census's store copy holds a `#` (0
+//!   of 22,721 items), so the phrase reading it replaces could never match.
 
 use crate::error::{ErrorKind, LanguageError};
 use crate::print;

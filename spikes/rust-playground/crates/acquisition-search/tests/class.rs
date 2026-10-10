@@ -236,7 +236,7 @@ fn a_class_is_picked_among_the_games_names_and_never_guessed() {
     let e = ask(&corpus, "class=ring").unwrap_err().to_json();
     assert_eq!(e["kind"], "unknown_value");
     assert_eq!(e["readings"][0], "class=Rings");
-    // a bare word some class name holds offers the class (the reference)
+    // a bare word some class name holds offers the class (`bind.rs`)
     let e = ask(&corpus, "ring").unwrap_err().to_json();
     assert_eq!(e["kind"], "bare_word");
     assert_eq!(e["readings"][0], "class:ring");

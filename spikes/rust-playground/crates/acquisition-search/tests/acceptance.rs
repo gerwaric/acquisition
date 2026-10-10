@@ -553,7 +553,7 @@ fn aq3_a_row_names_what_matched_and_a_zero_answer_names_the_scope() {
         zero["zero"]["said"],
         "a line the search cannot name is shown as unknown, with what it knows of it, and never fuzzy-matched"
     );
-    // rule 5: what the reference offers here runs since step 10, and is
+    // rule 5: what a zero answer offers runs since step 10, and is
     // offered as the requests it is — explain of the query's one part,
     // then the corpus — never as their output
     assert!(zero["zero"].get("not_built").is_none());
@@ -767,7 +767,7 @@ fn c102_s52_the_description_says_which_mods_made_a_line_is_never_guessed() {
     ));
 }
 
-/// The reference's `acq show`: the item as the deriver sees it, what was
+/// `acq show`: the item as the deriver sees it, what was
 /// unread, and the stored body on request — which is still there when part
 /// of the item could not be derived.
 #[test]
@@ -809,7 +809,7 @@ fn c100_show_is_the_derived_item_and_the_stored_body_on_request() {
     // the basis is the answer's: the same snapshot names both
     assert_eq!(shown["basis"], asked(&s, "")["basis"]);
     // removed from its tab: shown as it was last seen, marked with when
-    // it left (the reference, *Membership*; step 10)
+    // it left (`corpus.rs`; step 10)
     fetch_tab(&mut s, "pc", "Standard", "n1", "Unopened", vec![], 50);
     let gone = serde_json::to_value(common::show(&s, "odd", false).unwrap()).unwrap();
     assert_eq!(gone["item"]["facts"]["removed_at"], 50);

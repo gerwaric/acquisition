@@ -1,4 +1,4 @@
-//! Invariant 7 of the surface (`search/DESIGN.md`): parentheses group and
+//! Invariant 7 of the surface (the crate's doc): parentheses group and
 //! do nothing else — a rewrite that changes no meaning changes no match, no
 //! count, no error and no route, only the canonical text and the paths.
 //! Step 4b's equivalence property (the build plan), over generated queries

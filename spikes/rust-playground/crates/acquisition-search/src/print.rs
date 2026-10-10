@@ -230,7 +230,7 @@ fn is_plain_word(text: &str) -> bool {
         && !text.bytes().all(|b| b.is_ascii_digit())
 }
 
-/// The only escapes are `\"`, `\\` and `\n` (the reference, *Strings*).
+/// The only escapes are `\"`, `\\` and `\n` (`parse.rs`).
 fn quoted(text: &str, out: &mut String) {
     out.push('"');
     for c in text.chars() {

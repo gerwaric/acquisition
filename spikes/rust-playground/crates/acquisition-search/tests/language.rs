@@ -1,7 +1,7 @@
 //! C104 — the text and the tree are one value, each printing to the other:
 //! the round trip, over generated trees and over the corpus
-//! (`tests/language.toml`), where every construct of the reference
-//! (`search/DESIGN.md`, "The language reference") has a case. The boundary
+//! (`tests/language.toml`), where every construct of the language
+//! has a case. The boundary
 //! pinned is the crate's: `parse`, `print`, `to_json`, `from_json`.
 
 use acquisition_search::{
@@ -29,7 +29,7 @@ struct Case {
     readings: Option<Vec<String>>,
 }
 
-/// The constructs of the reference, section by section, and the errors the
+/// The constructs of the language, section by section, and the errors the
 /// grammar defines. A construct with no case in the corpus fails the test,
 /// and so does a case naming a construct that is not here.
 const CONSTRUCTS: &[&str] = &[
@@ -116,7 +116,7 @@ const CONSTRUCTS: &[&str] = &[
     "sort.slotless",
     "sort.field",
     "sort.computed",
-    // The reference's worked example, and the acceptance set
+    // The worked example, and the acceptance set
     "worked_example",
     "acceptance.OQ1",
     "acceptance.OQ2",
@@ -301,7 +301,7 @@ fn invariant_1_the_printer_never_reorders_flattens_merges_deduplicates_or_simpli
 
 // ---- the JSON form ---------------------------------------------------------------
 
-/// The reference's worked example, as written there: the request's tree
+/// The worked example, as `answer.rs` writes it: the request's tree
 /// prints as the answer's `query` line.
 #[test]
 fn c104_the_worked_example_tree_prints_as_its_query_line() {
@@ -435,7 +435,7 @@ const NAMES: &[&str] = &[
     "reqlevel",
 ];
 const ATTRS: &[&str] = &["source", "template", "red", "green", "size", "kind"];
-/// Quoted templates with the slot words each takes (the reference, *Slots*).
+/// Quoted templates with the slot words each takes (`template.rs`).
 const TEMPLATES: &[(&str, &[&str])] = &[
     ("# to maximum Life", &["arg1"]),
     (

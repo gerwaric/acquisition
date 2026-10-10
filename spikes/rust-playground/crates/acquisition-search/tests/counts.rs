@@ -306,8 +306,8 @@ fn aq1_three_keys_are_three_tables_and_no_rows() {
 /// C105's two invariants, on a key with one value for each item: every
 /// matching item is in a bucket, in `none` or in `undecided`, and the
 /// buckets sum exactly to the total — fourteen items by rarity: rare 6,
-/// unique 1, normal 1, none 5, undecided 1. (The reference's own example
-/// counts by class, which step 6 builds.)
+/// unique 1, normal 1, none 5, undecided 1. (The worked example's own count
+/// is by class, which step 6 builds.)
 #[test]
 fn c105_a_count_accounts_for_every_matching_item_and_sums_to_the_total() {
     let s = stash();

@@ -4,14 +4,13 @@
 //! file holds, so a query's validity never depends on a corpus (invariant
 //! 3 of the surface).
 //!
-//! What the words mean is `search/DESIGN.md`'s reference (*Item-level*,
-//! *Members*, *Values*), cited by section and not restated (the build
-//! plan, rule 6).
+//! What a name means is said beside its list here, and `--describe`
+//! prints it from these lists (`describe.rs`).
 //!
 //! # As built
 //!
 //! - **One closed list of what is not built** ([`NOT_BUILT`]): a construct
-//!   of the reference and the step that builds it. A query, a sort or a
+//!   of the language and the step that builds it. A query, a sort or a
 //!   flag that uses one is refused before anything is evaluated, by an
 //!   error of its own kind ([`ErrorKind::NotBuilt`]) that names the
 //!   construct — never the unknown-name error, never undecided, never an
@@ -44,6 +43,9 @@
 //!   such value — `category="armour.boots"` — and printed so.
 //! - **`reqlevel` is a number** the deriver reads from the `Level`
 //!   requirement (the build plan, step 6): `reqlevel=..30`, `-has:reqlevel`.
+//! - **`id:` takes any id an answer printed, whole**: the item's own, or
+//!   its tab's, substash's or character's, which finds what is in it.
+//!   `:` and `=` mean the same. `acq show` takes an item's id.
 //! - **Atomic terms are numbered by path** — `0`, `1`, `3.1` — as the
 //!   answer's terms block prints them (C93): a child of an and, an or or a
 //!   `holds` is `<parent>.<n>`, what a not negates or `undecided( … )`
@@ -51,7 +53,7 @@
 //!   prefix. The rule is `tree.rs`'s (`child_path`, `sole_path`), where
 //!   the one walk that numbers every node of a query — a group of terms
 //!   and a condition inside `line( … )` or `linked( … )` among them, as
-//!   `--explain` names them (the reference, *Explain*) — uses it too.
+//!   `--explain` names them — uses it too.
 //! - **A line's group is bound in `group.rs`**, the one module that reads
 //!   a group's tree for what it means: its selector, the sources it admits,
 //!   its together bound, its template tests.
@@ -84,6 +86,22 @@
 //!   and `price.lot` are numbers, and `price.currency` a closed set whose
 //!   legal values are the currency table's tags (C68), so a tag outside
 //!   the table is an authoring error with the near ones offered.
+//!
+//! # The owner's words (2026-09-19, verbatim but for spelling)
+//!
+//! - `~`: "Using ~ for regex makes sense". Two notes for the help: patterns
+//!   are for words and comparisons for numbers; a `sum` over
+//!   pattern-selected lines is the user's arithmetic, never a reviewed
+//!   total (the all-elemental line counts once there, three times in
+//!   `pseudo.total_res`). It has no trade equivalent, so it is the
+//!   translation's remainder (C99). Its cost over all displayed text was
+//!   measured at the first surface: 9 ms an ask over 22,623 items (the build
+//!   plan's M4).
+//! - On the case of `=`: "i agree with any-case everywhere after this
+//!   investigation." Six pairs of the census's 6,549 templates differ only
+//!   by capitals, each a line GGG has spelled two ways; an exact `=` would
+//!   find 209 items of one such line and miss the 2 spelled the other way,
+//!   with no sign of it.
 
 use regex::{Regex, RegexBuilder};
 
@@ -94,7 +112,7 @@ use crate::tree::{self, Collection, Node, Number, Op, Probe, Value, ValueRef};
 
 // ---- what is not built -------------------------------------------------------
 
-/// A construct of the reference this build refuses, and the step of
+/// A construct of the language this build refuses, and the step of
 /// `search/BUILD-PLAN.md` that builds it — none, where it waits for a
 /// consumer that asks: the plan's step 10 left four so.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -806,11 +824,11 @@ pub(crate) fn folded(text: &str) -> String {
 }
 
 /// The pattern that selects one spelling of a text and no other: `~` with
-/// case turned back on, anchored at both ends (the reference, *Members*:
+/// case turned back on, anchored at both ends (`group.rs`:
 /// `template~"(?-i)^Gain # Life per enemy killed$"`). Escaped are the
 /// characters a pattern reads as syntax where a text stands, and no more —
 /// a template's `#` and `%` are themselves there — so that the term reads
-/// as the reference writes it.
+/// as a user would write it.
 pub(crate) fn exact_pattern(text: &str) -> String {
     let mut out = String::from("(?-i)^");
     for c in text.chars() {
@@ -1414,7 +1432,7 @@ fn closed_set_readings(mut e: LanguageError, text: &str) -> LanguageError {
         if legal(RARITIES, word).is_none() {
             first.extend(legal(FRAMES, word).map(|v| format!("frame={v}")));
         }
-        // `ring` → `class:ring` (the reference, *Item-level*): a word some
+        // `ring` → `class:ring` (`parse.rs`, a bare word): a word some
         // class name holds picks it as `:` would
         let lower = word.to_ascii_lowercase();
         if crate::class::names()

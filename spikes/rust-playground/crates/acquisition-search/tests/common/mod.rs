@@ -223,7 +223,7 @@ pub fn ids(answer: &Value) -> Vec<String> {
     ids
 }
 
-// ---- the reference's worked example ------------------------------------------------------
+// ---- the worked example (`answer.rs`) ------------------------------------------------------
 
 pub fn ring(id: &str, rarity: &str, more: Value) -> Value {
     item(id, &format!("Ring {id}"), "Two-Stone Ring", rarity, more)
@@ -236,7 +236,7 @@ pub fn lines(life: &[i64], res: i64) -> Vec<String> {
         .collect()
 }
 
-/// The reference's seven pc items (`search/DESIGN.md`, "One worked
+/// The worked example's seven pc items (`answer.rs`, "The worked
 /// example"), two fetched locations and one never fetched: rare rings r1
 /// (life 95, res 65), r2 (20 implicit + 75 explicit, 60), r3 (100, 55),
 /// r6 (readable 95, implicit array unread, res subtotal 65 incomplete),

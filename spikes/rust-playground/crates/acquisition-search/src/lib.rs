@@ -1,12 +1,49 @@
 //! `acquisition-search` — item search over the store's read API (C89).
 //!
-//! Rulings: `decisions/search.md`, C89–C107. The language on one page, an
-//! example per construct, and the contract detail that decides answers:
-//! `search/DESIGN.md`, binding until a module doc here takes a paragraph;
-//! the build's order: `search/BUILD-PLAN.md`; what each step met — the
-//! shapes of fault its reviews taught, the measurements' verdicts:
-//! `SEARCH-SLICE.md`; its steps and the holes ruled: `search/LEDGER.md`; the
-//! measurements' tables: `search/MEASUREMENTS.md`.
+//! Rulings: `decisions/search.md`, C89–C107. The language as this build
+//! knows it, an example per construct, is `--describe` ([`mod@describe`]);
+//! the rules that decide an answer are the module docs below, each under
+//! its decision's id; the build's order: `search/BUILD-PLAN.md`; what each
+//! step met — the shapes of fault its reviews taught, the measurements'
+//! verdicts: `SEARCH-SLICE.md`; its steps and the holes ruled:
+//! `search/LEDGER.md`; the measurements' tables: `search/MEASUREMENTS.md`.
+//!
+//! # The words
+//!
+//! Three words are fixed here. The **query** is the conditions and nothing
+//! else: C91's tree and its text. The word is the trade site's own — its
+//! request is `{query, sort}` posted to a realm and a league, the conditions
+//! inside `query` and everything else outside it — and *filter* stays the
+//! word for GGG's item filters and for the site's single controls. A
+//! **request** is a query bound to a scope and a view. **`pseudo`** is this
+//! search's namespace for computed values; the trade site's 298 are called
+//! the site's pseudo stats, and neither promises the other (owner,
+//! 2026-09-19: "This doesn't need to 100% align with trade").
+//!
+//! The owner's words on the query (2026-09-19, verbatim but for spelling)
+//! are quoted in the module doc each bears on — `parse.rs`, `template.rs`,
+//! `bind.rs`, `derive.rs`, `group.rs`, `pseudo.rs`, `tree.rs`; whole, with
+//! the reasoning, in `search/search-forms/11-owner-amendments.md`.
+//!
+//! # Invariants of the surface
+//!
+//! Cited by number across the crate and its tests.
+//!
+//! 1. Canonicalisation lowers shorthand and normalises spelling; it never
+//!    reorders, flattens, merges, deduplicates or simplifies.
+//! 2. A `:` or `~` selector is never replaced by what it resolved to; the
+//!    answer shows the binding beside the authored selector, and a
+//!    vocabulary row's selector is always the exact form.
+//! 3. A selector's validity never depends on the corpus.
+//! 4. A count shown has a route to its members, and the route keeps its
+//!    denominator.
+//! 5. Every block of an answer is bounded: summaries and a route to the
+//!    whole, never an enumeration by default.
+//! 6. Search is a pure read, and no item predicate supports a claim about
+//!    an unfetched location.
+//! 7. Parentheses group and do nothing else: a rewrite that changes no
+//!    meaning changes no match, no count, no error and no route — only the
+//!    canonical text and the paths (invariant 1).
 //!
 //! # As built
 //!
@@ -20,7 +57,7 @@
 //!
 //! - [`tree`] — the query tree (C91): one typed value, and [`check`], what
 //!   a tree must satisfy to be one the language can say.
-//! - [`mod@parse`] — text to tree, over the whole language of the reference;
+//! - [`mod@parse`] — text to tree, over the whole language;
 //!   shorthand lowers at once, a slotless comparison is decided by the
 //!   template's own numbers before it lowers (C92), and every ambiguity the
 //!   grammar defines is an error that shows its readings (C91).
@@ -97,7 +134,7 @@
 //! - **C91, C92, C93, C96, C98, C100, C102.** The binder, evaluation, the
 //!   held corpus and the answer are their modules' docs; pinned at the
 //!   crate's boundary — a request in, an answer out, as JSON — by
-//!   `tests/answer.rs` (the reference's worked example reduced to what is
+//!   `tests/answer.rs` (the worked example reduced to what is
 //!   built, the route property, invariants 2 and 6), `tests/acceptance.rs`
 //!   (the acceptance set's rows green at step 4, the limits' wording) and
 //!   `tests/refusal.rs` (the refusal walk, invariant 3). The why-not —
@@ -131,7 +168,39 @@
 //!   followed by id.
 //! - **C104.** Pinned by `tests/language.rs`: the round trip over
 //!   generated trees and over the corpus (`tests/language.toml`), where
-//!   every construct of the reference has a case.
+//!   every construct of the language has a case.
+//! - **C106 — what reference data admits, and the test.** Three kinds:
+//!   *data*, what the game files state and a registered surface exports;
+//!   *convention*, a concept the community has published a definition for
+//!   (the owner, 2026-09-18, on "equipment": "This is something that's
+//!   well-defined by the community, e.g. RePoE, the trade site categories,
+//!   poedb.tw, and <https://www.poewiki.net/wiki/Equipment>"); *judgment*,
+//!   never embedded. C79 never required a surface to be GGG's: it requires
+//!   registration, no runtime fetch, and a human's commit (C68). A
+//!   convention behaves as a named total does (C94): defined once, printing
+//!   its definition and source on request, naming one authority with the
+//!   rest as corroboration and any disagreement noted on the row — order of
+//!   authority: GGG-authored surfaces (the API, the trade site's own
+//!   categories, the item-filter documentation), then game-file exports
+//!   (RePoE, Path of Building), then community prose (the wiki, poedb). A
+//!   word that is the trade site's says so. **The admission test:** (a) a
+//!   definition at a registered surface: published there, or, where the
+//!   surface publishes the word and not its definition, evidenced by dated
+//!   observations of what the surface answers, each row citing its capture
+//!   (the trade site's pseudo stats; owner, 2026-09-26, V6); (b) reviewable —
+//!   generated by a committed script from a pinned source and reviewed as a
+//!   diff at each pull (a "small enough to read every row" test would have
+//!   refused the 476-row base-defence extract); (c) the word prints its
+//!   definition and its source version, which the basis cites (C98); (d)
+//!   every question can still be asked without it. A table enters one at a
+//!   time — "may back a field", never "the app carries game data" — and a
+//!   surface's row changes only when the first definition needs it, its
+//!   licence read then (the wiki is CC BY-NC 3.0; poedb states no terms and
+//!   is unregistered). "A roll outside the base's current range" is data;
+//!   calling it legacy is history the export does not carry — legacy is
+//!   never a field (C107); a unique's variant, a label its source prints,
+//!   is the parked candidate (`decisions/search.md`, "Parked"). The three
+//!   class readings the first seat ruled (V1, V2) are `class.rs`'s doc.
 //! - **C106.** The class table is [`class`]'s doc and
 //!   `reference/classes-v1.toml`'s header; pinned by `tests/class.rs`
 //!   (the shipped file, every reason the table gives, `undecided(class)`,
@@ -156,7 +225,7 @@
 //!   expected answers, the plan's closing row, J29 on the totals shipped
 //!   before it and on round n's captures, a row that reads the category
 //!   under not and or, the help),
-//!   `tests/answer.rs` (the reference's worked example whole) and
+//!   `tests/answer.rs` (the worked example whole) and
 //!   `tests/acceptance.rs` (AQ2 as worded). The base defence percentile
 //!   — the paragraph of the contract detail and the rulings J5, J6, J8
 //!   and J33–J35, taken at step 9d-A — is `pseudo`'s doc, its reference

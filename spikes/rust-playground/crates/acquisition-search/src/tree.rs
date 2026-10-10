@@ -1,5 +1,7 @@
 //! The query tree (C91): one typed value, immutable and serializable, that
 //! the text and the JSON form each print to and parse from (C104).
+//! Portable: it carries no account, realm or view, so it is handed between
+//! people, agents and accounts.
 //!
 //! A tree is always *lowered*: the shorthand of the text (`"T">=90`,
 //! `line(P).avg>=20`, `sum("T")`) never appears in it. [`check`] states
@@ -9,8 +11,7 @@
 //!
 //! # As built
 //!
-//! **A path names a node** (`search/DESIGN.md`'s reference, *Explain*;
-//! the build plan, step 10). One walk numbers a query's nodes
+//! **A path names a node** (the build plan, step 10). One walk numbers a query's nodes
 //! ([`nodes`]) and replaces one of them by a constant ([`forced`]), so
 //! what a path names and what a substitution replaces cannot differ: the
 //! children of the root are `0`, `1`, …, and a root that is no and is
@@ -25,7 +26,11 @@
 //! none. The substitution rebuilds the tree around the node as it was:
 //! nothing reordered, flattened, merged or simplified (invariant 1), so
 //! `line(true() arg1>=90)` and `(a false()) b` are what it prints. The
-//! binder numbers its terms by the same two functions (`bind.rs`).
+//! binder numbers its terms by the same two functions (`bind.rs`). Paths
+//! belong to the exact query an answer returned; after an edit, use the
+//! next answer's. `true()` and `false()` are what a forced node prints,
+//! and are legal wherever a term is, inside a member group too (owner,
+//! 2026-09-19, on `true()` and `false()`: "agree with recommendation").
 
 use crate::error::{ErrorKind, LanguageError};
 use crate::group::Slots;
@@ -247,7 +252,7 @@ pub(crate) fn is_name(s: &str) -> bool {
     !s.is_empty() && s.split('.').all(is_segment)
 }
 
-/// The words that name a number (the reference, *Slots*).
+/// The words that name a number (`template.rs`).
 /// Whether a name is the computed namespace's — `pseudo`, or `pseudo.…`
 /// — in any case, as every name is read (F10, the first seat: `has:Pseudo.DPS`
 /// offered no reading).
@@ -292,7 +297,7 @@ pub(crate) fn sole_path(parent: &str) -> String {
     child_path(parent, 0)
 }
 
-/// A node of a query a path names (the reference, *Explain*).
+/// A node of a query a path names (the module doc).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pathed {
     pub path: String,
@@ -698,7 +703,7 @@ fn check_value_ref(
     }
 }
 
-/// A member group, and what its slot words read (the reference, *Slots*;
+/// A member group, and what its slot words read (`template.rs`;
 /// `group::Slots`): a slot beside two rows of a mod named together is
 /// refused, each reading that the check passes offered as `shown`
 /// prints it; and where the group selects one quoted template, every

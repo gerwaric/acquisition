@@ -3,9 +3,8 @@
 //! and what the search says of an item the table cannot class (C93).
 //!
 //! What reference data admits, and the admission test the table passed,
-//! is `search/DESIGN.md`'s contract detail (C106 — what reference data
-//! admits, and the test; C101 — the derived-field pseudos), cited and not
-//! restated; the buckets of a count are `counts.rs`'s (C105).
+//! is the crate's doc (C106 — what reference data admits, and the
+//! test), cited and not restated; the buckets of a count are `counts.rs`'s (C105).
 //!
 //! # As built
 //!

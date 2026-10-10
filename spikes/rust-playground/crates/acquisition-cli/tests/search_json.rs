@@ -351,8 +351,8 @@ fn rule_5_every_command_printed_runs_with_a_second_account_known() {
     assert!(ran > 8, "{ran} commands ran");
 }
 
-/// The counts view at a terminal (step 5): `--count` spelled as the
-/// reference's synopsis spells it, `line:` taking the rest of the list; the
+/// The counts view at a terminal (step 5): `--count` spelled as its
+/// help spells it, `line:` taking the rest of the list; the
 /// JSON is the crate's view whole; and every route the text prints — a
 /// pattern that turns case back on, a name with an apostrophe, a not after
 /// `--` — runs through a shell and returns exactly the members counted.
