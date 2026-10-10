@@ -2398,3 +2398,52 @@ fn a_printed_count_command_names_the_keys_it_was_printed_for() {
         );
     }
 }
+
+/// A refusal's way on that is a search is a request too, under `offers`
+/// beside the readings (`search/LEDGER.md`, H5): over two realms a search
+/// naming none offers itself in each, typed or read from a file, and
+/// each offer runs as `--request` reads it.
+#[test]
+fn a_refusal_offers_requests_beside_its_readings() {
+    let base = base();
+    seed(&base);
+    seed_more(&base);
+    let file = base.join("no-realm.json");
+    std::fs::write(
+        &file,
+        json!({ "query": { "text": "rarity=rare" }, "view": { "rows": { "limit": 2 } } })
+            .to_string(),
+    )
+    .unwrap();
+    let typed = ["--json", "search", "rarity=rare", "--limit", "2"];
+    let read = ["--json", "search", "--request", file.to_str().unwrap()];
+    for args in [&typed[..], &read[..]] {
+        let out = acq(&base, args);
+        assert_eq!(out.status.code(), Some(1), "{args:?}");
+        let refused = sole_json(&out);
+        assert_eq!(refused["kind"], "realm_needed", "{refused}");
+        assert_eq!(refused["readings"], json!(["--realm pc", "--realm poe2"]));
+        let offers = refused["offers"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{refused}"));
+        assert_eq!(offers.len(), 2, "{refused}");
+        for (offer, realm) in offers.iter().zip(["pc", "poe2"]) {
+            assert_eq!(offer["request"]["scope"]["realm"], realm);
+            assert_eq!(offer["request"]["query"]["text"], "rarity=rare");
+            let offered = base.join(format!("offer-{realm}.json"));
+            std::fs::write(&offered, offer.to_string()).unwrap();
+            let ran = acq(
+                &base,
+                &["--json", "search", "--request", offered.to_str().unwrap()],
+            );
+            assert!(ran.status.success(), "{offer}");
+            let a = sole_json(&ran);
+            assert_eq!(a["scope"]["realm"], realm);
+            assert_eq!(a["view"]["rows"]["limit"], 2);
+        }
+    }
+    // the text prints the readings, as it did
+    let shown = acq(&base, &["search", "rarity=rare"]);
+    let err = String::from_utf8(shown.stderr).unwrap();
+    assert!(err.contains("    --realm pc\n    --realm poe2\n"), "{err}");
+}

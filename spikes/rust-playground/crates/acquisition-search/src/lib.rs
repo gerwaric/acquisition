@@ -30,7 +30,8 @@
 //! - [`json`] — the tree's JSON form, read strictly (C104: the text is
 //!   carried on every seat; the tree is accepted and always returned).
 //! - [`error`] — authoring errors with stable kinds (C47, C11), and what a
-//!   search can fail with beside them.
+//!   search can fail with beside them: a refusal's way on, a request
+//!   beside its reading.
 //! - [`mod@derive`] — one item's body and ingest facts in, the item out
 //!   (C103, C90): fields, displayed strings, lines as kind, template and
 //!   numbers with their slots, and what could not be read, by collection.
@@ -114,7 +115,9 @@
 //!   are the answer at a limit past the total, fixed and generated; the
 //!   refusal across a changed basis, another build's and a refetched
 //!   file's among them; both counts of a route read back, with its
-//!   basis sent or without). Membership is [`corpus`]'s doc and the store's
+//!   basis sent or without). What a refusal offers is [`error`]'s
+//!   doc; pinned by `tests/offers.rs` (each offer the request its
+//!   reading is, and one that runs). Membership is [`corpus`]'s doc and the store's
 //!   (`acquisition-store/src/corpus.rs`, C108); pinned by
 //!   `tests/membership.rs` (the removed beside the live, each marked at
 //!   the place it was last seen; a removed item's price; every route

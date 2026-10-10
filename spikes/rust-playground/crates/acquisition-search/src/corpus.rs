@@ -687,7 +687,7 @@ fn realm_needed(held: &[String]) -> SearchError {
             held.join(" | ")
         ),
     )
-    .with_offers(held.iter().map(|r| format!("--realm {r}")).collect())
+    .offering_realms(held)
 }
 
 /// What the store's read could not give of a stash tab's type, said once

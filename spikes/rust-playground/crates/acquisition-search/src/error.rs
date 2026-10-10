@@ -5,6 +5,9 @@
 
 use serde::Serialize;
 
+use crate::answer::Request;
+use crate::corpus::Realm;
+
 /// Stable kinds. Additive: a new kind is a new variant, never a rename.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -131,13 +134,46 @@ impl std::error::Error for LanguageError {}
 pub enum SearchError {
     Language(LanguageError),
     /// The scope or the item named, not the query: a stable kind, a
-    /// message, and what may be typed instead.
+    /// message, and what may be asked instead.
     Scope {
         kind: &'static str,
         message: String,
-        offers: Vec<String>,
+        offers: Vec<Offered>,
     },
     Store(anyhow::Error),
+}
+
+/// One way on from a refusal (`search/LEDGER.md`, H5): what a terminal
+/// types, and — where that is a search — the request it is, for a caller
+/// that sends requests and types nothing. The reading of a request is
+/// the request's own command ([`Request::command`]), made here and
+/// nowhere else, so the two never disagree.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Offered {
+    pub reading: String,
+    pub request: Option<Request>,
+    /// A realm offered where no request was at hand to put it in: the
+    /// store's read knows the realms held and not what was asked
+    /// ([`SearchError::asked_by`]).
+    realm: Option<Realm>,
+}
+
+impl Offered {
+    fn words(reading: String) -> Offered {
+        Offered {
+            reading,
+            request: None,
+            realm: None,
+        }
+    }
+
+    fn request(request: Request) -> Offered {
+        Offered {
+            reading: request.command(),
+            request: Some(request),
+            realm: None,
+        }
+    }
 }
 
 impl SearchError {
@@ -149,9 +185,48 @@ impl SearchError {
         }
     }
 
+    /// Ways on that are words alone: no search runs them.
     pub(crate) fn with_offers(mut self, offered: Vec<String>) -> SearchError {
         if let SearchError::Scope { offers, .. } = &mut self {
-            *offers = offered;
+            *offers = offered.into_iter().map(Offered::words).collect();
+        }
+        self
+    }
+
+    /// Ways on that are searches: each a request, read as its command.
+    pub(crate) fn offering(mut self, requests: Vec<Request>) -> SearchError {
+        if let SearchError::Scope { offers, .. } = &mut self {
+            *offers = requests.into_iter().map(Offered::request).collect();
+        }
+        self
+    }
+
+    /// The realms a search may name, each the flag a terminal adds.
+    pub(crate) fn offering_realms(mut self, realms: &[String]) -> SearchError {
+        if let SearchError::Scope { offers, .. } = &mut self {
+            *offers = realms
+                .iter()
+                .map(|realm| Offered {
+                    reading: format!("--realm {realm}"),
+                    request: None,
+                    realm: Some(Realm::One(realm.clone())),
+                })
+                .collect();
+        }
+        self
+    }
+
+    /// The refusal as the answer to `request`: a realm offered becomes
+    /// the request in that realm, nothing else of it changed.
+    pub(crate) fn asked_by(mut self, request: &Request) -> SearchError {
+        if let SearchError::Scope { offers, .. } = &mut self {
+            for offer in offers.iter_mut() {
+                if let Some(realm) = &offer.realm {
+                    let mut asked = request.clone();
+                    asked.scope.realm = Some(realm.clone());
+                    offer.request = Some(asked);
+                }
+            }
         }
         self
     }
@@ -173,8 +248,9 @@ impl SearchError {
         }
     }
 
-    /// The failure as `--json` prints it (C11): `error`, `kind`, and what
-    /// the author may have meant.
+    /// The failure as `--json` prints it (C11): `error`, `kind`, what
+    /// the author may have meant as `readings`, and under `offers` each
+    /// way on that is a request, as an answer's zero block holds one.
     pub fn to_json(&self) -> serde_json::Value {
         let mut out = serde_json::json!({ "error": self.to_string(), "kind": self.kind() });
         match self {
@@ -192,7 +268,16 @@ impl SearchError {
             } => {
                 out["error"] = serde_json::json!(message);
                 if !offers.is_empty() {
-                    out["readings"] = serde_json::json!(offers);
+                    out["readings"] =
+                        serde_json::json!(offers.iter().map(|o| &o.reading).collect::<Vec<_>>());
+                }
+                let requests: Vec<_> = offers
+                    .iter()
+                    .filter_map(|o| o.request.as_ref())
+                    .map(|request| serde_json::json!({ "request": request }))
+                    .collect();
+                if !requests.is_empty() {
+                    out["offers"] = serde_json::json!(requests);
                 }
             }
             SearchError::Store(_) => {}
@@ -216,7 +301,7 @@ impl std::fmt::Display for SearchError {
             } => {
                 write!(f, "{message}")?;
                 for (i, offer) in offers.iter().enumerate() {
-                    write!(f, "{}{offer}", if i == 0 { " — " } else { " · " })?;
+                    write!(f, "{}{}", if i == 0 { " — " } else { " · " }, offer.reading)?;
                 }
                 Ok(())
             }

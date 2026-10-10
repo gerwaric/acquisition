@@ -10,8 +10,10 @@
 //!   rendered from that same value and from nothing else. Ages are text,
 //!   epochs JSON.
 //! - **A failure is structured on both paths (C11)**: `--json` prints
-//!   `{"error", "kind", "readings"}` and exits 1; the text prints the
-//!   message and each reading on a line of its own, ready to paste.
+//!   `{"error", "kind", "readings", "offers"}` — each way on that is a
+//!   search a request too, as `--request` reads one — and exits 1; the
+//!   text prints the message and each reading on a line of its own,
+//!   ready to paste.
 //! - **An answer never prints a command this build refuses** (the build
 //!   plan, rule 5): a block the reference bounds with a route to the whole
 //!   prints the count left out and the unbuilt construct's name. The flags
@@ -50,7 +52,7 @@ use acquisition_search::corpus::Realm;
 use acquisition_search::counts::{Bucket, CrossOut, Label, SumOf, Summed, Table};
 use acquisition_search::describe::Describe;
 use acquisition_search::show::Shown;
-use acquisition_search::{Corpus, Priced, SearchError, answer, describe, not_built, show};
+use acquisition_search::{Priced, SearchError, answer, describe, not_built, show};
 use acquisition_store::{Store, account_path};
 use anyhow::{Context as _, Result};
 use serde::Serialize;
@@ -213,7 +215,7 @@ fn fail(e: SearchError, json: bool) -> anyhow::Error {
                 message, offers, ..
             } => {
                 eprintln!("Error: {message}");
-                offers.iter().for_each(|o| eprintln!("    {o}"));
+                offers.iter().for_each(|o| eprintln!("    {}", o.reading));
             }
             SearchError::Store(e) => eprintln!("Error: {e:#}"),
         }
@@ -296,13 +298,10 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         let asked = Asked::read(&value).map_err(|e| fail(e.into(), json))?;
         asked.request.check().map_err(|e| fail(e.into(), json))?;
         let (store, intent) = open_store_and_intent()?;
-        let corpus = Corpus::load_of(
-            &store,
-            &intent,
-            asked.request.scope.realm.as_ref(),
-            asked.request.scope.membership.into(),
-        )
-        .map_err(|e| fail(e, json))?;
+        let corpus = asked
+            .request
+            .corpus(&store, &intent)
+            .map_err(|e| fail(e, json))?;
         let answered = asked.answer(&corpus).map_err(|e| fail(e, json))?;
         return emit(&answered, json, |a| answer_text(a, args.routes));
     }
@@ -317,13 +316,7 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         }
         request.check().map_err(|e| fail(e.into(), json))?;
         let (store, intent) = open_store_and_intent()?;
-        let corpus = Corpus::load_of(
-            &store,
-            &intent,
-            request.scope.realm.as_ref(),
-            request.scope.membership.into(),
-        )
-        .map_err(|e| fail(e, json))?;
+        let corpus = request.corpus(&store, &intent).map_err(|e| fail(e, json))?;
         let answered = answer(&corpus, &request).map_err(|e| fail(e, json))?;
         return emit(&answered, json, |a| answer_text(a, args.routes));
     }
@@ -408,6 +401,7 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
     };
     let request = Request {
         scope: Scope {
+            realm,
             membership,
             ..Scope::default()
         },
@@ -422,8 +416,8 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
     // an authoring error is said before the store is read
     request.check().map_err(|e| fail(e.into(), json))?;
     let (store, intent) = open_store_and_intent()?;
-    let corpus = Corpus::load_of(&store, &intent, realm.as_ref(), membership.into())
-        .map_err(|e| fail(e, json))?;
+    // the request's own corpus, so that a refusal offers this request
+    let corpus = request.corpus(&store, &intent).map_err(|e| fail(e, json))?;
     if args.print_request {
         // the request as it was bound, its account and its realm
         // resolved by the store it would be run on; nothing is asked

@@ -440,6 +440,23 @@ impl Request {
         }
     }
 
+    /// The corpus the request is asked of: its realm's, under its
+    /// membership. A refusal that offers a realm offers this request in
+    /// it (`error::Offered`).
+    pub fn corpus(
+        &self,
+        store: &acquisition_store::Store,
+        intent: &acquisition_store::Annotations,
+    ) -> Result<Corpus, SearchError> {
+        Corpus::load_of(
+            store,
+            intent,
+            self.scope.realm.as_ref(),
+            self.scope.membership.into(),
+        )
+        .map_err(|e| e.asked_by(self))
+    }
+
     /// Every authoring error the request holds — the query's, the sort's,
     /// the view's, a path the query lacks — with no store read: what an
     /// adapter asks before it opens one.
@@ -1114,7 +1131,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
                     basis.against(&corpus.basis)
                 ),
             )
-            .with_offers(vec![start.command()]));
+            .offering(vec![start]));
         }
         Some((after, _)) => after,
         None => 0,

@@ -229,7 +229,8 @@ enum Cmd {
     /// with the lines the query touched. Every count has a route: the
     /// command that returns exactly its members. `--json` is the answer
     /// whole, the query as text and as tree; a failure is `{"error",
-    /// "kind", "readings"}`. `--describe` prints the language, and what
+    /// "kind", "readings"}`, with `offers` where a way on is a request
+    /// `--request` reads. `--describe` prints the language, and what
     /// this build refuses by name.
     Search(Box<search_cmd::SearchArgs>),
     /// One item as the search derives it, live or removed (no daemon): its fields, its

@@ -367,7 +367,7 @@ fn not_shown(
                 ),
             },
         )
-        .with_offers(vec![lists.command()]);
+        .offering(vec![lists]);
     }
     match store.item(id) {
         Ok(Some(_)) => SearchError::scope(
