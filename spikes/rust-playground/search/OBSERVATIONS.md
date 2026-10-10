@@ -272,3 +272,11 @@ filed again by the step that touches it.
   commits costs it one whole load, and M5 could not make a store of 31
   items show the reload or reach the error a corpus gives when the
   facts keep moving under its price join.
+- *The look of 11b, or the review's next look (step 11a):* no look
+  was taken of 11a and no mutant run. A token an earlier build printed
+  names no build and is refused as no token, never as a changed basis.
+  No test edits a source to see the build's name move; the contract
+  revision was compared before and after its routine was shared, by
+  hand. The text's `then` line with no basis was read on the copy and
+  is held by no test. M3 was not run: the piece adds a column to one
+  statement and a constant.
