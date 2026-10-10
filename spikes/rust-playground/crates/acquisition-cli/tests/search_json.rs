@@ -2430,6 +2430,8 @@ fn a_refusal_offers_requests_beside_its_readings() {
         for (offer, realm) in offers.iter().zip(["pc", "poe2"]) {
             assert_eq!(offer["request"]["scope"]["realm"], realm);
             assert_eq!(offer["request"]["query"]["text"], "rarity=rare");
+            // named for the account it was asked of, as a route is
+            assert_eq!(offer["request"]["scope"]["account"], USER);
             let offered = base.join(format!("offer-{realm}.json"));
             std::fs::write(&offered, offer.to_string()).unwrap();
             let ran = acq(

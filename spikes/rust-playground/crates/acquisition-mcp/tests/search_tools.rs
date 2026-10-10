@@ -615,10 +615,13 @@ fn a_missing_store_names_the_directory_it_looked_in() {
                 .contains(looked.to_str().unwrap()),
             "{tool}: {e}"
         );
+        // and names no login for an agent to run: that is a human's
+        assert!(!e["error"].as_str().unwrap().contains("acq auth"), "{e}");
     }
     // the older store tools say the same of it
     let message = seat.mcp.expect_err("store_status", json!({}));
     assert!(message.contains(looked.to_str().unwrap()), "{message}");
+    assert!(!message.contains("acq auth"), "{message}");
 }
 
 /// H2: `scope.account` selects the store. With two accounts known a
@@ -656,13 +659,149 @@ fn the_requests_account_selects_the_store() {
     assert_eq!(shown["item"]["facts"]["id"], "bob1");
 }
 
-/// The three tools read the store and nothing else: no daemon was
-/// reached for or started by any of them.
+/// No daemon is started by any of the three: none bound a socket in the
+/// scratch world. (That none was reached for is the crate's edges: the
+/// search links no client, `tools/docs-check.sh`.)
 #[test]
-fn no_tool_of_the_search_reaches_for_a_daemon() {
+fn no_tool_of_the_search_starts_a_daemon() {
     let mut seat = Seat::new();
     seat.answer(&json!({ "query": { "text": "rarity=rare" } }));
     seat.call("describe", &json!({}));
     seat.call("show", &json!({ "id": "r1" }));
     assert!(no_daemon_appeared(&seat.base));
+}
+
+/// H1, whatever `--request` reads: a count sent back with its request
+/// is told, under `before`, where the count has moved since — and with
+/// the answer's basis beside it, wherever the basis has.
+#[test]
+fn a_count_read_back_says_what_it_was_where_it_has_moved() {
+    let mut seat = Seat::new();
+    let a = seat.answer(&json!({ "query": { "text": "rarity=rare" } }));
+    let route = a["terms"][0]["matched"].clone();
+    assert_eq!(route["count"], 4);
+    let mut labelled = route.clone();
+    labelled["counted_at"] = a["basis"].clone();
+    for sent in [&route, &labelled] {
+        let same = seat.answer(sent);
+        assert_eq!(same["total"]["matched"], 4);
+        assert!(same.get("before").is_none(), "{same}");
+    }
+    // the Dump tab fetched again without `plain`: three rares, a later basis
+    {
+        let mut store = Store::open(&account_path(&stores(&seat.base), USER)).unwrap();
+        record(
+            &mut store,
+            stash("pc", "t2"),
+            "pc",
+            json!({ "stash": { "id": "t2", "name": "Dump", "type": "PremiumStash", "items": [
+                item("kaom", "Kaom's Heart", "Glorious Plate", "Unique", json!({ "explicitMods": ["+500 to maximum Life"] })),
+                item("str", "Grim Knot", "Iron Ring", "Rare", json!({ "explicitMods": ["+25 to Strength"] })),
+            ] } }),
+            60,
+        );
+    }
+    let moved = seat.answer(&route);
+    assert_eq!(moved["total"]["matched"], 3);
+    assert_eq!(moved["before"], json!({ "count": 4 }));
+    let told = seat.answer(&labelled);
+    assert_eq!(
+        told["before"],
+        json!({ "count": 4, "counted_at": a["basis"] })
+    );
+}
+
+/// A request an answer held is whole: a view written beside it is
+/// refused, never dropped unread — on the tool as at the terminal.
+#[test]
+fn a_view_beside_a_request_is_refused_and_never_dropped() {
+    let mut seat = Seat::new();
+    let a = seat.answer(&json!({ "query": { "text": "rarity=rare" } }));
+    let mut sent = a["terms"][0]["matched"].clone();
+    sent["view"] = json!({ "counts": { "keys": ["tab"] } });
+    let e = seat.refusal(&sent);
+    assert_eq!(e["kind"], "tree", "{e}");
+    assert!(e["error"].as_str().unwrap().contains("`view`"), "{e}");
+    // written inside it, the view is the request's
+    let mut inside = a["terms"][0]["matched"].clone();
+    inside["request"]["view"] = json!({ "counts": { "keys": ["tab"] } });
+    let counted = seat.answer(&inside);
+    assert_eq!(counted["view"]["counts"]["tables"][0]["key"], "tab");
+}
+
+/// Arguments a tool does not take are refused in the same document as
+/// any refusal — `error` and `kind` in a result marked an error — and
+/// a key it does not know is never read past.
+#[test]
+fn arguments_a_tool_does_not_take_are_refused_as_a_document() {
+    let mut seat = Seat::new();
+    for (tool, args) in [
+        ("show", json!({})),
+        ("show", json!({ "id": 5 })),
+        ("show", json!({ "id": "r1", "body": "yes" })),
+        (
+            "show",
+            json!({ "id": "r1", "query": { "text": "rarity=rare" } }),
+        ),
+        ("describe", json!({ "names": "league" })),
+        ("describe", json!({ "name": ["league"] })),
+    ] {
+        let (e, is_error) = seat.call(tool, &args);
+        assert!(is_error, "{tool} {args}: {e}");
+        assert_eq!(e["kind"], "arguments", "{tool} {args}: {e}");
+        assert!(e["error"].is_string(), "{tool} {args}: {e}");
+    }
+    // no arguments at all is every tool's empty object
+    let result = seat.mcp.result("describe", Value::Null);
+    assert!(result["isError"] != json!(true), "{result}");
+    assert!(result["structuredContent"]["fields"].is_array(), "{result}");
+}
+
+/// `describe`'s text says how large the whole language is and which
+/// sections are small: held here, so that the text is changed when the
+/// language outgrows it.
+#[test]
+fn describe_is_as_large_as_its_text_says() {
+    let mut seat = Seat::over(scratch());
+    let size = |seat: &mut Seat, names: Value| {
+        let (doc, refused) = seat.call("describe", &json!({ "names": names }));
+        assert!(!refused, "{names}: {doc}");
+        doc.to_string().len()
+    };
+    let (whole, _) = seat.call("describe", &json!({}));
+    assert!(whole.to_string().len() > 100_000);
+    assert!(size(&mut seat, json!(["computed"])) > 50_000);
+    assert!(size(&mut seat, json!(["fields"])) < 16_000);
+    for section in [
+        "line",
+        "linked",
+        "values",
+        "composition",
+        "operators",
+        "slots",
+        "counts",
+        "explain",
+    ] {
+        assert!(size(&mut seat, json!([section])) < 4_000, "{section}");
+    }
+    let tools = seat.mcp.list_tools();
+    let text = tools
+        .iter()
+        .find(|t| t["name"] == "describe")
+        .and_then(|t| t["description"].as_str())
+        .unwrap();
+    for section in [
+        "fields",
+        "line",
+        "linked",
+        "values",
+        "composition",
+        "operators",
+        "slots",
+        "computed",
+        "counts",
+        "explain",
+    ] {
+        assert!(text.contains(section), "{section}: {text}");
+    }
 }

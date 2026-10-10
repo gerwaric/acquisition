@@ -50,7 +50,7 @@ the site's pseudo stats, and neither promises the other (owner,
   other (C104). Portable: it carries no account, realm or view, so it is
   handed between people, agents and accounts (C91).
 - **The request** — `{account, realm | all, membership}`, the query, a
-  view, and a basis when it continues or drills down (C98, C100). A
+  view, and a basis when it continues (C98, C100; a route carries none, B3). A
   receiver whose selected account differs refuses it; rebinding is
   deliberate and shown. A request always carries its realm resolved: at
   a terminal an omitted `--realm` over a store holding one realm

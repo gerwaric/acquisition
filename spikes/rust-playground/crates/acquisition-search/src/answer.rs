@@ -492,7 +492,8 @@ pub struct Before {
 }
 
 impl Asked {
-    /// A request, or an object with the request inside it — and where
+    /// A request, or an object with the request inside it, beside
+    /// which nothing of a request stands — and where
     /// that object says a count it is a route, with the basis it was
     /// counted at where one is sent; a basis beside no count labels
     /// nothing, and what is neither is the tree's error, as a request
@@ -508,6 +509,20 @@ impl Asked {
             return Err(LanguageError::new(
                 crate::error::ErrorKind::Tree,
                 "this is no request and no route an answer printed: a request is an object",
+            ));
+        }
+        // what is read from inside its holder is whole (K7): a part of
+        // a request written beside it would be dropped unread
+        if value.get("request").is_some()
+            && let Some(beside) = ["scope", "query", "view", "context", "basis"]
+                .into_iter()
+                .find(|key| value.get(key).is_some())
+        {
+            return Err(LanguageError::new(
+                crate::error::ErrorKind::Tree,
+                format!(
+                    "`{beside}` has nowhere to stand beside `request`: a request an answer held is whole, its scope, its query and its view — write `{beside}` inside it, or send the request alone"
+                ),
             ));
         }
         match value.get("request") {

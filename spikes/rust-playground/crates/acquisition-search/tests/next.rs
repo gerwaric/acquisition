@@ -489,3 +489,33 @@ fn a_continuation_of_another_build_is_refused_and_names_both() {
         "{e}"
     );
 }
+
+/// A request read from inside what an answer held it in is whole (K7):
+/// a scope, a query, a view, a context or a basis written beside it has
+/// nowhere to stand, and is refused where it would be dropped unread.
+#[test]
+fn nothing_of_a_request_stands_beside_a_request() {
+    let inner = json!({ "query": { "text": "rarity=rare" } });
+    for (key, value) in [
+        ("scope", json!({ "realm": "pc" })),
+        ("query", json!({ "text": "rarity=magic" })),
+        ("view", json!({ "counts": { "keys": ["tab"] } })),
+        ("context", json!("corpus")),
+        ("basis", json!({})),
+    ] {
+        let mut sent = json!({ "request": inner, "count": 6 });
+        sent[key] = value;
+        let e = Asked::read(&sent).unwrap_err();
+        assert_eq!(e.kind, acquisition_search::ErrorKind::Tree, "{key}");
+        assert!(
+            e.message.contains(&format!("`{key}`")),
+            "{key}: {}",
+            e.message
+        );
+    }
+    // what an answer prints beside one is read past: a route's
+    // denominator, a next's token, an offer's path and node
+    let held = json!({ "request": inner, "count": 6, "denominator": "scope",
+                       "token": "acq1.x", "path": "1", "node": "rarity=rare" });
+    assert!(Asked::read(&held).is_ok());
+}

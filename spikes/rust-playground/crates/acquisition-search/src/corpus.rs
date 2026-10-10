@@ -511,7 +511,15 @@ impl Corpus {
                             [] => Realm::All,
                             [one] => Realm::One(one.clone()),
                             // no row has been stepped to: the error costs no read
-                            several => return Ok(Err(realm_needed(several))),
+                            several => {
+                                return Ok(Err(realm_needed(
+                                    several,
+                                    header
+                                        .account_name
+                                        .as_deref()
+                                        .unwrap_or(&header.account_uuid),
+                                )));
+                            }
                         },
                     };
                     let index = locations(header);
@@ -678,7 +686,7 @@ pub(crate) fn currency_table() -> Result<(), SearchError> {
     price::currency_table().map_err(|e| SearchError::scope("currency_table", e))
 }
 
-fn realm_needed(held: &[String]) -> SearchError {
+fn realm_needed(held: &[String], account: &str) -> SearchError {
     SearchError::scope(
         "realm_needed",
         format!(
@@ -687,7 +695,7 @@ fn realm_needed(held: &[String]) -> SearchError {
             held.join(" | ")
         ),
     )
-    .offering_realms(held)
+    .offering_realms(held, account)
 }
 
 /// What the store's read could not give of a stash tab's type, said once

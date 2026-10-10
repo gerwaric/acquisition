@@ -145,17 +145,20 @@ pub enum SearchError {
 
 /// One way on from a refusal (`search/LEDGER.md`, H5): what a terminal
 /// types, and — where that is a search — the request it is, for a caller
-/// that sends requests and types nothing. The reading of a request is
-/// the request's own command ([`Request::command`]), made here and
-/// nowhere else, so the two never disagree.
+/// that sends requests and types nothing. Where the way on is a whole
+/// search the reading is the request's own command
+/// ([`Request::command`]), made here and nowhere else, so the two never
+/// disagree; a realm's reading is the flag a terminal adds to what it
+/// typed, and its request the search asked, in that realm.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Offered {
     pub reading: String,
     pub request: Option<Request>,
-    /// A realm offered where no request was at hand to put it in: the
-    /// store's read knows the realms held and not what was asked
+    /// A realm offered where no request was at hand to put it in, and
+    /// the account of the store that was read: the store's read knows
+    /// the realms held and whose they are, and not what was asked
     /// ([`SearchError::asked_by`]).
-    realm: Option<Realm>,
+    realm: Option<(Realm, String)>,
 }
 
 impl Offered {
@@ -201,15 +204,16 @@ impl SearchError {
         self
     }
 
-    /// The realms a search may name, each the flag a terminal adds.
-    pub(crate) fn offering_realms(mut self, realms: &[String]) -> SearchError {
+    /// The realms a search of `account`'s store may name, each the flag
+    /// a terminal adds.
+    pub(crate) fn offering_realms(mut self, realms: &[String], account: &str) -> SearchError {
         if let SearchError::Scope { offers, .. } = &mut self {
             *offers = realms
                 .iter()
                 .map(|realm| Offered {
                     reading: format!("--realm {realm}"),
                     request: None,
-                    realm: Some(Realm::One(realm.clone())),
+                    realm: Some((Realm::One(realm.clone()), account.to_string())),
                 })
                 .collect();
         }
@@ -217,13 +221,17 @@ impl SearchError {
     }
 
     /// The refusal as the answer to `request`: a realm offered becomes
-    /// the request in that realm, nothing else of it changed.
+    /// the request in that realm — named, where it named no account,
+    /// for the account whose store was read, as every request an answer
+    /// holds is: with a second account known a request naming none is
+    /// refused.
     pub(crate) fn asked_by(mut self, request: &Request) -> SearchError {
         if let SearchError::Scope { offers, .. } = &mut self {
             for offer in offers.iter_mut() {
-                if let Some(realm) = &offer.realm {
+                if let Some((realm, account)) = &offer.realm {
                     let mut asked = request.clone();
                     asked.scope.realm = Some(realm.clone());
+                    asked.scope.account.get_or_insert_with(|| account.clone());
                     offer.request = Some(asked);
                 }
             }

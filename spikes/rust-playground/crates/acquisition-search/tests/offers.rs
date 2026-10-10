@@ -102,14 +102,22 @@ fn a_realm_needed_offers_the_request_in_each_realm() {
     let offers = offered(&e);
     assert_eq!(offers.len(), 2, "{e}");
     for (offer, realm) in offers.iter().zip(["pc", "xbox"]) {
-        // the request sent, and nothing of it changed but the realm
+        // the request sent, in that realm, and named for the account it
+        // was asked of as every request an answer holds is: with a second
+        // account known, one that names none is refused
         let mut sent = serde_json::to_value(&request).unwrap();
         sent["scope"]["realm"] = json!(realm);
+        sent["scope"]["account"] = json!("A");
         assert_eq!(serde_json::to_value(offer).unwrap(), sent);
         let corpus = offer.corpus(&s, &intent(&s)).unwrap();
         let a = as_json(&acquisition_search::answer(&corpus, offer).unwrap());
         assert_eq!(a["scope"]["realm"], realm);
     }
+    // an account the request named is kept as it was written
+    let mut named = request.clone();
+    named.scope.account = Some("u-1".to_string());
+    let e = named.corpus(&s, &intent(&s)).err().unwrap().to_json();
+    assert_eq!(e["offers"][0]["request"]["scope"]["account"], "u-1");
     // the store's own read, asked with no request, has none to offer
     let bare: SearchError = Corpus::load(&s, &intent(&s), None).err().unwrap();
     assert!(bare.to_json().get("offers").is_none());
