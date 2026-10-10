@@ -159,7 +159,6 @@ the piece and bring it to the owner.
 
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
-| 11d · the retirement | `acq items`, the MCP's `search_items` and `get_item` (H6), `Store::search`, and facts v8: `items_names` dropped, a partial index on `removed_at` (B4) — one commit, the migration run on a copy first; the two refusals that name the old verbs (H7) | 11c | "What happens to `acq items search`" below; the kill list (`DIGEST.md`); `REFRESH-SLICE.md`; `search/OBSERVATIONS.md`, "Step 11d (step 11c)" | the gate; no name of the old verbs outside history; the kill-list recheck |
 | 11e · the reference to its homes | `DESIGN.md`'s paragraphs into module docs, the clap help and `--describe` | 11d | `DESIGN.md` whole; rule 6 | every paragraph has a home or a recorded reason; one look reads the last whole `DESIGN.md` against the homes |
 | 11f · `search/` shrunk | what the build does not name deleted, by a census the owner reads first | 11e | `search/README.md`, rule 4; the kill list | the deletion list read; the gate |
 | 11g · the close | the closed record, and whether its rows fold back into it from `search/LEDGER.md` or stay a file looked up (the owner's); observations and parks routed; M3 last; this file deleted | all | the session-close skill, §3; `PRICING-SLICE.md` | the gate; the three parks the step fires disposed of (pricing on the MCP, the totals batch, the projection) |
@@ -190,18 +189,6 @@ evidence at step 1. Names are illustrative, as in the reference.
 | AQ4 | `id:<handle>`, every printed id accepted back (S198) | 4 |
 | AQ5 | `"# to maximum Life">=90` sorted: a count and a sorted list across every mod array | 4 |
 
-## What happens to `acq items search`
-
-Nothing, until step 11. It stays as built while the design can still
-cycle — the old verb is also a control the owner can run beside the new
-one. Step 11 retires, in one commit: the verb (`acq items show` is
-already answered by `acq show <id>` with its raw flag, there since step
-4, so no inspection is lost), the MCP's substring tool, `Store::search`, and the
-`items_names` index it never used (S124, S136) — the README tour line,
-`CLI-REFERENCE.md` and `MCP-REFERENCE.md` regenerated. Retiring it needs
-the new verb to answer what `--removed` answers: `--membership all`, step
-10 (ruled 2026-09-23; `search/LEDGER.md`, "Holes ruled", gap 3).
-
 ## Parks whose triggers the build fires
 
 | Park | Fired by | Then |
@@ -209,7 +196,7 @@ the new verb to answer what `--removed` answers: `--membership all`, step
 | the totals coverage trial | step 7, before the first recipe was accepted — fired 2026-09-23 | `search/pseudo-stats/scripts/coverage-trial.py` over the deriver's census; the rows stood (M6, `search/MEASUREMENTS.md`) |
 | a grouping above class | step 6 reaching OQ5 — fired 2026-09-23; the seat — fired 2026-09-26 (V1: the beasts follow the trade site's categories; OQ5 took 18 terms) | built at 9d-B (`category.rs`), the park deleted; OQ5 is asked by category beside its class spelling |
 | a unique's variant as a field (C107) | step 4 reaching OQ2 | the trigger reopens the question, not the build: brought to the owner with his Ashes of the Stars as the first test |
-| the digest's kill list | step 11, the last acceptance test written | recheck against the tests and the reference before any removal |
+| the digest's kill list | step 11, the last acceptance test written — fired at 11d, 2026-10-10 | rechecked: no test and no line of the reference rests on any of the 24; four are kept for what cites or still needs them (`decisions/search.md`, "Parked"), and the twenty wait for 11f's census |
 | a persisted projection; the store's search-at-scale park | M3, only if the load exceeds 500 ms — an evaluator cost over budget is the totals batch park's (owner, 2026-09-24, `decisions/search.md`) | reported with the numbers; it opens the experiment among the candidates, never persistence by default. The seat goes ahead: slow is not wrong |
 | the totals batch (`decisions/search.md`) | M3, a totals ask over 500 ms; or a consumer that holds the corpus asking — fired at step 9 by the letter | V9 (2026-09-26): stays parked, the spikes measured first; revisited at step 11 with a corpus's join time fixed |
 | a tab's type as a field (`decisions/search.md`) | the first seat behind it — fired 2026-09-26 | V10: built at 9b (`tab.type`), the entry deleted |
