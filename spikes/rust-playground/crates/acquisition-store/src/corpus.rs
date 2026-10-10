@@ -24,7 +24,9 @@
 //! - **League is joined as `read_items` joins it** (S131): a stash item's
 //!   league is its tab's; a character item's is the character's current
 //!   listing-owned league — never the stamp the item took at ingest — and
-//!   a league-less character's items carry none.
+//!   a league-less character's items carry none. That is the live read
+//!   and every live item; a removed character item is the one exception,
+//!   and deliberate (the bullet on **All**, below).
 //! - **The header is what coverage is stated from**: every live location,
 //!   and the latest listing of each realm's characters and of each (realm,
 //!   league)'s tabs — the bases the snapshots cite (`stash_basis`,
@@ -218,8 +220,13 @@ pub struct LocationRow {
 pub struct CorpusItem {
     pub id: String,
     pub realm: String,
-    /// Joined, never the item's own stamp; `None` on a league-less
-    /// character's item.
+    /// A live item's is joined, never its own stamp: a stash item's is
+    /// its tab's, a character item's its character's today (S131). A
+    /// removed character item's, under [`Membership::All`], IS its own
+    /// stamp — the league its last sighting gave it, which its character
+    /// may have left since (C108; K12 in `search/LEDGER.md`): joining it
+    /// to the character's league today would move it out of the league it
+    /// was last seen in. `None` on a league-less character's item.
     pub league: Option<String>,
     pub location_kind: String,
     pub location_id: String,
