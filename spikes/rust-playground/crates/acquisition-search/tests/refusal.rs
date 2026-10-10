@@ -1,5 +1,5 @@
-//! The refusal walk (`search/BUILD-PLAN.md`, "How a partial build stays
-//! honest", rule 1) and invariant 3 of the surface: every construct of the
+//! The refusal walk (`SEARCH-SLICE.md`, "The plan's rules",
+//! rule 1) and invariant 3 of the surface: every construct of the
 //! language either evaluates or is refused by its name on the one list
 //! `--describe` prints — never the unknown-name error, never undecided,
 //! never an empty answer — and a query's validity never depends on the

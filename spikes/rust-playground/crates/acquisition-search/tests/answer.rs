@@ -1,4 +1,4 @@
-//! The crate's boundary (`search/BUILD-PLAN.md`, rule 3): a request in, an
+//! The crate's boundary (`SEARCH-SLICE.md`, rule 3): a request in, an
 //! answer out, as JSON. The worked example whole (`answer.rs`), every count
 //! as printed there and worked by hand; the route property; invariants 2
 //! and 6 of the surface; C93's composition; C92's sort scalar; C96's

@@ -112,9 +112,9 @@ use crate::tree::{self, Collection, Node, Number, Op, Probe, Value, ValueRef};
 
 // ---- what is not built -------------------------------------------------------
 
-/// A construct of the language this build refuses, and the step of
-/// `search/BUILD-PLAN.md` that builds it — none, where it waits for a
-/// consumer that asks: the plan's step 10 left four so.
+/// A construct of the language this build refuses, and the step of the
+/// plan that builds it — none, where it waits for a consumer that asks:
+/// the plan's step 10 left four so, and the slice closed with them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub struct NotBuilt {
     pub construct: &'static str,

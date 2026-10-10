@@ -1,5 +1,5 @@
 //! The deriver's census of a corpus, for the M2 differential
-//! (`search/BUILD-PLAN.md`, "Measurements the build owes"): items in as
+//! (`search/MEASUREMENTS.md`): items in as
 //! JSON lines on stdin — `{"facts": {…}, "body": "…"}`, the shape the
 //! store's read hands over (C103) — and one JSON document out: a row per
 //! (source, template) with its items, lines, flags, numbers and whether

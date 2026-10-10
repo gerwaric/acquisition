@@ -1,4 +1,4 @@
-//! The item search over MCP (`search/BUILD-PLAN.md`, step 11b; the
+//! The item search over MCP (`search/LEDGER.md`, step 11b; the
 //! rulings H1–H5 of `search/LEDGER.md`, "11 · the opening"): `search`,
 //! `describe` and `show` are adapters of `acquisition-search` as `acq
 //! search` and `acq show` are, so what a tool returns is the document the

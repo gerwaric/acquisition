@@ -1,9 +1,10 @@
 # Item search — the slice's working directory
 
-Item search is the next slice (owner, 2026-09-11: "the real heart of
-acquisition"). This directory is where its research accumulates, one
-track per directory, and later where the design and the build point.
-It is evidence and working material, not deliberation and not rulings:
+Item search (owner, 2026-09-11: "the real heart of acquisition") is
+built and its slice closed (`SEARCH-SLICE.md`, the record). This
+directory is where its research accumulated, one track per directory,
+and holds what the build still names. It is evidence and working
+material, not deliberation and not rulings:
 a session that thinks out loud writes a numbered `brainstorming-notes/`
 note that cites a track by path; a ruling lands in `decisions/`. Nothing
 here is an authority for either; `DESIGN.md`, the one exception until
@@ -34,10 +35,15 @@ deleting one; nothing else encodes it. (Set 2026-09-12.)
 4. **Three bins, three fates.** `raw/` — downloads, page saves, database
    copies: gitignored, local only, each described by a row in the
    track's `MANIFEST.md` (date, source, captured by, access method,
-   sha256); dies with the machine. `data/` — extracts, regenerable:
+   sha256); dies with the machine; a `raw/` whose track is gone
+   (`agent-seat/`, `engine-bench/`, `item-filter/`) is described by that
+   track's `MANIFEST.md` at `40b55e79`. `data/` — extracts, regenerable:
    committed, first line names the script and the input; survives the
-   close only if the build cites it. `scripts/` — committed, disposable;
-   die at the close unless promoted to `tools/`. Exception, owner's call
+   close only if the build cites it. `scripts/` — committed; survives the
+   close in place only if the build names it or a kept table needs it,
+   as `data/` does (owner, 2026-10-10), kept as written and last run
+   when its data's first line says: one that names the plan or the
+   observations names the file at `453a4429`. Exception, owner's call
    2026-09-12: GGG's static-data responses (stats, items, filters,
    static) are committed under `data/` with dated filenames so captures
    diff across leagues; page saves and the JS bundle stay in `raw/` and
@@ -57,9 +63,9 @@ procedure's traps live with its skill)
 - engine-bench: a throwaway Rust crate is never a workspace member, or the quality gate builds and lints it; copy the facts database with sqlite's `.backup`, never `cp`, because it is under WAL.
 - Files from the game and from Path of Building end lines with CRLF — the `Mod*.lua` tables, the clipboard text in a `fetch`'s `extended.text`: strip `\r` before matching a line end (bit the mod-table parser and the `Item Class:` check in one session); `mod-templates.csv` carries a bare CR inside 260 templates, so open the census files with `newline="\n"` or every line number past the first is off (pseudo-stats, 2026-09-18).
 
-At the close this directory is expected to shrink into `SEARCH-SLICE.md`,
-the slice's record in the mold of `PRICING-SLICE.md`, with the full text
-cited at a commit.
+At the close this directory shrank to what a crate, a test, a tool, a
+skill, a ruling or the record names (`SEARCH-SLICE.md`, the closed
+record); the full text is cited at a commit, below.
 
 ## Tracks
 
@@ -95,12 +101,13 @@ How the rulings were reached — the synthesis's six stages, their notes,
 the blind proposals and the audit — is `LEDGER.md`, "How the design
 was reached". `search-forms/` is the design dialogue that chose
 the surface, history: files 10 and 11 are what was harvested, and the
-owner's words are whole in file 11. The build runs under
-`BUILD-PLAN.md`, the brief, deleted at the close; what it met is the
-record, its rows — the step ledger, the holes ruled — `LEDGER.md`,
-looked up by the row, its measurements — the tables, commands and numbers on the
-owner's copy — are `MEASUREMENTS.md`, read by the block named, and what a step saw
-that is open still is `OBSERVATIONS.md`, looked up by the step that will use it.
+owner's words are whole in file 11. The build ran under
+`BUILD-PLAN.md`, the brief, deleted at the close and whole at
+`453a4429`; what it met is the record, its rows — the step ledger, the
+holes ruled — `LEDGER.md`, looked up by the row, and its measurements —
+the tables, commands and numbers on the owner's copy — `MEASUREMENTS.md`,
+read by the block named. What a step saw that stayed open is a park in
+`decisions/`, each with its trigger.
 
 Two topics the design session rules without a track, since no read
 now would add evidence (owner's call, 2026-09-13): how the search

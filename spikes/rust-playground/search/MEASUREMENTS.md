@@ -1,7 +1,7 @@
 # The item search slice — the measurements
 
-The measurements the build owes (`BUILD-PLAN.md`, "Measurements the
-build owes"), each on the `.backup` copy the plan names, with the
+The measurements the build owed (`BUILD-PLAN.md` at `453a4429`,
+"Measurements the build owes"), each on the `.backup` copy the plan names, with the
 command that produced it and its numbers as measured, never recalled.
 Read by the block named — the measurement a step repeats, the number a
 park's trigger or a review checks — and never whole: the verdicts, one
@@ -280,7 +280,7 @@ fields in one two-path extract, changed no ask by more than the noise
 55 under the budget, so the projection park's trigger does not fire by
 the owner's rule (2026-09-24), and the two asks over it are an
 evaluator cost on a floor the join raised — a shape the ruling did not
-name, brought to the owner (`search/OBSERVATIONS.md`, step 9). Over the copy's fresh intent file the game alone prices
+name, brought to the owner (`search/OBSERVATIONS.md` at `453a4429`, step 9). Over the copy's fresh intent file the game alone prices
 what `has:priced` finds; the count is the answer's, not recorded here.
 
 What the table says: a class table's or a totals table's parse is

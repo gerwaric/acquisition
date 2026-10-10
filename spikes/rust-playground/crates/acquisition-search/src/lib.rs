@@ -3,9 +3,10 @@
 //! Rulings: `decisions/search.md`, C89–C107. The language as this build
 //! knows it, an example per construct, is `--describe` ([`mod@describe`]);
 //! the rules that decide an answer are the module docs below, each under
-//! its decision's id; the build's order: `search/BUILD-PLAN.md`; what each
-//! step met — the shapes of fault its reviews taught, the measurements'
-//! verdicts: `SEARCH-SLICE.md`; its steps and the holes ruled:
+//! its decision's id; what the build met — the plan's rules, cited here as
+//! "rule N of the plan", the shapes of fault its reviews taught, the
+//! measurements' verdicts: `SEARCH-SLICE.md`, the closed record (the
+//! plan itself is `search/BUILD-PLAN.md` at `453a4429`); its steps and the holes ruled:
 //! `search/LEDGER.md`; the measurements' tables: `search/MEASUREMENTS.md`.
 //!
 //! # The words

@@ -1,45 +1,142 @@
-# The item search slice — the record
+# The item search slice — closed record
 
 The item search slice — the `acquisition-search` crate: the language,
 the derivation, the store's read, the first surface, its properties and
-the counts view, then the owner's seat and the steps after it — is being
-built under `search/BUILD-PLAN.md`, the brief. This file is its record,
-opened at step 5 rather than at the close (the owner's ruling, in the
-plan's header), in the mold of `PRICING-SLICE.md`: what landed, in which
-commits, what the audits found and what holds each finding now, what the
-measurements taught, which holes were ruled and where the rule went, and
-what is still open. The full text as it stood in the plan — every audit
-round in its own section, the step 4b brief, the first showing of the
-store's read — is the plan at `2d25cb03`.
+the counts view, the owner's seat and the steps after it, the search on
+the MCP and the reference in its homes — was built between 2026-09-19
+and 2026-10-10 and is closed. This file is its permanent short record in
+the mold of `PRICING-SLICE.md`: what landed, what the audits found and
+what holds each finding now, what the measurements taught, and what is
+still open. It was opened at step 5 rather than at the close (the
+owner's ruling, 2026-09-21). The brief it was built under is
+`search/BUILD-PLAN.md` at `453a4429`, deleted at the close: its
+acceptance set, the parks it fired and the measurements it owed are
+there, and its rules are below. The full text as it stood in the plan —
+every audit round in its own section, the step 4b brief, the first
+showing of the store's read — is the plan at `2d25cb03`.
 
 The rulings are `decisions/search.md` (C89–C107) and `decisions/store.md`
 (C108); the language is `acq search --describe` and the contract
 detail the crate's module docs; the acceptance set and the limits register are
 `search/DIGEST.md`; the properties are pinned by the tests named below.
-Nothing here is a second authority. A step writes once, at its
-close — its ledger line and its holes to `search/LEDGER.md`, the
-measurements it repeated here, its observations to
-`search/OBSERVATIONS.md` — and never during: until then the commit message is the journal
-(2026-09-23, after the record had been kept as one).
+Nothing here is a second authority.
 
-Reviewing a search change: the shapes of fault below are the
-checklist, and `REFRESH-SLICE.md`'s findings table beside them for the
-store's read.
+Reviewing a search change: the rules and the shapes of fault below are
+the checklist, and `REFRESH-SLICE.md`'s findings table beside them for
+the store's read.
+
+## Final state
+
+- Tip at closure: the closing commit. Facts **v8**, derivation **11**,
+  totals table **v6**, class, category, colour and defence tables **v1**
+  each; gate green.
+- The search code: the `acquisition-search` crate and its
+  `reference/` tables; the store's `corpus.rs` (C103, C108); the CLI's
+  `search_cmd.rs` (`acq search`, `acq show`); the MCP's `search`,
+  `describe` and `show`; the table makers `tools/class-table.py`,
+  `totals-table.py`, `category-table.py`, `defence-table.py`, and
+  `tools/trade-sheet.py` for a sitting.
+- Not built, each refused by name and printed by `--describe`:
+  `--fields`, `--view locations`, `--rebind`, `show --basis`. Not in the
+  slice: the trade translation (C99), parked.
+- What stays under `search/` is what the build names
+  (`search/README.md`); a pointer that finds no file is read at
+  `40b55e79`.
 
 ## What is looked up
 
-Four kinds of row grow by a line at every step's close and are looked
-up by the row, never loaded whole: `search/LEDGER.md`.
+Three kinds of row are looked up by the row, never loaded whole:
+`search/LEDGER.md`.
 
 - **Step ledger** — a closed step is a line: the step, its commits,
   where what landed lives.
-- **The yields by look** — what a review found each time it came back,
-  per step, and what the seats found.
 - **Holes ruled, and where the rule went** — a line per hole, by its
   id: the hole as ruled, where the rule is, the commit that ruled it.
-  Looked up before a hole is brought to the owner.
+  A crate doc or a test that names a hole names its row.
 - **How the design was reached** — the synthesis's stages and their
   notes.
+
+## The plan's rules
+
+How a partial build stayed honest: the brief's rules, moved here whole
+when the brief was deleted, since the crate's docs and tests cite them
+by number ("rule 8 of the plan"). Each is in the build's tense; "the
+reference" is the page the module docs and `--describe` are now
+(`search/DESIGN.md` at `0d71054f`), and rule 4's two pointers read as
+they do since the close. They bind a change to the crate as they bound
+a step.
+
+1. **The parser knows the whole language from step 1; the evaluator
+   knows part of it.** What is not built lives in one closed list in the
+   crate, each entry a construct of the reference and the step that
+   builds it. A request that uses one is refused before anything is
+   evaluated — `not built: pseudo.* (step 7)` — an error of its own kind,
+   never the unknown-name error, never undecided, never an empty answer.
+   `--describe` prints the same list. One test walks it: every construct
+   of the reference either evaluates or refuses by that name, and the
+   list the test walks is the list `--describe` prints.
+2. **Scope, basis and undecided are in the first answer or there is no
+   answer.** The first surface prints the scope block, the basis, the
+   four counts per term and the undecided items with their reasons. A
+   reason whose source is not built yet (a base the class table lacks, a
+   price unresolved) cannot occur, because the construct that needs it
+   is refused.
+3. **Tests pin the crate's boundary** — a request in, an answer out, as
+   JSON — and the CLI's `--json`; text is a function of JSON (C53).
+   Every count in a fixture answer is worked by hand first, as the
+   reference's worked example is.
+4. **A rule the reference does not state stops the step** and comes to
+   the owner if it changes what a user types; otherwise it is a park
+   with its trigger (`decisions/search.md`). A name the reference hands to the
+   builder — a flag, a key, a field's spelling — is not a gap: the
+   builder picks it and `--describe` or the help prints it. What a name
+   *means* — which items it matches — is. A ruled one is a line in
+   `search/LEDGER.md`, "Holes ruled", its evidence the ruling commit's
+   message; none was unruled at the close.
+5. **An answer never prints a command the same build refuses.** A
+   block the reference bounds with a route to the whole (invariant 5)
+   prints that route only when it runs; until then it prints the count
+   left out and names the unbuilt construct. The route property's test
+   covers it: every command an answer prints parses and is not refused.
+6. **Spent at step 11e.** The language reference stayed whole in
+   `search/DESIGN.md` until the first seat had ruled, and is the module
+   docs, the clap help and `--describe` now; the rule as it stood is
+   this file at `0d71054f`.
+7. **Whose store.** The agent tests on fixtures built through the
+   store's own ingest, and measures on a sqlite `.backup` copy under a
+   track's `raw/`, always with `ACQ_STORE_DIR` set. The owner's store is
+   opened only by the owner, at a terminal. No GGG traffic anywhere in
+   this plan; the one daemon is M5's, a mock session.
+
+Rules 8 to 10 are what step 4b's audits taught (`SEARCH-SLICE.md`,
+"Findings"), each a fault that came back until it was named;
+the owner approved their meaning from a plain account of each and left
+the wording to the builder (2026-09-22: "the words that get written down
+are for you"; "If so, go ahead"). Each names what already holds it: the
+rule is for the moment before the code is written.
+
+8. **Unknown is said once, where the evidence is read, and of no more
+   than was lost.** What the deriver cannot read — a flag that is no yes
+   or no, a number it does not read, an array that is no array — is
+   unread there, at that grain: the flag, the slot, the array. Too small
+   and it reads as absent, and a not makes a witness of it; too large and
+   terms that never needed it are left open (C93). Nothing downstream
+   has a fallback or a second way to fail. *Held by:* the completion
+   property; `derive::Slot`, `Line::flags_unknown`, `Unread::line`.
+9. **A cut follows the data, never the query.** A block that shows part
+   of something orders it by the item or by the counts, so that two
+   spellings of one question show the same part (invariant 7), chooses
+   what is relevant before it cuts, and counts what it left out in the
+   unit it cut — rows, values, unread parts. *Held by:* the equivalence
+   property, where a generated or fixed case crosses the bound: a new
+   bound needs a case past it.
+10. **One maker for each kind of thing an answer holds.** What a group
+    means (`group.rs`, refused elsewhere by `tools/docs-check.sh` §7), a
+    command (`answer::command`: rule 5 is this rule for commands), why
+    an item is undecided (`eval::why`), a sum (`exact.rs`). A second
+    maker is how two parts of one answer come to disagree: look for the
+    first before writing one. *Held by:* §7; the CLI test that runs
+    every command printed; the cross-checks.
 
 ## Findings
 
@@ -133,7 +230,12 @@ number there was measured, never recalled. The verdicts:
 
 ## Observations still open
 
-What a step saw that became neither a ruling nor a finding is
-`search/OBSERVATIONS.md`, looked up by the step or the trigger that
-will use it and never loaded whole: a step's close writes its own
-there and removes or rules each one it used.
+What a step saw that became neither a ruling nor a finding was
+`search/OBSERVATIONS.md`, whole at `453a4429`. At the close each entry
+with a trigger became a park (`decisions/search.md`,
+`decisions/frontends.md`, `decisions/store.md`), each with a home was
+left to it, and the rest were dropped. One kind stays a pointer: the
+entries headed "the review's next look" — what no test pins and no look
+reached, a step's own choices no look weighed, the paths fixtures alone
+exercise — are read there, by the module named, before that module is
+changed.

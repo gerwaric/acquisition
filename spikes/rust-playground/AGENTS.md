@@ -57,7 +57,7 @@ refresh and daemon split, also read the crates' module docs (refresh:
 | pricing | `PRICING-SLICE.md` |
 | store, planner or plan slice | `REFRESH-SLICE.md` |
 | protocol, client, daemon lifecycle or world | `DAEMON-SPLIT-SLICE.md` |
-| item search | `SEARCH-SLICE.md` (open at step 5) |
+| item search | `SEARCH-SLICE.md` |
 
 Facts about GGG live in `../../docs/design/network-ground-truth.md`, cited
 by claim number; new claims are authored on the master-side branch and

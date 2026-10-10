@@ -1,4 +1,4 @@
-//! The acceptance set as tests (`search/BUILD-PLAN.md`, "The acceptance
+//! The acceptance set as tests (`search/BUILD-PLAN.md` at `453a4429`, "The acceptance
 //! set as tests"; `search/DIGEST.md`, "The acceptance set"): the rows
 //! marked green at step 4, one test per question over a fixture store,
 //! through the crate's boundary. The limits the build meets (C102) are

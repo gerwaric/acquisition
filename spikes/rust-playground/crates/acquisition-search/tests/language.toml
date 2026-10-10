@@ -734,7 +734,7 @@ construct = "worked_example"
 text = '''line("# to maximum Life") -line("# to maximum Life" arg1>=90)'''
 canonical = '''line("# to maximum Life") -line("# to maximum Life" arg1>=90)'''
 
-# ---- the acceptance set (search/DIGEST.md; search/BUILD-PLAN.md) ------------------------------
+# ---- the acceptance set (search/DIGEST.md; search/BUILD-PLAN.md at 453a4429) ------------------------------
 
 [[case]]
 construct = "acceptance.OQ1"

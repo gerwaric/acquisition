@@ -1,5 +1,5 @@
 //! Make a facts-file copy a store `acq` can open, for the build plan's M3
-//! and M4 (`search/BUILD-PLAN.md`, "Measurements the build owes"): given a
+//! and M4 (`search/MEASUREMENTS.md`): given a
 //! sqlite `.backup` copy and an empty directory, record the copy's own
 //! account in an index there and move the copy to the path that index
 //! names, under the mock provider's directory — so that

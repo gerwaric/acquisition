@@ -1,4 +1,4 @@
-//! M1 (`search/BUILD-PLAN.md`, "Measurements the build owes"): the search
+//! M1 (`search/MEASUREMENTS.md`): the search
 //! read over a whole corpus — `Store::read_corpus`, every realm — timed,
 //! with what it handed over counted. Peak memory is the caller's to take
 //! (`/usr/bin/time -l`), so that it is the process's and not an estimate.
