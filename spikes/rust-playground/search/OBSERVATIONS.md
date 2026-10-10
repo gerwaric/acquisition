@@ -261,3 +261,28 @@ filed again by the step that touches it.
   corpus` and no tree. No mutant was run against the terminal's test.
   A changed basis by a price written was not run, a fetch and a file
   replaced were.
+- *The owner's, at a seat or step 11's opening (step 10c):* a removed
+  character item is leagued as C108 joins every character item, by the
+  league the character is listed in today, where the reference says
+  the place it was last seen: one that left a character in a league
+  the character has since left is found under the new league and not
+  the old, the item's own stamp still the old one. No item of the copy
+  is such a one, its six removed all at characters that have not
+  moved.
+- *Step 11's opening, with the facts migration if one is ruled (step
+  10c):* the live read names the ids it left out by a scan of `items`,
+  6 ms by sqlite alone over the copy's 22,727 rows, the load 491 ms
+  where it was 483; a partial index on `removed_at` would make it
+  nothing, and is a migration. A prune of removed items changes what
+  `all` returns and the revision does not move when rows are deleted
+  (the store's `corpus.rs`; the prune park).
+- *The review's next look (step 10c):* an item with no removal time of
+  its own at a retired location takes the location's, which no ingest
+  path leaves and no test reaches. The generated properties do not
+  reach membership: no equivalence, completion or cross-check runs
+  under `all`. A substash whose tab was retired and listed again, and
+  a league-less character's removed item, were argued from the SQL.
+  `--sort` and `--cross` under `all` were not run. `show`'s refusal
+  for an item at no tab or character the store holds is reached by
+  nothing. A removed item's price says "no longer where it was" of a
+  gem taken out of its socket as of an item sold.
