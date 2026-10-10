@@ -113,7 +113,11 @@
 //!   [`mod@answer`]'s doc; pinned by `tests/next.rs` (the pages in order
 //!   are the answer at a limit past the total, fixed and generated; the
 //!   refusal across a changed basis; both counts of a route on a later
-//!   basis).
+//!   basis). Membership is [`corpus`]'s doc and the store's
+//!   (`acquisition-store/src/corpus.rs`, C108); pinned by
+//!   `tests/membership.rs` (the removed beside the live, each marked at
+//!   the place it was last seen; a removed item's price; every route
+//!   under `all`; AQ4 across a refresh that removed the item).
 //! - **C95, C97, C105.** The counts view and the vocabulary are
 //!   [`counts`]'s doc; pinned by `tests/counts.rs`: AQ1, C105's two
 //!   invariants on a one-value key, C95's sum over the three kinds, the

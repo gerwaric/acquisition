@@ -44,7 +44,7 @@
 use std::io::Read as _;
 
 use acquisition_search::answer::{
-    Answer, Asked, Context, Count, DEFAULT_LIMIT, Request, Rows, Scope, View, ViewOut,
+    Answer, Asked, Context, Count, DEFAULT_LIMIT, Membership, Request, Rows, Scope, View, ViewOut,
 };
 use acquisition_search::corpus::Realm;
 use acquisition_search::counts::{Bucket, CrossOut, Label, SumOf, Summed, Table};
@@ -71,6 +71,11 @@ pub struct SearchArgs {
     /// several it is required, one of them or `all` (C96).
     #[arg(long)]
     pub realm: Option<String>,
+    /// Which items are searched: `live`, the default, or `all`, which
+    /// adds the removed — each row marked with when it left, at the place
+    /// it was last seen — and counts the two apart in the scope block.
+    #[arg(long, value_name = "live|all")]
+    pub membership: Option<String>,
     /// Read the query from a file, or from stdin with `-`: a query with an
     /// apostrophe needs no shell quoting this way.
     #[arg(long, value_name = "FILE|-", conflicts_with = "query")]
@@ -232,6 +237,7 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         ("a query", args.query.is_some()),
         ("--query-file", args.query_file.is_some()),
         ("--realm", args.realm.is_some()),
+        ("--membership", args.membership.is_some()),
         ("--sort", args.sort.is_some()),
         ("--count", args.count.is_some()),
         ("--cross", args.cross.is_some()),
@@ -282,8 +288,13 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         let asked = Asked::read(&value).map_err(|e| fail(e.into(), json))?;
         asked.request.check().map_err(|e| fail(e.into(), json))?;
         let (store, intent) = open_store_and_intent()?;
-        let corpus = Corpus::load(&store, &intent, asked.request.scope.realm.as_ref())
-            .map_err(|e| fail(e, json))?;
+        let corpus = Corpus::load_of(
+            &store,
+            &intent,
+            asked.request.scope.realm.as_ref(),
+            asked.request.scope.membership.into(),
+        )
+        .map_err(|e| fail(e, json))?;
         let answered = asked.answer(&corpus).map_err(|e| fail(e, json))?;
         return emit(&answered, json, |a| answer_text(a, args.routes));
     }
@@ -298,8 +309,13 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         }
         request.check().map_err(|e| fail(e.into(), json))?;
         let (store, intent) = open_store_and_intent()?;
-        let corpus = Corpus::load(&store, &intent, request.scope.realm.as_ref())
-            .map_err(|e| fail(e, json))?;
+        let corpus = Corpus::load_of(
+            &store,
+            &intent,
+            request.scope.realm.as_ref(),
+            request.scope.membership.into(),
+        )
+        .map_err(|e| fail(e, json))?;
         let answered = answer(&corpus, &request).map_err(|e| fail(e, json))?;
         return emit(&answered, json, |a| answer_text(a, args.routes));
     }
@@ -356,8 +372,27 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         Some(word) => Context::parse(word).map_err(|e| fail(e.into(), json))?,
         None => Context::default(),
     };
+    let membership = match args.membership.as_deref() {
+        None | Some("live") => Membership::Live,
+        Some("all") => Membership::All,
+        Some(other) => {
+            return Err(fail(
+                SearchError::Scope {
+                    kind: "membership_unknown",
+                    message: format!(
+                        "`{other}` is no membership: live, the items in the stash, or all, the removed beside them"
+                    ),
+                    offers: Vec::new(),
+                },
+                json,
+            ));
+        }
+    };
     let request = Request {
-        scope: Scope::default(),
+        scope: Scope {
+            membership,
+            ..Scope::default()
+        },
         query: acquisition_search::answer::QueryInput {
             text: Some(text.trim().to_string()),
             tree: None,
@@ -369,7 +404,8 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
     // an authoring error is said before the store is read
     request.check().map_err(|e| fail(e.into(), json))?;
     let (store, intent) = open_store_and_intent()?;
-    let corpus = Corpus::load(&store, &intent, realm.as_ref()).map_err(|e| fail(e, json))?;
+    let corpus = Corpus::load_of(&store, &intent, realm.as_ref(), membership.into())
+        .map_err(|e| fail(e, json))?;
     if args.print_request {
         // the request as it was bound, its account and its realm
         // resolved by the store it would be run on; nothing is asked
@@ -647,9 +683,16 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
     let scope = &a.scope;
     let account = scope.account.name.as_deref().unwrap_or(&scope.account.uuid);
     let mut first = format!(
-        "scope   account {account} · {} · live · {} · {} fetched",
+        "scope   account {account} · {} · {} · {} fetched",
         scope.realm.as_str(),
-        plural(scope.coverage.items, "item", "items"),
+        match scope.coverage.removed {
+            Some(removed) => format!(
+                "all · {} live · {} removed",
+                plural(scope.coverage.items, "item", "items"),
+                removed
+            ),
+            None => format!("live · {}", plural(scope.coverage.items, "item", "items")),
+        },
         plural(scope.coverage.fetched, "location", "locations"),
     );
     if let (Some(oldest), Some(newest)) = (scope.coverage.oldest_fetch, scope.coverage.newest_fetch)
@@ -693,7 +736,12 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
 
     if !a.terms.is_empty() {
         line(format!(
-            "terms   each term evaluated independently over live {} in all leagues",
+            "terms   each term evaluated independently over {} {} in all leagues",
+            if scope.coverage.removed.is_some() {
+                "live and removed"
+            } else {
+                "live"
+            },
             match &scope.realm {
                 Realm::All => "items of every realm".to_string(),
                 Realm::One(realm) => format!("{realm} items"),
@@ -735,6 +783,18 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                 term.term,
                 counts.join(" · ")
             ));
+            if let Some(removed) = &term.removed {
+                line(format!(
+                    "       this id is {} {} that left the scope {}{}",
+                    if removed.what == "item" { "an" } else { "a" },
+                    removed.what,
+                    ago(now, Some(removed.removed_at)),
+                    match &removed.route {
+                        Some(route) => format!(": {}", route.command()),
+                        None => " and held no item".to_string(),
+                    }
+                ));
+            }
             if let Some(resolved) = &term.resolved {
                 // the five most carried, where the JSON lists ten and a
                 // count lists the rest; every pick of a category term,
@@ -783,6 +843,9 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
             head.push_str(&format!(" · {}", row.place.realm));
         }
         head.push_str(&format!(" · {}", place_text(&row.place)));
+        if let Some(removed_at) = row.removed_at {
+            head.push_str(&format!(" · removed {}", ago(now, Some(removed_at))));
+        }
         line(format!(
             "{}{head}",
             if i == 0 { "rows    " } else { "        " }
@@ -934,7 +997,12 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                 nothing.of,
                 nothing.path,
                 nothing.term,
-                nothing.note.unwrap_or(zero.said)
+                match nothing.note {
+                    Some(note) => note,
+                    // an id that left: its term has said so
+                    None if nothing.of == "id" => "it left the scope, as its term says",
+                    None => zero.said,
+                }
             ));
             for s in &nothing.suggestions {
                 line(format!(
@@ -1389,6 +1457,12 @@ fn shown_text(s: &Shown) -> String {
     }
     out.push_str(&format!("{head}\n"));
     out.push_str(&format!("id      {}\n", item.facts.id));
+    if let Some(removed_at) = item.facts.removed_at {
+        out.push_str(&format!(
+            "removed {}: no longer in the stash, shown as it was last seen\n",
+            ago(acquisition_store::now(), Some(removed_at))
+        ));
+    }
     out.push_str(&format!(
         "place   {} · {}\n",
         s.place.realm,

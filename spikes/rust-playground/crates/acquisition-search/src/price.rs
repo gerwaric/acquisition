@@ -186,6 +186,15 @@ impl Priced {
         Priced::Open(unread(gap, problem))
     }
 
+    /// A removed item's: resolved, and no price — an item not in the
+    /// stash has no listing state (the reference, *Membership*).
+    pub(crate) fn removed() -> Priced {
+        Priced::None {
+            kind: "removed".to_string(),
+            why: "the item is no longer where it was, so no listing state prices it".to_string(),
+        }
+    }
+
     fn uncovered() -> Priced {
         Priced::open(
             PriceGap::Uncovered,

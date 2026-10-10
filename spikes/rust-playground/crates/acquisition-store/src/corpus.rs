@@ -38,9 +38,18 @@
 //!   consumer counts never-fetched locations without the folders.
 //! - **Live** is the item and its location both, the membership
 //!   `read_items` reports: a location a listing retired takes its items
-//!   with it (C54). Removed items are not read: no consumer asks for them
-//!   yet, and a read that handed them over would change under a prune
-//!   (below).
+//!   with it (C54). It is the read's default, and what it leaves out it
+//!   names: [`CorpusHeader::gone`], every removed item's id and every
+//!   retired location's with when it left, so that an id held from an
+//!   earlier read never looks like one the file never held.
+//! - **All** ([`Store::read_corpus_of`], [`Membership::All`]) is every
+//!   item the file holds, at the place it was last seen: the same joins
+//!   without the tests of liveness, in the same order, each removed item
+//!   with when it left — its own time, or its location's where only that
+//!   says so, which no ingest path leaves and no item of the owner's copy
+//!   shows (2026-10-09) — and the retired locations in the header,
+//!   marked, a substash that went with its tab among them. A read that
+//!   hands the removed over changes under a prune (below).
 //! - **The body is text, unparsed**, exactly as `items.json` holds it (the
 //!   item minus its lifted `socketedItems`). One that does not parse is
 //!   the search crate's to report on that item; [`Store::search`] turns it
@@ -78,10 +87,15 @@
 //!   the highest id plus one, and an id comes back only if the highest row
 //!   is deleted. **Whatever prunes this file keeps two rules: it never
 //!   deletes the highest `responses` row, and a prune that changes what a
-//!   basis read returns advances the revision.** A prune of removed items,
-//!   of events or of old responses changes nothing this read returns while
-//!   it keeps the latest listing of each realm and league, which the
-//!   header and the snapshots read.
+//!   basis read returns advances the revision.** A prune of events or of
+//!   old responses changes nothing this read returns while it keeps the
+//!   latest listing of each realm and league, which the header and the
+//!   snapshots read. A prune of removed items or of retired locations
+//!   changes what the read returns under `All` and what the live read
+//!   names as gone, so it advances the revision — and the highest
+//!   response id does not move when rows are deleted, so that prune
+//!   brings the stamped counter with it or writes a response of its own
+//!   (`decisions/store.md`, "Parked").
 //! - Not covered, by this number or by a stamped counter: a facts file
 //!   deleted and refetched, or restored from a copy, counts from an earlier
 //!   number again (`decisions/search.md`, "Parked").
@@ -111,6 +125,27 @@ pub enum RealmScope<'a> {
     All,
 }
 
+/// Which items a read hands over (C108; the search reference,
+/// *Membership*): the live ones, or every item the file holds, each
+/// removed one with when it left.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Membership {
+    #[default]
+    Live,
+    All,
+}
+
+/// An id a live read does not hand over and the file holds: an item
+/// removed, or a tab or a character a listing retired, with when it left.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Gone {
+    pub realm: String,
+    /// `item`, `stash` or `character`.
+    pub kind: String,
+    pub id: String,
+    pub removed_at: i64,
+}
+
 /// What [`Store::read_corpus`] says before the first item.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CorpusHeader {
@@ -126,8 +161,13 @@ pub struct CorpusHeader {
     pub listings: Vec<ListingSeen>,
     /// Every live location in scope, items or none: tabs in listing order
     /// by realm and league, then characters as `acq store characters`
-    /// orders them.
+    /// orders them. Under [`Membership::All`] the retired ones too, each
+    /// marked ([`LocationRow::removed_at`]).
     pub locations: Vec<LocationRow>,
+    /// Under [`Membership::Live`], every id in scope the read leaves out:
+    /// what an id that matches nothing live is looked up in. Empty under
+    /// `All`, where they are items and locations.
+    pub gone: Vec<Gone>,
 }
 
 /// When a list of locations was last seen: the `responses` row the
@@ -165,9 +205,13 @@ pub struct LocationRow {
     pub listed_at: Option<i64>,
     /// `None`: never fetched — or retired and revived since (C54).
     pub fetched_at: Option<i64>,
+    /// When a listing retired it — its own, or its tab's where a substash
+    /// went with it; always `None` under [`Membership::Live`].
+    pub removed_at: Option<i64>,
 }
 
-/// One live item: its ingest facts (S128) and its body.
+/// One item — live, or under [`Membership::All`] removed too: its ingest
+/// facts (S128) and its body.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CorpusItem {
     pub id: String,
@@ -183,6 +227,9 @@ pub struct CorpusItem {
     pub socketed_in: Option<String>,
     pub first_seen: i64,
     pub last_seen: i64,
+    /// When it left: a fetch of its location no longer had it, or the
+    /// location was retired; always `None` under [`Membership::Live`].
+    pub removed_at: Option<i64>,
     /// `items.json` as stored, unparsed.
     pub body: String,
 }
@@ -217,12 +264,30 @@ fn corpus_item(r: &rusqlite::Row<'_>) -> rusqlite::Result<CorpusItem> {
         first_seen: r.get(7)?,
         last_seen: r.get(8)?,
         body: r.get(9)?,
+        removed_at: r.get(10)?,
     })
 }
 
+/// Every item the file holds, at the place it was last seen: the same
+/// joins without the tests of liveness, and when each removed one left —
+/// its own time, or its location's where only that says so.
+const ALL_ITEMS_SQL: &str = "SELECT i.id, i.realm,
+        CASE WHEN i.location_kind = 'character' THEN c.league ELSE i.league END,
+        i.location_kind, i.location_id, i.container, i.socketed_in, i.first_seen, i.last_seen, i.json,
+        COALESCE(i.removed_at, t.removed_at, c.removed_at,
+                 (SELECT p.removed_at FROM tabs p WHERE p.realm = t.realm AND p.league = t.league AND p.id = t.parent))
+   FROM items i
+   LEFT JOIN tabs t ON i.location_kind = 'stash' AND t.realm = i.realm AND t.league = i.league
+                   AND t.id = i.location_id
+   LEFT JOIN characters c ON i.location_kind = 'character' AND c.realm = i.realm
+                   AND c.id = i.location_id
+  WHERE (?1 IS NULL OR i.realm = ?1)
+    AND (t.id IS NOT NULL OR c.id IS NOT NULL)
+  ORDER BY i.location_kind, i.location_id, i.realm, i.id";
+
 const ITEMS_SQL: &str = "SELECT i.id, i.realm,
         CASE WHEN i.location_kind = 'character' THEN c.league ELSE i.league END,
-        i.location_kind, i.location_id, i.container, i.socketed_in, i.first_seen, i.last_seen, i.json
+        i.location_kind, i.location_id, i.container, i.socketed_in, i.first_seen, i.last_seen, i.json, NULL
    FROM items i
    LEFT JOIN tabs t ON i.location_kind = 'stash' AND t.realm = i.realm AND t.league = i.league
                    AND t.id = i.location_id AND t.removed_at IS NULL
@@ -274,22 +339,31 @@ fn read_listings(tx: &rusqlite::Transaction, realm: Option<&str>) -> Result<Vec<
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
-fn read_locations(tx: &rusqlite::Transaction, realm: Option<&str>) -> Result<Vec<LocationRow>> {
+/// When a tab left: its own retirement, or its parent's, which takes a
+/// substash with it though the substash keeps its row (C54).
+const TAB_GONE: &str =
+    "COALESCE(t.removed_at, (SELECT p.removed_at FROM tabs p WHERE p.realm = t.realm
+                                  AND p.league = t.league AND p.id = t.parent))";
+
+fn read_locations(
+    tx: &rusqlite::Transaction,
+    realm: Option<&str>,
+    membership: Membership,
+) -> Result<Vec<LocationRow>> {
+    let all = membership == Membership::All;
     let mut locations = Vec::new();
     let mut tabs = tx.prepare(&format!(
-        "SELECT t.realm, t.league, 'stash', t.id, t.parent, COALESCE(t.name, ''), t.listed_at, t.fetched_at, t.type
-           FROM tabs t WHERE t.removed_at IS NULL AND (?1 IS NULL OR t.realm = ?1)
-            AND NOT EXISTS (SELECT 1 FROM tabs p WHERE p.realm = t.realm AND p.league = t.league
-                                                  AND p.id = t.parent AND p.removed_at IS NOT NULL)
+        "SELECT t.realm, t.league, 'stash', t.id, t.parent, COALESCE(t.name, ''), t.listed_at, t.fetched_at, t.type, {TAB_GONE}
+           FROM tabs t WHERE (?2 OR {TAB_GONE} IS NULL) AND (?1 IS NULL OR t.realm = ?1)
           ORDER BY t.realm, t.league, {TAB_ORDER_KEYS}"
     ))?;
     let mut characters = tx.prepare(
-        "SELECT c.realm, c.league, 'character', c.id, NULL, c.name, c.listed_at, c.fetched_at, NULL
-           FROM characters c WHERE c.removed_at IS NULL AND (?1 IS NULL OR c.realm = ?1)
+        "SELECT c.realm, c.league, 'character', c.id, NULL, c.name, c.listed_at, c.fetched_at, NULL, c.removed_at
+           FROM characters c WHERE (?2 OR c.removed_at IS NULL) AND (?1 IS NULL OR c.realm = ?1)
           ORDER BY c.realm, c.league, c.level DESC, c.name",
     )?;
     for stmt in [&mut tabs, &mut characters] {
-        let rows = stmt.query_map([realm], |r| {
+        let rows = stmt.query_map(rusqlite::params![realm, all], |r| {
             Ok(LocationRow {
                 realm: r.get(0)?,
                 league: r.get(1)?,
@@ -300,6 +374,7 @@ fn read_locations(tx: &rusqlite::Transaction, realm: Option<&str>) -> Result<Vec
                 listed_at: r.get(6)?,
                 fetched_at: r.get(7)?,
                 tab_type: r.get(8)?,
+                removed_at: r.get(9)?,
             })
         })?;
         for row in rows {
@@ -307,6 +382,32 @@ fn read_locations(tx: &rusqlite::Transaction, realm: Option<&str>) -> Result<Vec
         }
     }
     Ok(locations)
+}
+
+/// Every id in scope a live read leaves out, with when it left: removed
+/// items, retired tabs — a substash that went with its tab among them —
+/// and retired characters.
+fn read_gone(tx: &rusqlite::Transaction, realm: Option<&str>) -> Result<Vec<Gone>> {
+    let mut stmt = tx.prepare(&format!(
+        "SELECT realm, 'item', id, removed_at FROM items
+          WHERE removed_at IS NOT NULL AND (?1 IS NULL OR realm = ?1)
+         UNION ALL
+         SELECT t.realm, 'stash', t.id, {TAB_GONE} FROM tabs t
+          WHERE {TAB_GONE} IS NOT NULL AND (?1 IS NULL OR t.realm = ?1)
+         UNION ALL
+         SELECT realm, 'character', id, removed_at FROM characters
+          WHERE removed_at IS NOT NULL AND (?1 IS NULL OR realm = ?1)
+         ORDER BY 2, 3, 1"
+    ))?;
+    let rows = stmt.query_map([realm], |r| {
+        Ok(Gone {
+            realm: r.get(0)?,
+            kind: r.get(1)?,
+            id: r.get(2)?,
+            removed_at: r.get(3)?,
+        })
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 impl Store {
@@ -328,6 +429,18 @@ impl Store {
         realm: RealmScope<'_>,
         read: impl FnOnce(&CorpusHeader, &mut CorpusItems<'_>) -> Result<T>,
     ) -> Result<T> {
+        self.read_corpus_of(realm, Membership::Live, read)
+    }
+
+    /// [`Store::read_corpus`] over a membership: under `All`, every item
+    /// the file holds at the place it was last seen, each removed one with
+    /// when it left, and the retired locations in the header, marked.
+    pub fn read_corpus_of<T>(
+        &self,
+        realm: RealmScope<'_>,
+        membership: Membership,
+        read: impl FnOnce(&CorpusHeader, &mut CorpusItems<'_>) -> Result<T>,
+    ) -> Result<T> {
         let realm = match realm {
             RealmScope::One(realm) => Some(realm),
             RealmScope::All => None,
@@ -343,10 +456,17 @@ impl Store {
             account_name,
             realms: read_realms(&tx)?,
             listings: read_listings(&tx, realm)?,
-            locations: read_locations(&tx, realm)?,
+            locations: read_locations(&tx, realm, membership)?,
+            gone: match membership {
+                Membership::Live => read_gone(&tx, realm)?,
+                Membership::All => Vec::new(),
+            },
         };
         let out = {
-            let mut stmt = tx.prepare(ITEMS_SQL)?;
+            let mut stmt = tx.prepare(match membership {
+                Membership::Live => ITEMS_SQL,
+                Membership::All => ALL_ITEMS_SQL,
+            })?;
             let mut items = CorpusItems {
                 rows: stmt.query([realm])?,
             };
@@ -461,6 +581,77 @@ mod tests {
 
     fn ids(items: &[CorpusItem]) -> Vec<&str> {
         items.iter().map(|i| i.id.as_str()).collect()
+    }
+
+    /// C108 — on request the read hands over the removed with when each
+    /// left: an item a fetch no longer had, and an item whose tab a
+    /// listing retired, at that tab, which the header then names and
+    /// marks. The live read is what it was, and says which ids it left
+    /// out.
+    #[test]
+    fn all_hands_over_the_removed_with_when_each_left_and_live_is_unchanged() {
+        let mut s = Store::open(&tmp()).unwrap();
+        profile(&mut s);
+        list_tabs(&mut s, "pc", "Standard", json!([tab("t1"), tab("t2")]), 10);
+        fetch_tab(
+            &mut s,
+            "pc",
+            "Standard",
+            "t1",
+            vec![item("a", "Stays"), item("b", "Leaves")],
+            20,
+        );
+        fetch_tab(&mut s, "pc", "Standard", "t2", vec![item("c", "Goes")], 30);
+        fetch_tab(&mut s, "pc", "Standard", "t1", vec![item("a", "Stays")], 50);
+        list_tabs(&mut s, "pc", "Standard", json!([tab("t1")]), 60);
+
+        let (header, items) = read_all(&s, RealmScope::All);
+        assert_eq!(ids(&items), ["a"]);
+        assert!(items.iter().all(|i| i.removed_at.is_none()));
+        let named: Vec<&str> = header.locations.iter().map(|l| l.id.as_str()).collect();
+        assert_eq!(named, ["t1"]);
+        assert!(header.locations.iter().all(|l| l.removed_at.is_none()));
+        let gone: Vec<(&str, &str, i64)> = header
+            .gone
+            .iter()
+            .map(|g| (g.kind.as_str(), g.id.as_str(), g.removed_at))
+            .collect();
+        assert_eq!(
+            gone,
+            [("item", "b", 50), ("item", "c", 60), ("stash", "t2", 60)]
+        );
+
+        let (header, items) = s
+            .read_corpus_of(RealmScope::All, Membership::All, |header, items| {
+                Ok((header.clone(), items.collect::<Result<Vec<_>>>()?))
+            })
+            .unwrap();
+        let left: Vec<(&str, &str, Option<i64>)> = items
+            .iter()
+            .map(|i| (i.id.as_str(), i.location_id.as_str(), i.removed_at))
+            .collect();
+        assert_eq!(
+            left,
+            [
+                ("a", "t1", None),
+                ("b", "t1", Some(50)),
+                ("c", "t2", Some(60))
+            ]
+        );
+        assert!(
+            items
+                .iter()
+                .all(|i| i.league.as_deref() == Some("Standard"))
+        );
+        let marked: Vec<(&str, Option<i64>)> = header
+            .locations
+            .iter()
+            .map(|l| (l.id.as_str(), l.removed_at))
+            .collect();
+        assert_eq!(marked, [("t1", None), ("t2", Some(60))]);
+        assert!(header.gone.is_empty());
+        // one snapshot either way: the same revision
+        assert_eq!(header.revision, s.revision().unwrap());
     }
 
     /// C108, C98 — the read is one snapshot: a fetch that lands part-way

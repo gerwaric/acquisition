@@ -11,10 +11,12 @@
 //! read from, and its body is the text as stored — `Store::item` parses
 //! the body, turns one that does not parse into a null, and carries the
 //! league the item was stamped with. What the item is socketed in is given
-//! by id, which `show` accepts in turn. That read hands over live items
-//! only: an id the store holds and the read does not is said to be
-//! removed, and an id that names a tab or a character is said to be one,
-//! with the search that lists what is in it. The item's price is the
+//! by id, which `show` accepts in turn. The read is over membership
+//! `all` (the reference, *Membership*): a removed item is shown as it
+//! was last seen, at the place it left, marked with when
+//! (`Facts::removed_at`), its price lacked; and an id that names a tab or
+//! a character, retired or not, is said to be one, with the search that
+//! lists what is in it. The item's price is the
 //! listing state's (`price.rs`, C81), joined after the read as a corpus
 //! joins every item's, under the same check that the facts and the intent
 //! still stand at the basis. Its category stands beside its class
@@ -35,7 +37,7 @@
 //! price, the one evaluator — at the basis `show` names; it compares no
 //! other basis.
 
-use acquisition_store::corpus::{LocationRow, RealmScope};
+use acquisition_store::corpus::{LocationRow, Membership, RealmScope};
 use acquisition_store::{Annotations, Store};
 use serde::Serialize;
 
@@ -165,7 +167,8 @@ fn against_held(query: &Query, held: &Held) -> Against {
     }
 }
 
-/// One live item by id, derived, with its body when `body` is set.
+/// One item by id, live or removed, derived, with its body when `body`
+/// is set.
 pub fn show(
     store: &Store,
     intent: &Annotations,
@@ -224,12 +227,12 @@ fn read_one(
     }
     let intent_revision = price::intent_revision(intent)?;
     let found = store
-        .read_corpus(RealmScope::All, |header, rows| {
+        .read_corpus_of(RealmScope::All, Membership::All, |header, rows| {
             let basis = Basis::of(store, header, intent_revision);
             let mut live = 0usize;
             for row in rows {
                 let mut row = row?;
-                live += 1;
+                live += usize::from(row.removed_at.is_none());
                 if row.id == id {
                     let stored = std::mem::take(&mut row.body);
                     let (facts, place) = placed(&locations(header), row);
@@ -240,7 +243,8 @@ fn read_one(
                             .locations
                             .iter()
                             .filter(|l| {
-                                l.realm == place.realm
+                                l.removed_at.is_none()
+                                    && l.realm == place.realm
                                     && place
                                         .league
                                         .as_ref()
@@ -255,7 +259,13 @@ fn read_one(
                 }
             }
             Ok(Err((
-                header.locations.iter().find(|l| l.id == id).cloned(),
+                // a live location before a retired one of the same id
+                header
+                    .locations
+                    .iter()
+                    .filter(|l| l.id == id)
+                    .min_by_key(|l| l.removed_at.is_some())
+                    .cloned(),
                 live,
                 basis.account,
             )))
@@ -271,7 +281,10 @@ fn read_one(
     if !still_at(store, intent, &basis)? {
         return Ok(None);
     }
-    let priced = price::of_item(&mut prices, id);
+    let priced = match item.facts.removed_at {
+        Some(_) => Priced::removed(),
+        None => price::of_item(&mut prices, id),
+    };
     let class = table.classify(&item);
     // the item held as a corpus holds each of its items, asked by the one
     // evaluator
@@ -320,29 +333,46 @@ fn not_shown(
     id: &str,
 ) -> SearchError {
     if let Some(location) = location {
+        let what = if location.kind == "stash" {
+            "tab"
+        } else {
+            "character"
+        };
+        // the one maker of a command (rule 10), which says the membership
+        let lists = crate::answer::Request {
+            scope: crate::answer::Scope {
+                account: Some(account.to_string()),
+                realm: Some(crate::corpus::Realm::One(location.realm.clone())),
+                membership: match location.removed_at {
+                    Some(_) => crate::answer::Membership::All,
+                    None => crate::answer::Membership::Live,
+                },
+            },
+            query: crate::answer::QueryInput {
+                text: Some(format!("id:{id}")),
+                tree: None,
+            },
+            ..Default::default()
+        };
         return SearchError::scope(
             "not_an_item",
-            format!(
-                "`{id}` is the {} `{}`, not an item: a search lists what is in it",
-                if location.kind == "stash" {
-                    "tab"
-                } else {
-                    "character"
-                },
-                location.name
-            ),
+            match location.removed_at {
+                Some(_) => format!(
+                    "`{id}` is the {what} `{}`, which is no longer in the account, not an item: a search under membership all lists what was in it",
+                    location.name
+                ),
+                None => format!(
+                    "`{id}` is the {what} `{}`, not an item: a search lists what is in it",
+                    location.name
+                ),
+            },
         )
-        .with_offers(vec![command(
-            "search",
-            Some(account),
-            Some(&location.realm),
-            &format!("id:{id}"),
-        )]);
+        .with_offers(vec![lists.command()]);
     }
     match store.item(id) {
         Ok(Some(_)) => SearchError::scope(
             "item_not_live",
-            format!("item `{id}` is in the store and is not live — removed, or its tab or character was: the search reads live items only"),
+            format!("item `{id}` is in the store and at no tab or character the store holds: the search reads an item at its place"),
         )
         .with_offers(vec![command("items show", Some(account), None, id)]),
         Ok(None) => SearchError::scope(

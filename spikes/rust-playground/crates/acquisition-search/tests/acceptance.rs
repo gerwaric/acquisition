@@ -805,12 +805,12 @@ fn c100_show_is_the_derived_item_and_the_stored_body_on_request() {
     );
     // the basis is the answer's: the same snapshot names both
     assert_eq!(shown["basis"], asked(&s, "")["basis"]);
-    // removed from its tab: in the store, and not live
+    // removed from its tab: shown as it was last seen, marked with when
+    // it left (the reference, *Membership*; step 10)
     fetch_tab(&mut s, "pc", "Standard", "n1", "Unopened", vec![], 50);
-    assert_eq!(
-        common::show(&s, "odd", false).unwrap_err().to_json()["kind"],
-        "item_not_live"
-    );
+    let gone = serde_json::to_value(common::show(&s, "odd", false).unwrap()).unwrap();
+    assert_eq!(gone["item"]["facts"]["removed_at"], 50);
+    assert_eq!(gone["place"]["name"], "Unopened");
 }
 
 /// OQ5's fixture, the class-spelled test's and the category-spelled

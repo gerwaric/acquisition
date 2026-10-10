@@ -1,4 +1,5 @@
-//! The held corpus (C98, C103): every live item of a scope, derived once
+//! The held corpus (C98, C103): every item of a scope — the live ones,
+//! or under membership `all` the removed beside them — derived once
 //! from one snapshot of the store's read (C108), with the basis that
 //! snapshot is labelled by and the places the items sit at.
 //!
@@ -43,15 +44,26 @@
 //!   location by its full coordinate (C54), its name, its parent's and
 //!   its tab's `type` (V10: `tab.type`, verbatim, a substash's own or its
 //!   tab's) from the header. An item whose location the header does not
-//!   list cannot occur — the read hands over live items at live locations
-//!   — and would carry its ids and no names.
+//!   list cannot occur — the read hands over live items at live
+//!   locations, and under `all` the retired locations with the removed
+//!   items — and would carry its ids and no names.
+//! - **Membership is the read's** (C108; the reference, *Membership*):
+//!   a corpus holds the live items, or all of them, a removed one at the
+//!   place it was last seen with when it left (`Facts::removed_at`) and a
+//!   price that is lacked (`price.rs`). Coverage and the listing states
+//!   are the live locations' either way, and the scope's items are the
+//!   live ones, the removed counted beside them. Under `live` the corpus
+//!   keeps the ids the read left out, each with when it left, for an
+//!   `id:` term that matches nothing (`answer.rs`).
 //! - **Coverage is stated from the header**: a folder is a row no fetch
 //!   fills and is counted apart; a location never fetched is one no item
 //!   predicate supports a claim about (invariant 6 of the surface).
 
 use std::collections::HashMap;
 
-use acquisition_store::corpus::{CorpusHeader, CorpusItem, LocationRow, RealmScope, Revision};
+use acquisition_store::corpus::{
+    CorpusHeader, CorpusItem, LocationRow, Membership, RealmScope, Revision,
+};
 use acquisition_store::{Annotations, Store};
 use serde::{Deserialize, Serialize};
 
@@ -252,7 +264,12 @@ pub struct Held {
 /// What the scope block says was searched (C96).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Coverage {
+    /// The live items in scope.
     pub items: usize,
+    /// Under membership `all`, the removed items beside them: each is a
+    /// row marked with when it left.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub removed: Option<usize>,
     /// Every realm the store holds, whatever the scope.
     pub realms_held: Vec<String>,
     pub leagues: Vec<String>,
@@ -273,7 +290,25 @@ pub struct Corpus {
     pub account_name: Option<String>,
     pub realm: Realm,
     pub coverage: Coverage,
+    /// Which items it holds: the live ones, or every item with the
+    /// removed marked (the reference, *Membership*).
+    pub membership: Membership,
+    /// The ids the scope held and no item of this corpus answers to: under
+    /// `live`, an item removed and a tab or a character retired; under
+    /// `all`, where the removed items are rows, the retired locations
+    /// alone. Each with what it was and when it left; never an id that is
+    /// also a live location's, and the latest time where two rows share
+    /// one. What an `id:` that matches nothing is looked up in.
+    pub(crate) gone: HashMap<String, Left>,
     pub(crate) items: Vec<Held>,
+}
+
+/// What an id that left was, and when it left.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Left {
+    /// `item`, `stash` or `character`, as the store spells them.
+    pub kind: String,
+    pub removed_at: i64,
 }
 
 type Coordinate = (String, String, String, Option<String>);
@@ -338,7 +373,7 @@ pub(crate) fn placed(index: &Locations<'_>, row: CorpusItem) -> (Facts, Place) {
         socketed_in: row.socketed_in,
         first_seen: row.first_seen,
         last_seen: row.last_seen,
-        removed_at: None,
+        removed_at: row.removed_at,
     };
     (facts, place)
 }
@@ -408,8 +443,19 @@ impl Corpus {
         intent: &Annotations,
         realm: Option<&Realm>,
     ) -> Result<Corpus, SearchError> {
+        Self::load_of(store, intent, realm, Membership::Live)
+    }
+
+    /// [`Corpus::load`] over a membership: under `all`, every item the
+    /// file holds at the place it was last seen, the removed marked.
+    pub fn load_of(
+        store: &Store,
+        intent: &Annotations,
+        realm: Option<&Realm>,
+        membership: Membership,
+    ) -> Result<Corpus, SearchError> {
         for _ in 0..REREADS {
-            if let Some(corpus) = Self::read(store, intent, realm)? {
+            if let Some(corpus) = Self::read(store, intent, realm, membership)? {
                 return Ok(corpus);
             }
         }
@@ -422,6 +468,7 @@ impl Corpus {
         store: &Store,
         intent: &Annotations,
         realm: Option<&Realm>,
+        membership: Membership,
     ) -> Result<Option<Corpus>, SearchError> {
         let wanted = match realm {
             Some(Realm::One(realm)) => Some(realm.clone()),
@@ -438,71 +485,125 @@ impl Corpus {
         defence_table()?;
         currency_table()?;
         let intent_revision = price::intent_revision(intent)?;
-        let (mut corpus, leagues) = store
-            .read_corpus(scope, |header, rows| {
-                let realm = match named {
-                    Some(realm) => realm,
-                    None => match header.realms.as_slice() {
-                        [] => Realm::All,
-                        [one] => Realm::One(one.clone()),
-                        // no row has been stepped to: the error costs no read
-                        several => return Ok(Err(realm_needed(several))),
-                    },
-                };
-                let index = locations(header);
-                let mut items = Vec::new();
-                for row in rows {
-                    let mut row = row?;
-                    // no realm named over a store holding one reads every
-                    // realm, which is that one: the filter then drops nothing
-                    if let Realm::One(only) = &realm
-                        && row.realm != *only
-                    {
-                        continue;
+        let (mut corpus, leagues) =
+            store
+                .read_corpus_of(scope, membership, |header, rows| {
+                    let realm = match named {
+                        Some(realm) => realm,
+                        None => match header.realms.as_slice() {
+                            [] => Realm::All,
+                            [one] => Realm::One(one.clone()),
+                            // no row has been stepped to: the error costs no read
+                            several => return Ok(Err(realm_needed(several))),
+                        },
+                    };
+                    let index = locations(header);
+                    let mut items = Vec::new();
+                    for row in rows {
+                        let mut row = row?;
+                        // no realm named over a store holding one reads every
+                        // realm, which is that one: the filter then drops nothing
+                        if let Realm::One(only) = &realm
+                            && row.realm != *only
+                        {
+                            continue;
+                        }
+                        let body = std::mem::take(&mut row.body);
+                        let (facts, place) = placed(&index, row);
+                        let mut item = derive(facts, &body);
+                        item.unread.extend(tab_type_unread(&place));
+                        let class = table.classify(&item);
+                        items.push(Held {
+                            category: categories.of(&item, &class),
+                            class,
+                            item,
+                            place,
+                            // joined below, once the read is done
+                            price: Priced::open(price::PriceGap::Uncovered, "not joined yet"),
+                        });
                     }
-                    let body = std::mem::take(&mut row.body);
-                    let (facts, place) = placed(&index, row);
-                    let mut item = derive(facts, &body);
-                    item.unread.extend(tab_type_unread(&place));
-                    let class = table.classify(&item);
-                    items.push(Held {
-                        category: categories.of(&item, &class),
-                        class,
-                        item,
-                        place,
-                        // joined below, once the read is done
-                        price: Priced::open(price::PriceGap::Uncovered, "not joined yet"),
-                    });
-                }
-                name_sockets(&mut items);
-                let locations: Vec<LocationRow> = header
-                    .locations
-                    .iter()
-                    .filter(|l| match &realm {
-                        Realm::One(only) => l.realm == *only,
+                    name_sockets(&mut items);
+                    // coverage and the listing states are the live locations':
+                    // a retired one is in the header only to name what left
+                    let locations: Vec<LocationRow> = header
+                        .locations
+                        .iter()
+                        .filter(|l| l.removed_at.is_none())
+                        .filter(|l| match &realm {
+                            Realm::One(only) => l.realm == *only,
+                            Realm::All => true,
+                        })
+                        .cloned()
+                        .collect();
+                    let removed = items
+                        .iter()
+                        .filter(|h| h.item.facts.removed_at.is_some())
+                        .count();
+                    let in_realm = |of: &str| match &realm {
+                        Realm::One(only) => of == only,
                         Realm::All => true,
-                    })
-                    .cloned()
-                    .collect();
-                let leagues = price::leagues(&locations);
-                Ok(Ok((
-                    Corpus {
-                        basis: Basis::of(store, header, intent_revision),
-                        account_name: header.account_name.clone(),
-                        coverage: coverage(header, &realm, &locations, items.len()),
-                        realm,
-                        items,
-                    },
-                    leagues,
-                )))
-            })
-            .map_err(SearchError::store)??;
+                    };
+                    let mut gone: HashMap<String, Left> = HashMap::new();
+                    let left =
+                        header
+                            .gone
+                            .iter()
+                            .map(|g| (&g.realm, &g.kind, &g.id, g.removed_at))
+                            .chain(header.locations.iter().filter_map(|l| {
+                                l.removed_at.map(|at| (&l.realm, &l.kind, &l.id, at))
+                            }));
+                    for (of, kind, id, removed_at) in left {
+                        let live = locations.iter().any(|l| l.id == *id);
+                        let later = gone.get(id).is_some_and(|l| l.removed_at >= removed_at);
+                        if in_realm(of) && !live && !later {
+                            gone.insert(
+                                id.clone(),
+                                Left {
+                                    kind: kind.clone(),
+                                    removed_at,
+                                },
+                            );
+                        }
+                    }
+                    // the leagues the scope's items sit in: under `all`, a
+                    // league whose every location is retired among them
+                    let mut sat_in: Vec<String> = header
+                        .locations
+                        .iter()
+                        .filter(|l| in_realm(&l.realm))
+                        .filter_map(|l| l.league.clone())
+                        .collect();
+                    sat_in.sort();
+                    sat_in.dedup();
+                    let leagues = price::leagues(&locations);
+                    Ok(Ok((
+                        Corpus {
+                            basis: Basis::of(store, header, intent_revision),
+                            account_name: header.account_name.clone(),
+                            coverage: Coverage {
+                                removed: (membership == Membership::All).then_some(removed),
+                                leagues: sat_in,
+                                ..coverage(header, &realm, &locations, items.len() - removed)
+                            },
+                            realm,
+                            membership,
+                            gone,
+                            items,
+                        },
+                        leagues,
+                    )))
+                })
+                .map_err(SearchError::store)??;
         let mut prices = price::join(store, intent, &leagues)?;
         if !still_at(store, intent, &corpus.basis)? {
             return Ok(None);
         }
         for held in &mut corpus.items {
-            held.price = price::of_item(&mut prices, &held.item.facts.id);
+            held.price = match held.item.facts.removed_at {
+                // an item not in the stash has no listing state
+                Some(_) => Priced::removed(),
+                None => price::of_item(&mut prices, &held.item.facts.id),
+            };
         }
         Ok(Some(corpus))
     }
@@ -620,6 +721,7 @@ fn coverage(
     leagues.dedup();
     Coverage {
         items,
+        removed: None,
         realms_held: header.realms.clone(),
         leagues,
         fetched: fetches().count(),

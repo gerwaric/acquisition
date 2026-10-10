@@ -232,7 +232,7 @@ enum Cmd {
     /// "kind", "readings"}`. `--describe` prints the language, and what
     /// this build refuses by name.
     Search(Box<search_cmd::SearchArgs>),
-    /// One live item as the search derives it (no daemon): its fields, its
+    /// One item as the search derives it, live or removed (no daemon): its fields, its
     /// place, every line with its kind, template and numbers, and what
     /// could not be read; `--json` the same, structured. `--body` adds the
     /// body as the store holds it, which is still there when deriving

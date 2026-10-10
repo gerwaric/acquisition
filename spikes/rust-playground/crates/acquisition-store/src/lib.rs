@@ -676,7 +676,8 @@ pub use annotations::{
     annotations_path, check_value,
 };
 pub use corpus::{
-    CorpusHeader, CorpusItem, CorpusItems, ListingSeen, LocationRow, RealmScope, Revision,
+    CorpusHeader, CorpusItem, CorpusItems, Gone, ListingSeen, LocationRow, Membership, RealmScope,
+    Revision,
 };
 pub use index::{AccountEntry, Index, Resolve, account_matches, account_path, index_path};
 pub use snapshot::{

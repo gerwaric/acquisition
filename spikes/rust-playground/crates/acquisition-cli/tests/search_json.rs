@@ -2181,3 +2181,139 @@ fn step_10_next_request_and_print_request_at_a_terminal() {
     ));
     assert_eq!(rows(&next), rows(&whole)[2..4].to_vec());
 }
+
+/// Step 10's third piece at a terminal: `--membership all` adds the
+/// removed, each row marked, the scope block counting the two apart; an
+/// id that left says so and prints the command that finds it, which
+/// runs; `acq show` shows a removed item, marked.
+#[test]
+fn step_10_membership_all_at_a_terminal() {
+    let base = base();
+    seed(&base);
+    // a fetch of Rings that no longer has r2
+    let mock = base.join("mock");
+    let mut store = Store::open(&account_path(&mock, USER)).unwrap();
+    store
+        .record(
+            &Endpoint::Stash {
+                realm: "pc".into(),
+                league: "Standard".into(),
+                id: "t1".into(),
+                sub: None,
+            },
+            &json!({ "realm": "pc", "league": "Standard" }),
+            200,
+            &json!({ "stash": { "id": "t1", "name": "Rings", "type": "PremiumStash", "items": [
+                { "id": "r1", "name": "Doom Loop", "typeLine": "Two-Stone Ring", "baseType": "Two-Stone Ring",
+                  "rarity": "Rare", "frameTypeId": "Rare", "identified": true, "ilvl": 84, "x": 0, "y": 0,
+                  "explicitMods": ["+95 to maximum Life"] } ] } }),
+            40,
+        )
+        .unwrap();
+    drop(store);
+    let ids = |a: &Value| -> Vec<String> {
+        a["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["id"].as_str().unwrap().to_string())
+            .collect()
+    };
+
+    let live = sole_json(&acq(&base, &["--json", "search", "--realm", "pc"]));
+    assert!(!ids(&live).contains(&"r2".to_string()));
+    assert_eq!(live["scope"]["membership"], "live");
+    let all = sole_json(&acq(
+        &base,
+        &["--json", "search", "--realm", "pc", "--membership", "all"],
+    ));
+    assert_eq!(all["scope"]["membership"], "all");
+    assert_eq!(all["scope"]["items"], live["scope"]["items"]);
+    assert_eq!(all["scope"]["removed"], 1);
+    assert_eq!(ids(&all).len(), ids(&live).len() + 1);
+    let r2 = all["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["id"] == "r2")
+        .unwrap();
+    assert_eq!(r2["removed_at"], 40);
+    assert_eq!(r2["place"]["name"], "Rings");
+    let shown = text(&acq(
+        &base,
+        &[
+            "search",
+            "--realm",
+            "pc",
+            "rarity=rare",
+            "--membership",
+            "all",
+            "--routes",
+        ],
+    ));
+    assert!(
+        shown.contains(" · all · 4 items live · 1 removed · "),
+        "{shown}"
+    );
+    // the terms are counted over both, and the block says so
+    assert!(
+        shown.contains("each term evaluated independently over live and removed pc items"),
+        "{shown}"
+    );
+    assert!(
+        shown
+            .lines()
+            .any(|l| l.contains("Rune Coil") && l.contains(" · removed ")),
+        "{shown}"
+    );
+    // every command printed under all runs, and stays under all
+    let commands = printed_commands(&shown);
+    assert!(!commands.is_empty());
+    for command in &commands {
+        if command.starts_with("acq search") {
+            assert!(command.contains(" --membership all"), "{command}");
+        }
+        assert!(run_printed(&base, command).status.success(), "{command}");
+    }
+
+    // an id that left: said on the term, with the command that finds it
+    let gone = text(&acq(&base, &["search", "--realm", "pc", "id:r2"]));
+    let said = gone
+        .lines()
+        .find(|l| l.contains("this id is an item that left the scope"))
+        .unwrap_or_else(|| panic!("{gone}"));
+    let command = printed_commands(said).remove(0);
+    assert_eq!(
+        command,
+        format!("acq search --account '{USER}' --realm pc id:r2 --membership all")
+    );
+    assert_eq!(ids(&sole_json(&run_printed(&base, &command))), ["r2"]);
+    assert!(!gone.contains("a part of one finds nothing"), "{gone}");
+    assert!(!gone.contains("never fuzzy-matched"), "{gone}");
+    assert!(
+        gone.contains("id:r2 — it left the scope, as its term says"),
+        "{gone}"
+    );
+
+    // `acq show` shows it, marked
+    let out = acq(&base, &["--json", "show", "r2"]);
+    assert!(out.status.success());
+    assert_eq!(sole_json(&out)["item"]["facts"]["removed_at"], 40);
+    let shown = text(&acq(&base, &["show", "r2"]));
+    assert!(shown.lines().any(|l| l.starts_with("removed ")), "{shown}");
+    assert!(!text(&acq(&base, &["show", "r1"])).contains("\nremoved "));
+
+    // a word that is no membership, and a membership beside a token
+    for (args, kind) in [
+        (
+            vec!["--json", "search", "--membership", "gone"],
+            "membership_unknown",
+        ),
+        (
+            vec!["--json", "search", "--next", "x", "--membership", "all"],
+            "view",
+        ),
+    ] {
+        assert_eq!(sole_json(&acq(&base, &args))["kind"], kind, "{args:?}");
+    }
+}
