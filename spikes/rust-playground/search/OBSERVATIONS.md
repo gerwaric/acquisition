@@ -134,8 +134,6 @@ filed again by the step that touches it.
   none (none)`; explicit lines before implicit, where the game shows
   the implicit first. A row prints `price.side`, which `--describe`
   lists as no field.
-- A zero answer counts and routes every term; what was wanted first was
-  which terms together empty it — `--explain`, step 10.
 - `--json` for one row is 12,670 bytes: the scope's seven leagues where
   the question touched two, `"Rare"` where the language writes `rare`.
 - 9b: the digest's S53 wording ("not a field") was overtaken by step 6;
@@ -224,3 +222,21 @@ filed again by the step that touches it.
   (2026-09-26); it is left out of total Strength, Intelligence and mana
   as of total life, and a fix moves four `not mimicked` rows to
   agreement.
+- *A seat, or step 11's MCP (step 10a):* the terms block prints a
+  term's path and no other, so a group's path and a condition's inside
+  `line( … )` are learned from the help or from the listing a wrong
+  path gets; that listing has no bound, 41 lines for 40 terms. A zero
+  answer of one term offers an explain whose forced true is `true()`,
+  which says what the corpus offer says. A failed text field shows no
+  value in `show --against`, the item's header carrying it. An
+  explicit `--limit` beside `--explain` is ignored. `show --against
+  ''` is labelled as the search's empty query is, "every item in
+  scope", of one item. `--against` takes whatever follows it, so
+  `--against --body` reads the flag as the query.
+- *The review's next look (step 10a):* the generated property compares
+  a term's explain across spellings and no group's or in-group
+  condition's, which it checks at every path against the transformed
+  query asked alone; `--against` on a character's item, a priced item
+  and another realm rests on the look's own property over 400
+  generated queries, kept nowhere; `Query::at` is a second walk beside
+  `tree::walk`, no disagreement found.
