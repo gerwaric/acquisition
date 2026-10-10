@@ -358,3 +358,11 @@ filed again by the step that touches it.
   | cross-currency price comparison | needs an explicit valuation input; the currency table holds no rates. |
   | `in pc: …` as a scope-bearing text | untested; try copying the full invocation and the JSON request first. |
   | substring over a displayed occurrence inside `line(…)` | unavailable; item-level phrase search reaches displayed lines. |
+- *The review's next look (step 11e):* a removed item's `note:` still
+  reading its body is the page's rule, said in `corpus.rs`
+  ("Membership is the read's") and held by no test: the look inferred
+  it from the deriver taking the body whatever the membership.
+- *Step 11f's census:* the crate's doc now names
+  `search/search-forms/11-owner-amendments.md` for the owner's words
+  whole with their reasoning, so the build names that one file of
+  `search-forms/`.
