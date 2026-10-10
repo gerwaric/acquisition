@@ -159,7 +159,6 @@ the piece and bring it to the owner.
 
 | Step | Builds | Needs | Reads | Closes on |
 | --- | --- | --- | --- | --- |
-| 11c · the MCP seat | an agent's seat as the tool's own consumer (P2): a subagent blind to the reference, under a committed brief, driving `acq-mcp` over stdio on the copy; then its fix round | 11b | `search/agent-seat/` (the twelve questions, `scripts/call.py`); the research-track skill; `search/OBSERVATIONS.md`, "The MCP seat (step 11b)" | the twelve driven through the MCP alone, calls and bytes counted beside 2026-09-14's; `--membership all` among them; the owner's reaction, once |
 | 11d · the retirement | `acq items`, the MCP's `search_items` and `get_item` (H6), `Store::search`, and facts v8: `items_names` dropped, a partial index on `removed_at` (B4) — one commit, the migration run on a copy first; the two refusals that name the old verbs (H7) | 11c | "What happens to `acq items search`" below; the kill list (`DIGEST.md`); `REFRESH-SLICE.md` | the gate; no name of the old verbs outside history; the kill-list recheck |
 | 11e · the reference to its homes | `DESIGN.md`'s paragraphs into module docs, the clap help and `--describe` | 11d | `DESIGN.md` whole; rule 6 | every paragraph has a home or a recorded reason; one look reads the last whole `DESIGN.md` against the homes |
 | 11f · `search/` shrunk | what the build does not name deleted, by a census the owner reads first | 11e | `search/README.md`, rule 4; the kill list | the deletion list read; the gate |
@@ -247,4 +246,5 @@ line in `search/LEDGER.md`, "Holes ruled", its rule in `search/DESIGN.md`.
 T3 and J1–J35, what the two tracks run before 9d and the three pieces'
 expected answers surfaced (2026-09-30 to 2026-10-08), are all ruled: `search/LEDGER.md`, "Holes ruled", the
 seat, 9c and 9d rows; K1–K11 are step 10's, its three rows; B1–B4 and
-H1–H7 are step 11's, ruled at its opening; B5, B6 and H8 at 11b. None is unruled today.
+H1–H7 are step 11's, ruled at its opening; B5, B6 and H8 at 11b; the MCP seat's
+questions were given to the session at 11c. None is unruled today.

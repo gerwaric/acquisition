@@ -9,5 +9,7 @@ Every file under `raw/` is the owner's account data or a derivative of it; nothi
 | 2026-09-14 | `world/mock/accounts.json` (180 B) | same directory's `accounts.json`, filtered to the `GERWARIC` account | the owner | the python one-liner in `BRIEF.md` | `64b73d5aa4aa0b9f7843c78ec8793e74d84758c97d918fd548c49316055c72c1` | — |
 | 2026-09-14 | `logs/` | empty at the start of the run; `ACQ_LOG_DIR` for the run (no daemon ever starts: `ACQ_NO_SPAWN=1`) | this run | — | — | — |
 | 2026-09-14 | `calls/NNN.out` | stdout of every logged call (`scripts/call.py`), one file per row of `data/calls.csv` | this run | — | — | — |
+| 2026-10-10 | `seat-11c/store/mock/` — `GERWARIC_7694.db`, the annotations file, `accounts.json` | the three files of `world/mock/` above | step 11c's session | `sqlite3 "file:<src>?mode=ro" ".backup <copy>"`; `cp` for the json | the same three digests as rows 1–3, before the runs and after each | — |
+| 2026-10-10 | `seat-11c/calls-1/NNN.json`, `seat-11c/calls-2/NNN.json` | the text of every call of the two runs of step 11c (`scripts/seat.py`), one file per row of `data/mcp-seat-1-calls.csv` and `data/mcp-seat-2-calls.csv` | the runs | — | — | — |
 
 Read in phase two but not copied here: `../engine-bench/raw/seat-projection.db` (30,818,304 B, sha256 `beb2ba47f42a238dfa31993254a2cc94e2a4b447b9c497b5ce38c7ab88278b88` at the start of this run; written by engine-bench's crate `--seat` mode, commit 93c3a63b). Opened read-only only (`sqlite3 -readonly`). The annotations file is never opened by SQL.

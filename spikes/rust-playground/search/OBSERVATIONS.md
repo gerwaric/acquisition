@@ -278,19 +278,45 @@ filed again by the step that touches it.
   line with no basis was read on the copy and on a fixture and is
   held by no test. M3 was not run for 11a or 11b. An untracked file of
   a listed kind under a digest's input is in the digest (B5).
-- *The MCP seat (step 11b):* a tool's result carries its document
-  twice, as structured content and again as one text block (the SDK's
-  `structured`, read in its source, not measured on a host): a byte
-  count says which it counts. `describe` whole is 111,843 bytes
-  compact, 82,815 of them `computed`. `describe` and the crate's
-  messages name a terminal's flags (`--count`, `--realm pc | poe2`,
-  `--next`); the `search` tool's text maps each to its request field.
-  An unknown `describe` name is refused with every name inline, some
-  3 KB, a near name only for some; `limits` and `not_built` are keys
-  of the output no name asks for. A refusal's `readings` hold terminal
-  commands beside the requests under `offers`. `search_items` and
-  `get_item` stand beside the three until 11d. H4's size on a real
-  store is unmeasured.
+- *The MCP's next testing, after the slice's close (step 11c):* what
+  two runs of the seat asked for and the round left, the first four
+  touching a line the owner ruled. Nothing selects the removed alone
+  (the reference, *Membership*: "`removed` alone waits for a
+  question"): both runs asked, `scope.removed` holds a count and no
+  request, `is:removed` is refused with no reading toward membership,
+  and each reached the copy's six by `-has:container`, which no rule
+  states. A whole id without a realm is refused where `show` needs
+  none (C96). A lacking item is last in an ascending sort, where for a
+  required level it is the lowest (C92). A row carries no flag — the
+  first run offered a corrupted glove and learned so from `get_item` —
+  and no position in its tab, which `show` prints only with `body`
+  (C100). H4, the size: a row is some 580 bytes in the first run's A5, its
+  `sort.shows` a second copy of its `matched[].shows`, so 353 rows in
+  order stopped at 50 and at 60; a bucket's request is 10,799 of the
+  22,359 bytes of 76 buckets in one answer, so a tab table stopped at
+  15 of 297; `basis`, the per-term requests and `token` were read by
+  neither run after the first answer, and a result is the document
+  twice, 2.1 times its text on the wire. The offer the first step's
+  refusal makes is rows, 10,144 bytes, where the scope was wanted.
+  `left_out_needs` says `--limit` and the refusals `--realm`, a
+  terminal's words in a JSON answer, as `describe` and a refusal's
+  `readings` are (step 11b's). Several `line:` keys at once repeat the
+  computed buckets under each, zero counts among them. A total's
+  weights are in `describe` and not beside the lines `against` shows.
+  `scope.leagues` lists leagues that hold nothing. `next` holds a
+  `token` the input schema does not list. `item_events` takes no kind
+  and no order, says nothing of its window and answers `[]` by
+  default on a store not fetched in a day. Neither run asked
+  `describe` whole, `explain`, a sum, `context: corpus` or a count
+  read back, and the door's ceiling and refusals were never met.
+  Blindness was each runner's word. An unknown `describe` name's
+  listing, some 3 KB, and `limits` and `not_built`, keys no name asks
+  for, are 11b's and unmet.
+- *Step 11d (step 11c):* neither run called `search_items`; each
+  called `get_item` once, to find an item by id, and read there what
+  no row said. Q7's 481 items with the rarity line has no twin in
+  2026-09-14's numbers (473 by jq over six arrays, 497 by a LIKE over
+  the body), unreconciled.
 - *The review's next look (step 11b):* two readers say which account
   a selector names — the store's `account_matches`, by Unicode case,
   and `answer.rs`'s `account_is`, by ASCII case — so an account name

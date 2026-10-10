@@ -1,6 +1,6 @@
 # agent-seat — what an agent needs to search well
 
-Status: first pass complete — 2026-09-14 (one fresh session sat in both seats over a read-only copy of the owner's store; the brief is `e9b2b92c`, deleted at the close)
+Status: second pass complete — 2026-10-10 (step 11c: a subagent sat the MCP seat twice over the same copy, on the search tools; the brief is `8da019ad`, deleted at the close); first pass complete — 2026-09-14 (one fresh session sat in both seats over a read-only copy of the owner's store; the brief is `e9b2b92c`, deleted at the close)
 
 Headline:
 
@@ -69,6 +69,33 @@ From the driver's seat: what does an agent need from the search surface — sche
 | A5 | dump + 1 | none | 1 / 19 / 196 | 3 / 55 / 7 (one silent) |
 | dump | 63,534,917 B, 2,335 ms | 38,820,498 B, 5,644 ms | DDL 3,879 B | DDL 3,432 B + template check 235 B |
 
+## Second pass — the MCP seat on `search`, `describe` and `show` (step 11c, 2026-10-10)
+
+The twelve again, and X1 for membership, through `acq-mcp` alone (`scripts/seat.py`; the release build over a fresh `.backup` of the same copy), once at `8da019ad` and once after the round at `24cda166`. Reports: `data/mcp-seat-1.md`, `data/mcp-seat-2.md`; every number below is summed from `data/calls.csv` and the two `-calls.csv`, bytes the result's text as in the first pass.
+
+| | 2026-09-14, MCP | run 1 | run 2 |
+| --- | --- | --- | --- |
+| every call: calls / B | 23 / 41,970,092 | 44 / 343,717 | 39 / 298,306 |
+| the twelve: calls / B | — (5 answered) | 30 / 269,019 | 25 / 229,039 |
+| on the wire, B (the document twice) | — | 722,380 | 622,887 |
+| largest result, B | 38,820,498 | 24,223 | 26,090 |
+| Q1 | 1 / 31,844 | 3 / 38,137 | 2 / 35,576 |
+| Q2 | 1 / 13,866 | 2 / 17,991 | 1 / 7,820 |
+| Q3 | none | 2 / 26,008 | 2 / 13,486 |
+| Q4 | 2 / 292,498 | 3 / 31,460 | 2 / 10,609 |
+| Q5 | 745,672, then none | 3 / 50,188 | 4 / 58,752 |
+| Q6 | none | 3 / 12,738 | 2 / 7,727 |
+| Q7 | 1 / 5,105 (the wrong thing) | 2 / 16,460 | 2 / 22,627 |
+| A1 | 3 / 2,709,478 | 2 / 11,910 | 1 / 7,906 |
+| A2 | 0 (re-read) | 1 / 7,195 | 1 / 7,179 |
+| A3 | 1 / 2 | 3 / 10,300 | 2 / 6,190 |
+| A4 | 1 / 2,155 | 3 / 4,103 | 3 / 3,959 |
+| A5 | none | 3 / 42,529 | 3 / 47,208 |
+| X1 (apart) | — | 6 / 21,037 | 8 / 19,249 |
+| the tool list, and orientation | 4 / 94,302 | 8 / 53,661 | 6 / 50,018 |
+
+Both runs answered Q1–Q3, Q7 and A1–A4, counted A5's 353 and read 50 and 60 of them in order, found Q4's seven staves and Q6's two chests without the one or the worth, and found X1's six removed items by a term no rule states. Where 2026-09-14's SQL gave a count — 12, 4, 187, 7, 353 — the runs agree. What the seat still asks is `search/OBSERVATIONS.md`, step 11c, the removed alone first.
+
 ## Requirements (numbered on from owner-seat's R1–R8; one line, the failure it prevents)
 
 | # | Requirement | Prevents | Same need as |
@@ -102,6 +129,8 @@ From the driver's seat: what does an agent need from the search surface — sche
 | `scripts/phase2.sh`, `scripts/q2_where.jq` | the SQL and the one jq join kept as files | — |
 | the store copy, the annotations copy, `accounts.json` | `sqlite3 .backup` by the owner, 2026-09-14 | `MANIFEST.md` rows 1–3 |
 | the seat projection | read only, not copied | `MANIFEST.md`, last paragraph |
+| `data/mcp-seat-1.md`, `data/mcp-seat-2.md` | the two runs' reports, hand-written by each runner | — |
+| `data/mcp-seat-1-calls.csv`, `data/mcp-seat-2-calls.csv` | every call of each run, `scripts/seat.py` | `raw/seat-11c/calls-1/`, `calls-2/` |
 
 ## Review
 
