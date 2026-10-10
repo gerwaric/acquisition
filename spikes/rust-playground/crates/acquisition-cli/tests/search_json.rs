@@ -296,6 +296,29 @@ fn rule_5_every_command_printed_runs_with_a_second_account_known() {
             ran += 1;
         }
     }
+    // what a zero answer offers, where the query starts with the
+    // language's not and goes after `--`, the flags before it; and the
+    // routes of an explained node's forced counts
+    for args in [
+        vec!["--routes", "--", "-is:identified"],
+        vec!["--count", "tab", "--", "-is:identified -has:name"],
+        vec!["line(template:life arg1>=90)", "--explain", "0.1"],
+    ] {
+        let mut all = vec!["--account", USER, "search", "--realm", "pc"];
+        all.extend(args);
+        let shown = text(&acq(&base, &all));
+        let commands = printed_commands(&shown);
+        assert!(commands.len() >= 2, "{shown}");
+        for command in commands {
+            let out = run_printed(&base, &command);
+            assert!(
+                out.status.success(),
+                "`{command}` was printed and does not run: {}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+            ran += 1;
+        }
+    }
     // what `show` offers when the id is a tab's
     let refused = sole_json(&acq(&base, &["--account", USER, "--json", "show", "t1"]));
     for offered in refused["readings"].as_array().unwrap() {
@@ -851,8 +874,25 @@ fn c11_a_failure_is_structured_and_a_later_steps_flag_is_refused_by_name() {
         (vec!["search", "--realm", "ps4"], "realm_unknown"),
         (vec!["search", "--sort", "name"], "operator_mismatch"),
         (vec!["search", "--describe", "clas"], "unknown_name"),
-        (vec!["show", "r1", "--against", "rarity=rare"], "not_built"),
+        // built at step 10: a query the binder refuses is that error
+        (vec!["show", "r1", "--against", "rare"], "bare_word"),
+        (vec!["show", "r1", "--basis", "x"], "not_built"),
         (vec!["show", "t1"], "not_an_item"),
+        (
+            vec!["search", "rarity=rare", "--explain", "0", "--count", "tab"],
+            "view",
+        ),
+        (
+            vec!["search", "rarity=rare", "--explain", "0", "--sort", "ilvl"],
+            "view",
+        ),
+        (
+            vec!["search", "rarity=rare", "--explain", "1"],
+            "no_such_path",
+        ),
+        (vec!["search", "--explain", "0", "--next", "x"], "not_built"),
+        (vec!["search", "--context", "nowhere"], "view"),
+        (vec!["search", "rare", "--context", "corpus"], "bare_word"),
     ] {
         let mut with_json = vec!["--json"];
         with_json.extend(&args);
@@ -880,6 +920,192 @@ fn c11_a_failure_is_structured_and_a_later_steps_flag_is_refused_by_name() {
             .unwrap()
             .starts_with("not built: --fields (step 10)")
     );
+}
+
+/// Step 10's first piece at a terminal, one `--json` smoke for each of
+/// the three flags, and the text a function of it (C53): `--explain`,
+/// `--context corpus`, `show --against`, and a zero answer's offers
+/// printed as the commands they are.
+#[test]
+fn step_10_explain_context_and_against_at_a_terminal() {
+    let base = base();
+    seed(&base);
+
+    // kaom and r1 reach 90; r2 holds 20 and 75; r3's 40 sits beside an
+    // unread array; `plain` has no life line. The bound forced true asks
+    // the line alone: kaom, r1, r2 and r3, whose 40 is then a witness
+    let out = acq(
+        &base,
+        &[
+            "--json",
+            "search",
+            "--realm",
+            "pc",
+            LIFE,
+            "--explain",
+            "0.1",
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    let a = sole_json(&out);
+    let explain = &a["view"]["explain"];
+    assert_eq!(
+        (&explain["path"], &explain["node"]),
+        (&json!("0.1"), &json!("arg1>=90"))
+    );
+    assert_eq!(explain["given"], json!({ "matched": 2, "undecided": 1 }));
+    assert_eq!(
+        explain["forced_true"]["query"]["text"],
+        "line(\"# to maximum Life\" true())"
+    );
+    assert_eq!(
+        (
+            &explain["forced_true"]["matched"]["count"],
+            &explain["forced_true"]["undecided"]["count"]
+        ),
+        (&json!(4), &json!(0))
+    );
+    assert_eq!(
+        (
+            &explain["forced_false"]["matched"]["count"],
+            &explain["forced_false"]["undecided"]["count"]
+        ),
+        (&json!(0), &json!(0))
+    );
+    assert_eq!(a["rows"], json!([]));
+    let shown = text(&acq(
+        &base,
+        &["search", "--realm", "pc", LIFE, "--explain", "0.1"],
+    ));
+    for needle in [
+        "explain 0.1  arg1>=90",
+        "as given      2 matches · 1 undecided",
+        "forced true   4 matches",
+        "line(\"# to maximum Life\" true())",
+        "forced false  0 matches",
+        "line(\"# to maximum Life\" false())",
+    ] {
+        assert!(
+            shown.contains(needle),
+            "the text lacks `{needle}`:\n{shown}"
+        );
+    }
+    assert!(!shown.contains("rows    "), "{shown}");
+
+    // the corpus context: the empty query, and the typed one set aside
+    let out = acq(
+        &base,
+        &[
+            "--json",
+            "search",
+            "--realm",
+            "pc",
+            LIFE,
+            "--context",
+            "corpus",
+            "--count",
+            "rarity",
+        ],
+    );
+    assert!(out.status.success());
+    let a = sole_json(&out);
+    assert_eq!(a["query"]["text"], "");
+    assert_eq!(
+        a["set_aside"]["text"],
+        "line(\"# to maximum Life\" arg1>=90)"
+    );
+    assert_eq!(a["total"]["matched"], 5);
+    assert_eq!(a["view"]["counts"]["tables"][0]["key"], "rarity");
+    let shown = text(&acq(
+        &base,
+        &["search", "--realm", "pc", LIFE, "--context", "corpus"],
+    ));
+    for needle in [
+        "query   (every item in scope)",
+        "aside   line(\"# to maximum Life\" arg1>=90) — set aside under --context corpus, counted nowhere",
+        "total   5 matches",
+    ] {
+        assert!(
+            shown.contains(needle),
+            "the text lacks `{needle}`:\n{shown}"
+        );
+    }
+    // `matches` is what every answer is
+    let plain = sole_json(&acq(&base, &["--json", "search", "--realm", "pc", LIFE]));
+    let matches = sole_json(&acq(
+        &base,
+        &[
+            "--json",
+            "search",
+            "--realm",
+            "pc",
+            LIFE,
+            "--context",
+            "matches",
+        ],
+    ));
+    assert_eq!(plain, matches);
+
+    // the why-not: r2 holds 20 and 75, neither reaching 90
+    let out = acq(&base, &["--json", "show", "r2", "--against", LIFE]);
+    assert!(out.status.success());
+    let shown = sole_json(&out);
+    assert_eq!(shown["item"]["facts"]["id"], "r2");
+    let against = &shown["against"];
+    assert_eq!(
+        against["query"]["text"],
+        "line(\"# to maximum Life\" arg1>=90)"
+    );
+    assert_eq!(against["outcome"], "no_match");
+    assert_eq!(against["nodes"][0]["outcome"], "failed");
+    assert_eq!(against["nodes"][0]["shows"].as_array().unwrap().len(), 2);
+    let shown = text(&acq(&base, &["show", "r2", "--against", LIFE]));
+    for needle in [
+        "against line(\"# to maximum Life\" arg1>=90)",
+        "no match",
+        "0    line(\"# to maximum Life\" arg1>=90)  failed",
+        "+20 to maximum Life (implicit)",
+        "+75 to maximum Life (explicit)",
+    ] {
+        assert!(
+            shown.contains(needle),
+            "the text lacks `{needle}`:\n{shown}"
+        );
+    }
+    // an undecided item says why
+    let shown = text(&acq(&base, &["show", "r3", "--against", LIFE]));
+    assert!(shown.contains("undecided"), "{shown}");
+    assert!(shown.contains("implicit lines unread"), "{shown}");
+
+    // a zero answer prints its offers as commands: explain of each part,
+    // fewest matched first, then the corpus
+    let shown = text(&acq(
+        &base,
+        &["search", "--realm", "pc", "rarity=rare rarity=unique"],
+    ));
+    let commands = printed_commands(&shown);
+    let offered: Vec<&String> = commands
+        .iter()
+        .filter(|c| c.contains("--explain") || c.contains("--context"))
+        .collect();
+    assert_eq!(
+        offered,
+        [
+            "acq search --account 'Alice#1234' --realm pc 'rarity=rare rarity=unique' --explain 1",
+            "acq search --account 'Alice#1234' --realm pc 'rarity=rare rarity=unique' --explain 0",
+            "acq search --account 'Alice#1234' --realm pc 'rarity=rare rarity=unique' --limit 20 --context corpus",
+        ],
+        "{shown}"
+    );
+    assert!(!shown.contains("not built: --explain"), "{shown}");
+    for command in offered {
+        let out = run_printed(&base, command);
+        assert!(out.status.success(), "{command}");
+    }
 }
 
 /// The plan's gap 2: a name with an apostrophe, from stdin, and the route
@@ -1760,4 +1986,23 @@ fn step_9d_a_the_percentile_of_a_captured_hybrid_at_a_terminal() {
             .iter()
             .all(|n| n["construct"] != "pseudo.defence_pct")
     );
+}
+
+/// A query that starts with the language's not is taken after
+/// `--against` as it is typed: a zero answer's query, printed after `--`,
+/// is what a reader carries to `show --against`.
+#[test]
+fn show_against_takes_a_query_that_starts_with_a_not() {
+    let base = base();
+    seed(&base);
+    let out = acq(
+        &base,
+        &["--json", "show", "r1", "--against", "-rarity=magic"],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(sole_json(&out)["against"]["query"]["text"], "-rarity=magic");
 }

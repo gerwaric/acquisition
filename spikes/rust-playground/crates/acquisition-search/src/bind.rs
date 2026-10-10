@@ -48,7 +48,10 @@
 //!   answer's terms block prints them (C93): a child of an and, an or or a
 //!   `holds` is `<parent>.<n>`, what a not negates or `undecided( … )`
 //!   asks about is `<parent>.0`, and the children of the root carry no
-//!   prefix.
+//!   prefix. The rule is `tree.rs`'s (`child_path`, `sole_path`), where
+//!   the one walk that numbers every node of a query — a group of terms
+//!   and a condition inside `line( … )` or `linked( … )` among them, as
+//!   `--explain` names them (the reference, *Explain*) — uses it too.
 //! - **A line's group is bound in `group.rs`**, the one module that reads
 //!   a group's tree for what it means: its selector, the sources it admits,
 //!   its together bound, its template tests.
@@ -115,16 +118,6 @@ pub const NOT_BUILT: &[NotBuilt] = &[
         what: "continue an answer past its limit, refused across a changed basis",
     },
     NotBuilt {
-        construct: "--explain",
-        step: Some(10),
-        what: "one node forced true and forced false",
-    },
-    NotBuilt {
-        construct: "--context",
-        step: Some(10),
-        what: "the empty query over the bound scope",
-    },
-    NotBuilt {
         construct: "--view locations",
         step: Some(10),
         what: "the full coverage list the scope block summarises",
@@ -143,11 +136,6 @@ pub const NOT_BUILT: &[NotBuilt] = &[
         construct: "--rebind",
         step: Some(10),
         what: "run another account's request deliberately",
-    },
-    NotBuilt {
-        construct: "show --against",
-        step: Some(10),
-        what: "why one item does or does not match a query",
     },
     NotBuilt {
         construct: "show --basis",
@@ -665,6 +653,33 @@ impl Query {
     pub fn text(&self) -> String {
         print::print(&self.root)
     }
+
+    /// The bound node a path names (`tree::nodes`): none for a condition
+    /// inside a member group, which is bound with its group.
+    pub(crate) fn at(&self, path: &str) -> Option<&Bound> {
+        let mut steps = path.split('.').map(str::parse::<usize>);
+        let first = steps.next()?.ok()?;
+        let mut here = match &self.bound {
+            Bound::All(children) => children.get(first)?,
+            other if first == 0 => other,
+            _ => return None,
+        };
+        for step in steps {
+            let step = step.ok()?;
+            here = match here {
+                Bound::All(children) | Bound::Any(children) | Bound::Holds { of: children, .. } => {
+                    children.get(step)?
+                }
+                Bound::Not(inner) if step == 0 => inner,
+                Bound::Term(i) => match &self.terms.get(*i)?.atom {
+                    Atom::Undecided(BProbe::Term(inner)) if step == 0 => inner,
+                    _ => return None,
+                },
+                Bound::Not(_) => return None,
+            };
+        }
+        Some(here)
+    }
 }
 
 /// What `--sort` orders by (C92, the sort scalar).
@@ -700,7 +715,7 @@ pub fn bind(root: &Node) -> Result<Query, LanguageError> {
     let mut binder = Binder { terms: Vec::new() };
     let bound = match root {
         Node::All(children) => Bound::All(binder.children(children, "")?),
-        other => binder.node(other, "0".to_string())?,
+        other => binder.node(other, tree::sole_path(""))?,
     };
     Ok(Query {
         root: root.clone(),
@@ -941,14 +956,7 @@ impl Binder {
         children
             .iter()
             .enumerate()
-            .map(|(i, child)| {
-                let path = if prefix.is_empty() {
-                    i.to_string()
-                } else {
-                    format!("{prefix}.{i}")
-                };
-                self.node(child, path)
-            })
+            .map(|(i, child)| self.node(child, tree::child_path(prefix, i)))
             .collect()
     }
 
@@ -956,7 +964,7 @@ impl Binder {
         Ok(match node {
             Node::All(children) => Bound::All(self.children(children, &path)?),
             Node::Any(children) => Bound::Any(self.children(children, &path)?),
-            Node::Not(inner) => Bound::Not(Box::new(self.node(inner, format!("{path}.0"))?)),
+            Node::Not(inner) => Bound::Not(Box::new(self.node(inner, tree::sole_path(&path))?)),
             Node::Holds { of, min, max } => Bound::Holds {
                 of: self.children(of, &path)?,
                 min: *min,
@@ -1090,7 +1098,7 @@ impl Binder {
                     | ValueRef::Pseudo { .. }),
                 ) => BProbe::Value(Box::new(bind_sort(value)?)),
                 Probe::Term(inner) => {
-                    BProbe::Term(Box::new(self.node(inner, format!("{path}.0"))?))
+                    BProbe::Term(Box::new(self.node(inner, tree::sole_path(path))?))
                 }
             })),
             // composition is `node`'s

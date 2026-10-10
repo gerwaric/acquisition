@@ -20,13 +20,29 @@
 //! still stand at the basis. Its category stands beside its class
 //! (`category.rs`): the ids a count lists it under, and what left an id
 //! open.
+//!
+//! **`--against '<query>'`** (C100: the why-not; the reference, *The
+//! request at a terminal*) puts beside the item the query's canonical
+//! text and tree, the root's outcome on this item — match, no match,
+//! undecided — and the outcome of each node of the query that has one on
+//! an item (`tree::nodes`: a term, a group of terms; never a condition
+//! inside `line( … )`, which holds of one occurrence): a term's in the
+//! terms block's words, a group's in the root's. A term shows what a row
+//! shows of it where it matched, why where it is undecided, and what the
+//! item has that failed it where it failed, each from the maker an answer
+//! uses and bounded as a row is (`eval::against`). The item is asked as a
+//! corpus asks each of its items — the same deriver, class, category and
+//! price, the one evaluator — at the basis `show` names; it compares no
+//! other basis.
 
 use acquisition_store::corpus::{LocationRow, RealmScope};
 use acquisition_store::{Annotations, Store};
 use serde::Serialize;
 
-use crate::answer::command;
+use crate::answer::{QueryInput, QueryOut, command};
+use crate::bind::{Bound, Query};
 use crate::class::Classed;
+use crate::corpus::Held;
 use crate::corpus::{
     Basis, Place, REREADS, category_tables, class_table, currency_table, locations, moved, placed,
     still_at, tab_type_unread,
@@ -35,6 +51,7 @@ use crate::derive::{Facts, Item, Line, derive};
 use crate::describe::limit;
 use crate::error::SearchError;
 use crate::eval::number_json;
+use crate::eval::{self, Evidence, Outcome, Truth};
 use crate::price::{self, Priced};
 
 #[derive(Debug, Clone, Serialize)]
@@ -51,6 +68,9 @@ pub struct Shown {
     /// What the listing state prices it at (`price.rs`, C81).
     pub price: Priced,
     pub lines: Vec<ShownLine>,
+    /// Why the item does or does not match a query, when one is given.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub against: Option<Against>,
     /// The stored body as text, when asked for.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
@@ -67,6 +87,84 @@ pub struct ShownLine {
     pub limit: Option<&'static str>,
 }
 
+/// One item against one query (the module doc).
+#[derive(Debug, Clone, Serialize)]
+pub struct Against {
+    pub query: QueryOut,
+    /// `match`, `no_match` or `undecided`: the root's on this item.
+    pub outcome: &'static str,
+    /// Each node of the query with an outcome on an item, a parent before
+    /// its children.
+    pub nodes: Vec<AgainstNode>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgainstNode {
+    pub path: String,
+    /// The node, as the canonical text prints it.
+    pub node: String,
+    /// A term's: `matched`, `failed`, `lacked`, `undecided`. A group's:
+    /// `match`, `no_match`, `undecided`.
+    pub outcome: &'static str,
+    /// What the term touched on the item, or why it is undecided.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub shows: Vec<Evidence>,
+    /// What it touched past what is shown (invariant 5).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub left_out: usize,
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
+}
+
+fn truth_word(truth: Truth) -> &'static str {
+    match truth {
+        Truth::True => "match",
+        Truth::False => "no_match",
+        Truth::Undecided => "undecided",
+    }
+}
+
+fn against_held(query: &Query, held: &Held) -> Against {
+    let mut outcomes = Vec::with_capacity(query.terms.len());
+    eval::asked(&query.terms, held, &mut outcomes);
+    let nodes = crate::tree::nodes(&query.root)
+        .into_iter()
+        .filter(|node| !node.inside)
+        .filter_map(|node| {
+            let (outcome, shows, left_out) = match query.at(&node.path)? {
+                Bound::Term(at) => {
+                    let (shows, left_out) = eval::against(&query.terms, *at, held, &outcomes);
+                    let outcome = match outcomes.get(*at)? {
+                        Outcome::Matched => "matched",
+                        Outcome::Failed => "failed",
+                        Outcome::Lacked => "lacked",
+                        Outcome::Undecided => "undecided",
+                    };
+                    (outcome, shows, left_out)
+                }
+                group => (truth_word(eval::truth(group, &outcomes)), Vec::new(), 0),
+            };
+            Some(AgainstNode {
+                path: node.path,
+                node: node.text,
+                outcome,
+                shows,
+                left_out,
+            })
+        })
+        .collect();
+    Against {
+        query: QueryOut {
+            text: query.text(),
+            tree: crate::json::to_json(&query.root),
+        },
+        outcome: truth_word(eval::truth(&query.bound, &outcomes)),
+        nodes,
+    }
+}
+
 /// One live item by id, derived, with its body when `body` is set.
 pub fn show(
     store: &Store,
@@ -74,8 +172,32 @@ pub fn show(
     id: &str,
     body: bool,
 ) -> Result<Shown, SearchError> {
+    shown(store, intent, id, body, None)
+}
+
+/// [`show`], and beside the item why it does or does not match `query`
+/// (the module doc). A query the binder refuses is that error, said
+/// before the store is read.
+pub fn against(
+    store: &Store,
+    intent: &Annotations,
+    id: &str,
+    body: bool,
+    query: &QueryInput,
+) -> Result<Shown, SearchError> {
+    let query = query.bind()?;
+    shown(store, intent, id, body, Some(&query))
+}
+
+fn shown(
+    store: &Store,
+    intent: &Annotations,
+    id: &str,
+    body: bool,
+    against: Option<&Query>,
+) -> Result<Shown, SearchError> {
     for _ in 0..REREADS {
-        if let Some(shown) = read_one(store, intent, id, body)? {
+        if let Some(shown) = read_one(store, intent, id, body, against)? {
             return Ok(shown);
         }
     }
@@ -89,10 +211,17 @@ fn read_one(
     intent: &Annotations,
     id: &str,
     body: bool,
+    against: Option<&Query>,
 ) -> Result<Option<Shown>, SearchError> {
     let table = class_table()?;
     let categories = category_tables()?;
     currency_table()?;
+    if against.is_some() {
+        // a query may ask a total or the percentile: checked as a corpus
+        // checks them before it is asked anything
+        crate::corpus::totals_table()?;
+        crate::corpus::defence_table()?;
+    }
     let intent_revision = price::intent_revision(intent)?;
     let found = store
         .read_corpus(RealmScope::All, |header, rows| {
@@ -143,6 +272,21 @@ fn read_one(
         return Ok(None);
     }
     let priced = price::of_item(&mut prices, id);
+    let class = table.classify(&item);
+    // the item held as a corpus holds each of its items, asked by the one
+    // evaluator
+    let against = against.map(|query| {
+        against_held(
+            query,
+            &Held {
+                category: categories.of(&item, &class),
+                class: class.clone(),
+                item: item.clone(),
+                place: place.clone(),
+                price: priced.clone(),
+            },
+        )
+    });
     let lines = std::mem::take(&mut item.lines)
         .into_iter()
         .map(|line| ShownLine {
@@ -155,7 +299,6 @@ fn read_one(
             line,
         })
         .collect();
-    let class = table.classify(&item);
     Ok(Some(Shown {
         basis,
         place,
@@ -164,6 +307,7 @@ fn read_one(
         price: priced,
         item,
         lines,
+        against,
         body: body.then_some(stored),
     }))
 }

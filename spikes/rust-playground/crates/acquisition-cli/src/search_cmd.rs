@@ -17,6 +17,13 @@
 //!   prints the count left out and the unbuilt construct's name. The flags
 //!   of later steps exist, so that typing one is refused by that name
 //!   (`acquisition_search::not_built`) and never as an unknown flag.
+//! - **`--explain`, `--context` and `show --against` are encodings** of
+//!   what the request and `show` carry (`answer.rs`, `show.rs`; the
+//!   reference, *Explain*): the view's conflicts are the crate's to say
+//!   (`View::of`), the context's word is the crate's to read, and what a
+//!   zero answer offers is printed as the commands the crate makes of its
+//!   requests (`Request::command`), each run by the test that runs every
+//!   command printed.
 //! - **The query may come from a file or stdin** (`--query-file`, the
 //!   plan's gap 2): a template with an apostrophe cannot be typed plainly
 //!   inside a shell's single quotes. A route is printed shell-quoted.
@@ -27,7 +34,7 @@
 
 use std::io::Read as _;
 
-use acquisition_search::answer::{Answer, Count, Request, Rows, Scope, View, ViewOut};
+use acquisition_search::answer::{Answer, Context, Count, Request, Rows, Scope, View, ViewOut};
 use acquisition_search::corpus::Realm;
 use acquisition_search::counts::{Bucket, CrossOut, Label, SumOf, Summed, Table};
 use acquisition_search::describe::Describe;
@@ -107,10 +114,20 @@ pub struct SearchArgs {
     /// Not built (step 10): continue an answer past its limit.
     #[arg(long, value_name = "TOKEN")]
     pub next: Option<String>,
-    /// Not built (step 10): one node forced true and forced false.
+    /// Explain one node of the query, named by its path — a term's as the
+    /// terms block prints it (`3`), a group of terms', or a condition's
+    /// inside `line( … )` or `linked( … )` (`3.1`): the root's matched and
+    /// undecided counts as given, with that node forced true, and with it
+    /// forced false, each beside its transformed query, the node replaced
+    /// by `true()` or `false()` and nothing else changed. Counts and no
+    /// rows: an error beside `--count`, `--cross`, `--sum` or `--sort`. A
+    /// path the query lacks lists the query's nodes with their paths.
     #[arg(long, value_name = "PATH")]
     pub explain: Option<String>,
-    /// Not built (step 10): matches | corpus.
+    /// What the answer is of: `matches`, the query's, as every answer is;
+    /// or `corpus`, the empty query over the same scope under rows or a
+    /// count, with the query typed printed as set aside and counted
+    /// nowhere; beside `--explain`, which is of the query typed, an error.
     #[arg(long, value_name = "WHICH")]
     pub context: Option<String>,
     /// Not built (step 10): `locations`, the full coverage list.
@@ -135,8 +152,12 @@ pub struct ShowArgs {
     /// Also print the body as the store holds it, verbatim.
     #[arg(long)]
     pub body: bool,
-    /// Not built (step 10): why the item does or does not match a query.
-    #[arg(long, value_name = "QUERY")]
+    /// Why the item does or does not match a query: beside the item, the
+    /// query's canonical text, the root's outcome on it — match, no match,
+    /// undecided — and each term's and each group's, with what the term
+    /// touched or why it is undecided. One that starts with `-`, the
+    /// language's not, is taken as typed: `--against '-is:corrupted'`.
+    #[arg(long, value_name = "QUERY", allow_hyphen_values = true)]
     pub against: Option<String>,
     /// Not built (step 10): the item as a named basis held it.
     #[arg(long, value_name = "BASIS")]
@@ -178,8 +199,6 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
     let unbuilt = [
         ("--fields", args.fields.is_some()),
         ("--next", args.next.is_some()),
-        ("--explain", args.explain.is_some()),
-        ("--context", args.context.is_some()),
         ("--view locations", args.view.is_some()),
         ("--print-request", args.print_request),
         ("--request", args.request.is_some()),
@@ -225,6 +244,7 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         keys(args.count.as_deref())?,
         keys(args.cross.as_deref())?,
         args.sum.clone(),
+        args.explain.clone(),
         Rows {
             limit: Some(args.limit),
             sort: args.sort.clone(),
@@ -232,6 +252,10 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
         },
     )
     .map_err(|e| fail(e.into(), json))?;
+    let context = match &args.context {
+        Some(word) => Context::parse(word).map_err(|e| fail(e.into(), json))?,
+        None => Context::default(),
+    };
     let request = Request {
         scope: Scope::default(),
         query: acquisition_search::answer::QueryInput {
@@ -239,6 +263,7 @@ pub fn search(args: SearchArgs, json: bool) -> Result<()> {
             tree: None,
         },
         view,
+        context,
     };
     // an authoring error is said before the store is read
     request.check().map_err(|e| fail(e.into(), json))?;
@@ -337,16 +362,28 @@ fn keys(raw: &str) -> Result<Vec<String>, String> {
 }
 
 pub fn show_item(args: ShowArgs, json: bool) -> Result<()> {
-    for (construct, typed) in [
-        ("show --against", args.against.is_some()),
-        ("show --basis", args.basis.is_some()),
-    ] {
-        if typed {
-            return Err(fail(not_built(construct).into(), json));
-        }
+    if args.basis.is_some() {
+        return Err(fail(not_built("show --basis").into(), json));
+    }
+    let against = args
+        .against
+        .as_ref()
+        .map(|text| acquisition_search::answer::QueryInput {
+            text: Some(text.trim().to_string()),
+            tree: None,
+        });
+    // an authoring error is said before the store is read
+    if let Some(query) = &against {
+        query.bind().map_err(|e| fail(e.into(), json))?;
     }
     let (store, intent) = open_store_and_intent()?;
-    let shown = show(&store, &intent, &args.id, args.body).map_err(|e| fail(e, json))?;
+    let shown = match &against {
+        Some(query) => {
+            acquisition_search::show::against(&store, &intent, &args.id, args.body, query)
+        }
+        None => show(&store, &intent, &args.id, args.body),
+    }
+    .map_err(|e| fail(e, json))?;
     emit(&shown, json, shown_text)
 }
 
@@ -472,6 +509,12 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
         &a.query.text
     };
     line(format!("query   {query}"));
+    if let Some(aside) = &a.set_aside {
+        line(format!(
+            "aside   {} — set aside under --context corpus, counted nowhere",
+            aside.text
+        ));
+    }
 
     let scope = &a.scope;
     let account = scope.account.name.as_deref().unwrap_or(&scope.account.uuid);
@@ -623,7 +666,7 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
             // last: incomplete` named no field)
             let key = match &a.view {
                 ViewOut::Rows(rows) => rows.sort.as_deref().unwrap_or_default(),
-                ViewOut::Counts(_) | ViewOut::Cross(_) => "",
+                ViewOut::Counts(_) | ViewOut::Cross(_) | ViewOut::Explain(_) => "",
             };
             let by = match (&sorted.value, sorted.status) {
                 (Some(value), None) => format!("by {}", number(value)),
@@ -712,6 +755,32 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                 .into_iter()
                 .for_each(&mut line);
         }
+        // one node, forced each way: the words are literal — forced,
+        // never removed, never a contribution (the reference, *Explain*)
+        ViewOut::Explain(explain) => {
+            let counted = |matched: usize, undecided: usize| {
+                let mut out = plural(matched, "match", "matches");
+                if undecided > 0 {
+                    out.push_str(&format!(" · {undecided} undecided"));
+                }
+                out
+            };
+            line(format!("explain {}  {}", explain.path, explain.node));
+            line(format!(
+                "  as given      {}",
+                counted(explain.given.matched, explain.given.undecided)
+            ));
+            for (label, forced) in [
+                ("forced true ", &explain.forced_true),
+                ("forced false", &explain.forced_false),
+            ] {
+                line(format!(
+                    "  {label}  {}",
+                    counted(forced.matched.count, forced.undecided.count)
+                ));
+                line(format!("                {}", forced.query.text));
+            }
+        }
     }
 
     if let Some(zero) = &a.zero {
@@ -740,6 +809,28 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
                     "locations were"
                 )
             ));
+        }
+        // what the zero answer offers, each a command and never its
+        // output: explain of each part, then the corpus
+        let offers = &zero.offers;
+        if !offers.explain.is_empty() {
+            line(
+                "offers  each part of the query forced true and forced false, the part fewest items match first"
+                    .to_string(),
+            );
+            for offer in &offers.explain {
+                line(format!("    {}", offer.request.command()));
+            }
+            if offers.explain_left_out > 0 {
+                line(format!(
+                    "            {} more: --explain <path>, a part's path as the terms block numbers it",
+                    plural(offers.explain_left_out, "part", "parts")
+                ));
+            }
+        }
+        if let Some(offer) = &offers.context {
+            line("        every item in scope, this query set aside".to_string());
+            line(format!("    {}", offer.request.command()));
         }
     }
 
@@ -789,6 +880,15 @@ fn answer_text(a: &Answer, all_routes: bool) -> String {
     let mut buckets: Vec<(String, &Count)> = Vec::new();
     match &a.view {
         ViewOut::Rows(_) => {}
+        ViewOut::Explain(explain) => {
+            for (label, forced) in [
+                ("forced true", &explain.forced_true),
+                ("forced false", &explain.forced_false),
+            ] {
+                first.push((format!("{label}, matched"), &forced.matched));
+                first.push((format!("{label}, undecided"), &forced.undecided));
+            }
+        }
         ViewOut::Counts(counts) => {
             for table in &counts.tables {
                 for bucket in &table.buckets {
@@ -1104,6 +1204,7 @@ fn describe_text(d: &Describe) -> String {
     // and source (C106's clause (c))
     block(&format!("computed values — {}", d.totals), &d.computed);
     block("counts", &d.counts);
+    block("why an answer is what it is", &d.explain);
     // every category id with the site's text for it and what makes it
     // hold (C106)
     if !d.categories.is_empty() {
@@ -1299,6 +1400,42 @@ fn shown_text(s: &Shown) -> String {
             if i == 0 { "unread  " } else { "        " },
             u.problem
         ));
+    }
+    // why the item does or does not match a query: the root's outcome,
+    // then each node's, a term with what it touched or why it is open
+    if let Some(against) = &s.against {
+        let query = if against.query.text.is_empty() {
+            "(every item in scope)"
+        } else {
+            &against.query.text
+        };
+        out.push_str(&format!("against {query}\n"));
+        out.push_str(&format!("        {}\n", against.outcome.replace('_', " ")));
+        let width = against
+            .nodes
+            .iter()
+            .map(|n| n.node.chars().count())
+            .max()
+            .unwrap_or(0)
+            .min(60);
+        for node in &against.nodes {
+            out.push_str(&format!(
+                "  {:<5}{:<width$}  {}\n",
+                node.path,
+                node.node,
+                node.outcome.replace('_', " ")
+            ));
+            if !node.shows.is_empty() {
+                let shows: Vec<String> = node.shows.iter().map(evidence_text).collect();
+                out.push_str(&format!("            {}\n", shows.join(" · ")));
+            }
+            if node.left_out > 0 {
+                out.push_str(&format!(
+                    "            {} more: the item whole is above\n",
+                    node.left_out
+                ));
+            }
+        }
     }
     out.push_str(&format!("{}\n", basis_text(&s.basis)));
     if let Some(body) = &s.body {

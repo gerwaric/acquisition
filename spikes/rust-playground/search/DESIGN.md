@@ -129,7 +129,8 @@ that did not exist; `acq show` shows a removed item, marked. `removed`
 alone waits for a question. Until `all` runs, the route names the
 unbuilt construct (the plan, rule 5).
 
-`--context corpus` takes any view. The answer's query is the empty one,
+`--context corpus` takes any view but explain, which is of the query
+typed: the two together are an error. The answer's query is the empty one,
 and the query typed beside it is printed on one line as set aside and
 counted nowhere.
 

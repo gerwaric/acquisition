@@ -13,8 +13,9 @@
 //! The language (the build plan, step 1), the derivation (step 2), the
 //! first surface (step 4), the counts view (step 5), the class table
 //! (step 6), the computed values (step 7), the sockets (step 8), the
-//! categories (step 9d-B) and the base defence percentile (step 9d-A): a
-//! request in, an answer out.
+//! categories (step 9d-B), the base defence percentile (step 9d-A) and
+//! the why-not (step 10: `--explain`, `--context corpus`, `show
+//! --against`): a request in, an answer out.
 //!
 //! - [`tree`] — the query tree (C91): one typed value, and [`check`], what
 //!   a tree must satisfy to be one the language can say.
@@ -60,7 +61,8 @@
 //!   (C92, C93).
 //! - [`mod@answer`] — the request and the answer (C100, C96): scope, basis,
 //!   every term's counts with a route each, the total, the rows, the zero
-//!   block; and the one maker of a route.
+//!   block and its offers, a node explained, the corpus context; and the
+//!   one maker of a route.
 //! - [`counts`] — the counts view (C95, C105) and the vocabulary read
 //!   (C97): the matches by a key, one table each or one crossed table, a
 //!   sum beside each count, every bucket a term with its route.
@@ -96,7 +98,17 @@
 //!   `tests/answer.rs` (the reference's worked example reduced to what is
 //!   built, the route property, invariants 2 and 6), `tests/acceptance.rs`
 //!   (the acceptance set's rows green at step 4, the limits' wording) and
-//!   `tests/refusal.rs` (the refusal walk, invariant 3).
+//!   `tests/refusal.rs` (the refusal walk, invariant 3). The why-not —
+//!   what a path names, the literal substitution, the corpus context,
+//!   the zero block's offers, `show --against` — is [`tree`]'s,
+//!   [`mod@answer`]'s and [`mod@show`]'s docs; pinned by
+//!   `tests/explain.rs` (every cell of the piece's expected answers, a
+//!   node under a not, an or and a `holds`, the refusals, the offers
+//!   followed as requests), `tests/against.rs` (the seven items of the
+//!   worked example), `tests/generated_explain.rs` (each forced answer
+//!   is the transformed query's, asked alone, at every path, and a
+//!   term's is the same in every spelling) and `tests/acceptance.rs`
+//!   (AQ3 whole).
 //! - **C95, C97, C105.** The counts view and the vocabulary are
 //!   [`counts`]'s doc; pinned by `tests/counts.rs`: AQ1, C105's two
 //!   invariants on a one-value key, C95's sum over the three kinds, the

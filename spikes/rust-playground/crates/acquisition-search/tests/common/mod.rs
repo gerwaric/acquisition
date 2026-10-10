@@ -222,3 +222,79 @@ pub fn ids(answer: &Value) -> Vec<String> {
     ids.sort();
     ids
 }
+
+// ---- the reference's worked example ------------------------------------------------------
+
+pub fn ring(id: &str, rarity: &str, more: Value) -> Value {
+    item(id, &format!("Ring {id}"), "Two-Stone Ring", rarity, more)
+}
+
+pub fn lines(life: &[i64], res: i64) -> Vec<String> {
+    life.iter()
+        .map(|n| format!("+{n} to maximum Life"))
+        .chain([format!("+{res}% to Fire Resistance")])
+        .collect()
+}
+
+/// The reference's seven pc items (`search/DESIGN.md`, "One worked
+/// example"), two fetched locations and one never fetched: rare rings r1
+/// (life 95, res 65), r2 (20 implicit + 75 explicit, 60), r3 (100, 55),
+/// r6 (readable 95, implicit array unread, res subtotal 65 incomplete),
+/// r7 (no life line, 65); r4 a magic ring (95, 70); r5 rare, life 95, res
+/// 65, its base missing from the class table.
+pub fn worked() -> Store {
+    let mut s = store();
+    list_tabs(
+        &mut s,
+        "pc",
+        "Standard",
+        json!([tab("t1", "Rings"), tab("t2", "Dump"), tab("t3", "Never")]),
+        10,
+    );
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "t1",
+        "Rings",
+        vec![
+            ring("r1", "Rare", json!({ "explicitMods": lines(&[95], 65) })),
+            ring(
+                "r2",
+                "Rare",
+                json!({ "implicitMods": ["+20 to maximum Life"], "explicitMods": lines(&[75], 60) }),
+            ),
+            ring("r3", "Rare", json!({ "explicitMods": lines(&[100], 55) })),
+            ring("r4", "Magic", json!({ "explicitMods": lines(&[95], 70) })),
+        ],
+        20,
+    );
+    fetch_tab(
+        &mut s,
+        "pc",
+        "Standard",
+        "t2",
+        "Dump",
+        vec![
+            item(
+                "r5",
+                "Ring r5",
+                "Mystery Ring",
+                "Rare",
+                json!({ "explicitMods": lines(&[95], 65) }),
+            ),
+            // its implicit array is not one: unread
+            ring(
+                "r6",
+                "Rare",
+                json!({ "implicitMods": "unreadable", "explicitMods": lines(&[95], 65) }),
+            ),
+            ring("r7", "Rare", json!({ "explicitMods": lines(&[], 65) })),
+        ],
+        30,
+    );
+    s
+}
+
+pub const WORKED: &str =
+    r##"league=Standard class=Rings rarity=rare "+# to maximum Life">=90 pseudo.total_res>=60"##;

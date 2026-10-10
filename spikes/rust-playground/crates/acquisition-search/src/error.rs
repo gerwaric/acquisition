@@ -66,8 +66,12 @@ pub enum ErrorKind {
     /// A `~` pattern that does not compile.
     BadPattern,
     /// A view the request cannot have: a key named twice, `--sum` with no
-    /// count beside it, a crossed table of other than two keys.
+    /// count beside it, a crossed table of other than two keys, `--explain`
+    /// beside a count or a sort; and a context that is no context.
     View,
+    /// A path `--explain` was given that the query has no node at: the
+    /// query's nodes are listed with their paths.
+    NoSuchPath,
     /// A construct of the reference this build does not evaluate yet: an
     /// error of its own, never the unknown-name error, never undecided,
     /// never an empty answer (the build plan, rule 1).

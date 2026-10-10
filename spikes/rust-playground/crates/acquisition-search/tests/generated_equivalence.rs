@@ -69,6 +69,13 @@ fn normalized(
     {
         rows.remove("sort");
     }
+    // what a zero answer offers is explain of a path and the query's own
+    // text: the paths and the text are what a rewrite may change, and a
+    // nested and flattened has other parts at its root. What explain
+    // answers at a node in every spelling is `tests/generated_explain.rs`'s.
+    if let Some(zero) = fields.get_mut("zero").and_then(Value::as_object_mut) {
+        zero.remove("offers");
+    }
     walk(&mut out, corpus, scope, &by_path, &mut cache)?;
     Ok(out)
 }

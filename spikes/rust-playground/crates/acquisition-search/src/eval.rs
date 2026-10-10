@@ -84,6 +84,13 @@
 //!   entry per kind of reason (V8). An `undecided( … )` that matched shows
 //!   the reasons of what it asked about ([`why`]), so an undecided count's
 //!   route returns its members with why.
+//! - **An item's outcomes are made in one place** ([`asked`]): every term
+//!   in the order it was bound, for an answer's counts and for `show
+//!   --against` alike. What `--against` shows of a term ([`against`]) is
+//!   what a row shows of it where it matched ([`evidence`]), why where it
+//!   is undecided ([`why`]), and where it failed what the item has that
+//!   failed — the occurrences a line's group selected, the value a
+//!   comparison read — bounded as a row is; a term lacked shows nothing.
 //! - **A sum** adds the named slot — as decimals, exactly and the same in
 //!   any order (`exact.rs`) — over the occurrences that satisfy its
 //!   group; an occurrence that names no such slot adds nothing; a sum of
@@ -824,6 +831,26 @@ pub(crate) fn outcome(atom: &Atom, held: &Held, earlier: &[Outcome]) -> Outcome 
     }
 }
 
+/// Every term asked of one item, in the order they were bound: the one
+/// way an item's outcomes are made, for an answer's counts and for `show
+/// --against` alike.
+pub(crate) fn asked(terms: &[Term], held: &Held, outcomes: &mut Vec<Outcome>) {
+    outcomes.clear();
+    for term in terms {
+        let outcome = outcome(&term.atom, held, outcomes);
+        outcomes.push(outcome);
+    }
+}
+
+/// The query's parts: the children of the root, and a root that is no
+/// and its one part — what a zero answer offers to explain.
+pub(crate) fn parts(bound: &Bound) -> Vec<&Bound> {
+    match bound {
+        Bound::All(children) => children.iter().collect(),
+        other => vec![other],
+    }
+}
+
 /// What stops an item's flag being a no: its own key, and for the flags
 /// that live in `influences`, that object or the flag's own key in it —
 /// never a sibling's, and never `influences` for `corrupted`.
@@ -977,6 +1004,50 @@ pub(crate) fn evidence(
         })
         .collect();
     (shows, left_out)
+}
+
+/// What `show --against` shows of one term on its item, whatever the
+/// term's outcome: matched, what a row shows of it ([`evidence`]);
+/// undecided, why ([`why`]); failed, what the item has that failed — the
+/// occurrences a line's group selected, the value where a row would show
+/// one (a number, a class, a computed value), and nothing for a field the
+/// item's own header carries, a rarity or a place — bounded as a row is;
+/// lacked, nothing, which is what the item has.
+pub(crate) fn against(
+    terms: &[Term],
+    at: usize,
+    held: &Held,
+    outcomes: &[Outcome],
+) -> (Vec<Evidence>, usize) {
+    let Some(term) = terms.get(at) else {
+        return (Vec::new(), 0);
+    };
+    match outcomes.get(at) {
+        Some(Outcome::Matched) => evidence(terms, term, held, outcomes),
+        Some(Outcome::Undecided) => {
+            let (pairs, left_out) = why(terms, &[at], held);
+            let shows = pairs
+                .into_iter()
+                .map(|(asked, reason)| Evidence::Undecided {
+                    path: asked.path.clone(),
+                    term: crate::print::print(&asked.node),
+                    reason,
+                })
+                .collect();
+            (shows, left_out)
+        }
+        Some(Outcome::Failed) => {
+            let mut all = match &term.atom {
+                Atom::Lines(group) => selected(held, group).map(line_evidence).collect(),
+                _ => everything(term, held),
+            };
+            let keep = SHOWN + usize::from(matches!(all.first(), Some(Evidence::Value { .. })));
+            let left_out = all.len().saturating_sub(keep);
+            all.truncate(keep);
+            (all, left_out)
+        }
+        Some(Outcome::Lacked) | None => (Vec::new(), 0),
+    }
 }
 
 /// How much of one term a row shows, a sum's value beside it, and how many

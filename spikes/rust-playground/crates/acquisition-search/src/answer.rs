@@ -3,7 +3,7 @@
 //! the basis, the terms block, the total, the rows, and how to go on.
 //!
 //! The shapes are `search/DESIGN.md`'s reference (*Two values*, *One
-//! worked example*, *Invariants of the surface*), cited and not restated
+//! worked example*, *Explain*, *Invariants of the surface*), cited and not restated
 //! (the build plan, rule 6). This is the crate's boundary: tests pin a
 //! request in and an answer out, as JSON, and a frontend's text is a
 //! function of that JSON (C53).
@@ -71,7 +71,37 @@
 //!   no occurrence, a field's term matched no item — each with the values
 //!   sharing its words — a suggestion to type, never a match made for the author
 //!   (S107: never fuzzy-matched); an `id:` that matched nothing, with the
-//!   note that an id is whole (F7); and the root's undecided route.
+//!   note that an id is whole (F7); the root's undecided route; and the
+//!   offers (the reference, *When the total is zero*): explain of each
+//!   part of the query — a child of the root, a root that is no and its
+//!   one part — the part fewest items match first and by path where two
+//!   are equal, ten listed and the rest counted (invariant 5), then the
+//!   corpus context beside the view the request had, where a query was
+//!   typed. An offer is a request, made by the one maker of a route's
+//!   (`Router::request`), and a command only as every route is one
+//!   ([`Request::command`]): the block computes no forced count.
+//! - **Explain is a view** (the reference, *Explain*; the build plan,
+//!   step 10): it travels in the request as the rows and the counts do,
+//!   so it stands beside neither, and an adapter's flag is an encoding
+//!   of it. The path names a node of the query as returned
+//!   (`tree::nodes`, the one walk that numbers them); the substitution
+//!   is that walk's too, the one node replaced by `true()` or `false()`
+//!   and nothing around it touched (invariant 1). Each transformed query
+//!   is then bound and answered as any query is — this module asks
+//!   itself, as the request it is, and reads the total — so a forced
+//!   count is a count the build gives a query a user could type, by the
+//!   one evaluator, and its route is that query. A path the query lacks
+//!   is an authoring error whose readings list the nodes with their
+//!   paths; a substitution the binder refuses is the binder's error;
+//!   both are said before any item is read. The answer keeps its terms
+//!   block and its total, shows no rows, and no zero block: its three
+//!   pairs of counts stand where the rows would.
+//! - **The corpus context** (the reference, *The request at a
+//!   terminal*): the answer is the empty query's under whatever view the
+//!   request has, and the query typed is carried as set aside — read
+//!   first, so that one that does not bind is the error it is in any
+//!   context, and counted nowhere: no term, no route and no bucket holds
+//!   it. Nothing typed, nothing set aside.
 //! - **A row says what it sorts by** (F6, the first seat: a sort on a line
 //!   the query did not name showed the number alone): the field by its
 //!   name, the occurrence whose slot is the largest, a sum's
@@ -121,6 +151,41 @@ pub struct Request {
     pub query: QueryInput,
     #[serde(default)]
     pub view: View,
+    /// What the answer is of: the query's matches, or the corpus — the
+    /// empty query over the same scope, the query typed set aside.
+    #[serde(default, skip_serializing_if = "Context::is_matches")]
+    pub context: Context,
+}
+
+/// What an answer is of (the reference, *The request at a terminal*):
+/// `matches`, what every answer is unless it says otherwise, or `corpus`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Context {
+    #[default]
+    Matches,
+    Corpus,
+}
+
+impl Context {
+    fn is_matches(&self) -> bool {
+        *self == Context::Matches
+    }
+
+    /// The word an adapter's flag carries.
+    pub fn parse(word: &str) -> Result<Context, LanguageError> {
+        match word {
+            _ if word.eq_ignore_ascii_case("matches") => Ok(Context::Matches),
+            _ if word.eq_ignore_ascii_case("corpus") => Ok(Context::Corpus),
+            _ => Err(LanguageError::new(
+                crate::error::ErrorKind::View,
+                format!(
+                    "`{word}` is no context: `matches`, what every answer is of, or `corpus`, the empty query over the same scope with the query typed set aside"
+                ),
+            )
+            .with_readings(vec!["matches".to_string(), "corpus".to_string()])),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -155,14 +220,25 @@ pub struct QueryInput {
 }
 
 /// What an answer shows of its matches: rows, or counts of them — one
-/// table for each key, or one crossed table of two (C95). One of the
-/// three, as the reference's synopsis has it.
+/// table for each key, or one crossed table of two (C95) — or, of one
+/// node of the query, the root's counts with it forced true and forced
+/// false, and no rows (the reference, *Explain*). One of the four, as the
+/// reference's synopsis has it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum View {
     Rows(Rows),
     Counts(Counts),
     Cross(Counts),
+    Explain(Explain),
+}
+
+/// The node explained, by its path in the query as an answer returns it
+/// (`tree::nodes`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Explain {
+    pub path: String,
 }
 
 impl Default for View {
@@ -198,10 +274,10 @@ pub struct Rows {
     pub desc: bool,
 }
 
-impl Request {
-    /// The query of a request, parsed or read, and bound.
+impl QueryInput {
+    /// The query, parsed or read, and bound.
     pub fn bind(&self) -> Result<Query, LanguageError> {
-        match (&self.query.text, &self.query.tree) {
+        match (&self.text, &self.tree) {
             (Some(_), Some(_)) => Err(LanguageError::new(
                 crate::error::ErrorKind::Tree,
                 "a request sends `text` or `tree`, never both: an answer returns both",
@@ -211,13 +287,46 @@ impl Request {
             (None, None) => bind::parse_query(""),
         }
     }
+}
+
+/// The empty query: every item in scope.
+fn is_empty(root: &Node) -> bool {
+    matches!(root, Node::All(children) if children.is_empty())
+}
+
+impl Request {
+    /// The query of a request as typed, parsed or read, and bound.
+    pub fn bind(&self) -> Result<Query, LanguageError> {
+        self.query.bind()
+    }
+
+    /// The query the answer is of, and the one set aside: under `corpus`
+    /// the empty query, the typed one beside it — still read, so that one
+    /// that does not bind is the error it is in any context. Explain is
+    /// of the query typed, so beside `corpus` it is the view's error.
+    fn asked(&self) -> Result<(Query, Option<Query>), LanguageError> {
+        if self.context == Context::Corpus && matches!(self.view, View::Explain(_)) {
+            return Err(LanguageError::new(
+                crate::error::ErrorKind::View,
+                "`--explain` is of the query typed, and `--context corpus` sets it aside: ask one or the other",
+            ));
+        }
+        let typed = self.bind()?;
+        Ok(match self.context {
+            Context::Matches => (typed, None),
+            Context::Corpus => (
+                bind::parse_query("")?,
+                (!is_empty(&typed.root)).then_some(typed),
+            ),
+        })
+    }
 
     /// Every authoring error the request holds — the query's, the sort's,
-    /// the view's — with no store read: what an adapter asks before it
-    /// opens one.
+    /// the view's, a path the query lacks — with no store read: what an
+    /// adapter asks before it opens one.
     pub fn check(&self) -> Result<(), LanguageError> {
-        self.bind()?;
-        self.view.bound().map(|_| ())
+        let (query, _) = self.asked()?;
+        self.view.bound()?.of(&query).map(|_| ())
     }
 }
 
@@ -230,21 +339,91 @@ enum BoundView {
     },
     Counts(counts::BoundCounts),
     Cross(counts::BoundCounts),
+    Explain(String),
+}
+
+/// One node of a query, and the query with it forced each way.
+struct Explained {
+    node: crate::tree::Pathed,
+    forced: [Node; 2],
+}
+
+impl BoundView {
+    /// The view of one query: for explain, the node its path names and
+    /// the two transformed queries, each bound as any query is — a path
+    /// the query lacks is an authoring error whose readings list the
+    /// query's nodes with their paths, and a substitution the binder
+    /// refuses is refused with the binder's own error.
+    fn of(&self, query: &Query) -> Result<Option<Explained>, LanguageError> {
+        let BoundView::Explain(path) = self else {
+            return Ok(None);
+        };
+        let nodes = crate::tree::nodes(&query.root);
+        let lacking = |nodes: Vec<crate::tree::Pathed>| {
+            let message = if nodes.is_empty() {
+                format!("the query has no node at `{path}`: the empty query has none")
+            } else {
+                format!(
+                    "the query has no node at `{path}`: a path names a term, a group of terms, or a condition inside line( … ) or linked( … ), as this query numbers them"
+                )
+            };
+            LanguageError::new(crate::error::ErrorKind::NoSuchPath, message).with_readings(
+                nodes
+                    .into_iter()
+                    .map(|node| format!("{}  {}", node.path, node.text))
+                    .collect(),
+            )
+        };
+        let (Some(forced_true), Some(forced_false)) = (
+            crate::tree::forced(&query.root, path, true),
+            crate::tree::forced(&query.root, path, false),
+        ) else {
+            return Err(lacking(nodes));
+        };
+        let Some(node) = nodes.iter().find(|node| node.path == *path).cloned() else {
+            return Err(lacking(nodes));
+        };
+        bind::bind(&forced_true)?;
+        bind::bind(&forced_false)?;
+        Ok(Some(Explained {
+            node,
+            forced: [forced_true, forced_false],
+        }))
+    }
 }
 
 impl View {
-    /// The view an adapter's flat arguments name: rows unless a count or a
-    /// crossed table is asked for, and never two of them. A sort orders
-    /// rows and a sum stands beside a count, so either with the other view
-    /// is an authoring error and not a flag ignored.
+    /// The view an adapter's flat arguments name: rows unless a count, a
+    /// crossed table or an explained path is asked for, and never two of
+    /// them. A sort orders rows and a sum stands beside a count, so either
+    /// with the other view is an authoring error and not a flag ignored;
+    /// explain shows counts and no rows, so beside a count, a crossed
+    /// table or a sort it is one too. A limit bounds what a view lists,
+    /// and explain lists nothing: the one an adapter always sends is no
+    /// conflict.
     pub fn of(
         count: Option<Vec<String>>,
         cross: Option<Vec<String>>,
         sum: Option<String>,
+        explain: Option<String>,
         rows: Rows,
     ) -> Result<View, LanguageError> {
         let view_error =
             |message: &str| Err(LanguageError::new(crate::error::ErrorKind::View, message));
+        if let Some(path) = explain {
+            let beside = [
+                ("--count", count.is_some()),
+                ("--cross", cross.is_some()),
+                ("--sum", sum.is_some()),
+                ("--sort", rows.sort.is_some()),
+            ];
+            if let Some((flag, _)) = beside.iter().find(|(_, typed)| *typed) {
+                return view_error(&format!(
+                    "`--explain` shows the root's counts with one node forced true and forced false, and no rows: `{flag}` has nothing to stand beside — an answer has one view"
+                ));
+            }
+            return Ok(View::Explain(Explain { path }));
+        }
         let limit = rows.limit;
         let keys = match (count, cross) {
             (Some(_), Some(_)) => {
@@ -297,6 +476,7 @@ impl View {
             View::Cross(c) => {
                 BoundView::Cross(counts::bind(&c.keys, true, c.sum.as_deref(), c.limit)?)
             }
+            View::Explain(explain) => BoundView::Explain(explain.path.clone()),
         })
     }
 }
@@ -306,6 +486,10 @@ impl View {
 #[derive(Debug, Clone, Serialize)]
 pub struct Answer {
     pub query: QueryOut,
+    /// Under the corpus context, the query typed beside it: read, set
+    /// aside, and counted nowhere.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub set_aside: Option<QueryOut>,
     pub scope: ScopeOut,
     pub basis: Basis,
     pub terms: Vec<TermOut>,
@@ -430,13 +614,45 @@ pub struct Example {
     pub name: Option<String>,
 }
 
-/// The view as answered: the rows' bounds, or the tables (`counts.rs`).
+/// The view as answered: the rows' bounds, the tables (`counts.rs`), or
+/// the node explained.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ViewOut {
     Rows(RowsOut),
     Counts(counts::CountsOut),
     Cross(counts::CrossOut),
+    Explain(Box<ExplainOut>),
+}
+
+/// One node explained (the reference, *Explain*): the root's matched and
+/// undecided counts as given, with the node forced true and with it
+/// forced false, each forced pair beside its transformed query. The
+/// words are literal: forced, never removed, never a contribution.
+#[derive(Debug, Clone, Serialize)]
+pub struct ExplainOut {
+    pub path: String,
+    /// The node, as the canonical text prints it.
+    pub node: String,
+    pub given: Given,
+    pub forced_true: Forced,
+    pub forced_false: Forced,
+}
+
+/// The root's counts as the query was given: the answer's own total.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct Given {
+    pub matched: usize,
+    pub undecided: usize,
+}
+
+/// The root's counts of the transformed query, each with its route: the
+/// transformed query, asked as a request of its own.
+#[derive(Debug, Clone, Serialize)]
+pub struct Forced {
+    pub query: QueryOut,
+    pub matched: Count,
+    pub undecided: Count,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -506,8 +722,34 @@ pub struct Zero {
     pub resolved_to_nothing: Vec<Nothing>,
     pub said: &'static str,
     pub undecided: Count,
-    /// What the reference offers here and this build refuses (rule 5).
-    pub not_built: Vec<&'static str>,
+    /// What the reference offers here (*When the total is zero*): each a
+    /// request, never its output.
+    pub offers: Offers,
+}
+
+/// What a zero answer offers: explain of each part of the query — a
+/// child of the root — the part fewest items match first and by path
+/// where two are equal, the first ten and the rest counted (invariant
+/// 5); then the corpus context, where a query was typed.
+#[derive(Debug, Clone, Serialize)]
+pub struct Offers {
+    pub explain: Vec<ExplainOffer>,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub explain_left_out: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<Offer>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ExplainOffer {
+    pub path: String,
+    pub node: String,
+    pub request: Request,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Offer {
+    pub request: Request,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -561,8 +803,9 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
             ),
         ));
     }
-    let query = request.bind()?;
+    let (query, set_aside) = request.asked()?;
     let view = request.view.bound()?;
+    let explained = view.of(&query)?;
 
     let router = Router {
         corpus,
@@ -596,11 +839,22 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
     let mut reasons: Vec<UndecidedReason> = Vec::new();
     let mut n_undecided = 0usize;
     let mut outcomes: Vec<Outcome> = Vec::with_capacity(n_terms);
+    // the query's parts — the children of the root, a root that is no and
+    // its one part — and how many items each holds on: what a zero answer
+    // orders its offers by, counted while nothing has matched
+    let parts = eval::parts(&query.bound);
+    let mut part_matched = vec![0usize; parts.len()];
     for (at, held) in corpus.items.iter().enumerate() {
-        outcomes.clear();
+        eval::asked(&query.terms, held, &mut outcomes);
+        if matches.is_empty() {
+            for (n, part) in parts.iter().enumerate() {
+                if eval::truth(part, &outcomes) == Truth::True {
+                    part_matched[n] += 1;
+                }
+            }
+        }
         for (i, term) in query.terms.iter().enumerate() {
-            let outcome = eval::outcome(&term.atom, held, &outcomes);
-            outcomes.push(outcome);
+            let outcome = outcomes[i];
             tallies[i][outcome as usize] += 1;
             if let (Atom::Lines(group), Outcome::Failed) = (&term.atom, outcome)
                 && eval::together(held, group)
@@ -701,10 +955,8 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
 
     // the empty query has no term for `undecided( … )` to ask about, and
     // nothing on an item can leave it open
-    let root_undecided = match &query.root {
-        Node::All(children) if children.is_empty() => None,
-        root => Some(Node::Undecided(Probe::Term(Box::new(root.clone())))),
-    };
+    let root_undecided = (!is_empty(&query.root))
+        .then(|| Node::Undecided(Probe::Term(Box::new(query.root.clone()))));
     let reasons_left_out = reasons.len().saturating_sub(LISTED);
     reasons.truncate(LISTED);
     let total = Total {
@@ -724,8 +976,8 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
     };
     let (sort, desc, limit) = match &view {
         BoundView::Rows { sort, desc, limit } => (sort.as_ref(), *desc, *limit),
-        // a count shows no rows (AQ1)
-        BoundView::Counts(_) | BoundView::Cross(_) => (None, false, 0),
+        // a count shows no rows (AQ1), and explain none
+        BoundView::Counts(_) | BoundView::Cross(_) | BoundView::Explain(_) => (None, false, 0),
     };
     let scalars: Option<Vec<Scalar>> = sort.map(|(_, key)| {
         matches
@@ -794,7 +1046,9 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
         })
         .collect();
 
-    let zero = (total.matched == 0).then(|| Zero {
+    // explain shows counts in place of rows, a zero among them: the zero
+    // block is the other views'
+    let zero = (total.matched == 0 && explained.is_none()).then(|| Zero {
         resolved_to_nothing: query
             .terms
             .iter()
@@ -810,7 +1064,7 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
             .collect(),
         said: S107,
         undecided: count(n_undecided, root_undecided.as_ref()),
-        not_built: vec!["--explain", "--context"],
+        offers: offers(&router, &query, &part_matched, request),
     });
     let left_out = total.matched - rows.len();
     let view = match &view {
@@ -824,12 +1078,39 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
         }),
         BoundView::Counts(bound) => ViewOut::Counts(counts::tables(bound, &counted)),
         BoundView::Cross(bound) => ViewOut::Cross(counts::crossed(bound, &counted)),
+        BoundView::Explain(_) => {
+            let Some(Explained {
+                node,
+                forced: [forced_true, forced_false],
+            }) = explained
+            else {
+                // `BoundView::of` gives an explain view its node or its error
+                return Err(SearchError::Language(LanguageError::new(
+                    crate::error::ErrorKind::NoSuchPath,
+                    "the explained node was not resolved",
+                )));
+            };
+            ViewOut::Explain(Box::new(ExplainOut {
+                path: node.path,
+                node: node.text,
+                given: Given {
+                    matched: total.matched,
+                    undecided: total.undecided.count,
+                },
+                forced_true: forced(corpus, &router, request, forced_true)?,
+                forced_false: forced(corpus, &router, request, forced_false)?,
+            }))
+        }
     };
     Ok(Answer {
         query: QueryOut {
             text: query.text(),
             tree: json::to_json(&query.root),
         },
+        set_aside: set_aside.map(|typed| QueryOut {
+            text: typed.text(),
+            tree: json::to_json(&typed.root),
+        }),
         scope: ScopeOut {
             account: Account {
                 uuid: corpus.basis.account.clone(),
@@ -850,6 +1131,92 @@ pub fn answer(corpus: &Corpus, request: &Request) -> Result<Answer, SearchError>
         rows,
         zero,
     })
+}
+
+/// The root's counts of a transformed query: the query bound and answered
+/// as any query is, by the one evaluator — this function asks it as the
+/// request it is, and reads its total (the reference, *Outside the first
+/// surface*: "by the normal evaluator").
+fn forced(
+    corpus: &Corpus,
+    router: &Router<'_>,
+    request: &Request,
+    transformed: Node,
+) -> Result<Forced, SearchError> {
+    let tree = json::to_json(&transformed);
+    let asked = answer(
+        corpus,
+        &Request {
+            scope: request.scope.clone(),
+            query: QueryInput {
+                text: None,
+                tree: Some(tree.clone()),
+            },
+            view: View::Rows(Rows {
+                limit: Some(0),
+                ..Rows::default()
+            }),
+            context: Context::Matches,
+        },
+    )?;
+    let undecided = Node::Undecided(Probe::Term(Box::new(transformed.clone())));
+    Ok(Forced {
+        query: QueryOut {
+            text: print::print(&transformed),
+            tree,
+        },
+        matched: router.count(asked.total.matched, Some(&transformed)),
+        undecided: router.count(asked.total.undecided.count, Some(&undecided)),
+    })
+}
+
+/// What a zero answer offers (the module doc): explain of each part, in
+/// the order of what each matched and then of its path, cut after the
+/// order; then the corpus context beside the view the request had —
+/// rows, where it had explain, which the empty query has no path for.
+fn offers(router: &Router<'_>, query: &Query, part_matched: &[usize], request: &Request) -> Offers {
+    let nodes: Vec<&Node> = match &query.root {
+        Node::All(children) => children.iter().collect(),
+        root => vec![root],
+    };
+    let mut parts: Vec<(usize, usize, &Node)> = nodes
+        .into_iter()
+        .enumerate()
+        .map(|(n, node)| (part_matched.get(n).copied().unwrap_or(0), n, node))
+        .collect();
+    parts.sort_by_key(|(matched, n, _)| (*matched, *n));
+    let explain_left_out = parts.len().saturating_sub(LISTED);
+    parts.truncate(LISTED);
+    Offers {
+        explain: parts
+            .into_iter()
+            .map(|(_, n, node)| {
+                let path = crate::tree::child_path("", n);
+                ExplainOffer {
+                    node: print::print(node),
+                    request: router.request(
+                        router.root,
+                        None,
+                        View::Explain(Explain { path: path.clone() }),
+                        Context::Matches,
+                    ),
+                    path,
+                }
+            })
+            .collect(),
+        explain_left_out,
+        context: (!is_empty(&query.root)).then(|| Offer {
+            request: router.request(
+                router.root,
+                None,
+                match &request.view {
+                    View::Explain(_) => View::default(),
+                    view => view.clone(),
+                },
+                Context::Corpus,
+            ),
+        }),
+    }
 }
 
 fn account_is(corpus: &Corpus, account: &str) -> bool {
@@ -881,22 +1248,29 @@ pub(crate) struct Router<'a> {
 }
 
 impl Router<'_> {
-    fn route(&self, node: &Node, realm: Option<&str>) -> Route {
+    /// A request over the answer's scope: what a route carries, and what
+    /// a zero answer offers.
+    fn request(&self, node: &Node, realm: Option<&str>, view: View, context: Context) -> Request {
         let mut scope = self.scope.clone();
         if let Some(realm) = realm {
             scope.realm = Some(Realm::One(realm.to_string()));
         }
+        Request {
+            scope,
+            query: QueryInput {
+                text: Some(print::print(node)),
+                tree: None,
+            },
+            view,
+            context,
+        }
+    }
+
+    fn route(&self, node: &Node, realm: Option<&str>) -> Route {
         Route {
             counted_at: self.corpus.basis.clone(),
             denominator: "scope",
-            request: Request {
-                scope,
-                query: QueryInput {
-                    text: Some(print::print(node)),
-                    tree: None,
-                },
-                view: View::default(),
-            },
+            request: self.request(node, realm, View::default(), Context::Matches),
         }
     }
 
@@ -1353,6 +1727,19 @@ fn exactly(of: &str, value: &str) -> Node {
 /// the language's not, a terminal's flag — goes after `--`, or `-has:note`
 /// is read as `-h`.
 pub fn command(verb: &str, account: Option<&str>, realm: Option<&str>, last: &str) -> String {
+    command_with(verb, account, realm, last, "")
+}
+
+/// [`command`] with the flags a view and a context add: after the query,
+/// as a reader types them — and before it where the query goes after
+/// `--`, past which a terminal reads no flag.
+fn command_with(
+    verb: &str,
+    account: Option<&str>,
+    realm: Option<&str>,
+    last: &str,
+    flags: &str,
+) -> String {
     let mut out = format!("acq {verb}");
     if let Some(account) = account {
         out.push_str(&format!(" --account {}", shell_quoted(account)));
@@ -1360,23 +1747,48 @@ pub fn command(verb: &str, account: Option<&str>, realm: Option<&str>, last: &st
     if let Some(realm) = realm {
         out.push_str(&format!(" --realm {realm}"));
     }
-    out.push_str(if last.starts_with('-') { " -- " } else { " " });
-    out.push_str(&shell_quoted(last));
+    if last.starts_with('-') {
+        out.push_str(flags);
+        out.push_str(" -- ");
+        out.push_str(&shell_quoted(last));
+    } else {
+        out.push(' ');
+        out.push_str(&shell_quoted(last));
+        out.push_str(flags);
+    }
     out
 }
 
 impl Route {
-    /// The route as a command a terminal takes: the query, then the view
-    /// where it is not the default rows.
+    /// The route as a command a terminal takes ([`Request::command`]).
     pub fn command(&self) -> String {
-        let scope = &self.request.scope;
-        let mut out = command(
+        self.request.command()
+    }
+}
+
+impl Request {
+    /// The request as a command a terminal takes: the query, then the
+    /// view where it is not the default rows, then the context where it
+    /// is not the matches. A request that carries a tree and no text has
+    /// none of its own: an answer returns the text.
+    pub fn command(&self) -> String {
+        let scope = &self.scope;
+        let mut out = String::new();
+        self.view_flags(&mut out);
+        if self.context == Context::Corpus {
+            out.push_str(" --context corpus");
+        }
+        command_with(
             "search",
             scope.account.as_deref(),
             scope.realm.as_ref().map(Realm::as_str),
-            self.request.query.text.as_deref().unwrap_or_default(),
-        );
-        let (flag, counts) = match &self.request.view {
+            self.query.text.as_deref().unwrap_or_default(),
+            &out,
+        )
+    }
+
+    fn view_flags(&self, out: &mut String) {
+        let (flag, counts) = match &self.view {
             View::Rows(rows) => {
                 if let Some(sort) = &rows.sort {
                     out.push_str(&format!(" --sort {}", shell_quoted(sort)));
@@ -1387,7 +1799,11 @@ impl Route {
                 if let Some(limit) = rows.limit {
                     out.push_str(&format!(" --limit {limit}"));
                 }
-                return out;
+                return;
+            }
+            View::Explain(explain) => {
+                out.push_str(&format!(" --explain {}", shell_quoted(&explain.path)));
+                return;
             }
             View::Counts(c) => ("--count", c),
             View::Cross(c) => ("--cross", c),
@@ -1422,7 +1838,6 @@ impl Route {
         if let Some(limit) = counts.limit {
             out.push_str(&format!(" --limit {limit}"));
         }
-        out
     }
 }
 

@@ -242,8 +242,8 @@ Options:
       --sum <VALUE>          Beside each count, the sum of one number over its items: `stack`, `ilvl`, `'sum("T")'`, `pseudo.total_res`. An item lacking the thing adds nothing and is counted as lacking; one unread leaves a subtotal marked incomplete (C95)
       --fields <NAME,…>      Not built (step 10): the caller names a row's fields
       --next <TOKEN>         Not built (step 10): continue an answer past its limit
-      --explain <PATH>       Not built (step 10): one node forced true and forced false
-      --context <WHICH>      Not built (step 10): matches | corpus
+      --explain <PATH>       Explain one node of the query, named by its path — a term's as the terms block prints it (`3`), a group of terms', or a condition's inside `line( … )` or `linked( … )` (`3.1`): the root's matched and undecided counts as given, with that node forced true, and with it forced false, each beside its transformed query, the node replaced by `true()` or `false()` and nothing else changed. Counts and no rows: an error beside `--count`, `--cross`, `--sum` or `--sort`. A path the query lacks lists the query's nodes with their paths
+      --context <WHICH>      What the answer is of: `matches`, the query's, as every answer is; or `corpus`, the empty query over the same scope under rows or a count, with the query typed printed as set aside and counted nowhere; beside `--explain`, which is of the query typed, an error
       --view <WHAT>          Not built (step 10): `locations`, the full coverage list
       --print-request        Not built (step 10): print the request as JSON without running it
       --request <FILE|->     Not built (step 10): run a request read from a file
@@ -263,7 +263,7 @@ Arguments:
 
 Options:
       --body               Also print the body as the store holds it, verbatim
-      --against <QUERY>    Not built (step 10): why the item does or does not match a query
+      --against <QUERY>    Why the item does or does not match a query: beside the item, the query's canonical text, the root's outcome on it — match, no match, undecided — and each term's and each group's, with what the term touched or why it is undecided. One that starts with `-`, the language's not, is taken as typed: `--against '-is:corrupted'`
       --basis <BASIS>      Not built (step 10): the item as a named basis held it
   -h, --help               Print help
 ```

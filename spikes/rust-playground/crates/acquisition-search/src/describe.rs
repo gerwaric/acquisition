@@ -1,7 +1,8 @@
 //! `--describe` (C97: the closed lists are printed in the help): the
 //! language as this build knows it — fields, what a line has, what has a
 //! value, how terms compose, operators, closed value sets, slots, computed
-//! values, what a count takes, what is not built, and the limits it states
+//! values, what a count takes, what explains an answer, what is not built,
+//! and the limits it states
 //! (C102). An entry is a name, a line and an example: the reference is
 //! `search/DESIGN.md`, and this is what a terminal can ask of it. Every
 //! example printed is a query this build binds, or a key a count takes
@@ -39,6 +40,9 @@ pub struct Describe {
     pub totals: String,
     /// What `--count`, `--cross` and `--sum` take (C95, C97).
     pub counts: Vec<Named>,
+    /// What says why an answer is what it is: `--explain`, `--context`
+    /// and `show --against` (the reference, *Explain*).
+    pub explain: Vec<Named>,
     /// Every category id with the site's text for it and what makes it
     /// hold (C106; `category.rs`): printed whole, and beside the field
     /// `category` where that is named.
@@ -412,6 +416,26 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             )
         },
     ];
+    let explain = vec![
+        named(
+            "--explain",
+            "view",
+            "one node of the query, named by its path: the root's matched and undecided counts as given, with the node forced true, and with it forced false, each beside its transformed query — the query with that one node replaced by true() or false() and nothing else changed, answered as any query is. A path is a term's as the terms block prints it (3), a group of terms', or a condition's inside line( … ) or linked( … ), numbered under its term as a group's children are (3.1); the conditions inside sum( … ) take none; a path the query lacks lists the query's nodes with their paths. Forced is literal, never removed and never a contribution: `a or b` on an item that holds both loses nothing when a is forced false. Counts and no rows: an error beside --count, --cross, --sum or --sort",
+        ),
+        Named {
+            values: vec!["matches", "corpus"],
+            ..named(
+                "--context",
+                "scope",
+                "what the answer is of: matches, the query's, as every answer is; corpus, the empty query over the same scope under any view — rows, a count, a crossed table — with the query typed read, printed on one line as set aside, and counted nowhere",
+            )
+        },
+        named(
+            "show --against",
+            "show",
+            "beside one item, a query's canonical text, the root's outcome on the item — match, no match, undecided — and each term's — matched, failed, lacked, undecided — and each group's, a term with what a row shows of it where it matched, what the item has where it failed, and the reason where it is undecided; at the basis the item was read at",
+        ),
+    ];
     let mut out = Describe {
         fields,
         line,
@@ -423,6 +447,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
         computed: crate::pseudo::described(),
         totals: crate::pseudo::provenance(),
         counts,
+        explain,
         categories: crate::category::tables()
             .map(|tables| tables.described())
             .unwrap_or_default(),
@@ -457,10 +482,16 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             || entry
                 .split_whitespace()
                 .any(|word| word != "…" && word.eq_ignore_ascii_case(asked))
+            // a flag among an entry's words answers to its word too:
+            // `against` is `show --against`
+            || entry.split_whitespace().any(|word| {
+                word.strip_prefix("--")
+                    .is_some_and(|flag| flag.eq_ignore_ascii_case(asked))
+            })
             || (entry.starts_with("arg1") && crate::tree::arg_index(asked).is_some())
     };
     // `pseudo` names the computed block, as the reference's namespace does
-    const BLOCKS: [&str; 10] = [
+    const BLOCKS: [&str; 11] = [
         "fields",
         "line",
         "linked",
@@ -471,6 +502,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
         "computed",
         "pseudo",
         "counts",
+        "explain",
     ];
     let entries = |d: &Describe| -> Vec<String> {
         [
@@ -483,6 +515,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
             &d.slots,
             &d.computed,
             &d.counts,
+            &d.explain,
         ]
         .into_iter()
         .flatten()
@@ -537,6 +570,7 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
     out.computed
         .retain(|n| wants("computed", &n.name) || wants("pseudo", &n.name));
     out.counts.retain(|n| wants("counts", &n.name));
+    out.explain.retain(|n| wants("explain", &n.name));
     // the ids are the field's: printed where `category` is named
     if !names
         .iter()

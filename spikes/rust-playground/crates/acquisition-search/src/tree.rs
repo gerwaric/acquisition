@@ -6,6 +6,26 @@
 //! what a tree must satisfy to be one the printer can print and the
 //! parser would give back; the parser's output satisfies it by
 //! construction, and a tree arriving as JSON is checked before use.
+//!
+//! # As built
+//!
+//! **A path names a node** (`search/DESIGN.md`'s reference, *Explain*;
+//! the build plan, step 10). One walk numbers a query's nodes
+//! ([`nodes`]) and replaces one of them by a constant ([`forced`]), so
+//! what a path names and what a substitution replaces cannot differ: the
+//! children of the root are `0`, `1`, …, and a root that is no and is
+//! `0`; a child of an and, an or or a `holds` is `<parent>.<n>`; what a
+//! not negates or `undecided( … )` asks about is `<parent>.0`. Inside
+//! `line( … )` and `linked( … )` the same rule holds with the term in
+//! the root's place: the group's conjuncts are `<term>.<n>`, a group
+//! that is one condition — an or and a not among them — holds it at
+//! `<term>.0`, and below that a child of an and or an or is
+//! `<parent>.<n>` and what a not negates `<parent>.0`. The root has no
+//! path, and the conditions inside a `sum( … )` or a projection take
+//! none. The substitution rebuilds the tree around the node as it was:
+//! nothing reordered, flattened, merged or simplified (invariant 1), so
+//! `line(true() arg1>=90)` and `(a false()) b` are what it prints. The
+//! binder numbers its terms by the same two functions (`bind.rs`).
 
 use crate::error::{ErrorKind, LanguageError};
 use crate::group::Slots;
@@ -250,6 +270,175 @@ pub(crate) fn arg_index(s: &str) -> Option<usize> {
         return None;
     }
     digits.parse().ok()
+}
+
+// ---- paths -----------------------------------------------------------------
+
+/// The path of the `n`th child of the node at `parent`: of an and, an or
+/// or a `holds`, and of a member group's conjuncts under their term. The
+/// children of the root carry no prefix.
+pub(crate) fn child_path(parent: &str, n: usize) -> String {
+    if parent.is_empty() {
+        n.to_string()
+    } else {
+        format!("{parent}.{n}")
+    }
+}
+
+/// The path of the one node under the node at `parent`: what a not
+/// negates, what `undecided( … )` asks about, a member group's one
+/// condition — and, under no parent, a root that is no and.
+pub(crate) fn sole_path(parent: &str) -> String {
+    child_path(parent, 0)
+}
+
+/// A node of a query a path names (the reference, *Explain*).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pathed {
+    pub path: String,
+    /// The node, as the canonical text prints it.
+    pub text: String,
+    /// Whether it is a condition inside `line( … )` or `linked( … )`,
+    /// which holds of one member and has no outcome on an item.
+    pub inside: bool,
+}
+
+/// What [`walk`] shows its visitor: a node of the item's tree, or a
+/// condition inside a member group.
+enum At<'a> {
+    Node(&'a Node),
+    Inside(Collection, &'a Member),
+}
+
+/// The one walk that numbers a query's nodes (the module doc of
+/// `bind.rs`, "Atomic terms are numbered by path", whose rule this is):
+/// every node with a path is shown to `visit` before its children, and
+/// one `visit` answers with a constant is replaced by it — that node and
+/// no other, the tree around it rebuilt as it was (invariant 1 of the
+/// surface). The root has no path; the conditions inside a `sum( … )`
+/// and a projection take none.
+fn walk(root: &Node, visit: &mut dyn FnMut(&str, At<'_>) -> Option<bool>) -> Node {
+    match root {
+        Node::All(children) => Node::All(
+            children
+                .iter()
+                .enumerate()
+                .map(|(n, child)| walk_node(child, &child_path("", n), visit))
+                .collect(),
+        ),
+        other => walk_node(other, &sole_path(""), visit),
+    }
+}
+
+fn walk_node(node: &Node, path: &str, visit: &mut dyn FnMut(&str, At<'_>) -> Option<bool>) -> Node {
+    if let Some(value) = visit(path, At::Node(node)) {
+        return Node::Const(value);
+    }
+    let mut each = |children: &[Node]| -> Vec<Node> {
+        children
+            .iter()
+            .enumerate()
+            .map(|(n, child)| walk_node(child, &child_path(path, n), visit))
+            .collect()
+    };
+    match node {
+        Node::All(children) => Node::All(each(children)),
+        Node::Any(children) => Node::Any(each(children)),
+        Node::Holds { of, min, max } => Node::Holds {
+            of: each(of),
+            min: *min,
+            max: *max,
+        },
+        Node::Not(inner) => Node::Not(Box::new(walk_node(inner, &sole_path(path), visit))),
+        Node::Undecided(Probe::Term(inner)) => Node::Undecided(Probe::Term(Box::new(walk_node(
+            inner,
+            &sole_path(path),
+            visit,
+        )))),
+        Node::Members { of, where_ } => Node::Members {
+            of: *of,
+            // the group's conjuncts are numbered under their term, as the
+            // root's children are under no prefix; a group of one
+            // condition holds that one
+            where_: Box::new(match where_.as_ref() {
+                Member::All(children) => Member::All(
+                    children
+                        .iter()
+                        .enumerate()
+                        .map(|(n, child)| walk_member(*of, child, &child_path(path, n), visit))
+                        .collect(),
+                ),
+                other => walk_member(*of, other, &sole_path(path), visit),
+            }),
+        },
+        Node::Undecided(Probe::Thing(_))
+        | Node::Const(_)
+        | Node::Test { .. }
+        | Node::Has(_)
+        | Node::Is(_)
+        | Node::Compare { .. } => node.clone(),
+    }
+}
+
+fn walk_member(
+    of: Collection,
+    member: &Member,
+    path: &str,
+    visit: &mut dyn FnMut(&str, At<'_>) -> Option<bool>,
+) -> Member {
+    if let Some(value) = visit(path, At::Inside(of, member)) {
+        return Member::Const(value);
+    }
+    let mut each = |children: &[Member]| -> Vec<Member> {
+        children
+            .iter()
+            .enumerate()
+            .map(|(n, child)| walk_member(of, child, &child_path(path, n), visit))
+            .collect()
+    };
+    match member {
+        Member::All(children) => Member::All(each(children)),
+        Member::Any(children) => Member::Any(each(children)),
+        Member::Not(inner) => {
+            Member::Not(Box::new(walk_member(of, inner, &sole_path(path), visit)))
+        }
+        Member::Const(_) | Member::Test { .. } | Member::Is(_) => member.clone(),
+    }
+}
+
+/// Every node of the query that has a path, a parent before its
+/// children: what `--explain` takes, and what its refusal lists.
+pub fn nodes(root: &Node) -> Vec<Pathed> {
+    let mut out = Vec::new();
+    walk(root, &mut |path, at| {
+        out.push(match at {
+            At::Node(node) => Pathed {
+                path: path.to_string(),
+                text: print::print(node),
+                inside: false,
+            },
+            At::Inside(of, member) => Pathed {
+                path: path.to_string(),
+                text: print::print_group(of, member),
+                inside: true,
+            },
+        });
+        None
+    });
+    out
+}
+
+/// The query with the node at `path` replaced by `true()` or `false()`
+/// and nothing else changed, or none where the query has no such node.
+pub fn forced(root: &Node, path: &str, value: bool) -> Option<Node> {
+    let mut found = false;
+    let out = walk(root, &mut |at, _| {
+        (at == path).then(|| {
+            found = true;
+            value
+        })
+    });
+    found.then_some(out)
 }
 
 // ---- validity --------------------------------------------------------------

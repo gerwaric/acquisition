@@ -505,12 +505,14 @@ fn aq2_a_refinement_is_the_old_query_parenthesised_and_a_new_term() {
     assert_eq!(ids(&by_sum), ["ring_res"]);
 }
 
-/// AQ3: each row names what matched; a zero answer names the scope
-/// searched and what its selectors resolved to. The why-not is step 10.
+/// AQ3 whole: each row names what matched; a zero answer names the scope
+/// searched and what its selectors resolved to, and offers what explains
+/// it; `show --against` says why one item does or does not match.
 #[test]
 fn aq3_a_row_names_what_matched_and_a_zero_answer_names_the_scope() {
     let s = stash();
-    let a = asked(&s, r##"(name:doom or "reservation") ilvl>=80"##);
+    const AQ3: &str = r##"(name:doom or "reservation") ilvl>=80"##;
+    let a = asked(&s, AQ3);
     let matched = |id: &str| {
         let row = a["rows"]
             .as_array()
@@ -548,8 +550,92 @@ fn aq3_a_row_names_what_matched_and_a_zero_answer_names_the_scope() {
         zero["zero"]["said"],
         "a line the search cannot name is shown as unknown, with what it knows of it, and never fuzzy-matched"
     );
-    // rule 5: what the reference offers here and this build refuses is named, never printed as a command
-    assert_eq!(zero["zero"]["not_built"], json!(["--explain", "--context"]));
+    // rule 5: what the reference offers here runs since step 10, and is
+    // offered as the requests it is — explain of the query's one part,
+    // then the corpus — never as their output
+    assert!(zero["zero"].get("not_built").is_none());
+    let offers = &zero["zero"]["offers"];
+    assert_eq!(offers["explain"].as_array().unwrap().len(), 1);
+    assert_eq!(offers["explain"][0]["path"], "0");
+    let follow = |request: &Value| -> Value {
+        let request: Request = serde_json::from_value(request.clone()).unwrap();
+        as_json(&acquisition_search::answer(&load(&s, Some("pc")), &request).unwrap())
+    };
+    let explained = follow(&offers["explain"][0]["request"]);
+    // the one term forced true is every item in scope
+    assert_eq!(
+        explained["view"]["explain"]["forced_true"]["matched"]["count"],
+        12
+    );
+    assert_eq!(
+        explained["view"]["explain"]["forced_true"]["query"]["text"],
+        "true()"
+    );
+    let corpus = follow(&offers["context"]["request"]);
+    assert_eq!(corpus["total"]["matched"], 12);
+    assert_eq!(
+        corpus["set_aside"]["text"],
+        r##"line("#% to Fire Resistances" arg1>=30)"##
+    );
+
+    // the why-not: one item against the first query. `ring_none` is no
+    // doom and shows no reservation, so the or fails beside an item level
+    // that holds; `ash` matches by the phrase, which the node shows
+    let why = |id: &str| {
+        let query = acquisition_search::answer::QueryInput {
+            text: Some(AQ3.to_string()),
+            tree: None,
+        };
+        serde_json::to_value(
+            acquisition_search::show::against(&s, &intent(&s), id, false, &query).unwrap(),
+        )
+        .unwrap()
+    };
+    let said = |shown: &Value| -> Vec<(String, String)> {
+        shown["against"]["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| {
+                (
+                    n["path"].as_str().unwrap().to_string(),
+                    n["outcome"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect()
+    };
+    let pairs = |of: &[(&str, &str)]| -> Vec<(String, String)> {
+        of.iter()
+            .map(|(a, b)| (a.to_string(), b.to_string()))
+            .collect()
+    };
+    let none = why("ring_none");
+    assert_eq!(none["against"]["query"]["text"], a["query"]["text"]);
+    assert_eq!(none["against"]["outcome"], "no_match");
+    assert_eq!(
+        said(&none),
+        pairs(&[
+            ("0", "no_match"),
+            ("0.0", "failed"),
+            ("0.1", "failed"),
+            ("1", "matched")
+        ])
+    );
+    let ash = why("ash");
+    assert_eq!(ash["against"]["outcome"], "match");
+    assert_eq!(
+        said(&ash),
+        pairs(&[
+            ("0", "match"),
+            ("0.0", "failed"),
+            ("0.1", "matched"),
+            ("1", "matched")
+        ])
+    );
+    assert_eq!(
+        ash["against"]["nodes"][2]["shows"][0]["shown"]["text"],
+        "20% increased Reservation Efficiency of Skills"
+    );
     // a selector something carries is not listed, though the query matched nothing
     let other = asked(&s, "base:ring rarity=unique");
     assert_eq!(other["zero"]["resolved_to_nothing"], json!([]));
