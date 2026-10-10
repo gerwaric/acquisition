@@ -2336,6 +2336,11 @@ fn a_printed_count_command_names_the_keys_it_was_printed_for() {
         json!(["line:life", "line", "tab", "line~^adds", "league", "rarity"]),
         json!(["tab", "line:life", "league"]),
         json!(["line:life, or more", "rarity", "line:~odd"]),
+        // the audit's second round: a prefix in another case, and a text
+        // that reads as a key of its own
+        json!(["LINE:life", "rarity"]),
+        json!(["line:life", "line:line:foo"]),
+        json!(["Line~^adds", "TAB", "line:LINE~x", "line"]),
     ]
     .into_iter()
     .enumerate()
@@ -2355,7 +2360,6 @@ fn a_printed_count_command_names_the_keys_it_was_printed_for() {
         let offered = sole_json(&acq(&base, &[&["--json"], &args[..]].concat()))["zero"]["offers"]
             ["context"]["request"]
             .clone();
-        assert_eq!(offered["view"]["counts"]["keys"], keys);
         let shown = text(&acq(&base, &args));
         let command = printed_commands(&shown)
             .into_iter()
@@ -2377,7 +2381,16 @@ fn a_printed_count_command_names_the_keys_it_was_printed_for() {
             .iter()
             .map(|t| t["key"].clone())
             .collect();
-        assert_eq!(json!(tables), keys, "{command}");
+        // each table's key as the binder names it: a name in its own
+        // case, the text after it as written
+        let named: Vec<Value> = by_request["view"]["counts"]["tables"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| t["key"].clone())
+            .collect();
+        assert_eq!(named.len(), keys.as_array().unwrap().len(), "{keys}");
+        assert_eq!(tables, named, "{keys}: {command}");
         assert!(
             by_command["view"] == by_request["view"],
             "{keys}: the views differ: {command}"

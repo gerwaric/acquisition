@@ -1715,4 +1715,108 @@ mod tests {
             assert!(keys(bad).is_err(), "{bad}");
         }
     }
+
+    /// The printer and this parser are two crates' and one grammar: what
+    /// `Counts::lists` spells for a view, read back list by list, is the
+    /// view's keys as the binder names them — for every pair of keys from
+    /// an alphabet of awkward ones, and every triple from a part of it. A
+    /// prefix in any case, a text that begins like a key or a pattern, a
+    /// comma, a quote, a backslash, a row break, whitespace at an end; a
+    /// field or `line` alone before, between and after narrowings. Two
+    /// rounds of an outside audit (2026-10-10) each found a case the
+    /// printer's own case list had not: this asks the grammar, not a list.
+    #[test]
+    fn every_count_view_reads_back_as_the_keys_it_was_printed_for() {
+        use acquisition_search::answer::Counts;
+        let texts = [
+            "life",
+            "~x",
+            "~",
+            "line:foo",
+            "LINE~bar",
+            "line",
+            "a,b",
+            ",",
+            "\"q\"",
+            "back\\slash",
+            " lead",
+            "trail ",
+            "two words",
+            "a\nb",
+            "it's",
+            "x:y",
+            "x~y",
+        ];
+        // each key, and what the binder calls it: a name in its own case,
+        // the text after it as written
+        let mut alphabet: Vec<(String, String)> = [
+            ("tab", "tab"),
+            ("Rarity", "rarity"),
+            ("LINE", "line"),
+            ("line", "line"),
+            ("tab.type", "tab.type"),
+        ]
+        .iter()
+        .map(|(typed, named)| (typed.to_string(), named.to_string()))
+        .collect();
+        for text in texts {
+            for (prefix, canonical) in [
+                ("line:", "line:"),
+                ("line~", "line~"),
+                ("LINE:", "line:"),
+                ("Line~", "line~"),
+            ] {
+                alphabet.push((format!("{prefix}{text}"), format!("{canonical}{text}")));
+            }
+        }
+        let check = |picked: &[&(String, String)]| {
+            let view = Counts {
+                keys: picked.iter().map(|(typed, _)| typed.clone()).collect(),
+                sum: None,
+                limit: None,
+            };
+            let lists = view.lists();
+            let mut read = Vec::new();
+            for list in &lists {
+                read.extend(keys(list).unwrap_or_else(|e| panic!("{lists:?}: {e}")));
+            }
+            let named: Vec<&str> = picked.iter().map(|(_, named)| named.as_str()).collect();
+            assert_eq!(read, named, "{:?} printed as {lists:?}", view.keys);
+        };
+        for a in &alphabet {
+            check(&[a]);
+            for b in &alphabet {
+                check(&[a, b]);
+            }
+        }
+        // every triple over a part of it: each kind of key, and the texts
+        // that read as syntax
+        let part: Vec<&(String, String)> = alphabet
+            .iter()
+            .filter(|(typed, _)| {
+                [
+                    "tab",
+                    "LINE",
+                    "line:life",
+                    "LINE:life",
+                    "line~~x",
+                    "line:line:foo",
+                    "Line~LINE~bar",
+                    "line:a,b",
+                    "line:~",
+                    "line: lead",
+                    "line:line",
+                ]
+                .contains(&typed.as_str())
+            })
+            .collect();
+        assert_eq!(part.len(), 11);
+        for a in &part {
+            for b in &part {
+                for c in &part {
+                    check(&[a, b, c]);
+                }
+            }
+        }
+    }
 }

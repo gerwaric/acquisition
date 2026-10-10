@@ -2178,42 +2178,8 @@ impl Request {
             View::Counts(c) => ("--count", c),
             View::Cross(c) => ("--cross", c),
         };
-        // a key is spelled at a terminal as a word of the list: after
-        // `line:` the rest are texts, so a text key is its text alone — and
-        // a text is quoted in the list's own grammar where the list would
-        // read it otherwise (`search_cmd::keys`): a comma, a quote, a
-        // backslash, a row break, a leading `~`, whitespace at an end. A
-        // key that is no text after one that is — a field, or `line`
-        // alone — cannot stand in that list, where it would be read as
-        // one more text: it opens a list of its own, the flag given again
-        // (outside audit, 2026-10-10)
-        let mut lists: Vec<Vec<String>> = vec![Vec::new()];
-        let mut narrowing = false;
-        for key in &counts.keys {
-            let narrows = key.starts_with("line:") || key.starts_with("line~");
-            if narrowing && !narrows {
-                lists.push(Vec::new());
-                narrowing = false;
-            }
-            let spelled = match (narrowing, key.split_once(['~', ':'])) {
-                (true, Some((_, text))) if key.starts_with("line~") => {
-                    format!("~{}", listed_text(text))
-                }
-                (true, Some((_, text))) if key.starts_with("line:") => listed_text(text),
-                (false, Some((prefix, text)))
-                    if key.starts_with("line~") || key.starts_with("line:") =>
-                {
-                    format!("{prefix}{}{}", &key[4..5], listed_text(text))
-                }
-                _ => key.clone(),
-            };
-            narrowing |= narrows;
-            if let Some(list) = lists.last_mut() {
-                list.push(spelled);
-            }
-        }
-        for list in &lists {
-            out.push_str(&format!(" {flag} {}", shell_quoted(&list.join(","))));
+        for list in counts.lists() {
+            out.push_str(&format!(" {flag} {}", shell_quoted(&list)));
         }
         if let Some(sum) = &counts.sum {
             out.push_str(&format!(" --sum {}", shell_quoted(sum)));
@@ -2235,6 +2201,56 @@ impl Answer {
             None,
             id,
         )
+    }
+}
+
+impl Counts {
+    /// The keys as the lists a terminal takes, one for each `--count` (or
+    /// the one `--cross`): what a printed command spells, before the
+    /// shell's own quoting. Each key is read by the one reader of a key
+    /// (`bind::bind_key`; rule 10) and spelled from what it read, never
+    /// from the key's own letters — so a prefix in another case, or a
+    /// text that looks like a key, is spelled as what it is. A narrowing
+    /// stands alone in its list, `line:<text>` or `line~<pattern>`, the
+    /// text quoted in the list's grammar where the list would read part
+    /// of it as syntax: in a list of several, the rest after `line:` are
+    /// texts, which a field could never follow and a text that begins
+    /// `line:` could never be told from. Fields, and `line` alone, run
+    /// together in one list until a narrowing ends it. (Outside audit,
+    /// 2026-10-10, twice: a spelling made case by case kept one case
+    /// behind.)
+    pub fn lists(&self) -> Vec<String> {
+        let mut lists: Vec<String> = Vec::new();
+        let mut run: Vec<String> = Vec::new();
+        for key in &self.keys {
+            let alone = match bind::bind_key(key) {
+                Ok(bind::Key::Field(def)) => {
+                    run.push(def.name.to_string());
+                    continue;
+                }
+                Ok(bind::Key::Line(None)) => {
+                    run.push("line".to_string());
+                    continue;
+                }
+                Ok(bind::Key::Line(Some((Op::Match, pattern)))) => {
+                    format!("line~{}", listed_text(&pattern))
+                }
+                Ok(bind::Key::Line(Some((_, words)))) => {
+                    format!("line:{}", listed_text(&words))
+                }
+                // a key the binder refuses is in no answer's request: as
+                // written, alone, for the refusal to name
+                Err(_) => key.clone(),
+            };
+            if !run.is_empty() {
+                lists.push(std::mem::take(&mut run).join(","));
+            }
+            lists.push(alone);
+        }
+        if !run.is_empty() {
+            lists.push(run.join(","));
+        }
+        lists
     }
 }
 
