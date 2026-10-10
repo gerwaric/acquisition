@@ -59,6 +59,7 @@ dependencies = [
  "acquisition-client",
  "acquisition-plan",
  "acquisition-protocol",
+ "acquisition-search",
  "acquisition-store",
  "anyhow",
  "rmcp",

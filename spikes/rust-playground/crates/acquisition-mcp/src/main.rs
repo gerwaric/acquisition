@@ -29,6 +29,36 @@
 //! daemon in either mode; quote enrichment asks the running daemon in
 //! either mode (read-only, never spawning).
 //!
+//! # As built: the item search (the build plan, step 11b)
+//!
+//! `search`, `describe` and `show` are adapters of `acquisition-search`,
+//! as `acq search` and `acq show` are (C46, C89): what a tool returns is
+//! the document the CLI's `--json` prints, and nothing here evaluates.
+//! The rulings are `search/LEDGER.md`, "11 · the opening":
+//!
+//! - **H1 — the tool takes the request itself.** The arguments of
+//!   `search` are handed whole to the one reader of a request
+//!   (`Asked::read`, what `--request` reads): a request, or what an
+//!   answer holds one in — a count with its route, a `next`, an offer —
+//!   sent back as printed. No token: a token is a terminal's encoding
+//!   of the request a `next` already holds.
+//! - **H2 — `scope.account` selects the store**, where a terminal's
+//!   `--account` does; every request an answer holds names it.
+//! - **H3 — an omitted realm is the terminal's rule** (C96): resolved
+//!   over a store of one realm, refused over several.
+//! - **H4 — the answer's JSON whole, no text.** The result's structured
+//!   content is the answer, and its one content block is that same
+//!   document serialized, for a host that reads no structured content.
+//! - **H5 — an offer that is a command is a request too**: a refusal's
+//!   `offers`, made in the search crate (`error::Offered`).
+//! - **A refusal is a result marked `isError`** holding the CLI's
+//!   failure document — `error`, `kind`, `readings`, `offers` — never a
+//!   JSON-RPC error, whose `data` a host need not show the model (the
+//!   owner, 2026-10-10). The server's other tools fail as they did.
+//!
+//! Pinned by `tests/search_tools.rs`: AQ1–AQ5 through the tools over a
+//! fixture, each document held equal to the CLI's.
+//!
 //! # Decisions as recorded
 //!
 //! The rulings are the decision registry — `decisions/frontends.md` for this
@@ -53,13 +83,15 @@ use acquisition_client::client::{
 use acquisition_plan::{PlanError, RefreshPlan, plan_refresh, put_sync_policy};
 use acquisition_protocol::protocol::{ErrorKind, QuoteJob, Request, Response};
 use acquisition_protocol::realm::Realm;
+use acquisition_search::SearchError;
+use acquisition_search::answer::{Asked, QueryInput};
 use acquisition_store::{
-    AccountEntry, Annotations, Index, Provenance, SYNC_POLICY_KEY, SYNC_POLICY_KIND,
+    AccountEntry, Annotations, Index, Provenance, Resolve, SYNC_POLICY_KEY, SYNC_POLICY_KIND,
     SYNC_POLICY_SCOPE, Store, account_path, store_dir,
 };
 use anyhow::Result;
 use rmcp::handler::server::wrapper::{Json, Parameters};
-use rmcp::model::{ServerCapabilities, ServerInfo};
+use rmcp::model::{CallToolResult, ServerCapabilities, ServerInfo};
 use rmcp::{ErrorData, ServerHandler, ServiceExt, schemars, tool, tool_handler, tool_router};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -128,11 +160,85 @@ fn open_store(account: Option<&str>) -> Result<Store> {
     Store::open(&account_path(&dir, &entry.username))
 }
 
+/// Where no account is known the error names the directory looked in
+/// (the agent's seat, F10: a server pointed at the wrong root answered
+/// every call with a login it could not perform).
 fn resolve(account: Option<&str>) -> Result<(PathBuf, AccountEntry)> {
     let dir = store_dir(provider());
     let index = Index::load(&dir)?;
-    let entry = index.resolve(account).map_err(anyhow::Error::from)?.clone();
-    Ok((dir, entry))
+    match index.resolve(account) {
+        Ok(entry) => Ok((dir, entry.clone())),
+        Err(Resolve::Empty) => Err(anyhow::Error::from(Resolve::Empty).context(format!(
+            "no account's store in {} (provider {}; ACQ_STORE_DIR sets the root this server \
+             looks under) — a store is made by a login, which is a human's, from a terminal",
+            dir.display(),
+            provider()
+        ))),
+        Err(e) => Err(e.into()),
+    }
+}
+
+// ---- the item search: adapters of `acquisition-search` ----
+
+/// What a tool of the search returns: the document the CLI's `--json`
+/// prints — an answer, or a failure in a result marked an error.
+type Told = Result<CallToolResult, ErrorData>;
+
+fn told<T: serde::Serialize>(document: &T) -> Told {
+    serde_json::to_value(document)
+        .map(CallToolResult::structured)
+        .map_err(|e| err(e.into()))
+}
+
+/// A refusal, as the search crate words it (C11): `error`, `kind`,
+/// `readings`, `offers`.
+fn refused(e: impl Into<SearchError>) -> CallToolResult {
+    CallToolResult::structured_error(e.into().to_json())
+}
+
+/// The selected account's facts and its intent file, as `acq search`
+/// opens them: the search reads both and writes neither. `named` is the
+/// argument that selects an account, for the refusal that needs one.
+fn open_search(
+    account: Option<&str>,
+    named: &str,
+) -> std::result::Result<(Store, Annotations), CallToolResult> {
+    let known = || {
+        Index::load(&store_dir(provider()))
+            .map(|index| {
+                index
+                    .entries()
+                    .iter()
+                    .map(|e| e.username.clone())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    };
+    let opened = open_intent(account).and_then(|(dir, entry, intent)| {
+        Ok((Store::open(&account_path(&dir, &entry.username))?, intent))
+    });
+    opened.map_err(|e| {
+        CallToolResult::structured_error(match e.downcast_ref::<Resolve>() {
+            Some(Resolve::Empty) => json!({ "error": format!("{e:#}"), "kind": "no_accounts" }),
+            Some(Resolve::NotFound(selector)) => json!({
+                "error": format!(
+                    "no account matches `{selector}`: `{named}` takes a username, with or \
+                     without its #discriminator, or a uuid"
+                ),
+                "kind": "account_unknown",
+                "readings": known(),
+            }),
+            Some(Resolve::Ambiguous(names)) => json!({
+                "error": format!(
+                    "{} accounts are known and `{named}` selects one",
+                    names.len()
+                ),
+                "kind": "account_needed",
+                "readings": names,
+            }),
+            None => json!({ "error": format!("{e:#}"), "kind": "store" }),
+        })
+    })
 }
 
 /// The selected account's provider directory, index entry, and annotations
@@ -326,6 +432,81 @@ struct ItemParams {
     account: Option<String>,
 }
 
+/// The arguments of `search`: the request, read by the search crate's
+/// own reader and by nothing here (H1). The schema says what a request
+/// holds; the reader refuses what is none.
+#[derive(Deserialize)]
+#[serde(transparent)]
+struct RequestParams(serde_json::Map<String, Value>);
+
+impl schemars::JsonSchema for RequestParams {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "SearchRequest".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type": "object",
+            "properties": {
+                "scope": {
+                    "type": "object",
+                    "description": "What is searched: {\"account\": a username or uuid, needed only when several accounts are known; \"realm\": pc, xbox, sony, poe2 or all, needed only when the store holds several; \"membership\": \"live\" (the default) or \"all\", which adds removed items, each row marked with when it left}."
+                },
+                "query": {
+                    "type": "object",
+                    "description": "{\"text\": a query in the language `describe` prints} or {\"tree\": the tree an answer returned}, never both. Omitted: every item in scope. A refinement is the old text in parentheses and a new term."
+                },
+                "view": {
+                    "type": "object",
+                    "description": "One of: {\"rows\": {\"limit\": N, \"sort\": a value, \"desc\": true}}, the default, 20 rows where no limit is given; {\"counts\": {\"keys\": [a key, …], \"sum\": a value, \"limit\": N}}, a table for each key and no rows; {\"cross\": {\"keys\": [two keys]}}, one crossed table; {\"explain\": {\"path\": a node's path, a term's as `terms[].path` gives it}}, the total with that node forced true and forced false. `describe` with names [\"counts\"] lists the keys."
+                },
+                "context": {
+                    "type": "string",
+                    "description": "\"matches\" (the default), or \"corpus\": the view over every item in scope, the query set aside."
+                },
+                "basis": {
+                    "type": "object",
+                    "description": "Carried by a continuation, as an answer's `next` holds it; never written by hand."
+                },
+                "request": {
+                    "type": "object",
+                    "description": "In place of the fields above: a request as an answer holds one — a count (`count`, `denominator`, `request`), `view.rows.next`, or an offer — sent whole, as printed."
+                },
+                "count": {
+                    "type": "integer",
+                    "description": "Beside `request`, the count it was printed with: the answer then says under `before` where the count has moved."
+                },
+                "counted_at": {
+                    "type": "object",
+                    "description": "Beside `request` and `count`, the `basis` of the answer the count came from: the answer then says under `before` wherever the basis has moved."
+                }
+            }
+        })
+    }
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+struct DescribeParams {
+    /// Only these entries: a field, a computed value, or a section —
+    /// `league`, `line`, `total_res`, `counts`. Omitted: the whole
+    /// language.
+    names: Option<Vec<String>>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+struct ShowParams {
+    /// An item's id, whole, as an answer printed it.
+    id: String,
+    /// Also return the body as the store holds it, verbatim.
+    body: Option<bool>,
+    /// Why the item does or does not match a query: `{"text": …}` or
+    /// `{"tree": …}`, as a request's `query`.
+    against: Option<Value>,
+    /// Account selector (username with or without `#discriminator`, or
+    /// uuid); required only when several accounts are known.
+    account: Option<String>,
+}
+
 #[derive(Deserialize, schemars::JsonSchema)]
 struct StoreParams {
     account: Option<String>,
@@ -431,7 +612,7 @@ impl AcqMcp {
     }
 
     #[tool(
-        description = "Stash tab tree of a league with item counts and fetch times, from the shared store (no daemon, no network)."
+        description = "Every stash tab of a league, a flat list in which a substash names its `parent`, with item counts and fetch times, from the shared store (no daemon, no network)."
     )]
     fn tabs(&self, Parameters(p): Parameters<TabsParams>) -> Result<Json<Value>, ErrorData> {
         let store = open_store(p.account.as_deref()).map_err(err)?;
@@ -465,6 +646,77 @@ impl AcqMcp {
         serde_json::to_value(rows)
             .map(Json)
             .map_err(|e| err(e.into()))
+    }
+
+    #[tool(
+        description = "Item search over the shared store (no daemon, no network): a query in the language `describe` prints, asked of every item in scope. The arguments are the request: {} is every item; {\"query\": {\"text\": \"class:ring rarity=rare\"}} is a query. The answer is one JSON document: `query` (the text as understood, and its tree), `scope` (account, realm, what was and was not fetched), `basis` (what the answer was computed from), `terms` (for each term how many items matched, failed, lacked the thing or were undecided), `total`, `view`, and `rows` — id, name, base, rarity, place by name and id, and the lines each term touched, never the item's body, which is `show`. Rows past the limit are counted in `view.rows.left_out`, and `view.rows.next` is the request for the rows after: send it back whole. Every count that is not zero holds the request that returns exactly its members, and a zero total offers requests under `zero.offers`: any of them is sent back as printed. A count-first look is {\"view\": {\"counts\": {\"keys\": [\"tab\", \"rarity\"]}}}; the vocabulary of lines is the key `line`, or `line:<text>` narrowed. `describe` and the messages name a terminal's flags: --count, --cross, --sum, --sort, --desc, --limit and --explain are `view`'s fields, --context is `context`, --realm and --membership are `scope`'s, and --next is `view.rows.next` sent back. A refusal is a result marked isError: `error`, `kind`, `readings` (what may have been meant: query texts, or what to name) and `offers` (requests to send instead)."
+    )]
+    fn search(&self, Parameters(RequestParams(args)): Parameters<RequestParams>) -> Told {
+        let asked = match Asked::read(&Value::Object(args)) {
+            Ok(asked) => asked,
+            Err(e) => return Ok(refused(e)),
+        };
+        // an authoring error is said before the store is read
+        if let Err(e) = asked.request.check() {
+            return Ok(refused(e));
+        }
+        let (store, intent) =
+            match open_search(asked.request.scope.account.as_deref(), "scope.account") {
+                Ok(opened) => opened,
+                Err(refusal) => return Ok(refusal),
+            };
+        match asked
+            .request
+            .corpus(&store, &intent)
+            .and_then(|corpus| asked.answer(&corpus))
+        {
+            Ok(answer) => told(&answer),
+            Err(e) => Ok(refused(e)),
+        }
+    }
+
+    #[tool(
+        description = "The query language `search` takes, as this build knows it (no store read): fields, what a line has, operators, closed value sets, slots, the computed values with their definitions, what a count takes, what is not built and the limits stated — or only the entries named. Read it before a first query; a name it does not know is refused with the near names."
+    )]
+    fn describe(&self, Parameters(p): Parameters<DescribeParams>) -> Told {
+        match acquisition_search::describe(&p.names.unwrap_or_default()) {
+            Ok(described) => told(&described),
+            Err(e) => Ok(refused(e)),
+        }
+    }
+
+    #[tool(
+        description = "One item as the search derives it, live or removed (no daemon, no network): its place, its fields, class, category and price, and every line with its kind, template and numbers. `against` adds why the item does or does not match a query: the root's outcome and each term's. `body` adds the stored body, verbatim. An id that is a tab's or a character's is refused and offers the search that lists it. A refusal is a result marked isError, as `search`'s is."
+    )]
+    fn show(&self, Parameters(p): Parameters<ShowParams>) -> Told {
+        let against = match p.against.map(serde_json::from_value::<QueryInput>) {
+            None => None,
+            Some(Ok(query)) => Some(query),
+            Some(Err(e)) => {
+                return Ok(CallToolResult::structured_error(json!({
+                    "error": format!(
+                        "`against` is a query as a request holds one, {{\"text\": …}} or {{\"tree\": …}}: {e}"
+                    ),
+                    "kind": "tree",
+                })));
+            }
+        };
+        // an authoring error is said before the store is read
+        if let Some(Err(e)) = against.as_ref().map(QueryInput::bind) {
+            return Ok(refused(e));
+        }
+        let (store, intent) = match open_search(p.account.as_deref(), "account") {
+            Ok(opened) => opened,
+            Err(refusal) => return Ok(refusal),
+        };
+        let body = p.body.unwrap_or(false);
+        match match &against {
+            Some(query) => acquisition_search::show::against(&store, &intent, &p.id, body, query),
+            None => acquisition_search::show(&store, &intent, &p.id, body),
+        } {
+            Ok(shown) => told(&shown),
+            Err(e) => Ok(refused(e)),
+        }
     }
 
     #[tool(
@@ -817,9 +1069,16 @@ impl ServerHandler for AcqMcp {
         let mut info = ServerInfo::default();
         info.capabilities = ServerCapabilities::builder().enable_tools().build();
         info.instructions = Some(format!(
-            "Acquisition playground (provider: {}). Store tools (accounts, tabs, \
-             search_items, get_item, store_status, item_events) read the shared SQLite \
-             store directly — no daemon, no network. The refresh slice: sync_policy / \
+            "Acquisition playground (provider: {}). Items: search answers a query over \
+             every item the store holds — counts for each term, the total, then rows or \
+             tables — describe prints its query language, and show is one item whole. \
+             Their arguments and answers are JSON; every count in an answer holds the \
+             request that returns its members, sent back as printed, and a refusal is a \
+             result marked isError with readings and offers to go on from. Begin with \
+             describe, or search with no arguments. The store tools (search, describe, \
+             show, accounts, tabs, characters, search_items, get_item, store_status, \
+             item_events) read the shared SQLite store directly — no daemon, no network. \
+             The refresh slice: sync_policy / \
              set_sync_policy declare intent (local, sends nothing; replacing a policy \
              must name the revision it replaces), refresh_plan compiles it offline into \
              the explicit bounded action set for review, and apply_plan spends exactly \

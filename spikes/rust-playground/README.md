@@ -49,7 +49,8 @@ inventories and mechanisms live in the linked source documentation.
   [Entry point](crates/acquisition-cli/src/main.rs); generated help:
   `CLI-REFERENCE.md`; rulings: `decisions/frontends.md`.
 - `crates/acquisition-mcp` — `acq-mcp`, the stdio MCP frontend sharing
-  semantics with the CLI through `acquisition-plan`.
+  semantics with the CLI through `acquisition-plan` and
+  `acquisition-search`.
   [Implementation](crates/acquisition-mcp/src/main.rs); generated tools:
   `MCP-REFERENCE.md`; rulings: `decisions/frontends.md`.
 

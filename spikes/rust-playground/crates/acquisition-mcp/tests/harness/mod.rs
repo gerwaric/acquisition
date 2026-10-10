@@ -60,6 +60,26 @@ pub fn spawn_daemon(base: &Path, extra_env: &[(&str, &str)]) -> Daemon {
     Daemon(child, acqd)
 }
 
+/// Run the `acq` beside the server under test (C82: one build wrote
+/// both), under the same isolation: what a tool's JSON is held equal to.
+/// A missing one fails here, naming the build step.
+pub fn acq(base: &Path, args: &[&str]) -> std::process::Output {
+    let acq = Path::new(env!("CARGO_BIN_EXE_acq-mcp"))
+        .parent()
+        .expect("a parent")
+        .join("acq");
+    assert!(
+        acq.exists(),
+        "no acq beside acq-mcp at {}: run `cargo build --workspace` first (C82)",
+        acq.display()
+    );
+    let mut cmd = Command::new(&acq);
+    cmd.args(args);
+    isolate(&mut cmd, base, &[("ACQ_NO_SPAWN", "1")], Stdio::piped);
+    cmd.stderr(Stdio::piped());
+    cmd.output().expect("running acq")
+}
+
 /// No daemon came up under `base`: nothing bound a socket in the
 /// test's scratch runtime directory (C83: a daemon's socket derives from
 /// its world into that directory, and nothing else binds there).
@@ -279,6 +299,16 @@ impl Mcp {
             None => Ok(serde_json::from_str(&text())
                 .unwrap_or_else(|e| panic!("unstructured tool result ({e}): {resp}"))),
         }
+    }
+
+    /// Call one tool and hand back its result object whole — `content`,
+    /// `structuredContent`, `isError` — for a test of the result's own
+    /// shape. A JSON-RPC error fails here: the call was not served.
+    pub fn result(&mut self, tool: &str, args: Value) -> Value {
+        let resp = self.rpc("tools/call", json!({ "name": tool, "arguments": args }));
+        resp.get("result")
+            .cloned()
+            .unwrap_or_else(|| panic!("{tool} was refused at the protocol level: {resp}"))
     }
 
     pub fn expect_ok(&mut self, tool: &str, args: Value) -> Value {
