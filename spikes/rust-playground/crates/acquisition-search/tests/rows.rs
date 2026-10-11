@@ -694,11 +694,13 @@ fn c92_a_slot_is_checked_against_the_template_that_says_what_it_reads() {
 
 /// What a slot is read beside is weighed from the query, and a reading
 /// is made by the group that was asked and by no reading of it: a
-/// hundred rows named in five alternations, twenty rows named together,
-/// and a slot sixteen groups deep — thirty-two levels, the deepest a
-/// query nests (`tree::MAX_DEPTH`) — are each weighed in no time. None
-/// of the first two's readings is offered, two rows being named in each
-/// still.
+/// hundred rows named in five alternations and twenty rows named
+/// together are each weighed in no time, and none of their readings is
+/// offered, two rows being named in each still. A slot sixteen groups
+/// deep — thirty-two levels, the deepest a query nests (C109) — is
+/// weighed within the bound too, which at that depth holds a cost that
+/// quadruples by the group and not one that doubles: the limit is what
+/// bounds the second, at about a second in this build.
 #[test]
 fn what_a_slot_is_read_beside_costs_the_groups_size() {
     let s = both_stash();
