@@ -75,7 +75,11 @@ const CALLS: [&str; 7] = [
 
 /// Parse a query. The empty text is the empty query: every item in scope.
 pub fn parse(text: &str) -> Result<Node, LanguageError> {
-    let mut p = Parser { src: text, pos: 0 };
+    let mut p = Parser {
+        src: text,
+        pos: 0,
+        depth: 0,
+    };
     let root = match p.sequence(Level::Root)? {
         Some(node) => node,
         None => Node::All(Vec::new()),
@@ -89,7 +93,11 @@ pub fn parse(text: &str) -> Result<Node, LanguageError> {
 
 /// Parse a value: what `--sort` and `--sum` take.
 pub fn parse_value(text: &str) -> Result<ValueRef, LanguageError> {
-    let mut p = Parser { src: text, pos: 0 };
+    let mut p = Parser {
+        src: text,
+        pos: 0,
+        depth: 0,
+    };
     p.skip_ws();
     let value = p.value_ref(ValueContext::Standalone)?;
     p.skip_ws();
@@ -142,6 +150,8 @@ enum Conn {
 struct Parser<'a> {
     src: &'a str,
     pos: usize,
+    /// How many levels enclose what is being read ([`tree::MAX_DEPTH`]).
+    depth: usize,
 }
 
 /// One term of an item-level sequence, with what the sequence needs to
@@ -155,6 +165,24 @@ struct Item {
 }
 
 impl<'a> Parser<'a> {
+    /// Read one level down — what a `(`, a `not`, a `holds(` or an
+    /// `undecided(` at `start` encloses — or refuse a query nested past
+    /// [`tree::MAX_DEPTH`] before descending: this parser recurses by the
+    /// level, and so does every reader of its tree (C47).
+    fn nested<T>(
+        &mut self,
+        start: usize,
+        inner: impl FnOnce(&mut Self) -> Result<T, LanguageError>,
+    ) -> Result<T, LanguageError> {
+        if self.depth == tree::MAX_DEPTH {
+            return Err(tree::too_deep().at(start, self.pos));
+        }
+        self.depth += 1;
+        let read = inner(self);
+        self.depth -= 1;
+        read
+    }
+
     // ---- characters --------------------------------------------------
 
     fn rest(&self) -> &'a str {
@@ -566,10 +594,10 @@ impl<'a> Parser<'a> {
             if self.at_end() {
                 return Err(self.unexpected("a term to negate"));
             }
-            return Ok(Node::Not(Box::new(self.term()?)));
+            return Ok(Node::Not(Box::new(self.nested(start, Self::term)?)));
         }
         if self.eat('(') {
-            let inner = self.sequence(Level::Paren)?;
+            let inner = self.nested(start, |p| p.sequence(Level::Paren))?;
             self.expect(')', "`)`")?;
             return inner
                 .ok_or_else(|| self.error(ErrorKind::EmptyGroup, "`()` holds nothing", start));
@@ -844,10 +872,10 @@ impl<'a> Parser<'a> {
                     where_: Box::new(where_),
                 })
             }
-            "holds" => self.holds(start),
+            "holds" => self.nested(start, |p| p.holds(start)),
             "undecided" => {
                 self.bump();
-                let probe = self.probe()?;
+                let probe = self.nested(start, Self::probe)?;
                 self.skip_ws();
                 self.expect(')', "`)`")?;
                 Ok(Node::Undecided(probe))
@@ -1257,10 +1285,12 @@ impl<'a> Parser<'a> {
         let start = self.pos;
         if self.eat('-') || self.keyword("not") {
             self.skip_ws();
-            return Ok(Member::Not(Box::new(self.member_term(of)?)));
+            return Ok(Member::Not(Box::new(
+                self.nested(start, |p| p.member_term(of))?,
+            )));
         }
         if self.eat('(') {
-            let inner = self.member_sequence(of)?;
+            let inner = self.nested(start, |p| p.member_sequence(of))?;
             self.expect(')', "`)`")?;
             return inner
                 .ok_or_else(|| self.error(ErrorKind::EmptyGroup, "`()` holds nothing", start));

@@ -695,8 +695,9 @@ fn c92_a_slot_is_checked_against_the_template_that_says_what_it_reads() {
 /// What a slot is read beside is weighed from the query, and a reading
 /// is made by the group that was asked and by no reading of it: a
 /// hundred rows named in five alternations, twenty rows named together,
-/// and a slot thirty groups deep are each weighed in no time. None of
-/// the first two's readings is offered, two rows being named in each
+/// and a slot sixteen groups deep — thirty-two levels, the deepest a
+/// query nests (`tree::MAX_DEPTH`) — are each weighed in no time. None
+/// of the first two's readings is offered, two rows being named in each
 /// still.
 #[test]
 fn what_a_slot_is_read_beside_costs_the_groups_size() {
@@ -716,7 +717,7 @@ fn what_a_slot_is_read_beside_costs_the_groups_size() {
     let wide: Vec<String> = (0..5).map(alternation).collect();
     let together: Vec<String> = (0..20).map(|n| name(0, n)).collect();
     let mut deep = format!("\"{LIFE}\" arg1>=40");
-    for _ in 0..30 {
+    for _ in 0..16 {
         deep = format!("(({deep}) or false()) -is:fractured");
     }
     let started = std::time::Instant::now();
@@ -956,19 +957,28 @@ fn c93_a_number_that_is_either_rows_is_no_number_added_already() {
 /// A group costs its size (the same look, finding 1): a not inside a
 /// not inside a not is weighed once for each, where each had weighed
 /// all it held again for every part a template may name — ten deep took
-/// 2.7 s of a release build on one item. Thirty deep is no time, and an
-/// even number of nots is none.
+/// 2.7 s of a release build on one item, four times eight deep's.
+/// Fifteen deep is no time — thirty-one levels, a not and its group two
+/// each and the first group's own one more, as deep as a query nests
+/// (`tree::MAX_DEPTH`) — and an even number of nots is none.
 #[test]
 fn a_not_inside_a_not_costs_its_size() {
     let s = parts_stash();
     let mut inner = format!("\"{LIFE}\" arg1=40");
     let mut answers = Vec::new();
     let started = std::time::Instant::now();
-    for depth in 0..=30 {
-        if depth % 10 == 0 || depth == 29 {
+    for depth in 0..=15 {
+        if depth % 5 == 0 || depth == 14 {
             answers.push((depth, found(&s, &format!("line({inner})"))));
         }
-        inner = format!("-(true() ({inner}))");
+        // the first group holds two conditions and is parenthesised; a
+        // not after it is one term, whose parentheses would be a level
+        // and no node
+        inner = if depth == 0 {
+            format!("-(true() ({inner}))")
+        } else {
+            format!("-(true() {inner})")
+        };
     }
     let all = ["alone", "equal", "first", "two"]
         .map(String::from)
@@ -977,10 +987,10 @@ fn a_not_inside_a_not_costs_its_size() {
         answers,
         [
             (0, all.clone()),
+            (5, Vec::new()),
             (10, all.clone()),
-            (20, all.clone()),
-            (29, Vec::new()),
-            (30, all),
+            (14, all),
+            (15, Vec::new()),
         ]
     );
     assert!(

@@ -343,7 +343,14 @@ pub fn describe(names: &[String]) -> Result<Describe, LanguageError> {
         },
         Named {
             examples: vec!["(class:ring or class:amulet) rarity=rare"],
-            ..named("( )", "composition", "grouping, and nothing else")
+            ..named(
+                "( )",
+                "composition",
+                &format!(
+                    "grouping, and nothing else; a query nests at most {} deep, each `( )`, `not`, `holds( )` and `undecided( )` around a term one level",
+                    crate::tree::MAX_DEPTH
+                ),
+            )
         },
         Named {
             examples: vec!["holds(rarity=rare, is:corrupted, has:note)>=2"],

@@ -639,6 +639,37 @@ fn what_has_left_is_asked_in_one_request() {
     );
 }
 
+/// C47: four hundred nested parentheses once aborted the server, which
+/// is resident — a stack overflow, every later call unanswered. A query
+/// nested past the limit is an authoring error like any other, the tree
+/// as the text, and the server answers the next call.
+#[test]
+fn a_query_nested_too_deep_is_refused_and_the_server_answers_the_next_call() {
+    let mut seat = Seat::new();
+    for text in [
+        format!("{}rarity=rare{}", "(".repeat(400), ")".repeat(400)),
+        format!("{}ilvl>=3{}", "undecided(".repeat(102), ")".repeat(102)),
+        format!("{}rarity=rare", "-".repeat(33)),
+    ] {
+        let e = seat.refusal(&json!({ "query": { "text": text } }));
+        assert_eq!(e["kind"], "too_deep", "{e}");
+        assert_eq!(
+            ids(&seat.answer(&json!({ "query": { "text": "id:r1" } }))),
+            ["r1"]
+        );
+    }
+    let tree = (0..33).fold(
+        json!({ "field": "rarity", "op": "=", "value": "rare" }),
+        |inner, _| json!({ "not": inner }),
+    );
+    let e = seat.refusal(&json!({ "query": { "tree": tree } }));
+    assert_eq!(e["kind"], "too_deep", "{e}");
+    assert_eq!(
+        ids(&seat.answer(&json!({ "query": { "text": "id:r1" } }))),
+        ["r1"]
+    );
+}
+
 /// An authoring error is the CLI's document in a result marked an error,
 /// never a protocol error: its readings are what an agent reads next.
 #[test]

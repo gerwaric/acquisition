@@ -58,6 +58,9 @@ pub enum ErrorKind {
     Unexpected,
     /// A tree that arrived as JSON and is not one the language can say.
     Tree,
+    /// A query nested past [`crate::tree::MAX_DEPTH`], as text or as a
+    /// tree (C47).
+    TooDeep,
     /// A field, a flag, a line attribute or a `--describe` name the
     /// language does not know: near names offered, never a guess.
     UnknownName,

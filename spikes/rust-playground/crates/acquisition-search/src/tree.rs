@@ -452,10 +452,95 @@ fn invalid(kind: ErrorKind, message: impl Into<String>) -> LanguageError {
     LanguageError::new(kind, message)
 }
 
+/// How deep a query nests, at most (C47; the owner, 2026-10-10: "32").
+/// Each `( )`, `not`, `holds( )` and `undecided( )` around a term is a
+/// level, inside a line's group as outside it; `line( … )`, `linked( … )`
+/// and `sum( … )` are terms and no level, since none nests in itself.
+///
+/// Everything that reads a query walks it by recursion, and a query nested
+/// past what the stack holds aborted the process — a resident one, the MCP
+/// server, among them — where malformed input is a structured error. On
+/// the owner's copy the shallowest abort was 102 levels of `undecided(` on
+/// a 2 MB thread in a debug build, the smallest stack a search runs on; a
+/// third of it leaves room for a reader that costs more a level than any
+/// measured. The deepest query a seat wrote nests 3.
+///
+/// Two readers hold it, since each recurses on its own input: the parser
+/// counts what is written as it descends, so redundant parentheses — which
+/// leave no node — are levels too; [`check`] counts a tree as its text
+/// shows it, so a tree the parser gave is never deeper than its text was.
+pub const MAX_DEPTH: usize = 32;
+
+/// The refusal of a query nested past [`MAX_DEPTH`]: one maker, for the
+/// text and for the tree.
+pub(crate) fn too_deep() -> LanguageError {
+    invalid(
+        ErrorKind::TooDeep,
+        format!(
+            "a query nests at most {MAX_DEPTH} deep and this one goes deeper: each `( )`, `not`, `holds( )` and `undecided( )` around a term is one level; a refinement goes beside its query, `(a) b c`, never around it, `((a) b) c`"
+        ),
+    )
+}
+
+/// The levels above a node's deepest term, the node standing where a
+/// whole sequence may: its own and / or is written without parentheses.
+fn depth_of_sequence(node: &Node) -> usize {
+    match node {
+        Node::All(children) | Node::Any(children) => {
+            children.iter().map(depth_of_term).max().unwrap_or(0)
+        }
+        other => depth_of_term(other),
+    }
+}
+
+/// The same, the node standing as one term: an and / or is parenthesised.
+fn depth_of_term(node: &Node) -> usize {
+    match node {
+        Node::All(_) | Node::Any(_) => 1 + depth_of_sequence(node),
+        Node::Not(inner) => 1 + depth_of_term(inner),
+        Node::Holds { of, .. } => 1 + of.iter().map(depth_of_sequence).max().unwrap_or(0),
+        Node::Undecided(Probe::Term(term)) => 1 + depth_of_sequence(term),
+        Node::Undecided(Probe::Thing(value)) => 1 + depth_of_value(value),
+        Node::Members { where_, .. } => depth_of_members(where_),
+        Node::Compare { value, .. } => depth_of_value(value),
+        Node::Const(_) | Node::Test { .. } | Node::Has(_) | Node::Is(_) => 0,
+    }
+}
+
+fn depth_of_value(value: &ValueRef) -> usize {
+    match value {
+        ValueRef::Sum { lines, .. } | ValueRef::Projection { lines, .. } => depth_of_members(lines),
+        ValueRef::Field(_) | ValueRef::Pseudo { .. } => 0,
+    }
+}
+
+/// A group's conditions, standing where the call's own parentheses hold
+/// them.
+fn depth_of_members(member: &Member) -> usize {
+    match member {
+        Member::All(children) | Member::Any(children) => {
+            children.iter().map(depth_of_member).max().unwrap_or(0)
+        }
+        other => depth_of_member(other),
+    }
+}
+
+fn depth_of_member(member: &Member) -> usize {
+    match member {
+        Member::All(_) | Member::Any(_) => 1 + depth_of_members(member),
+        Member::Not(inner) => 1 + depth_of_member(inner),
+        Member::Const(_) | Member::Test { .. } | Member::Is(_) => 0,
+    }
+}
+
 /// Whether this tree is one the language can say: what the printer prints
 /// and the parser gives back. The parser's trees pass by construction; a
-/// tree that arrived as JSON is checked here before anything reads it.
+/// tree that arrived as JSON is checked here before anything reads it —
+/// its depth first ([`MAX_DEPTH`]), since every later reader recurses.
 pub fn check(root: &Node) -> Result<(), LanguageError> {
+    if depth_of_sequence(root) > MAX_DEPTH {
+        return Err(too_deep());
+    }
     match root {
         Node::All(children) if children.is_empty() => Ok(()),
         node => check_node(node),
@@ -658,6 +743,9 @@ fn check_numbers<'a>(mut numbers: impl Iterator<Item = &'a Number>) -> Result<()
 /// A value alone: what `--sort` and `--sum` take, a reading printed as
 /// the value it is.
 pub(crate) fn check_value(value: &ValueRef) -> Result<(), LanguageError> {
+    if depth_of_value(value) > MAX_DEPTH {
+        return Err(too_deep());
+    }
     check_value_ref(value, &print::print_value)
 }
 
