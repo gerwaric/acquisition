@@ -200,6 +200,7 @@ number there was measured, never recalled. The verdicts:
   asks cost no more than the empty query. The six asks the seat saw at
   695–715 ms did not recur on the copy, their cause unmeasured. The
   debug build is 2.7 to 4.6 s. What each rerun showed is the block's.
+  M3 at the close is owed (`decisions/search.md`, the projection park).
 - M4 (step 4): `~` over all text adds 9 ms.
 - M5 (step 10): over a mock session, 126 asks answered across 18
   responses committed, none refused and none slower than idle; a
