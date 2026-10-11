@@ -54,7 +54,6 @@ Scope this area has deferred, with the trigger that reopens it, so deferral neve
 - The answer's words the seats left unruled (`show`'s separators and order; one refusal worded two ways by a slot word's case; the terms block's paths; `--against` and `--print-request` at their edges; what `removed` says of a live id) → the adapters' text and `answer.rs`; the list is `search/OBSERVATIONS.md` at `453a4429`, the entries headed "a seat". Trigger: a seat that trips on one.
 - Alternatives for a node (what a query would match with one leaf replaced) → the normal evaluator over the query with the leaf replaced, which any optimisation must reproduce. Trigger: a recorded question `--explain` cannot serve.
 - User-authored weighted sums (an unnamed total; operands anything with a value, a definition and a status) → the query language, beside `sum`; range weights, negative weights on ranges and guarded trade groups need their own definition first. Trigger: a recorded question a named total and `sum` cannot serve, or the trade translation meeting a weighted group (C99).
-- An unreconciled count: the MCP seat's Q7, 481 items with the rarity line, against 2026-09-14's 473 (jq over six arrays) and 497 (a LIKE over the body) → a script over the copy that says which items each count holds and why; a fault it finds is a finding with its test. Trigger: the next session that opens the search crate, before any change to the deriver.
 
 ## Contract detail (binding with its line; no code has taken it)
 
