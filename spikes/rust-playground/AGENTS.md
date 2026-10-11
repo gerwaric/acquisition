@@ -45,6 +45,8 @@ Then, only when the work touches it:
   rendering), `decisions/search.md` (item search: the crate,
   the line, the query, the answer, the basis, the trade boundary).
   Each module doc names its decision file and ids at the top.
+  `python3 -I tools/bothy.py pack --path <file>` prints them, with the
+  invariants and the cross-cutting rulings, as one document.
 
 Also read the applicable closed slice record below; its findings table
 — for search, its shapes of fault — is the review checklist. For the
@@ -86,6 +88,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
 git diff --check
 tools/docs-check.sh
+python3 -I tools/bothy.py check
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
@@ -120,6 +123,7 @@ and park lifecycle are in `CONTEXT.md` ("Decisions", "Parked"): use
 
 `tools/docs-check.sh` checks budgets, stale identifiers, registry and note
 citations, README form and dependency edges (C1); it reports uncited notes
-and refuses paths to deleted ones. Rustdoc checks links in code docs.
+and refuses paths to deleted ones. `tools/bothy.py check` holds the
+registry's own shape; the two do not overlap. Rustdoc checks links in code docs.
 Headers carry no status. Struck-through items are deleted. Session notes
 are history, never a second authority.
