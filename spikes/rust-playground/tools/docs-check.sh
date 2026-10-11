@@ -67,6 +67,7 @@ budget README.md       15000
 budget LIVE-TESTING.md 15000
 budget SEARCH-SLICE.md 24000  # the closed record, read whole before a search change: the plan's rules, the shapes of fault and a verdict per measurement. Its rows are search/LEDGER.md and its tables search/MEASUREMENTS.md, neither budgeted: a line per step and per hole, a block per measurement, each looked up and never loaded whole
 budget decisions/search.md 28000
+# search/M3-LEDGER.md has no budget: one row per M3 run, append-only.
 # RUN-LEDGER.md has no budget: one row per live run, append-only by
 # construction, read by its tail. Its rows cite decision ids (scanned
 # below) but are history, so the stale-identifier scan skips it.
