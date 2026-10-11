@@ -452,7 +452,7 @@ fn invalid(kind: ErrorKind, message: impl Into<String>) -> LanguageError {
     LanguageError::new(kind, message)
 }
 
-/// How deep a query nests, at most (C47; the owner, 2026-10-10: "32").
+/// How deep a query nests, at most (C109; the owner, 2026-10-10: "32").
 /// Each `( )`, `not`, `holds( )` and `undecided( )` around a term is a
 /// level, inside a line's group as outside it; `line( … )`, `linked( … )`
 /// and `sum( … )` are terms and no level, since none nests in itself.

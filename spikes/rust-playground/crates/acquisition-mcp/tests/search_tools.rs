@@ -639,7 +639,7 @@ fn what_has_left_is_asked_in_one_request() {
     );
 }
 
-/// C47: four hundred nested parentheses once aborted the server, which
+/// C109, C47: four hundred nested parentheses once aborted the server, which
 /// is resident — a stack overflow, every later call unanswered. A query
 /// nested past the limit is an authoring error like any other, the tree
 /// as the text, and the server answers the next call.

@@ -1,4 +1,4 @@
-//! How deep a query nests (C47; `tree::MAX_DEPTH`), through the crate's
+//! How deep a query nests (C109, C47; `tree::MAX_DEPTH`), through the crate's
 //! boundary — a request in, an answer or a refusal out, as JSON. A query
 //! nested past what the stack holds once aborted the process, a resident
 //! one among them: malformed input that was no structured error. Each
@@ -79,7 +79,7 @@ fn too_deep(refused: &Value, what: &str) {
 }
 
 #[test]
-fn c47_every_way_of_nesting_answers_at_the_limit_and_is_refused_one_deeper() {
+fn c109_every_way_of_nesting_answers_at_the_limit_and_is_refused_one_deeper() {
     let store = worked();
     let corpus = load(&store, Some("pc"));
     for (name, shape) in shapes() {
@@ -111,7 +111,7 @@ fn c47_every_way_of_nesting_answers_at_the_limit_and_is_refused_one_deeper() {
 }
 
 #[test]
-fn c47_a_query_nested_far_past_the_limit_is_refused_and_aborts_nothing() {
+fn c109_a_query_nested_far_past_the_limit_is_refused_and_aborts_nothing() {
     let store = worked();
     let corpus = load(&store, Some("pc"));
     for (name, shape) in shapes() {
@@ -124,7 +124,7 @@ fn c47_a_query_nested_far_past_the_limit_is_refused_and_aborts_nothing() {
 /// kind: nodes the text would show as levels, counted as the text counts
 /// them.
 #[test]
-fn c47_a_tree_nested_past_the_limit_is_refused_as_the_text_is() {
+fn c109_a_tree_nested_past_the_limit_is_refused_as_the_text_is() {
     let store = worked();
     let corpus = load(&store, Some("pc"));
     let nots = |n: usize| {
@@ -144,7 +144,7 @@ fn c47_a_tree_nested_past_the_limit_is_refused_as_the_text_is() {
 /// term, a template compared, costs nothing, so the limit is the count of
 /// what was typed around it.
 #[test]
-fn c47_a_line_or_a_sum_is_a_term_and_never_a_level() {
+fn c109_a_line_or_a_sum_is_a_term_and_never_a_level() {
     let store = worked();
     let corpus = load(&store, Some("pc"));
     for leaf in [

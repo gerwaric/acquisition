@@ -1,6 +1,6 @@
 //! `acquisition-search` — item search over the store's read API (C89).
 //!
-//! Rulings: `decisions/search.md`, C89–C107. The language as this build
+//! Rulings: `decisions/search.md`, C89–C107, C109. The language as this build
 //! knows it, an example per construct, is `--describe` ([`mod@describe`]);
 //! the rules that decide an answer are the module docs below, each under
 //! its decision's id; what the build met — the plan's rules, cited here as

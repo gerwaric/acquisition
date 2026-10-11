@@ -168,7 +168,7 @@ impl<'a> Parser<'a> {
     /// Read one level down — what a `(`, a `not`, a `holds(` or an
     /// `undecided(` at `start` encloses — or refuse a query nested past
     /// [`tree::MAX_DEPTH`] before descending: this parser recurses by the
-    /// level, and so does every reader of its tree (C47).
+    /// level, and so does every reader of its tree (C109).
     fn nested<T>(
         &mut self,
         start: usize,
