@@ -1074,7 +1074,7 @@ fn effective(
                 .cloned()
         }
     };
-    let game_level = game_from.as_ref().map(&level_of);
+    let game_level = game_from.as_ref().map(level_of);
     let from_manual = |m: &ManualSide, why: String| Effective {
         kind: m.value.kind().into(),
         price: m.value.price().cloned(),
