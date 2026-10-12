@@ -119,6 +119,27 @@ uncited=$(comm -23 <(printf '%s\n' "$ids") <(printf '%s\n' "$cited") | tr '\n' '
 [[ -n $uncited ]] && printf 'note    uncited decisions (no test, doc, or tool names them): %s\n' "$uncited"
 rm -f "$reg"
 
+# ---- 2b. cited commits ----------------------------------------------------
+# A backticked 7-8 hex token in the governed documents names a commit of
+# this history — an ancestor of HEAD — or carries its repository as
+# `<repo>@<hash>` (the search tracks' form for the RePoE clones). A hash
+# that resolves only because another branch is fetched dies in a clone
+# of this branch: five did on 2026-10-11, master-side twins of
+# cherry-picked ground-truth commits and one review-branch commit.
+governed=(crates tools README.md search/DIGEST.md LIVE-TESTING.md RUN-LEDGER.md TESTING-NOTES.md SURFACES.md REFRESH-SLICE.md PRICING-SLICE.md SEARCH-SLICE.md search/MEASUREMENTS.md search/LEDGER.md DAEMON-SPLIT-SLICE.md NETWORK-CLEANUP.md AGENTS.md CONTEXT.md decisions .claude)
+revs=$(git rev-list HEAD)
+dead=0; checked=0
+while read -r h; do
+  [[ -n $h ]] || continue
+  checked=$((checked+1))
+  if ! grep -q "^$h" <<<"$revs"; then
+    where=$(grep -rl -- "\`$h\`" "${governed[@]}" 2>/dev/null | head -1 || true)
+    printf 'COMMIT  %-18s `%s` is not in this history — cite the twin that is, or <repo>@%s\n' "$where" "$h" "$h"
+    dead=$((dead+1))
+  fi
+done < <(grep -rhoE '`[0-9a-f]{7,8}`' "${governed[@]}" --include='*.rs' --include='*.sh' --include='*.py' --include='*.md' 2>/dev/null | tr -d '`' | sort -u)
+if ((dead > 0)); then fail=1; else printf 'ok      %-18s %5d cited commits, every one in this history\n' commits "$checked"; fi
+
 # ---- 3. stale identifiers -----------------------------------------------
 # The haystack is the code and its schemas; docs never vouch for docs.
 hay=$(mktemp)

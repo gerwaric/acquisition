@@ -8,7 +8,7 @@ reviewed file the search crate ships.
     python3 tools/totals-table.py --check    # exits 1 when the file on disk differs from what the sources give
 
 Inputs (read-only, committed):
-  search/cpp-search/data/pseudomods.toml     the 35 tables of src/pseudomods.cpp at master@946a4f51
+  search/cpp-search/data/pseudomods.toml     the 35 tables of src/pseudomods.cpp at acquisition-qt@946a4f51
                                              (the app's own published definitions, since 2016; the
                                              file's header commit is the pin, and its first line names it)
   search/pseudo-stats/data/pseudo-classes.csv the trade site's pseudo stat each table's text names
@@ -99,7 +99,7 @@ CHANGES = os.path.join(ROOT, "search", "pseudo-stats", "data", "table-changes.cs
 OUT = os.path.join(ROOT, "crates", "acquisition-search", "reference", "totals-v6.toml")
 VERSION = 6
 REALMS = ["pc", "xbox", "sony"]  # the C++ app searched PoE1; poe2 has no table yet
-PIN = "master@946a4f51"
+PIN = "acquisition-qt@946a4f51"
 
 # rule 1: the builder's names, one per table of the source
 NAMES = {

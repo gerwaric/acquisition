@@ -51,7 +51,7 @@ status = "reviewed"
 sources = [
   "game:2026-09-04 the in-game price dialog, pc/Standard, tab ACQUISITION-PRICE-TEST — 39 words written into notes and read back (price-notes-2026-09-04.txt; LIVE-TESTING.md ledger row 2026-09-04)",
   "game:2026-09-04 the dialog's currency list and display names, as the owner read them (the fixture's third section)",
-  "cpp:src/currency.cpp@fb0bbbdf (master 33928a87): the legacy tags and the three retired currencies' display names",
+  "cpp:src/currency.cpp@fb0bbbdf (acquisition-qt@33928a87): the legacy tags and the three retired currencies' display names",
   "cpp:src/shop.cpp@33928a87 SpoilerBuyout: the C++ shop emitted `<type prefix> <amount> <tag>`",
   "census:2026-09-03 tools/census.py over the owner's 0.18 userstore and current facts",
 ]
