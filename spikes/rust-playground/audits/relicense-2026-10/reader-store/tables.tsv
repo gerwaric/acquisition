@@ -1,0 +1,4 @@
+cpp_table	rust_table	cpp_rows	rust_rows	shared_rows	order_preserved	notes
+itemsmanagerworker.cpp:307 LoadItems collections (and :1142 OnCharacterReceived)	acquisition-store/src/lib.rs:455 CHARACTER_ITEM_ARRAYS	4	6	4	no	C++ equipment,inventory,rucksack,jewels; Rust inventory,equipment,jewels,rucksack,guardian,skills. All six are documented GGG character fields
+itemsmanagerworker.cpp:168 special() / plan fetch_action	acquisition-plan/src/lib.rs:1691 and :1798 matches!(MapStash|UniqueStash)	2	2	2	yes	Two GGG type strings; order is the only one-of-two choice and is alphabetical-neutral. Not evidence
+sqlitedatastore.cpp:40-41 CreateTable set	acquisition-store/src/schema.sql + jobs.rs:54 + annotations.rs:125	2 (4 historical)	11	0 by columns (2 by name: tabs, items, historical only)	n/a	No column set in common

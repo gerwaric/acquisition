@@ -1,0 +1,8 @@
+cpp_table	rust_table	cpp_rows	rust_rows	shared_rows	order_preserved	notes
+src/currency.cpp:31-52 m_currency_type_as_tag (+:8-29 as_string)	crates/acquisition-plan/reference/currency-v1.toml [[currency]] tag/display (HEAD)	19 (+NONE)	42 (39 active + 3 retired)	19 currencies (12 same tag; 4 C++ tag kept as alias: exa chrom jew fuse; 3 retired rows chisel coin silver)	no	Rust order = in-game dialog order then retired; 16 rows independently sourced from game dialog; display names are game item names
+src/currency.cpp:77-130 m_string_to_currency_type	currency-v1.toml aliases (HEAD)	52	10 (divines alchs exa alts mir mirr mirrors chrom fuse jew)	8	n/a	4 are C++ tags (cpp:), 4 owner shorthand re-checked (browser:); mirr, mirrors not in C++
+src/currency.cpp:54-75 m_currency_type_as_rank	(none)	19	0	0	n/a	not carried
+src/currency.cpp:8-130 (all three maps)	git 51a33751 currency-v1.toml draft (superseded by 10ef2374)	19 currencies / 52 aliases	19 rows / 52 aliases	19 / 52	yes (C++ enum order)	verbatim carry-over in history only
+src/buyout.cpp:8-13 m_buyout_type_as_tag	crates/acquisition-plan/src/price.rs Buyout kinds exact/negotiable/no_price/skip	6	4	0 by name; 3-4 by concept (b/o, price, no price; ignore~skip)	no	names differ; c/o and inherit not carried
+src/buyout.cpp:15-20 m_buyout_type_as_prefix	crates/acquisition-plan/src/shop.rs:594-612 title prefixes	6 (3 non-empty)	3 (' ~price', ' ~b/o', '' for no price)	3	no (Rust ~price first)	leading space kept; ~c/o dropped
+src/buyoutmanager.cpp:28-33 m_string_to_buyout_type	crates/acquisition-plan/src/game_side.rs:161-163	4 (~gb/o ~b/o ~c/o ~price)	3 (~price ~b/o ~skip)	2	no	~skip from game (T10); ~gb/o ~c/o explicitly invalid

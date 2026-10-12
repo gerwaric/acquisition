@@ -2,6 +2,8 @@
 name = "acquisition-mcp"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [[bin]]
 name = "acq-mcp"

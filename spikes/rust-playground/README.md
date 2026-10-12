@@ -183,3 +183,10 @@ the world, paths and rails state; read-site docs explain invalid values.
 - **Unix only.** No Windows named pipes yet; the protocol doesn't care.
 - Everything parked: `CONTEXT.md` for what crosses every area, each
   `decisions/<area>.md` ("Parked") for the rest.
+
+## Licence
+
+Licensed under MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`);
+contributors keep their copyright and license their work under the same
+terms. The Rust tree was audited against the GPL C++ app before the
+declaration: `audits/relicense-2026-10/`.

@@ -1,0 +1,58 @@
+e81cc8ca 2026-09-26 search: totals v2 — every total counts what the trade site's pseudo counts: a line's eldritch forms, All Resistances, total life
+41ed6467 2026-09-26 pseudo-stats: round three captured and read — a row's eldritch forms are counted as the row; 22 pseudos closed; two searches refused as too complex; round four written
+01f360ff 2026-09-25 search: what the GUI discussion left for the GUI stream — the join in the reload park, the reload's per-tab cost in M5, a held corpus's memory as M7
+41c70048 2026-09-24 search record: routed at step 8's close — the ledger to the mold, the timings as tables, a hole's words to its commit
+ec024ceb 2026-09-24 search step 8: the sockets
+68b67521 2026-09-23 search record: step 7 — the totals table, its trial (M6), M3 at its build, the observations
+b5d62d92 2026-09-23 search step 7: the totals table as reference data, pseudo.total_res, dps and pdps
+890dca4d 2026-09-19 search: the requirements are one displayed row, each kept on its own beneath it — D4 and D5 ruled, D5 built
+c58728a6 2026-09-19 search: a template alone means the line, and the trade site's `+#` is spelling — H1 and H2 ruled and built
+fe9ca5f4 2026-09-19 search: the reference brought level with the build plan's rulings, before step 1
+f7ab0957 2026-09-18 legacy: brief for the research track the legacy park names as its trigger
+a5eafede 2026-09-16 Digest stage 1: agent-seat merged, S181–S200, and the acceptance set's agent half; all ten tracks in (brief c56404ca)
+736dfca9 2026-09-16 Digest stage 1: item-filter merged, S81–S95 (brief 7d7c8a32)
+6b6d0df2 2026-09-16 Search framing: the owner's stances, and SQL as a second language on the surface (notes 22, 23)
+93c3a63b 2026-09-14 engine-bench: the seat projection — ruled facts only, in a separate file, the timings untouched
+7677adcf 2026-09-13 item-filter: GGG's own predicate language, catalogued and joined to the other two namings
+7527d7e7 2026-09-13 Search: the housekeeping closed — every open question but the design session's answered
+576e3816 2026-09-13 repoe: the owner's rulings on Q5 and Q8, and the 32 twice-numbered stats written down for Q7
+45fc123c 2026-09-13 repoe: the first pass — the export's trade join measured, the hash experiment run as a join, the taxonomy generated
+2e2a4c07 2026-09-13 item-facts: the census — the item as GGG gives it, over both stores
+4c8364a1 2026-09-13 trade-query: the owner's seven searches close the open questions
+7269479a 2026-09-13 cpp-search: the owner's verdict on Q2 and Q3 — design bugs, not rules
+55d09601 2026-09-13 cpp-search: Q1 closed — crit and block property strings carry a trailing '%'
+47b1a199 2026-09-13 Search: the cpp-search track's first pass — the C++ app's search, catalogued
+e65cbb07 2026-09-12 Linux keyring: the Secret Service backend, a round-trip tripwire, a Linux gate
+112cffda 2026-09-09 brainstorming 18: round 3 — the five amendments of review round 2, two of them verified
+1c85cdcb 2026-09-07 pricing 6: Stash<n> is the tab's rank among the tabs the website lists (T24) — the folder takes no number; the site's attribute order
+423d39aa 2026-09-07 pricing 6: the owner's page shape, and two cells answered — no price posts (T21), the substash link is unobservable (T20)
+eed10233 2026-09-07 pricing 6: the slice record — step 6 ledgered, the render's three own choices and the C72 basis as observations, reading 2's asks
+13f50f9d 2026-09-07 pricing 6: `acq shop render` — the page set as a pure function of the listing state, every omission a counted cell
+d034713b 2026-09-06 pricing 4b review: an unreadable row leaves the effective price unresolved; counts name statements; show lists both item sets
+086f66f2 2026-09-06 decisions(pricing): C81 — the effective price: most specific wins, the game on a tie, only a public tab is a side; C67, C69, C74 amended
+25f99e4f 2026-09-06 pricing 4: the listing state is one pure function over the pricing snapshot; `acq price status | show | list`
+ee7d7bd7 2026-09-06 pricing 3: the game side of a listing is one pure function over a note or a tab name
+b960e364 2026-09-06 store: a backup is published by hard link only, each export with its own partial; an unstamped file with content is refused, not adopted
+d3a56507 2026-09-05 pricing 1: the owner reviewed the currency table — shorthand aliases with `browser:` evidence, C68 amended to "each cited", the alias count unpinned
+10ef2374 2026-09-04 pricing 1: the currency table v1 — the game's 39 words as tag and emit, 4 legacy aliases, 3 retired rows, shipped in the binary
+4adb9c7a 2026-09-03 docs(ground-truth): T1–T15 — the trade site's channels, the forum link code, the in-game price dialog, and what the API reports of listings
+0d9fee64 2026-09-03 pricing 2e: the forum-shop reading, the price-notes run, and the slice re-scoped to render-first
+51a33751 2026-09-03 pricing 2d: the currency source under C79 — the trade site registered, the v1 table drafted with a citation per row
+cdfd02cc 2026-09-03 pricing 2c: a read-only census of the owner's 0.18 userstore and the current facts — the local evidence for C67, C68, C73 and C74
+6bb2703f 2026-09-03 docs: pricing packet — discovery of price formats and precedence folded in; the packet reads as current state only
+57924acc 2026-09-03 docs: pricing packet revised against the external review — listing as two resolutions and a relation, typed targets, receipts, a census step
+054e2af0 2026-09-03 docs: the pricing design packet — candidate lines, the slice, the parking lot (brainstorming-notes 10)
+189eb856 2026-08-31 docs: brainstorming notes — GUI-to-CLI maps and agent-native redesigns
+fa74c5ef 2026-08-29 feat(spike): shared store crate, profile scope, retire pull
+ce8598b5 2026-08-15 docs(network): carry B3's boundary conventions in N31; narrow N32's dispatch mechanism
+5aadc6ca 2026-08-15 docs(network): transcribe rate-limit-core ground truth
+8d02796c 2026-08-15 spike(rate-limit-core): reopen SD-R7 on the external audit's findings
+cc73139a 2026-08-14 spike(rate-limit-core): draft the section 7.4 replacement-gate spec
+c9cf45d9 2026-08-12 spike(rate-limit-core): land the machine-checked clause registry
+86c60f94 2026-08-12 spike(rate-limit-core): amend M10, re-scope finding 11, mint CN6
+167c8ef9 2026-08-09 spike(rate-limit-core): D8 grammar and absolute wire bounds (review findings 3+4)
+3d4f8d9f 2026-08-09 spike(rate-limit-core): bootstrap-seeding rev 2 — global constant, no policy names
+d96933ea 2026-08-09 spike(rate-limit-core): reconcile component scope — spacing, fuse, HEAD all in
+ef47e658 2026-08-09 spike(rate-limit-core): reconcile shell shape — actor confirmed
+c9707b89 2026-08-08 docs(redesign): distill Auro's migration-order notes into a topic doc
+0ed5d98d 2026-08-08 Scaffold docs/redesign for ADR 0003 exploration

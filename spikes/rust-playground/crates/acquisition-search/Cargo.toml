@@ -2,6 +2,8 @@
 name = "acquisition-search"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
 
 [dependencies]
 # C89: the store, and the planner for the effective price a query reads

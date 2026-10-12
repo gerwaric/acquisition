@@ -2,6 +2,8 @@
 name = "acquisition-client"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
 
 # The client side of the daemon protocol (C1; DAEMON-SPLIT-SLICE.md step
 # 3): the IPC over tokio, the three policy doors of C10, the `acqd`

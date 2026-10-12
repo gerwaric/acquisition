@@ -1,0 +1,179 @@
+C++ files (non-Tom): 64   Rust files: 145
+C++ literals>=8: 1076  Rust: 7328   C++ comment shingles: 22631  Rust: 189181   C++ idents>=8: 2964  Rust: 5176
+
+=== A. shared string literals (len>=8), facts filtered ===
+  'Adds # to # Cold Damage to Spells'
+      C++ src/modlist.cpp:192
+      Rust spikes/rust-playground/crates/acquisition-search/tests/common/generated.rs:95
+  'Adds # to # Fire Damage to Spells'
+      C++ src/modlist.cpp:191
+      Rust spikes/rust-playground/crates/acquisition-search/tests/ranged.rs:1383
+  'Adds # to # Fire Damage'
+      C++ src/modlist.cpp:172
+      Rust spikes/rust-playground/crates/acquisition-search/tests/rows.rs:439
+  'Adds # to # Cold Damage'
+      C++ src/modlist.cpp:173
+      Rust spikes/rust-playground/crates/acquisition-search/tests/derive.rs:139
+  '+# to maximum Life'
+      C++ src/modlist.cpp:39
+      Rust spikes/rust-playground/crates/acquisition-search/tests/answer.rs:14
+  'Attacks per Second'
+      C++ src/item.cpp:582
+      Rust spikes/rust-playground/crates/acquisition-search/tests/pseudo.rs:61
+  'Elemental Damage'
+      C++ src/item.cpp:444
+      Rust spikes/rust-playground/crates/acquisition-search/tests/derive.rs:373
+  'Scroll of Wisdom'
+      C++ src/currencymanager.h:55
+      Rust spikes/rust-playground/crates/acquisition-search/tests/counts.rs:130
+  'Physical Damage'
+      C++ src/item.cpp:578
+      Rust spikes/rust-playground/crates/acquisition-search/tests/pseudo.rs:58
+  'Evasion Rating'
+      C++ src/search.cpp:80
+      Rust spikes/rust-playground/crates/acquisition-cli/tests/search_json.rs:1939
+  'Energy Shield'
+      C++ src/search.cpp:81
+      Rust spikes/rust-playground/crates/acquisition-cli/tests/search_json.rs:1940
+  '(Remove-only)'
+      C++ src/itemlocation.cpp:28
+      Rust spikes/rust-playground/crates/acquisition-plan/src/game_side.rs:556
+  'Chaos Damage'
+      C++ src/column.cpp:395
+      Rust spikes/rust-playground/crates/acquisition-search/tests/pseudo.rs:60
+  'Quest Items'
+      C++ src/item.cpp:24
+      Rust spikes/rust-playground/crates/acquisition-search/tests/seat_faults.rs:160
+  'UniqueStash'
+      C++ src/itemsmanagerworker.cpp:169
+      Rust spikes/rust-playground/crates/acquisition-plan/src/listing.rs:1646
+  '[/spoiler]'
+      C++ src/shop.cpp:455
+      Rust spikes/rust-playground/crates/acquisition-plan/src/shop.rs:2053
+  'Chaos Orb'
+      C++ src/currency.cpp:13
+      Rust spikes/rust-playground/crates/acquisition-store/src/lib.rs:3079
+  'QuadStash'
+      C++ src/itemlocation.cpp:104
+      Rust spikes/rust-playground/crates/acquisition-search/tests/seat_faults.rs:399
+  'no price'
+      C++ src/buyout.cpp:11
+      Rust spikes/rust-playground/crates/acquisition-plan/src/listing.rs:426
+  'MapStash'
+      C++ src/itemsmanagerworker.cpp:169
+      Rust spikes/rust-playground/crates/acquisition-store/src/lib.rs:2632
+  (14 shared literals filtered as GGG interface facts / JSON keys)
+   filtered: 'fracturedMods', 'explicitMods', 'implicitMods', 'enchantMods', 'craftedMods', 'BodyArmour', 'inventory', 'vestigial', 'equipment', 'fractured', 'Currency', 'Standard', 'currency', 'rucksack'
+
+=== B. shared 6-word comment shingles ===
+  total shared shingles: 0
+
+=== C. shared identifiers (normalized), rarest first, facts filtered ===
+  outstanding                      outstanding                      C++ src/itemsmanagerworker.cpp  Rust spikes/rust-playground/crates/acquisition-store/src/jobs.rs
+  constructor                      constructor                      C++ src/ui/logindialog.cpp  Rust spikes/rust-playground/crates/acquisition-search/src/tree.rs
+  Transform                        transform                        C++ src/column.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/auth.rs
+  debugging                        Debugging                        C++ src/shop.cpp  Rust spikes/rust-playground/crates/acquisition-cli/src/main.rs
+  interleave                       interleave                       C++ src/search.cpp  Rust spikes/rust-playground/crates/acquisition-store/src/lib.rs
+  precondition                     precondition                     C++ src/application.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/daemon.rs
+  instances                        instances                        C++ src/item.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/mockggg.rs
+  delivers                         delivers                         C++ src/ui/verticalscrollarea.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/daemon.rs
+  conflated                        conflated                        C++ src/search.h  Rust spikes/rust-playground/crates/acquisition-store/src/snapshot.rs
+  introduced                       introduced                       C++ src/application.cpp  Rust spikes/rust-playground/crates/acquisition-protocol/src/protocol.rs
+  specified                        specified                        C++ src/itemsmanager.cpp  Rust spikes/rust-playground/crates/acquisition-search/src/sockets.rs
+  detached                         detached                         C++ src/itemsmanagerworker.h  Rust spikes/rust-playground/crates/acquisition-store/src/lib.rs
+  ColdDamage                       cold_damage                      C++ src/ui/itemtooltiptext.cpp  Rust spikes/rust-playground/crates/acquisition-search/tests/pseudo.rs
+  throwing                         throwing                         C++ src/itemsmanagerworker.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/ratelimit.rs
+  supplied                         supplied                         C++ src/ui/mainwindow.cpp  Rust spikes/rust-playground/crates/acquisition-client/src/artifact.rs
+  materializing                    materializing                    C++ src/bucket.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/ratelimit.rs
+  December                         December                         C++ src/datastore/sqlitedatastore.cpp  Rust spikes/rust-playground/crates/acquisition-protocol/src/realm.rs
+  unsorted                         unsorted                         C++ src/items_model.cpp  Rust spikes/rust-playground/crates/acquisition-search/tests/next.rs
+  generous                         generous                         C++ src/buyoutmanager.cpp  Rust spikes/rust-playground/crates/acquisition-client/src/client.rs
+  references                       references                       C++ src/application.h  Rust spikes/rust-playground/crates/acquisition-store/src/lib.rs
+  indistinguishable                indistinguishable                C++ src/itemsmanagerworker.cpp  Rust spikes/rust-playground/crates/acquisition-cli/tests/realm_wire.rs
+  isVaalGem                        isVaalGem                        C++ src/item.cpp  Rust spikes/rust-playground/crates/acquisition-search/tests/derive.rs
+  publishing                       publishing                       C++ src/shop.cpp  Rust spikes/rust-playground/crates/acquisition-plan/src/shop.rs
+  repeating                        repeating                        C++ src/ui/verticalscrollarea.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/rails.rs
+  Unidentified                     unidentified                     C++ src/ui/itemtooltiptext.cpp  Rust spikes/rust-playground/crates/acquisition-search/src/derive.rs
+  unreleased                       unreleased                       C++ src/itemcategories.cpp  Rust spikes/rust-playground/crates/acquisition-search/tests/class.rs
+  filtering                        filtering                        C++ src/search.cpp  Rust spikes/rust-playground/crates/acquisition-search/tests/generated_routes.rs
+  separators                       separators                       C++ src/ui/itemtooltiptext.cpp  Rust spikes/rust-playground/crates/acquisition-store/src/world.rs
+  truthful                         truthful                         C++ src/itemsmanagerworker.cpp  Rust spikes/rust-playground/crates/acquisition-protocol/src/realm.rs
+  reproduces                       reproduces                       C++ src/search.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/mockggg.rs
+  baseTypeName                     baseTypeName                     C++ src/item.cpp  Rust spikes/rust-playground/crates/acquisition-search/tests/derive.rs
+  recursion                        recursion                        C++ src/itemsmanager.cpp  Rust spikes/rust-playground/crates/acquisition-search/src/tree.rs
+  deleting                         Deleting                         C++ src/ui/mainwindow.cpp  Rust spikes/rust-playground/crates/acquisition-store/src/annotations.rs
+  services                         Services                         C++ src/application.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/auth.rs
+  reachable                        reachable                        C++ src/search.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/mockggg.rs
+  derivable                        derivable                        C++ src/itemsmanager.cpp  Rust spikes/rust-playground/crates/acquisition-cli/src/plan_cmd.rs
+  breaking                         breaking                         C++ src/search.cpp  Rust spikes/rust-playground/crates/acquisition-store/src/annotations.rs
+  intermediate                     intermediate                     C++ src/shop.h  Rust spikes/rust-playground/crates/acquisition-search/src/exact.rs
+  underlying                       underlying                       C++ src/search.h  Rust spikes/rust-playground/crates/acquisition-search/src/template.rs
+  compression                      compression                      C++ src/buyoutmanager.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/daemon.rs
+  meaningless                      meaningless                      C++ src/main.cpp  Rust spikes/rust-playground/crates/acquisition-cli/src/main.rs
+  significant                      significant                      C++ src/buyout.cpp  Rust spikes/rust-playground/crates/acquisition-search/src/exact.rs
+  recognize                        recognize                        C++ src/itemsmanagerworker.cpp  Rust spikes/rust-playground/crates/acquisition-plan/src/lib.rs
+  pseudomods                       pseudomods                       C++ src/modlist.cpp  Rust spikes/rust-playground/crates/acquisition-search/src/totals.rs
+  inheritance                      inheritance                      C++ src/itemsmanager.cpp  Rust spikes/rust-playground/crates/acquisition-plan/src/listing.rs
+  dynamically                      dynamically                      C++ src/itemsmanagerworker.h  Rust spikes/rust-playground/crates/acquisition-plan/src/lib.rs
+  maintenance                      maintenance                      C++ src/bucket.h  Rust spikes/rust-playground/crates/acquisition-store/src/snapshot.rs
+  separator                        separator                        C++ src/imagecache.cpp  Rust spikes/rust-playground/crates/acquisition-search/src/derive.rs
+  advanced                         advanced                         C++ src/ui/logindialog.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/ratelimit.rs
+  afterward                        afterward                        C++ src/ui/mainwindow.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/daemon.rs
+  exported                         exported                         C++ src/ui/mainwindow.cpp  Rust spikes/rust-playground/crates/acquisition-search/src/class.rs
+  itemtooltiptext                  itemtooltiptext                  C++ src/ui/itemtooltiptext.cpp  Rust spikes/rust-playground/crates/acquisition-search/src/derive.rs
+  mirroring                        mirroring                        C++ src/itemsmanager.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/mockggg.rs
+  payloads                         Payloads                         C++ src/itemsmanagerworker.h  Rust spikes/rust-playground/crates/acquisition-mcp/src/main.rs
+  interprets                       interprets                       C++ src/itemsmanagerworker.h  Rust spikes/rust-playground/crates/acquisition-daemon/src/ratelimit.rs
+  correctly                        correctly                        C++ src/search.h  Rust spikes/rust-playground/crates/acquisition-client/src/client.rs
+  additional                       additional                       C++ src/modlist.cpp  Rust spikes/rust-playground/crates/acquisition-search/tests/derive.rs
+  unsupported                      Unsupported                      C++ src/item.cpp  Rust spikes/rust-playground/crates/acquisition-store/src/annotations.rs
+  changing                         Changing                         C++ src/search.cpp  Rust spikes/rust-playground/crates/acquisition-cli/src/plan_cmd.rs
+  consults                         consults                         C++ src/bucket.h  Rust spikes/rust-playground/crates/acquisition-daemon/src/ratelimit.rs
+  transfigured                     transfigured                     C++ src/item.cpp  Rust spikes/rust-playground/crates/acquisition-search/tests/class.rs
+  Regeneration                     regeneration                     C++ src/modlist.cpp  Rust spikes/rust-playground/crates/acquisition-search/tests/pseudo.rs
+  schedules                        schedules                        C++ src/itemsmanagerworker.h  Rust spikes/rust-playground/crates/acquisition-protocol/src/protocol.rs
+  restarted                        restarted                        C++ src/ui/logindialog.cpp  Rust spikes/rust-playground/crates/acquisition-store/src/lib.rs
+  receives                         receives                         C++ src/ui/mainwindow.cpp  Rust spikes/rust-playground/crates/acquisition-store/src/annotations.rs
+  removing                         Removing                         C++ src/search.h  Rust spikes/rust-playground/crates/acquisition-daemon/src/daemon.rs
+  colliding                        colliding                        C++ src/search.cpp  Rust spikes/rust-playground/crates/acquisition-protocol/src/realm.rs
+  unfetched                        unfetched                        C++ src/itemsmanagerworker.cpp  Rust spikes/rust-playground/crates/acquisition-cli/src/store_cmd.rs
+  consistency                      consistency                      C++ src/itemsmanagerworker.cpp  Rust spikes/rust-playground/crates/acquisition-cli/tests/price_story.rs
+  migrating                        migrating                        C++ src/itemsmanager.cpp  Rust spikes/rust-playground/crates/acquisition-client/src/client.rs
+  unauthenticated                  Unauthenticated                  C++ src/shop.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/ratelimit.rs
+  entering                         entering                         C++ src/ui/verticalscrollarea.h  Rust spikes/rust-playground/crates/acquisition-daemon/src/rails.rs
+  Preferred                        preferred                        C++ src/ui/mainwindow.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/gate.rs
+  Prefixes                         prefixes                         C++ src/modlist.cpp  Rust spikes/rust-playground/crates/acquisition-search/src/class.rs
+  containing                       containing                       C++ src/ui/mainwindow.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/ratelimit.rs
+  iteration                        iteration                        C++ src/itemsmanagerworker.cpp  Rust spikes/rust-playground/crates/acquisition-daemon/src/ratelimit.rs
+  evaluates                        evaluates                        C++ src/application.cpp  Rust spikes/rust-playground/crates/acquisition-mcp/src/main.rs
+  substring                        substring                        C++ src/itemsmanagerworker.cpp  Rust spikes/rust-playground/crates/acquisition-store/src/lib.rs
+  notation                         notation                         C++ src/buyout.cpp  Rust spikes/rust-playground/crates/acquisition-search/tests/language.rs
+  lifecycle                        lifecycle                        C++ src/itemsmanagerworker.h  Rust spikes/rust-playground/crates/acquisition-cli/src/main.rs
+  total shared identifiers: 421 (of 643 before fact filter)
+
+=== D. exposure per C++ file (literal + shingle + ident hits) ===
+    97  src/itemsmanagerworker.cpp
+    38  src/modlist.cpp
+    37  src/item.cpp
+    37  src/search.cpp
+    34  src/bucket.cpp
+    30  src/shop.cpp
+    17  src/ui/mainwindow.cpp
+    17  src/buyoutmanager.cpp
+    16  src/itemsmanagerworker.h
+    14  src/ui/logindialog.cpp
+    12  src/itemsmanager.cpp
+    11  src/itemlocation.cpp
+    11  src/items_model.cpp
+    10  src/column.cpp
+    10  src/application.cpp
+     9  src/search.h
+     9  src/bucket.h
+     7  src/item.h
+     6  src/buyout.cpp
+     5  src/ui/verticalscrollarea.cpp
+     5  src/ui/itemtooltiptext.cpp
+     5  src/datastore/sqlitedatastore.cpp
+     4  src/currencymanager.h
+     4  src/shop.h
+     4  src/main.cpp
