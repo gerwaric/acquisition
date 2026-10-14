@@ -517,10 +517,10 @@ void MainWindow::InitializeUi()
     // Help menu
     connect(ui->actionOpenUserGuide, &QAction::triggered, this, [] {
         QDesktopServices::openUrl(
-            QUrl("https://github.com/gerwaric/acquisition/blob/master/docs/user/README.md"));
+            QUrl("https://github.com/smallcatlabs/acquisition-qt/blob/master/docs/user/README.md"));
     });
     connect(ui->actionReportIssue, &QAction::triggered, this, [] {
-        QDesktopServices::openUrl(QUrl("https://github.com/gerwaric/acquisition/issues"));
+        QDesktopServices::openUrl(QUrl("https://github.com/smallcatlabs/acquisition-qt/issues"));
     });
 
     // Connect the Tooltip tab buttons

@@ -3,7 +3,7 @@
 ## Installing
 
 Download a package for Windows, macOS, or Linux from the
-[releases page](https://github.com/gerwaric/acquisition/releases). On Windows the
+[releases page](https://github.com/smallcatlabs/acquisition-qt/releases). On Windows the
 installer will update the Microsoft Visual C++ runtime and may need a reboot. To
 build from source, see [BUILD.md](../../BUILD.md).
 

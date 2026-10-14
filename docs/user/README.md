@@ -33,7 +33,7 @@ Acquisition is neither affiliated with nor endorsed by Grinding Gear Games.
 
 ## Getting help
 
-- Issues: <https://github.com/gerwaric/acquisition/issues>
+- Issues: <https://github.com/smallcatlabs/acquisition-qt/issues>
 - Discord: `gerwaric`
 
 ## A note on this guide

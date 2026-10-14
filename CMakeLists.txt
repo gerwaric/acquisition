@@ -11,7 +11,7 @@ cmake_minimum_required(VERSION 3.24)
 project(acquisition
     VERSION 0.18.6
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
-    HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
+    HOMEPAGE_URL "https://github.com/smallcatlabs/acquisition-qt"
     LANGUAGES CXX
 )
 
