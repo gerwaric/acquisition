@@ -83,19 +83,15 @@ when this map and a header disagree, the header wins.
   the forum link code, the in-game price dialog's vocabulary and note
   shapes, and what the API reports of it. The Rust spike's pricing
   rulings cite these.
-- `adr/0003-rewrite-vs-evolve.md` — **proposed** (August 2026): should
-  the core and UI be evolved in place or rewritten on a new stack?
-  Exploration lives on the `redesign` branch in `docs/redesign/`;
-  until the ADR is accepted, the frozen specs above remain full
-  authority and `master` work continues normally.
-- `../spikes/rust-playground/` (branch `spikes/rust-playground`) — the
-  Rust daemon/CLI spike feeding ADR 0003: `CONTEXT.md` is its agent
-  working memory (invariants, decisions, open topics) and its
-  `README.md` explains the mock-by-default and `ACQ_GGG=1` modes.
-  The spike's network cleanup (N0–N6) closed August 22, 2026;
-  `NETWORK-CLEANUP.md` is the short closed record. Ground-truth
-  claims the spike established (N31–N33) live in
-  `design/network-ground-truth.md`, not in the spike.
+- `adr/0003-rewrite-vs-evolve.md` — **accepted** (October 2026): the Rust
+  implementation ships as Acquisition's agent surface by PoE2 1.0, the
+  GUI to follow. This repository is the Qt application, maintained; the
+  frozen specs above remain full authority for work here.
+- <https://github.com/smallcatlabs/acquisition> — the Rust implementation,
+  once the `spikes/rust-playground` branch here; its history continues
+  there from the tag `playground-end`, and its `CONTEXT.md` is its decision
+  registry. Ground-truth claims are authored there now and copied here:
+  the two ledgers above are the copies.
 - `cleanup/findings.md` — project-wide register of design/correctness
   findings (F1, F2, …): open findings, standing constraints, and a
   resolved ledger. The `cleanup/` path is historical — the register
