@@ -77,4 +77,4 @@ options from the login window and the menus.
 
 ## Getting help
 
-The best place to look or ask is [GitHub Issues](https://github.com/gerwaric/acquisition/issues).
+The best place to look or ask is [GitHub Issues](https://github.com/smallcatlabs/acquisition-qt/issues).
